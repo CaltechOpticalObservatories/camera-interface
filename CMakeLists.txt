@@ -2,18 +2,16 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
 PROJECT(archon-interface)
 
-SET(INTERFACE_TYPE "PCIe")  # valid types are "PCIe" or "PCI"
-
 SET(PROJECT_BASE_DIR $ENV{HOME}/archon-interface)
 SET(PROJECT_SOURCE_DIR ${PROJECT_BASE_DIR}/src)
 SET(PROJECT_INCL_DIR ${PROJECT_BASE_DIR}/include)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 
-FIND_PATH(ARCHON_INCLUDE archon-interface.h PATHS ${PROJECT_INCL_DIR})
+FIND_PATH(ARCHON_INCLUDE server.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(LOGENTRY_INCLUDE logentry.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(TCPLINUX_INCLUDE tcplinux.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(FITS_INCLUDE fits.h PATHS ${PROJECT_INCL_DIR})
+#FIND_PATH(FITS_INCLUDE fits.h PATHS ${PROJECT_INCL_DIR})
 
 FIND_PACKAGE(Threads)
 
@@ -26,17 +24,21 @@ INCLUDE_DIRECTORIES(
 ADD_DEFINITIONS( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 )
 
 SET(COMMON_HEADERS
-        ${ARCHON_INCLUDE}/arcserv.h
+        ${ARCHON_INCLUDE}/server.h
         ${LOGENTRY_INCLUDE}/logentry.h
         ${TCPLINUX_INCLUDE}/tcplinux.h
-        ${FITS_INCLUDE}/fits.h
+#        ${FITS_INCLUDE}/fits.h
         )
 
 ADD_EXECUTABLE(archonserver 
-        ${PROJECT_SOURCE_DIR}/archon.cpp 
+        ${PROJECT_SOURCE_DIR}/server.cpp 
         ${PROJECT_SOURCE_DIR}/tcplinux.c 
         ${PROJECT_SOURCE_DIR}/logentry.c
         ${COMMON_HEADERS}
+        )
+
+TARGET_LINK_LIBRARIES(archonserver
+        ${CMAKE_THREAD_LIBS_INIT}
         )
 
 SET(CMAKE_C_COMPILER /usr/bin/g++)

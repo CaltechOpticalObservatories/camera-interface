@@ -5,14 +5,21 @@
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <algorithm>
+
 #include "build_date.h"
 #include "tcplinux.h"
 #include "logentry.h"
+#include "server.h"
 #include <thread>
 
 #define  N_THREADS    10
-#define  NBPORT       2157
-#define  BLKPORT      2158
+#define  BUFSIZE      1024  //!<
+#define  NBPORT       3030
+#define  BLKPORT      3031
 #define  CONN_TIMEOUT 3000  //<! incoming (non-blocking) connection timeout in milliseconds
 
 namespace Archon {
@@ -29,7 +36,7 @@ namespace Archon {
   }
 }
 
-Archon::Server arcserv;
+Archon::Server server;
 
 /** signal_handler ***********************************************************/
 /**
@@ -43,13 +50,13 @@ void signal_handler(int signo) {
   switch (signo) {
     case SIGINT:
       Logf("(Archon::signal_handler) received INT\n");
-      arcserv.exit_cleanly();
+      server.exit_cleanly();
       break;
     case SIGPIPE:
       Logf("(Archon::signal_handler) caught SIGPIPE\n");
       break;
     default:
-      arcserv.exit_cleanly();
+      server.exit_cleanly();
       break;
   }
   return;
@@ -76,12 +83,12 @@ int main(int argc, char **argv) {
   signal(SIGINT, signal_handler);
   signal(SIGPIPE, signal_handler);
 
-  initlogentry("arcserv");
+  initlogentry("archon");
 
   Logf("(Archon::main) this version built %s %s\n", BUILD_DATE, BUILD_TIME);
 
-  arcserv.nonblocking_socket = tcp_listen(NBPORT);   // initialize non-blocking TCP socket
-  arcserv.blocking_socket = tcp_listen(BLKPORT);     // initialize blocking TCP socket
+  server.nonblocking_socket = tcp_listen(NBPORT);    // initialize non-blocking TCP socket
+  server.blocking_socket = tcp_listen(BLKPORT);      // initialize blocking TCP socket
   
   // spawn thread for blocking port, detached from the main thread.
   // this will be thread_num = 0 and the non-blocking threads will
@@ -128,18 +135,18 @@ void block_main(int threadnum) {
 
   while(1) {
     len=sizeof(cliaddr);
-    connfd=accept(arcserv.blocking_socket,(struct sockaddr *) &cliaddr, &len);
+    connfd=accept(server.blocking_socket,(struct sockaddr *) &cliaddr, &len);
 
-    sprintf(arcserv.conndata[threadnum].cliaddr_str, "%s",
+    sprintf(server.conndata[threadnum].cliaddr_str, "%s",
             inet_ntop(AF_INET, &cliaddr.sin_addr, buff, sizeof(buff)));
 
-    arcserv.conndata[threadnum].cliport    = ntohs(cliaddr.sin_port);
-    arcserv.conndata[threadnum].connfd     = connfd;
-    arcserv.conndata[threadnum].port_type  = arcserv.BLOCK;
+    server.conndata[threadnum].cliport    = ntohs(cliaddr.sin_port);
+    server.conndata[threadnum].connfd     = connfd;
+    server.conndata[threadnum].port_type  = server.BLOCK;
 
     doit(threadnum);                         // call function to do the work
 
-    close(arcserv.conndata[threadnum].connfd);
+    close(server.conndata[threadnum].connfd);
   }
   return ;
 }
@@ -168,21 +175,21 @@ void thread_main(int threadnum) {
   char               buff[1024];
 
   while(1) {
-    arcserv.conn_mutex.lock();
+    server.conn_mutex.lock();
 
-    connfd = accept(arcserv.nonblocking_socket, (struct sockaddr *) &cliaddr, &len);
+    connfd = accept(server.nonblocking_socket, (struct sockaddr *) &cliaddr, &len);
 
-    arcserv.conndata[threadnum].cliport    = ntohs(cliaddr.sin_port);
-    arcserv.conndata[threadnum].connfd     = connfd;
-    arcserv.conndata[threadnum].port_type  = arcserv.NONBLOCK;
-    sprintf(arcserv.conndata[threadnum].cliaddr_str, "%s", 
+    server.conndata[threadnum].cliport    = ntohs(cliaddr.sin_port);
+    server.conndata[threadnum].connfd     = connfd;
+    server.conndata[threadnum].port_type  = server.NONBLOCK;
+    sprintf(server.conndata[threadnum].cliaddr_str, "%s", 
             inet_ntop(AF_INET, &cliaddr.sin_addr, buff, sizeof(buff)));
 
-    arcserv.conn_mutex.unlock();
+    server.conn_mutex.unlock();
 
     doit(threadnum);                         // call function to do the work
 
-    close(arcserv.conndata[threadnum].connfd);
+    close(server.conndata[threadnum].connfd);
   }
   return;
 }
@@ -218,10 +225,10 @@ void doit(int threadnum) {
     memset(buf,  '\0', BUFSIZE);  // init buffers
     args=buf;
 
-    if ( Poll(arcserv.conndata[threadnum].connfd, 
-             (arcserv.conndata[threadnum].port_type==arcserv.NONBLOCK) ? CONN_TIMEOUT : -1) <= 0 ) 
+    if ( Poll(server.conndata[threadnum].connfd, 
+             (server.conndata[threadnum].port_type==server.NONBLOCK) ? CONN_TIMEOUT : -1) <= 0 ) 
       break;
-    if ( read(arcserv.conndata[threadnum].connfd, buf, (size_t)BUFSIZE) <= 0 )
+    if ( read(server.conndata[threadnum].connfd, buf, (size_t)BUFSIZE) <= 0 )
       break;                      // close connection -- this probably means that
                                   // the client has terminated abnormally, having
                                   // sent FIN but not stuck around long enough
@@ -251,49 +258,50 @@ void doit(int threadnum) {
     /**
      * process commands here
      */
+/*
     if (MATCH(buf, "exit")) {
-                    arcserv.exit_cleanly();
+                    server.exit_cleanly();
                     }
     else
     if (MATCH(buf, "open")) {
-                    if (!arcserv.is_driver_open()) {       // API should, but can't handle two opens
-                      if ( arcserv.open_driver(argstr) == ARC_STATUS_ERROR ) {
-                        arcserv.log_last_error();
+                    if (!server.is_driver_open()) {       // API should, but can't handle two opens
+                      if ( server.open_driver(argstr) == ARC_STATUS_ERROR ) {
+                        server.log_last_error();
                       }
                     }
-                    if ( arcserv.is_driver_open() ) ret=0; else ret=1;  // return 0 if open, 1 otherwise
+                    if ( server.is_driver_open() ) ret=0; else ret=1;  // return 0 if open, 1 otherwise
                     }
     else
     if (MATCH(buf, "isopen")) {
-                    ret = arcserv.is_driver_open();
+                    ret = server.is_driver_open();
                     }
     else
     if (MATCH(buf, "close")) {
-                    ret = arcserv.close_driver();
+                    ret = server.close_driver();
                     }
     else
     if (MATCH(buf, "load")) {
-                    ret = arcserv.load_file(argstr);
+                    ret = server.load_file(argstr);
                     }
     else
     if (MATCH(buf, "setup")) {
-                    ret = arcserv.setup_controller(argstr);
+                    ret = server.setup_controller(argstr);
                     }
     else
     if (MATCH(buf, "expose")) {
-                    ret = arcserv.start_exposure();
+                    ret = server.start_exposure();
                     }
     else
     if (MATCH(buf, "clear_fitskeys")) {
-                    ret = arcserv.fitskey.clear_fitskeys();
+                    ret = server.fitskey.clear_fitskeys();
                     }
     else
     if (MATCH(buf, "get")) {
-                    ret = arcserv.get_param(paramname);
+                    ret = server.get_param(paramname);
                     }
     else
     if (MATCH(buf, "set")) {
-                    ret = arcserv.set_param(paramname);
+                    ret = server.set_param(paramname);
                     }
     else {
       // convert buf to std::string and remove any newline and carriage returns
@@ -308,7 +316,7 @@ void doit(int threadnum) {
           continue;
         }
         for (i=0; i<3; i++) bufstr.at(i)=toupper(bufstr.at(i));
-        ret = arcserv.command(bufstr);
+        ret = server.command(bufstr);
         }
       catch ( std::runtime_error &e ) {
         std::stringstream errstr; errstr << e.what();
@@ -325,21 +333,22 @@ void doit(int threadnum) {
 
     snprintf(retstr, sizeof(retstr), "%ld\n", ret);
 
-    if (sock_rbputs(arcserv.conndata[threadnum].connfd, retstr)<0) connection_open=false;
+*/
+    if (sock_rbputs(server.conndata[threadnum].connfd, retstr)<0) connection_open=false;
 
     // non-blocking connection exits immediately.
     // keep blocking connection open for interactive session.
     // 
-    if (arcserv.conndata[threadnum].port_type == arcserv.NONBLOCK) break;
+    if (server.conndata[threadnum].port_type == server.NONBLOCK) break;
 
     /**
      * write back a character indicating success or error
-    if (err) { if (sock_rbputs(arcserv.conndata[threadnum].connfd,"? \0")<0) conn=0; }
-    else     { if (sock_rbputs(arcserv.conndata[threadnum].connfd,"# \0")<0) conn=0; }
+    if (err) { if (sock_rbputs(server.conndata[threadnum].connfd,"? \0")<0) conn=0; }
+    else     { if (sock_rbputs(server.conndata[threadnum].connfd,"# \0")<0) conn=0; }
      */
   }
 
-  close(arcserv.conndata[threadnum].connfd);
+  close(server.conndata[threadnum].connfd);
   return;
 }
 /** doit *********************************************************************/
