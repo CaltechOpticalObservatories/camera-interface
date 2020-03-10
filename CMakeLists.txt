@@ -11,6 +11,8 @@ SET(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 FIND_PATH(ARCHON_INCLUDE server.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(LOGENTRY_INCLUDE logentry.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(TCPLINUX_INCLUDE tcplinux.h PATHS ${PROJECT_INCL_DIR})
+FIND_PATH(COMMON_INCLUDE common.h PATHS ${PROJECT_INCL_DIR})
+FIND_PATH(ARCHON_INCLUDE archon.h PATHS ${PROJECT_INCL_DIR})
 #FIND_PATH(FITS_INCLUDE fits.h PATHS ${PROJECT_INCL_DIR})
 
 FIND_PACKAGE(Threads)
@@ -27,11 +29,15 @@ SET(COMMON_HEADERS
         ${ARCHON_INCLUDE}/server.h
         ${LOGENTRY_INCLUDE}/logentry.h
         ${TCPLINUX_INCLUDE}/tcplinux.h
+        ${COMMON_INCLUDE}/common.h
+        ${ARCHON_INCLUDE}/archon.h
 #        ${FITS_INCLUDE}/fits.h
         )
 
 ADD_EXECUTABLE(archonserver 
         ${PROJECT_SOURCE_DIR}/server.cpp 
+        ${PROJECT_SOURCE_DIR}/common.cpp
+        ${PROJECT_SOURCE_DIR}/archon.cpp
         ${PROJECT_SOURCE_DIR}/tcplinux.c 
         ${PROJECT_SOURCE_DIR}/logentry.c
         ${COMMON_HEADERS}

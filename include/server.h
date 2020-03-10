@@ -15,6 +15,8 @@
 #include <mutex>
 #include <thread>
 
+#include "archon.h"
+
 #define MATCH(buf1, buf2) (!strncasecmp(buf1, buf2, strlen(buf2)))
 
 #define STRIPCOMMAND(destbuf, sourcebuf) do { \
@@ -33,7 +35,7 @@
 
 namespace Archon {
 
-  class Server {
+  class Server : public Archon::Interface {
     private:
     public:
       Server() { }
@@ -58,6 +60,7 @@ namespace Archon {
       std::mutex conn_mutex;
 
       void exit_cleanly(void);
+
   };
 }
 #endif

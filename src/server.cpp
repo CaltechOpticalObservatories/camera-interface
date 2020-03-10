@@ -14,6 +14,7 @@
 #include "tcplinux.h"
 #include "logentry.h"
 #include "server.h"
+#include "common.h"
 #include <thread>
 
 #define  N_THREADS    10
@@ -258,19 +259,22 @@ void doit(int threadnum) {
     /**
      * process commands here
      */
-/*
     if (MATCH(buf, "exit")) {
                     server.exit_cleanly();
                     }
     else
     if (MATCH(buf, "open")) {
+                    server.connect_to_controller();
+                    }
+/*
                     if (!server.is_driver_open()) {       // API should, but can't handle two opens
                       if ( server.open_driver(argstr) == ARC_STATUS_ERROR ) {
                         server.log_last_error();
                       }
                     }
                     if ( server.is_driver_open() ) ret=0; else ret=1;  // return 0 if open, 1 otherwise
-                    }
+*/
+/*
     else
     if (MATCH(buf, "isopen")) {
                     ret = server.is_driver_open();
