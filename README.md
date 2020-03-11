@@ -24,7 +24,7 @@ Build instructions.
 
  - run the program,
 
-   % ../bin/archon-interface
+   % ../bin/archonserver
 
 ---
 

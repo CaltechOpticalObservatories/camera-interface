@@ -266,6 +266,10 @@ void doit(int threadnum) {
     if (MATCH(buf, "open")) {
                     server.connect_to_controller();
                     }
+    else
+    if (MATCH(cmd, "prim")) {
+                    server.archon_cmd(paramname);
+                    }
 /*
                     if (!server.is_driver_open()) {       // API should, but can't handle two opens
                       if ( server.open_driver(argstr) == ARC_STATUS_ERROR ) {

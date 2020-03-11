@@ -21,6 +21,7 @@
  */
 
 #include "tcplinux.h"
+#include "logentry.h"
 
 /** ---------------------------------------------------------------------------
  * @fn     int tcp_listen()
@@ -42,7 +43,7 @@ int tcp_listen(int port)
    * get file descriptor for listening socket
    *
    */
-  if ( (sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == ERROR)
+  if ( (sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == TCP_ERROR)
     {
     fprintf(stderr, "tcp_listen: error %d creating socket: %s\n", errno,
                     strerror(errno));
@@ -123,7 +124,7 @@ int Tcp_listen(const char *host, const char *serv, socklen_t *addrlenp)
 
   if (res == NULL) fprintf(stderr, "tcp listen error for %s, %s", host, serv);
 
-  if (listen(listenfd, LISTENQ)==ERROR) perror("listen");
+  if (listen(listenfd, LISTENQ)==TCP_ERROR) perror("listen");
 
   if (addrlenp)
     *addrlenp = res->ai_addrlen;
@@ -147,7 +148,7 @@ int connect_to_server(char *host, int port)
   struct hostent     *hostPtr=NULL;
   int  sockfd, flags;
 
-  if ( (sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == ERROR)
+  if ( (sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == TCP_ERROR)
     {
     fprintf(stderr, "connect_to_server: error %d creating socket: %s\n",
                      errno, strerror(errno));
@@ -165,7 +166,7 @@ int connect_to_server(char *host, int port)
   servaddr.sin_port   = htons(port);
   (void) memcpy(&servaddr.sin_addr, hostPtr->h_addr, hostPtr->h_length);
 
-  if ( (connect(sockfd,(struct sockaddr *)&servaddr,sizeof(servaddr)))==ERROR)
+  if ( (connect(sockfd,(struct sockaddr *)&servaddr,sizeof(servaddr)))==TCP_ERROR)
     {
     fprintf(stderr, "connect_to_server: error %d:%s connecting to %s:%d\n",
                     errno, strerror(errno), host, port);
@@ -249,10 +250,9 @@ int sock_rbputs(int sockfd, char *str)
  * @see    sock_write()
  *
  */
-int sock_puts(int sockfd, char *str)
-  {
-  return sock_write(sockfd, str, strlen(str));
-  }
+int sock_puts(int sockfd, char *str) {
+  return sock_write(sockfd, str);
+}
 
 /** ---------------------------------------------------------------------------
  * @fn     sock_gets(sockfd, str, count)
@@ -289,18 +289,20 @@ printf("buf=%x\n",buf);
   }
 
 /** ---------------------------------------------------------------------------
- * @fn     sock_write(sockfd, *buf, count)
+ * @fn     sock_write(sockfd, *buf)
  * @brief  writes data to a socket
  * @param  sockfd an open socket file descriptor
  * @param *buf pointer to a buffer containing data
- * @param  count number of bytes in buffer to write
  * @return int number of bytes written to socket
  *
  */
-int sock_write(int sockfd, char *buf, size_t count)
-  {
-  size_t bytes_sent = 0;
+int sock_write(int sockfd, char *buf) {
+  size_t bytes_sent;
+  size_t count;
   int    this_write;
+
+  bytes_sent = 0;
+  count      = strlen(buf);
 
   while (bytes_sent < count) {
     do
@@ -309,9 +311,9 @@ int sock_write(int sockfd, char *buf, size_t count)
     if (this_write <= 0) return this_write;
     bytes_sent += this_write;
     buf += this_write;
-    }
-  return count;
   }
+  return count;
+}
 
 /** ---------------------------------------------------------------------------
  * @fn     Accept(fd, *sa, *slptr)

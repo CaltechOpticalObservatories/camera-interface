@@ -6,6 +6,8 @@
  * @modified 2010-05-14
  * 
  */
+#ifndef TCPLINUX_H
+#define TCPLINUX_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,9 +41,10 @@
 #define _BSD_SOURCE          /*!< provides prototype for wait3() and friends */
 #endif
 
-#ifndef  ERROR
-#define  ERROR        -1
+#ifndef  TCP_ERROR
+#define  TCP_ERROR    -1
 #endif
+
 #define  LISTENQ       64              /*!< listen(3n) backlog */
 #ifndef  ENDCHAR
 #define  ENDCHAR       '\0'
@@ -57,7 +60,9 @@ int  connect_to_server(char *host, int port);
 int  sock_puts(int sockfd, char *str);
 int  sock_rbputs(int sockfd, char *str);
 size_t sock_gets(int sockfd, char *str, size_t count);
-int  sock_write(int sockfd, char *buf, size_t count);
+int  sock_write(int sockfd, char *buf);
 void ignore_sigpipe(void);
 int  get_connection(int socket_type, unsigned short port, int *listener);
 int  atoport(char *service, char *proto);
+
+#endif

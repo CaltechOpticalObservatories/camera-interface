@@ -12,6 +12,12 @@
 #include <vector>
 #include <mutex>
 
+const long ERROR = 0;
+const long NO_ERROR = 1;
+
+// handy snprintf shortcut
+#define SNPRINTF(VAR, ...) { snprintf(VAR, sizeof(VAR), __VA_ARGS__); }
+
 namespace Common {
 
   class Utilities {
