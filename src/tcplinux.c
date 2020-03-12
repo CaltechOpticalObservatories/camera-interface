@@ -142,53 +142,48 @@ int Tcp_listen(const char *host, const char *serv, socklen_t *addrlenp)
  * @returns int file descriptor, or -1 on error
  *
  */
-int connect_to_server(char *host, int port)
-  {
+int connect_to_server(const char *host, int port) {
   struct sockaddr_in  servaddr;
   struct hostent     *hostPtr=NULL;
   int  sockfd, flags;
 
-  if ( (sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == TCP_ERROR)
-    {
+  if ( (sockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1 ) {
     fprintf(stderr, "connect_to_server: error %d creating socket: %s\n",
                      errno, strerror(errno));
     return(-1);
-    }
+  }
 
-  if ((hostPtr=gethostbyname(host))==NULL)
-    if ((hostPtr=gethostbyaddr(host, strlen(host), AF_INET))==NULL)
-      {
+  if ( (hostPtr=gethostbyname(host)) == NULL ) {
+    if ( (hostPtr=gethostbyaddr(host, strlen(host), AF_INET)) == NULL ) {
       fprintf(stderr, "error resolving host %s\n", host);
       return(-1);
-      }
+    }
+  }
 
   servaddr.sin_family = AF_INET;
   servaddr.sin_port   = htons(port);
   (void) memcpy(&servaddr.sin_addr, hostPtr->h_addr, hostPtr->h_length);
 
-  if ( (connect(sockfd,(struct sockaddr *)&servaddr,sizeof(servaddr)))==TCP_ERROR)
-    {
+  if ( (connect(sockfd,(struct sockaddr *)&servaddr,sizeof(servaddr))) == -1 ) {
     fprintf(stderr, "connect_to_server: error %d:%s connecting to %s:%d\n",
                     errno, strerror(errno), host, port);
     return(-1);
-    }
+  }
 
-  if ((flags = fcntl(sockfd, F_GETFL, 0)) < 0)
-    {
+  if ((flags = fcntl(sockfd, F_GETFL, 0)) < 0) {
     fprintf(stderr, "F_GETFL error\n");
     return(-1);
-    }
+  }
 
   flags |= O_NONBLOCK;
 
-  if (fcntl(sockfd, F_SETFL, flags) < 0)
-    {
+  if (fcntl(sockfd, F_SETFL, flags) < 0) {
     fprintf(stderr, "F_SETFL error\n");
     return(-1);
-    }
+  }
 
   return(sockfd);
-  }
+}
 
 /** ---------------------------------------------------------------------------
  * @fn     Poll(fd, to)

@@ -43,6 +43,7 @@ namespace Common {
   }
   /** Common::Utilities::parse_val ********************************************/
 
+
   /** Common::Utilities::Tokenize *********************************************/
   /**
    * @fn     Tokenize
@@ -103,5 +104,79 @@ namespace Common {
     return(tokens.size());
   }
   /** Common::Utilities::Tokenize *********************************************/
+
+
+  /** Common::Utilities::chrrep ***********************************************/
+  /**
+   * @fn     chrrep
+   * @brief  replace one character within a string with a new character
+   * @param  str     pointer to string
+   * @param  oldchr  the old character to replace in the string
+   * @param  newchr  the replacement value
+   * @return none
+   *
+   * This function modifies the original string pointed to by *str.
+   *
+   */
+  void Utilities::chrrep(char *str, char oldchr, char newchr) {
+    char *p = str;
+    int   i=0;
+    while ( *p ) {
+      if (*p == oldchr) {
+        /**
+         * special case for DEL character. move string over by one char
+         */
+        if (newchr == 127) {    // if newchr==DEL copy memory after that chr
+          memmove(&str[i], &str[i+1], strlen(str)-i);
+        }
+        else {                  // otherwise just replace chr
+          *p = newchr;
+        }
+      }
+      ++p; i++;                 // increment pointer and byte counter
+    }
+  }
+  /** Common::Utilities::chrrep ***********************************************/
+
+
+  /** Common::Utilities::get_keytype ******************************************/
+  /**
+   * @fn     get_keytype
+   * @brief  
+   * @param  
+   * @return 
+   *
+   */
+  int Utilities::get_keytype(std::string keyvalue) {
+    std::size_t pos(0);
+
+    // skip the whitespaces
+    pos = keyvalue.find_first_not_of(' ');
+    if (pos == keyvalue.size()) return TYPE_STRING;             // all spaces, so it's a string
+
+    // check the significand
+    if (keyvalue[pos] == '+' || keyvalue[pos] == '-') ++pos;    // skip the sign if exist
+
+    int n_nm, n_pt;
+    for (n_nm = 0, n_pt = 0; std::isdigit(keyvalue[pos]) || keyvalue[pos] == '.'; ++pos) {
+        keyvalue[pos] == '.' ? ++n_pt : ++n_nm;
+    }
+    if (n_pt>1 || n_nm<1)                    // no more than one point, at least one digit
+      return TYPE_STRING;                    // more than one decimal or no numbers, it's a string
+
+    // skip the trailing whitespaces
+    while (keyvalue[pos] == ' ') {
+        ++pos;
+    }
+
+    if (pos == keyvalue.size()) {
+      if (keyvalue.find(".") == std::string::npos)
+        return TYPE_INTEGER;                 // all numbers and no decimals, it's an integer
+      else
+        return TYPE_DOUBLE;                  // numbers with a decimal, it's a float
+    }
+    else return TYPE_STRING;                 // lastly, must be a string
+  }
+  /** Common::Utilities::get_keytype ******************************************/
 
 }

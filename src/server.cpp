@@ -264,11 +264,19 @@ void doit(int threadnum) {
                     }
     else
     if (MATCH(buf, "open")) {
-                    server.connect_to_controller();
+                    server.connect_controller();
+                    }
+    else
+    if (MATCH(buf, "close")) {
+                    ret = server.disconnect_controller();
+                    }
+    else
+    if (MATCH(buf, "load")) {
+                    ret = server.load_config(paramname);
                     }
     else
     if (MATCH(cmd, "prim")) {
-                    server.archon_cmd(paramname);
+                    server.archon_prim(paramname);
                     }
 /*
                     if (!server.is_driver_open()) {       // API should, but can't handle two opens
@@ -282,14 +290,6 @@ void doit(int threadnum) {
     else
     if (MATCH(buf, "isopen")) {
                     ret = server.is_driver_open();
-                    }
-    else
-    if (MATCH(buf, "close")) {
-                    ret = server.close_driver();
-                    }
-    else
-    if (MATCH(buf, "load")) {
-                    ret = server.load_file(argstr);
                     }
     else
     if (MATCH(buf, "setup")) {

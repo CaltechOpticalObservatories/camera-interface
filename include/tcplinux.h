@@ -56,7 +56,7 @@ int  Poll(int fd, int to);
 int  Accept(int fd, struct sockaddr *sa, socklen_t *slptr);
 void ms_pause(int ms);
 int  Tcp_listen(const char *host, const char *serv, socklen_t *addrlenp);
-int  connect_to_server(char *host, int port);
+int  connect_to_server(const char *host, int port);
 int  sock_puts(int sockfd, char *str);
 int  sock_rbputs(int sockfd, char *str);
 size_t sock_gets(int sockfd, char *str, size_t count);
