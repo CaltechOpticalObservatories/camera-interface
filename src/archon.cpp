@@ -116,12 +116,28 @@ namespace Archon {
   /**************** Archon::Interface::disconnect_controller ******************/
 
 
+  /**************** Archon::Interface::archom_prim ****************************/
+  /**
+   * @fn     archon_prim
+   * @brief  send native commands directly to Archon and log result
+   * @param  std::string cmd
+   * @return long ret from archon_cmd() call
+   *
+   * This function simply calls archon_cmd() and logs the reply
+   * //TODO: communicate with future ASYNC port?
+   *
+   */
   long Interface::archon_prim(std::string cmd) { // use this form when the calling
     char reply[REPLY_LEN];                       // function doesn't need to look at the reply
     long ret = archon_cmd(cmd, reply);
-    Logf("%s\n", reply);
+    if (strlen(reply) > 0) {
+      Logf("prim reply: %s\n", reply);
+    }
     return( ret );
   }
+  /**************** Archon::Interface::archom_prim ****************************/
+
+
   /**************** Archon::Interface::archon_cmd *****************************/
   /**
    * @fn     archon_cmd
@@ -151,13 +167,8 @@ namespace Archon {
     }
 
     /**
-     * Hold a scoped lock for the duration of this function, not just
-     * for setting this semaphore.
-     *
-     * The archon_busy semaphore is used to prevent the status thread
-     * from accessing the Archon, but the scoped mutex lock is used to
-     * prevent all other threads from accessing the Archon while the
-     * status thread has it.
+     * Hold a scoped lock for the duration of this function, 
+     * to prevent multiple threads from accessing the Archon.
      */
     if (this->archon_busy) return(BUSY);
     const std::lock_guard<std::mutex> lock(this->archon_mutex);
@@ -165,7 +176,19 @@ namespace Archon {
 
     // build command: ">xxCOMMAND\n" where xx=hex msgref and COMMAND=command
     //
+    std::stringstream ssprefix;
+    ssprefix << ">"
+             << std::setfill('0')
+             << std::setw(2)
+             << std::hex
+             << this->msgref;
+    std::string prefix=ssprefix.str();
+    std::transform( prefix.begin(), prefix.end(), prefix.begin(), ::toupper );    // make uppercase
+
     std::stringstream  sscmd;         // sscmd = stringstream, building command
+    sscmd << prefix << cmd << "\n";
+    std::string scmd = sscmd.str();   // scmd = string, command to send
+/*
     sscmd << ">"
           << std::setfill('0')
           << std::setw(2)
@@ -175,6 +198,7 @@ namespace Archon {
           << "\n";
     std::string scmd = sscmd.str();   // scmd = string, command to send
     std::transform( scmd.begin(), scmd.end(), scmd.begin(), ::toupper );    // make uppercase
+*/
 
     // build the command checksum: msgref used to check that reply matches command
     //
@@ -203,7 +227,7 @@ namespace Archon {
     //
     // The scoped mutex lock will be released automatically upon return.
     //
-    if (cmd == "FETCH") return (error);
+    if (cmd == "FETCH") return (NO_ERROR);
 
     // For all other commands, receive the reply
     //
@@ -244,8 +268,7 @@ namespace Archon {
     //
     if (strncmp(reply, "?", 1) == 0) {
       error = ERROR;
-      Logf("(%s) Archon controller returned error processing command: %s", function, cmd.c_str());
-      this->fetchlog();      // check the Archon log for error messages
+      Logf("(%s) Archon controller returned error processing command: %s\n", function, cmd.c_str());
     }
     else
     if (strncmp(reply, check, 3) != 0) {
@@ -266,7 +289,7 @@ namespace Archon {
            (cmd != "TIMER")   &&
            (cmd != "STATUS")  &&
            (cmd != "FRAME") ) {
-        Logf("(%s) command %02X sent OK\n", function, this->msgref);
+        Logf("(%s) command 0x%02X success\n", function, this->msgref);
       }
 
       memmove( reply, reply+3, strlen(reply) );       // strip off the msgref from the reply
@@ -280,6 +303,126 @@ namespace Archon {
     return(error);
   }
   /**************** Archon::Interface::archon_cmd *****************************/
+
+
+  /**************** Archon::Interface::read_parameter *************************/
+  /**
+   * @fn     read_parameter
+   * @brief  read a parameter from Archon configuration memory
+   * @param  paramname  char pointer to name of paramter
+   * @param  valstring  reference to string for return value
+   * @return ERROR on error, NO_ERROR if okay.
+   *
+   * The string reference contains the value of the parameter
+   * to be returned to the user.
+   *
+   * No direct calls to Archon -- this function uses archon_cmd()
+   * which in turn handles all of the Archon in-use locking.
+   *
+   */
+  long Interface::read_parameter(std::string paramname, std::string &valstring) {
+    const char* function = "Archon::Interface::read_parameter";
+    std::stringstream cmd;
+    int   error   = NO_ERROR;
+    char *lineptr = NULL;
+    char  reply[REPLY_LEN];
+
+    if (this->parammap.find(paramname.c_str()) == this->parammap.end()) {
+      Logf("(%s) error: parameter \"%s\" not found\n", function, paramname.c_str());
+      return(ERROR);
+    }
+
+    // form the RCONFIG command to send to Archon
+    //
+    cmd.str("");
+    cmd << "RCONFIG"
+        << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
+        << this->parammap[paramname.c_str()].line;
+    error = this->archon_cmd((char *)cmd.str().c_str(), reply); // send RCONFIG command here
+    reply[strlen(reply)-1]=0;                                   // strip newline
+
+    // reply should be of the form PARAMETERn=PARAMNAME=VALUE
+    // and we want just the VALUE here
+    //
+    lineptr = reply;
+
+    if (strncmp(lineptr, "PARAMETER", 9) == 0) {         // lineptr: PARAMETERn=PARAMNAME=VALUE
+      if ( strsep(&lineptr, "=") == NULL ) error=ERROR;  // lineptr: PARAMNAME=VALUE
+      if ( strsep(&lineptr, "=") == NULL ) error=ERROR;  // lineptr: VALUE
+    }
+    else {
+      error = ERROR;
+    }
+
+    if (error != NO_ERROR) {
+      Logf("(%s) error:  malformed reply: %s\n", function, reply);
+      valstring = "NaN";                                 // return "NaN" for parameter value on error
+      error = ERROR;
+    }
+    else {
+      valstring = lineptr;                               // return parameter value
+      Logf("(%s) %s = %s\n", function, paramname.c_str(), valstring.c_str());
+    }
+    return(error);
+  }
+  /**************** Archon::Interface::read_parameter *************************/
+
+
+  /**************** Archon::Interface::prep_parameter *************************/
+  /**
+   * @fn     prep_parameter
+   * @brief  
+   * @param  
+   * @return NO_ERROR or ERROR,  return value from archon_cmd call
+   *
+   */
+  long Interface::prep_parameter(std::string paramname, std::string value) {
+    const char* function = "Archon::Interface::prep_parameter";
+    std::stringstream scmd;
+    int error = NO_ERROR;
+
+    // Prepare to apply it to the system -- will be loaded on next EXTLOAD signal
+    //
+    scmd << "FASTPREPPARAM " << paramname << " " << value;
+    if (error == NO_ERROR) error = this->archon_cmd(scmd.str());
+
+    if (error != NO_ERROR) {
+      Logf("(%s) error writing parameter \"%s=%s\" to configuration memory\n", function, paramname.c_str(), value.c_str());
+    }
+    else {
+      Logf("(%s) parameter: %s written to configuration memory\n", function, paramname.c_str());
+    }
+
+    return(error);
+  }
+  /**************** Archon::Interface::prep_parameter *************************/
+
+
+  /**************** Archon::Interface::load_parameter *************************/
+  /**
+   * @fn     load_parameter
+   * @brief  
+   * @param  
+   * @return NO_ERROR or ERROR,  return value from archon_cmd call
+   *
+   */
+  long Interface::load_parameter(std::string paramname, std::string value) {
+    const char* function = "Archon::Interface::load_parameter";
+    std::stringstream scmd;
+    int error = NO_ERROR;
+
+    scmd << "FASTLOADPARAM " << paramname << " " << value;
+
+    if (error == NO_ERROR) error = this->archon_cmd(scmd.str());
+    if (error != NO_ERROR) {
+      Logf("(%s) error loading parameter \"%s=%s\" into Archon\n", function, paramname.c_str(), value.c_str());
+    }
+    else {
+      Logf("(%s) parameter \"%s=%s\" loaded into Archon\n", function, paramname.c_str(), value.c_str());
+    }
+    return(error);
+  }
+  /**************** Archon::Interface::load_parameter *************************/
 
 
   /**************** Archon::Interface::fetchlog *******************************/
@@ -302,7 +445,7 @@ namespace Archon {
     //
     do {
       if ( (retval=this->archon_cmd((char*)"FETCHLOG", reply))!=NO_ERROR ) { // send command here
-        Logf("(%s) error calling FETCHLOG\n", function);
+        Logf("(%s) error %d calling FETCHLOG\n", function, retval);
         return(retval);
       }
       if (strncmp(reply, "(null)", strlen("(null)"))!=0) {
@@ -677,7 +820,36 @@ namespace Archon {
     if (error == NO_ERROR) {
       Logf("(%s) loaded Archon config file OK\n", function);
     }
+
+    int bigbuf=-1;
+    std::istringstream( this->configmap["BIGBUF"].value  ) >> bigbuf;  // get value of BIGBUF from loaded acf file
+
+    Logf("(%s) bigbuf=%d\n", function, bigbuf);
     return(error);
   }
   /**************** Archon::Interface::load_config ****************************/
+
+
+  /**************** Archon::Interface::read_frame *****************************/
+  /**
+   * @fn     read_frame
+   * @brief  read latest Archon frame buffer
+   * @param  none
+   * @return 
+   *
+   */
+  long Interface::read_frame() {
+/*
+    const char* function = "Archon::Interface::read_frame";
+    int bufready;
+
+    // Archon buffer number of the last frame read into memory
+    //
+    bufready = this->frame.index + 1;
+    int nbufs = this->camera_info.nbufs;
+
+*/
+    return 0;
+  }
+  /**************** Archon::Interface::read_frame *****************************/
 }

@@ -44,6 +44,7 @@ namespace Archon {
     public:
       std::string hostname;                  //<! Archon controller hostname
       int         port;                      //!< Archon controller TPC/IP port number
+      int         nbufs;                     //!< Archon controller number of frame buffers
   };
 
   class Interface {
@@ -67,7 +68,11 @@ namespace Archon {
       long archon_prim(std::string cmd);
       long archon_cmd(std::string cmd);
       long archon_cmd(std::string cmd, char *reply);
+      long read_parameter(std::string paramname, std::string &valstring);
+      long prep_parameter(std::string paramname, std::string value);
+      long load_parameter(std::string paramname, std::string value);
       long fetchlog();
+      long read_frame();
 
       Information camera_info;
 

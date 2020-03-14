@@ -218,9 +218,12 @@ void doit(int threadnum) {
   int   i;
   unsigned long  ret=0;
   char  retstr[BUFSIZE];
-  std::string paramname;          // paramname after stripping the command used for set_param, get_param
+  std::string sargs;              // arg string is everything after command
+  std::vector<std::string> tokens;
 
   bool connection_open=true;
+
+  Common::Utilities util;
 
   while (connection_open) {
     memset(buf,  '\0', BUFSIZE);  // init buffers
@@ -237,14 +240,13 @@ void doit(int threadnum) {
 
     i=0; while (buf[i] != '\0') i++;
 
-    std::string argstr = args;
     try {
       STRIPCOMMAND(cmd, args);
-      if (args == NULL) paramname = ""; else paramname = args;
+      if (args == NULL) sargs = ""; else sargs = args;
 
-      argstr.erase(std::remove(argstr.begin(), argstr.end(), '\r' ), argstr.end());
-      argstr.erase(std::remove(argstr.begin(), argstr.end(), '\n' ), argstr.end());
-      Logf("(%s) thread %d received command: %s\n", function, threadnum, argstr.c_str());
+      sargs.erase(std::remove(sargs.begin(), sargs.end(), '\r' ), sargs.end());
+      sargs.erase(std::remove(sargs.begin(), sargs.end(), '\n' ), sargs.end());
+      Logf("(%s) thread %d received command: %s %s\n", function, threadnum, cmd, sargs.c_str());
     }
     catch ( std::runtime_error &e ) {
       std::stringstream errstr; errstr << e.what();
@@ -252,35 +254,58 @@ void doit(int threadnum) {
       ret = -1;
     }
     catch ( ... ) {
-      Logf("() unknown error parsing arguments: %s\n", function, argstr.c_str());
+      Logf("() unknown error parsing arguments: %s\n", function, sargs.c_str());
       ret = -1;
     }
 
     /**
      * process commands here
      */
-    if (MATCH(buf, "exit")) {
+    if (MATCH(cmd, "exit")) {
                     server.exit_cleanly();
                     }
     else
-    if (MATCH(buf, "open")) {
-                    server.connect_controller();
+    if (MATCH(cmd, "open")) {
+                    ret = server.connect_controller();
                     }
     else
-    if (MATCH(buf, "close")) {
+    if (MATCH(cmd, "close")) {
                     ret = server.disconnect_controller();
                     }
     else
-    if (MATCH(buf, "load")) {
-                    ret = server.load_config(paramname);
+    if (MATCH(cmd, "load")) {
+                    ret = server.load_config(sargs);
+                    if (ret==ERROR) server.fetchlog();
                     }
     else
     if (MATCH(cmd, "prim")) {
-                    server.archon_prim(paramname);
+                    ret = server.archon_prim(sargs);
+                    }
+    else
+    if (MATCH(cmd, "getp")) {
+                    std::string valstring;
+                    ret = server.read_parameter(sargs, valstring);
+                    Logf("(%s) %s\n", function, ret==ERROR?"ERROR":valstring.c_str());
+                    }
+    else
+    if (MATCH(cmd, "setp")) {
+                    util.Tokenize(sargs, tokens, " ");
+                    if (tokens.size() != 2) {
+                      ret = ERROR;
+                      Logf("(%s) error: expected 2 arguments, got %d\n", function, (int)tokens.size());
+                    }
+                    else {
+                      ret = server.prep_parameter(tokens[0], tokens[1]);
+                      if (ret == NO_ERROR) ret = server.load_parameter(tokens[0], tokens[1]);
+                    }
                     }
 /*
+    else
+    if (MATCH(buf, "get")) {
+                    ret = server.get_param(sargs);
+                    }
                     if (!server.is_driver_open()) {       // API should, but can't handle two opens
-                      if ( server.open_driver(argstr) == ARC_STATUS_ERROR ) {
+                      if ( server.open_driver(sargs) == ARC_STATUS_ERROR ) {
                         server.log_last_error();
                       }
                     }
@@ -293,7 +318,7 @@ void doit(int threadnum) {
                     }
     else
     if (MATCH(buf, "setup")) {
-                    ret = server.setup_controller(argstr);
+                    ret = server.setup_controller(sargs);
                     }
     else
     if (MATCH(buf, "expose")) {
@@ -302,10 +327,6 @@ void doit(int threadnum) {
     else
     if (MATCH(buf, "clear_fitskeys")) {
                     ret = server.fitskey.clear_fitskeys();
-                    }
-    else
-    if (MATCH(buf, "get")) {
-                    ret = server.get_param(paramname);
                     }
     else
     if (MATCH(buf, "set")) {
@@ -337,11 +358,11 @@ void doit(int threadnum) {
       }
     }
 
+*/
     if (ret == 0x444F4E ) ret = 0;  // 'DON'
 
-    snprintf(retstr, sizeof(retstr), "%ld\n", ret);
+    snprintf(retstr, sizeof(retstr), "%s\n", ret==0?"DONE":"ERROR");
 
-*/
     if (sock_rbputs(server.conndata[threadnum].connfd, retstr)<0) connection_open=false;
 
     // non-blocking connection exits immediately.
