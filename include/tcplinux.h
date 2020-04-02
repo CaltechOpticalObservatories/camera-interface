@@ -30,6 +30,7 @@
 
 #include <sys/resource.h>              /*!< for wait3(2) */
 #include <sys/wait.h>                  /*!< for wait3(2) */
+#include <sys/ioctl.h>                 /*!< for fion_read */
 #include <ctype.h>
 #include <limits.h>
 
@@ -61,6 +62,7 @@ int  sock_puts(int sockfd, char *str);
 int  sock_rbputs(int sockfd, char *str);
 size_t sock_gets(int sockfd, char *str, size_t count);
 int  sock_write(int sockfd, char *buf);
+int  fion_read(int fd);
 void ignore_sigpipe(void);
 int  get_connection(int socket_type, unsigned short port, int *listener);
 int  atoport(char *service, char *proto);

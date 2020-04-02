@@ -249,6 +249,24 @@ int sock_puts(int sockfd, char *str) {
   return sock_write(sockfd, str);
 }
 
+/*****************************************************************************/
+/** 
+ * @fn     fion_read
+ * @brief  get the number of bytes available on a socket
+ * @param  fd socket file descriptor
+ * @return -1 on error, otherwise number of bytes available
+ *
+ */
+int fion_read(int fd) {
+  int bytesready=-1;
+
+  if ( ioctl(fd, FIONREAD, &bytesready) < 0 ) {
+    perror("ioctl error");
+  }
+  return(bytesready);
+}
+/*****************************************************************************/
+
 /** ---------------------------------------------------------------------------
  * @fn     sock_gets(sockfd, str, count)
  * @brief  read from socket until linefeed reached, or up to count bytes

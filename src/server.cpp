@@ -216,9 +216,9 @@ void doit(int threadnum) {
   char *args=buf;
   char *c_ptr;
   int   i;
-  unsigned long  ret=0;
+  long  ret;
   char  retstr[BUFSIZE];
-  std::string sargs;              // arg string is everything after command
+  std::string scmd, sargs;        // arg string is everything after command
   std::vector<std::string> tokens;
 
   bool connection_open=true;
@@ -243,6 +243,7 @@ void doit(int threadnum) {
     try {
       STRIPCOMMAND(cmd, args);
       if (args == NULL) sargs = ""; else sargs = args;
+      if (cmd  == NULL) scmd  = ""; else scmd  = cmd;
 
       sargs.erase(std::remove(sargs.begin(), sargs.end(), '\r' ), sargs.end());
       sargs.erase(std::remove(sargs.begin(), sargs.end(), '\n' ), sargs.end());
@@ -261,6 +262,12 @@ void doit(int threadnum) {
     /**
      * process commands here
      */
+    ret = NOTHING;
+
+    if (scmd == "") {
+                    fprintf(stderr, "ret=%ld\n", ret);
+                    }
+    else
     if (MATCH(cmd, "exit")) {
                     server.exit_cleanly();
                     }
@@ -276,10 +283,6 @@ void doit(int threadnum) {
     if (MATCH(cmd, "load")) {
                     ret = server.load_config(sargs);
                     if (ret==ERROR) server.fetchlog();
-                    }
-    else
-    if (MATCH(cmd, "prim")) {
-                    ret = server.archon_prim(sargs);
                     }
     else
     if (MATCH(cmd, "getp")) {
@@ -299,6 +302,28 @@ void doit(int threadnum) {
                       if (ret == NO_ERROR) ret = server.load_parameter(tokens[0], tokens[1]);
                     }
                     }
+    else
+    if (MATCH(cmd, "printstatus")) {
+                    ret = server.get_frame_status();
+                    if (ret==NO_ERROR) ret = server.print_frame_status();
+                    }
+    else
+    if (MATCH(cmd, "readframe")) {
+                    ret = server.read_frame();
+                    }
+    else
+    if (MATCH(cmd, "writeframe")) {
+                    ret = server.write_frame();
+                    }
+    else
+    if (MATCH(cmd, "expose")) {
+                    ret = server.prep_parameter("Expose", "1");
+                    if (ret == NO_ERROR) ret = server.load_parameter("Expose", "1");
+                    if (ret == NO_ERROR) ret = server.prepare_image_buffer();
+                    }
+    else {  // if no matching command found then assume it's a native command and send it straight to the controller
+      ret = server.archon_native(buf);
+    }
 /*
     else
     if (MATCH(buf, "get")) {
@@ -359,11 +384,10 @@ void doit(int threadnum) {
     }
 
 */
-    if (ret == 0x444F4E ) ret = 0;  // 'DON'
-
-    snprintf(retstr, sizeof(retstr), "%s\n", ret==0?"DONE":"ERROR");
-
-    if (sock_rbputs(server.conndata[threadnum].connfd, retstr)<0) connection_open=false;
+    if (ret != NOTHING) {
+      snprintf(retstr, sizeof(retstr), "%s\n", ret==0?"DONE":"ERROR");
+      if (sock_rbputs(server.conndata[threadnum].connfd, retstr)<0) connection_open=false;
+    }
 
     // non-blocking connection exits immediately.
     // keep blocking connection open for interactive session.

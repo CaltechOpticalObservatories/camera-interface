@@ -12,6 +12,7 @@
 #include <vector>
 #include <mutex>
 
+const long NOTHING = -1;
 const long NO_ERROR = 0;
 const long ERROR = 1;
 const long BUSY = 2;

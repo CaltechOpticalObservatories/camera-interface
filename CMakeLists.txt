@@ -13,7 +13,11 @@ FIND_PATH(LOGENTRY_INCLUDE logentry.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(TCPLINUX_INCLUDE tcplinux.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(COMMON_INCLUDE common.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(ARCHON_INCLUDE archon.h PATHS ${PROJECT_INCL_DIR})
-#FIND_PATH(FITS_INCLUDE fits.h PATHS ${PROJECT_INCL_DIR})
+FIND_PATH(CCFITS_INCLUDE CCfits PATHS /usr/local/include/CCfits)
+FIND_PATH(FITS_INCLUDE fitsio.h PATHS /usr/local/cfitsio/include)
+FIND_PATH(MY_FITS_INCLUDE fits.h PATHS ${PROJECT_INCL_DIR})
+
+FIND_LIBRARY(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
 
 FIND_PACKAGE(Threads)
 
@@ -22,6 +26,9 @@ INCLUDE_DIRECTORIES(
         ${LOGENTRY_INCLUDE}
         ${TCPLINUX_INCLUDE}
         ${COMMON_INCLUDE}
+        ${MY_FITS_INCLUDE}
+        ${FITS_INCLUDE}
+        ${CCFITS_INCLUDE}
         )
 ADD_DEFINITIONS( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 )
 
@@ -31,7 +38,9 @@ SET(COMMON_HEADERS
         ${TCPLINUX_INCLUDE}/tcplinux.h
         ${COMMON_INCLUDE}/common.h
         ${ARCHON_INCLUDE}/archon.h
-#        ${FITS_INCLUDE}/fits.h
+        ${CCFITS_INCLUDE}/CCfits
+        ${FITS_INCLUDE}/fitsio.h
+        ${MY_FITS_INCLUDE}/fits.h
         )
 
 ADD_EXECUTABLE(archonserver 
@@ -45,6 +54,7 @@ ADD_EXECUTABLE(archonserver
 
 TARGET_LINK_LIBRARIES(archonserver
         ${CMAKE_THREAD_LIBS_INIT}
+        ${CCFITS_LIB}
         )
 
 SET(CMAKE_C_COMPILER /usr/bin/g++)
