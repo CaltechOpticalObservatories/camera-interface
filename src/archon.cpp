@@ -15,6 +15,7 @@
 #include <iomanip>   // for setfil, setw, etc.
 #include <iostream>  // for hex, uppercase, etc.
 #include <algorithm> 
+#include <cctype>
 #include <string>
 
 namespace Archon {
@@ -1390,6 +1391,62 @@ namespace Archon {
   /**************** Archon::Interface::lock_buffer ****************************/
 
 
+  /**************** Archon::Interface::get_timer ******************************/
+  /** 
+   * @fn     get_timer
+   * @brief  read the 64 bit interal timer from the Archon controller
+   * @param  *timer pointer to type unsigned long int
+   * @return errno on error, 0 if okay.
+   *
+   * Sends the "TIMER" command to Archon, reads back the reply, and stores the
+   * value as (unsigned long int) in the argument variable pointed to by *timer.
+   *
+   * This is an internal 64 bit timer/counter. One tick of the counter is 10 ns.
+   *
+   */
+  long Interface::get_timer(unsigned long int *timer) {
+    const char* function = "Archon::Interface::get_timer";
+    std::stringstream message, timer_ss;
+    std::vector<std::string> tokens;
+    int  error;
+    char reply[REPLY_LEN];
+
+    Common::Utilities util;
+
+    // send TIMER command to get frame buffer status
+    //
+    if ( (error = this->archon_cmd((char*)"TIMER", reply)) != NO_ERROR ) {
+      return(error);
+    }
+
+    util.Tokenize(reply, tokens, "=");        // Tokenize the reply
+
+    // Reponse should be "TIMER=xxxx\n" so there needs
+    // to be two tokens
+    //
+    if (tokens.size() != 2) {
+      Logf("(%s) error unrecognized timer response: %s\n", function, reply);
+      return(ERROR);
+    }
+
+    // Second token must be a hexidecimal string
+    //
+    std::string timer_str = tokens[1]; 
+    timer_str.erase(timer_str.find('\n'));  // remove newline
+    if (!std::all_of(timer_str.begin(), timer_str.end(), ::isxdigit)) {
+      Logf("(%s) error unrecognized timer value: %s\n", function, timer_str.c_str());
+      return(ERROR);
+    }
+
+    // convert from hex string to integer and save return value
+    //
+    timer_ss << std::hex << tokens[1];
+    timer_ss >> *timer;
+    return(NO_ERROR);
+  }
+  /**************** Archon::Interface::get_timer ******************************/
+
+
   /**************** Archon::Interface::fetch **********************************/
   /**
    * @fn     fetch
@@ -1611,29 +1668,53 @@ namespace Archon {
   long Interface::write_frame() {
     const char* function = "Archon::Interface::write_frame";
     unsigned int   *cbuf32;              //!< used to cast char buf into 32 bit int
-    unsigned short *cbuf16;              //!< used to cast char buf into 16 bit int
-    int num_ccds = 0;
+//  unsigned short *cbuf16;              //!< used to cast char buf into 16 bit int // TODO
 
+    // Instantiate a FITS_file object to hold the image data, fits_info structure,
+    // and perform file IO operations.
+    //
     FITS_file <float> fits_file;
-
-    if ( (this->camera_info.current_observing_mode > -1) &&
-         (this->camera_info.current_observing_mode < NUM_OBS_MODES) ) {
-      num_ccds = this->geometry[this->camera_info.current_observing_mode].num_ccds;
-    }
-    else {
-      Logf("(%s) error bad observing mode: %d\n", function, this->camera_info.current_observing_mode);
-      return(ERROR);
-    }
 
     Logf("(%s) writing data from memory to disk\n", function);
 
-    fits_file.open_file(this->camera_info);
-    fits_file.close_file();
+//  fits_file.open_file(this->fits_info); // TODO WHY DID I PUT THIS HERE?
 
-    // Cast the image buffer of chars into integers to convert four 8-bit values 
-    // into a 32-bit value
-    cbuf32 = (unsigned int *)this->image_data;
+    // The Archon sends four 8-bit numbers per pixel. To convert this into something usable,
+    // cast the image buffer into integers. Handled differently for different frame types.
+    //
+    switch(this->fits_info.frame_type) {
 
+      case FRAME_IMAGE:{                 // convert four 8-bit values into a 32-bit value and scale by 65535
+        cbuf32 = (unsigned int *)this->image_data;         // cast here
+        float *fbuf = NULL;
+        fbuf = new float[ this->fits_info.image_size ];    // allocate a float buffer of same number of pixels
+
+        for (unsigned long pix=0; pix < this->fits_info.image_size; pix++) {
+          fbuf[pix] = cbuf32[pix] / 65535.;                // right shift 16 bits
+        }
+
+Logf("(%s) calling write_image\n", function);
+        fits_file.write_image(fbuf, this->fits_info);
+Logf("(%s) back from write_image\n", function);
+        break;
+      }
+
+      case FRAME_RAW:                    // for RAW convert into 16 bit values and no scaling
+//      cbuf16 = (unsigned short *)this->image_data;  // TODO
+        Logf("(%s) error RAW not yet implemented\n", function); // TODO
+        return(ERROR);                                          // TODO
+        break;
+
+      default:                           // shouldn't happen
+        Logf("(%s) error unrecognized frame type: %d\n", function, this->fits_info.frame_type);
+        return (ERROR);
+        break;
+    }
+
+//Logf("(%s) calling close\n", function);
+//    fits_file.close_file();              // all done
+
+Logf("(%s) exit\n", function);
     return(NO_ERROR);
   }
   /**************** Archon::Interface::write_frame ****************************/
@@ -1786,6 +1867,43 @@ namespace Archon {
     return ( write_parameter(paramname, newvaluestr.str().c_str(), dontcare) );
   }
   /**************** Archon::Interface::write_parameter ************************/
+
+
+  /**************** Archon::Interface::expose *********************************/
+  /**
+   * @fn     expose
+   * @brief  
+   * @param  
+   * @return 
+   *
+   */
+  long Interface::expose() {
+    const char* function = "Archon::Interface::expose";
+    long error;
+
+    Common::Utilities util;
+
+    error = this->prep_parameter("Expose", "1");
+    if (error == NO_ERROR) error = this->load_parameter("Expose", "1");
+
+    // get system time and Archon's timer after exposure starts
+    // fits_start_time is used by the FITS writer ?? //TODO (maybe can remove)
+    //
+    if (error == NO_ERROR) {
+      this->camera_info.fits_start_time = util.get_time_string();  // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+      error = this->get_timer(&this->start_time);           // Archon internal timer
+    }
+
+    if (error == NO_ERROR) {
+      Logf("(%s) exposure started at Archon time %ld\n", function, this->start_time);
+    }
+    if (error == NO_ERROR) error = this->prepare_image_buffer();
+
+    this->fits_info = this->camera_info;       //!< make a copy of the camera_info class here, to be given to fits writer
+
+    return (NO_ERROR);
+  }
+  /**************** Archon::Interface::expose *********************************/
 
 
 }

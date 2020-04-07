@@ -33,6 +33,7 @@ namespace Common {
       int Tokenize(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters);
       void chrrep(char *str, char oldchr, char newchr);
       int get_keytype(std::string keyvalue);
+      std::string get_time_string();
 
       typedef enum {
         TYPE_STRING,

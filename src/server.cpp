@@ -317,9 +317,7 @@ void doit(int threadnum) {
                     }
     else
     if (MATCH(cmd, "expose")) {
-                    ret = server.prep_parameter("Expose", "1");
-                    if (ret == NO_ERROR) ret = server.load_parameter("Expose", "1");
-                    if (ret == NO_ERROR) ret = server.prepare_image_buffer();
+                    ret = server.expose();
                     }
     else {  // if no matching command found then assume it's a native command and send it straight to the controller
       ret = server.archon_native(buf);

@@ -18,6 +18,7 @@ FIND_PATH(FITS_INCLUDE fitsio.h PATHS /usr/local/cfitsio/include)
 FIND_PATH(MY_FITS_INCLUDE fits.h PATHS ${PROJECT_INCL_DIR})
 
 FIND_LIBRARY(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
+FIND_LIBRARY(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/local/cfitsio/lib)
 
 FIND_PACKAGE(Threads)
 
@@ -55,6 +56,7 @@ ADD_EXECUTABLE(archonserver
 TARGET_LINK_LIBRARIES(archonserver
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
+        ${CFITS_LIB}
         )
 
 SET(CMAKE_C_COMPILER /usr/bin/g++)
