@@ -29,6 +29,7 @@ namespace Archon {
     this->sockfd = -1;
     this->msgref = 0;
     this->camera_info.hostname = "192.168.1.2";
+//  this->camera_info.hostname = "10.0.0.2";
     this->camera_info.port=4242;
     this->image_data = NULL;
     this->image_data_bytes = 0;
@@ -395,8 +396,8 @@ namespace Archon {
     cmd << "RCONFIG"
         << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
         << this->parammap[paramname.c_str()].line;
-    error = this->archon_cmd((char *)cmd.str().c_str(), reply); // send RCONFIG command here
-    reply[strlen(reply)-1]=0;                                   // strip newline
+    error = this->archon_cmd(cmd.str(), reply);          // send RCONFIG command here
+    reply[strlen(reply)-1]=0;                            // strip newline
 
     // reply should be of the form PARAMETERn=PARAMNAME=VALUE
     // and we want just the VALUE here
@@ -501,7 +502,7 @@ namespace Archon {
     // send FETCHLOG command while reply is not (null)
     //
     do {
-      if ( (retval=this->archon_cmd((char*)"FETCHLOG", reply))!=NO_ERROR ) { // send command here
+      if ( (retval=this->archon_cmd(FETCHLOG, reply))!=NO_ERROR ) {          // send command here
         Logf("(%s) error %d calling FETCHLOG\n", function, retval);
         return(retval);
       }
@@ -869,7 +870,7 @@ namespace Archon {
               << linecount
               << key.str() << "=" << value.str() ;
         // send the WCONFIG command here
-        if (error == NO_ERROR) error = this->archon_cmd((char *)sscmd.str().c_str());
+        if (error == NO_ERROR) error = this->archon_cmd(sscmd.str());
       } // end if (key!=NULL && value !=NULL)
       linecount++;
     } // end while ((read=getline(&line, &len, fp)) != EOF)
@@ -1415,7 +1416,7 @@ namespace Archon {
 
     // send TIMER command to get frame buffer status
     //
-    if ( (error = this->archon_cmd((char*)"TIMER", reply)) != NO_ERROR ) {
+    if ( (error = this->archon_cmd(TIMER, reply)) != NO_ERROR ) {
       return(error);
     }
 
@@ -1481,6 +1482,7 @@ namespace Archon {
 
     if (this->archon_cmd(scmd) == ERROR) {
       Logf("(%s) error sending FETCH command. Aborting read.\n", function);
+      this->archon_cmd(UNLOCK);                                             // unlock all buffers
       return(ERROR);
     }
 
@@ -1534,7 +1536,7 @@ namespace Archon {
 
     // Lock the frame buffer before reading it
     //
-    if (this->lock_buffer(bufready) == ERROR) return (ERROR);
+    if ((error=this->lock_buffer(bufready)) == ERROR) return (error);
 
     // Send the FETCH command to read the memory buffer from the Archon backplane.
     // Archon replies with one binary response per requested block. Each response
@@ -1568,9 +1570,9 @@ namespace Archon {
           function, bufaddr, this->camera_info.image_memory, bufblocks);
 
     // send the FETCH command.
-    // This will take the archon_busy semaphore
+    // This will take the archon_busy semaphore, but not release it -- must release in this function!
     //
-    this->fetch(bufaddr, bufblocks);
+    error = this->fetch(bufaddr, bufblocks);
 
     // Read the data from the connected socket into memory, one block at a time
     //
@@ -1627,10 +1629,11 @@ namespace Archon {
 
     } // end of loop: for (block=0; block<bufblocks; block++)
 
-    // clear the archon_busy semaphore to allow other threads to access the Archon now
+    // give back the archon_busy semaphore to allow other threads to access the Archon now
     //
-    const std::lock_guard<std::mutex> lock(this->archon_mutex);
+    const std::unique_lock<std::mutex> lock(this->archon_mutex);
     this->archon_busy = false;
+    this->archon_mutex.unlock();
 
     printf("%10d complete\n", totalbytesread);
     printf("   bytes read %d (%d 1024-Byte blocks)\n", totalbytesread, bufblocks);
@@ -1668,16 +1671,9 @@ namespace Archon {
   long Interface::write_frame() {
     const char* function = "Archon::Interface::write_frame";
     unsigned int   *cbuf32;              //!< used to cast char buf into 32 bit int
-//  unsigned short *cbuf16;              //!< used to cast char buf into 16 bit int // TODO
-
-    // Instantiate a FITS_file object to hold the image data, fits_info structure,
-    // and perform file IO operations.
-    //
-    FITS_file <float> fits_file;
+    unsigned short *cbuf16;              //!< used to cast char buf into 16 bit int
 
     Logf("(%s) writing data from memory to disk\n", function);
-
-//  fits_file.open_file(this->fits_info); // TODO WHY DID I PUT THIS HERE?
 
     // The Archon sends four 8-bit numbers per pixel. To convert this into something usable,
     // cast the image buffer into integers. Handled differently for different frame types.
@@ -1685,25 +1681,33 @@ namespace Archon {
     switch(this->fits_info.frame_type) {
 
       case FRAME_IMAGE:{                 // convert four 8-bit values into a 32-bit value and scale by 65535
+        FITS_file <float> fits_file;                       // Instantiate a FITS_file object 
         cbuf32 = (unsigned int *)this->image_data;         // cast here
         float *fbuf = NULL;
         fbuf = new float[ this->fits_info.image_size ];    // allocate a float buffer of same number of pixels
 
-        for (unsigned long pix=0; pix < this->fits_info.image_size; pix++) {
-          fbuf[pix] = cbuf32[pix] / 65535.;                // right shift 16 bits
+        for (pix=0; pix < this->fits_info.image_size; pix++) {
+          fbuf[pix] = cbuf32[pix] / (float)65535;          // right shift 16 bits
         }
 
-Logf("(%s) calling write_image\n", function);
         fits_file.write_image(fbuf, this->fits_info);
-Logf("(%s) back from write_image\n", function);
+        if (fbuf != NULL) {
+          delete [] fbuf;
+        }
         break;
       }
 
-      case FRAME_RAW:                    // for RAW convert into 16 bit values and no scaling
-//      cbuf16 = (unsigned short *)this->image_data;  // TODO
-        Logf("(%s) error RAW not yet implemented\n", function); // TODO
-        return(ERROR);                                          // TODO
+      case FRAME_RAW:{                   // for RAW convert into 16 bit values and no scaling
+        FITS_file <unsigned short> fits_file;              // Instantiate a FITS_file object
+        cbuf16 = (unsigned short *)this->image_data;
+        unsigned short *cbuf = NULL;
+        cbuf = new unsigned short[ this->fits_info.image_size ];
+        fits_file.write_image(cbuf16, this->fits_info);
+        if (cbuf != NULL) {
+          delete [] cbuf;
+        }
         break;
+      }
 
       default:                           // shouldn't happen
         Logf("(%s) error unrecognized frame type: %d\n", function, this->fits_info.frame_type);
@@ -1711,10 +1715,6 @@ Logf("(%s) back from write_image\n", function);
         break;
     }
 
-//Logf("(%s) calling close\n", function);
-//    fits_file.close_file();              // all done
-
-Logf("(%s) exit\n", function);
     return(NO_ERROR);
   }
   /**************** Archon::Interface::write_frame ****************************/
@@ -1883,6 +1883,8 @@ Logf("(%s) exit\n", function);
 
     Common::Utilities util;
 
+//  error = this->prep_parameter("dCDSRawExpose", "1");
+//  if (error == NO_ERROR) error = this->load_parameter("dCDSRawExpose", "1");
     error = this->prep_parameter("Expose", "1");
     if (error == NO_ERROR) error = this->load_parameter("Expose", "1");
 

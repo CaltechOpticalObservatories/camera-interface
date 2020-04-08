@@ -9,6 +9,7 @@
 #define ARCHON_H
 
 #include <CCfits/CCfits>                 //!< needed here for types in set_axes()
+#include <atomic>
 
 // number of observing modes
 //#define NUM_OBS_MODES 1
@@ -35,21 +36,23 @@
 #define REPLY_LEN   100 * BLOCK_LEN
 
 // Archon commands
-#define  SYSTEM        (char *)"SYSTEM"
-#define  STATUS        (char *)"STATUS"
-#define  FRAME         (char *)"FRAME"
-#define  CLEARCONFIG   (char *)"CLEARCONFIG"
-#define  POLLOFF       (char *)"POLLOFF"
-#define  POLLON        (char *)"POLLON"
-#define  APPLYALL      (char *)"APPLYALL"
-#define  POWERON       (char *)"POWERON"
-#define  POWEROFF      (char *)"POWEROFF"
-#define  APPLYCDS      (char *)"APPLYCDS"
-#define  RESETTIMING   (char *)"RESETTIMING"
-#define  HOLDTIMING    (char *)"HOLDTIMING"
-#define  RELEASETIMING (char *)"RELEASETIMING"
-#define  LOADPARAMS    (char *)"LOADPARAMS"
-#define  UNLOCK        (char *)"LOCK0"
+#define  SYSTEM        std::string("SYSTEM")
+#define  STATUS        std::string("STATUS")
+#define  FRAME         std::string("FRAME")
+#define  CLEARCONFIG   std::string("CLEARCONFIG")
+#define  POLLOFF       std::string("POLLOFF")
+#define  POLLON        std::string("POLLON")
+#define  APPLYALL      std::string("APPLYALL")
+#define  POWERON       std::string("POWERON")
+#define  POWEROFF      std::string("POWEROFF")
+#define  APPLYCDS      std::string("APPLYCDS")
+#define  RESETTIMING   std::string("RESETTIMING")
+#define  HOLDTIMING    std::string("HOLDTIMING")
+#define  RELEASETIMING std::string("RELEASETIMING")
+#define  LOADPARAMS    std::string("LOADPARAMS")
+#define  TIMER         std::string("TIMER")
+#define  FETCHLOG      std::string("FETCHLOG")
+#define  UNLOCK        std::string("LOCK0")
 
 namespace Archon {
 
@@ -74,8 +77,8 @@ namespace Archon {
       std::string   configfilename;          //!< Archon controller configuration file
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];
-      unsigned long image_size;              //!< pixels per image sensor
-      unsigned long image_memory;            //!< bytes per image sensor
+      long          image_size;              //!< pixels per image sensor
+      long          image_memory;            //!< bytes per image sensor
       int           current_observing_mode;
       int           bytes_per_pixel;
       long          naxis;
@@ -163,7 +166,7 @@ namespace Archon {
       uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
       uint32_t image_data_allocated;         //!< allocated number of bytes for image_data
 
-      bool archon_busy;                      //!< indicates a thread is accessing Archon
+      std::atomic<bool> archon_busy;         //!< indicates a thread is accessing Archon
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
 
@@ -184,7 +187,7 @@ namespace Archon {
       long print_frame_status();
       long lock_buffer(int buffer);
       long get_timer(unsigned long int *timer);
-      long fetch(uint64_t bufaddr, unsigned int bufblocks);
+      long fetch(uint64_t bufaddr, uint32_t bufblocks);
       long read_frame();                     //!< read Archon frame buffer into host memory
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
       long write_config_key( const char *key, const char *newvalue, bool &changed );

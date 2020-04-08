@@ -128,7 +128,7 @@ class FITS_file {
       }
       else {
         std::valarray<T> array(info.image_size);
-        for (unsigned long i = 0; i < info.image_size; i++){
+        for (long i = 0; i < info.image_size; i++){
           array[i] = data[i];
         }
         this->threadcount++;                                   // increment threadcount for each thread spawned
@@ -183,7 +183,7 @@ class FITS_file {
       // write the primary image into the FITS file
       //
       try {
-        long fpixel = 1;       // start with the first pixel always
+        long fpixel(1);        // start with the first pixel always
         self->pFits->pHDU().write(fpixel, info.image_size, data);
         self->pFits->flush();  // make sure the image is written to disk
       }
