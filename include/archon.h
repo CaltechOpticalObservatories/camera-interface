@@ -10,6 +10,7 @@
 
 #include <CCfits/CCfits>                 //!< needed here for types in set_axes()
 #include <atomic>
+#include "common.h"
 
 // number of observing modes
 //#define NUM_OBS_MODES 1
@@ -70,17 +71,17 @@ namespace Archon {
   class Information {
     private:
     public:
-      std::string   hostname;                //<! Archon controller hostname
+      std::string   hostname;                //!< Archon controller hostname
       int           port;                    //!< Archon controller TPC/IP port number
       int           nbufs;                   //!< Archon controller number of frame buffers
-      int           bitpix;
+      int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
+      int           datatype;                //!< FITS data type (corresponding to bitpix)
       std::string   configfilename;          //!< Archon controller configuration file
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];
       long          image_size;              //!< pixels per image sensor
       long          image_memory;            //!< bytes per image sensor
       int           current_observing_mode;
-      int           bytes_per_pixel;
       long          naxis;
       long          axes[2];
       int           binning[2];
@@ -89,7 +90,9 @@ namespace Archon {
       long          image_center[2];
       bool          data_cube;
       std::string   image_name;
-      std::string   fits_start_time;         //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
+      std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
+
+      Common::FitsTools fits;                //!< create a FitsTools object
 
       Information() {
         this->axes[0] = 1;
@@ -106,29 +109,22 @@ namespace Archon {
         this->image_name = "/tmp/test.fits";
       }
 
-      void set_axes(int bitpix_in) {
-        this->bitpix = bitpix_in;
+      long set_axes(int datatype_in) {
+        this->datatype = datatype_in;
+        long bytes_per_pixel;
 
-        switch(this->bitpix){
-          case BYTE_IMG:
-          case SBYTE_IMG:
-            this->bytes_per_pixel = 1;
-            break;
+        switch (this->datatype) {
           case SHORT_IMG:
           case USHORT_IMG:
-            this->bytes_per_pixel = 2;
+            bytes_per_pixel = 2;
             break;
           case LONG_IMG:
           case ULONG_IMG:
           case FLOAT_IMG:
-            this->bytes_per_pixel = 4;
-            break;
-          case LONGLONG_IMG:
-          case DOUBLE_IMG:
-            this->bytes_per_pixel = 8;
+            bytes_per_pixel = 4;
             break;
           default:
-            this->bytes_per_pixel = 4;
+            return (ERROR);
         }
 
         this->naxis = 2;
@@ -141,8 +137,10 @@ namespace Archon {
         this->axes[0] = this->axis_pixels[0] / this->binning[0];
         this->axes[1] = this->axis_pixels[1] / this->binning[1];
 
-        this->image_size   = this->axes[0] * this->axes[1];                          // Pixels per CCD
-        this->image_memory = this->axes[0] * this->axes[1] * this->bytes_per_pixel;  // Bytes per CCD
+        this->image_size   = this->axes[0] * this->axes[1];                    // Pixels per CCD
+        this->image_memory = this->axes[0] * this->axes[1] * bytes_per_pixel;  // Bytes per CCD
+
+        return (NO_ERROR);
       }
   };
 
@@ -200,6 +198,8 @@ namespace Archon {
 
       Information camera_info;
       Information fits_info;                 //!< copy of camera_info class used to preserve info for FITS writing
+
+      Common::Utilities util;                //!< create a Utility object
 
       typedef enum {
         MODE_DEFAULT = 0,
@@ -297,16 +297,8 @@ namespace Archon {
         int    line;           // the line number, used for updating Archon
       } param_line_t;
 
-      typedef struct {
-        std::string keyword;
-        std::string keytype;
-        std::string keyvalue;
-        std::string keycomment;
-      } user_key_t;
-
       typedef std::map<std::string, config_line_t>  cfg_map_t;
       typedef std::map<std::string, param_line_t>   param_map_t;
-      typedef std::map<std::string, user_key_t>     fits_key_t;
 
       cfg_map_t   configmap;
       param_map_t parammap;
@@ -321,7 +313,7 @@ namespace Archon {
         int         rawenable;   //!< initialized to -1, then set according to RAWENABLE in .acf file
         cfg_map_t   configmap;   //!< key=value map for configuration lines set in mode sections
         param_map_t parammap;    //!< PARAMETERn=parametername=value map for mode sections
-        fits_key_t  userkeys;    //!< user supplied FITS header keys
+        Common::FitsTools fits;  //!< create a FitsTools object to hold user keys read from ACF file for each mode
       } modeinfo[NUM_OBS_MODES];
 
       /**

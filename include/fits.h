@@ -10,6 +10,7 @@
 #include "common.h"
 #include <thread>
 #include <atomic>
+#include "build_date.h"
 
 template <class T>
 class FITS_file {
@@ -33,10 +34,13 @@ class FITS_file {
 
     /**************** FITS_file::open_file ************************************/
     /**
-     * @fn     open_files
-     * @brief  
-     * @param  
+     * @fn     open_file
+     * @brief  opens a FITS file
+     * @param  Information& info, reference to camera_info class
      * @return 
+     *
+     * This uses CCFits to create a FITS container, opens the file and writes
+     * primary header data to it.
      *
      */
     long open_file(Archon::Information & info) {
@@ -58,8 +62,20 @@ class FITS_file {
 
       try {
         // Allocate the FITS file container, which holds the information used by CCfits to write a file
+        // and write the primary camera header information.
         //
-        this->pFits.reset( new CCfits::FITS(info.image_name, info.bitpix, info.naxis, info.axes) );
+        this->pFits.reset( new CCfits::FITS(info.image_name, info.datatype, info.naxis, info.axes) );
+        this->make_camera_header(info);
+
+        // Add user-defined FITS keywords to the primary header.
+        // These have been defined with the "FITS:" tag in the .acf file
+        //
+        Common::FitsTools::fits_key_t::iterator keyit;
+        for (keyit  = info.fits.userkeys.begin();
+             keyit != info.fits.userkeys.end();
+             keyit++) {
+          add_user_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
+        }
       }
       catch (CCfits::FITS::CantCreate){
         Logf("(%s) error: unable to open FITS file %s\n", function, info.image_name.c_str());
@@ -79,10 +95,12 @@ class FITS_file {
 
     /**************** FITS_file::close_file ***********************************/
     /**
-     * @fn     open_files
-     * @brief  
-     * @param  
+     * @fn     cloe_file
+     * @brief  closes fits file
+     * @param  none
      * @return 
+     *
+     * Before closing the file, DATE and CHECKSUM keywords are added
      *
      */
     long close_file() {
@@ -114,9 +132,12 @@ class FITS_file {
     /**************** FITS_file::write_image **********************************/
     /**
      * @fn     write_image
-     * @brief  
-     * @param  
+     * @brief  spawn threads to write image data to FITS file on disk
+     * @param  T* data, pointer to the data using template type T
+     * @param  Information& into, reference to the fits_info class
      * @return 
+     *
+     * This function spawns a thread to write the image data to disk
      *
      */
     long write_image(T* data, Archon::Information& info) {
@@ -131,12 +152,20 @@ class FITS_file {
         for (long i = 0; i < info.image_size; i++){
           array[i] = data[i];
         }
+        // Use a lambda expression to properly spawn a thread without having to
+        // make it static. Each thread gets a pointer to the current object this->
+        // which must continue to exist until all of the threads terminate.
+        // That is ensured by keeping threadcount, incremented for each thread
+        // spawned and decremented on return, and not returning from this function
+        // until threadcount is zero.
+        //
         this->threadcount++;                                   // increment threadcount for each thread spawned
         std::thread([&]() {
           this->write_image_thread(std::ref(array), std::ref(info), this);
           std::lock_guard<std::mutex> lock(this->fits_mutex);  // lock and
           this->threadcount--;                                 // decrement threadcount
         }).detach();
+        Logf("(%s) waiting for threads to complete\n", function);
         while (this->threadcount > 0) usleep(1000);            // wait for all threads to complete
       }
 
@@ -149,9 +178,11 @@ class FITS_file {
     /**************** FITS_file::write_image_thread ***************************/
     /**
      * @fn     write_image_thread
-     * @brief  
+     * @brief  This is where the data are actually written
      * @param  
      * @return 
+     *
+     * This is the worker thread, to write the data using CCFits.
      *
      */
     void write_image_thread(std::valarray<T> &data, Archon::Information &info, FITS_file<T> *self) {
@@ -169,8 +200,9 @@ class FITS_file {
       CCfits::FITS::setVerboseMode(true);
 
       // Open the FITS file
+      // (internally mutex-protected)
       //
-      if (self->open_file(info) != NO_ERROR){
+      if (self->open_file(info) != NO_ERROR) {
         Logf("(%s) error failed to open FITS file %s\n", function, info.image_name.c_str());
         return;
       }
@@ -202,5 +234,58 @@ class FITS_file {
       self->writing_file = false;
     }
     /**************** FITS_file::write_image_thread ***************************/
+
+
+    /**************** FITS_file::make_camera_header ***************************/
+    /**
+     * @fn     make_camera_header
+     * @brief  this writes header info from the camera_info class
+     * @param  Information& info, reference to the camera_info class
+     * @return 
+     *
+     * Uses CCFits
+     */
+    void make_camera_header(Archon::Information &info) {
+      const char* function = "FITS_file::make_camera_header";
+      try {
+        std::string build(BUILD_DATE); build.append(" "); build.append(BUILD_TIME);
+        this->pFits->pHDU().addKey("SERV_VER", build, "server build date");
+      }
+      catch (CCfits::FitsError & err) {
+        Logf("(%s) error creating FITS header: %s\n", function, err.message().c_str());
+      }
+    }
+    /**************** FITS_file::make_camera_header ***************************/
+
+
+    /**************** FITS_file::add_user_key *********************************/
+    /**
+     * @fn     add_user_key
+     * @brief  this writes user-added keywords
+     * @param  std::string keyword
+     * @param  std::string type
+     * @param  std::string value
+     * @param  std::string comment
+     * @return nothing
+     *
+     * Uses CCFits
+     */
+    void add_user_key(std::string keyword, std::string type, std::string value, std::string comment) {
+      const char* function = "FITS_file::add_user_key";
+      if (type.compare("INT") == 0) {
+        this->pFits->pHDU().addKey(keyword, atoi(value.c_str()), comment);
+      }
+      else if (type.compare("REAL") == 0 || type.compare("FLOAT")) {
+        this->pFits->pHDU().addKey(keyword, atof(value.c_str()), comment);
+      }
+      else if (type.compare("STRING") == 0) {
+        this->pFits->pHDU().addKey(keyword, value, comment);
+      }
+      else {
+        Logf("(%s) error unknown type: %s for user keyword: %s = %s / %s", function, 
+             type.c_str(), keyword.c_str(), value.c_str(), comment.c_str());
+      }
+    }
+    /**************** FITS_file::add_user_key *********************************/
 
 };

@@ -267,10 +267,10 @@ namespace Archon {
 
     // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
     //
-    if ( (cmd != "WCONFIG") &&
-         (cmd != "TIMER")   &&
-         (cmd != "STATUS")  &&
-         (cmd != "FRAME") ) {
+    if ( (cmd.compare(0,7,"WCONFIG") != 0) &&
+         (cmd.compare(0,5,"TIMER") != 0)   &&
+         (cmd.compare(0,6,"STATUS") != 0)  &&
+         (cmd.compare(0,5,"FRAME") != 0) ) {
       std::string fcmd = scmd; fcmd.erase(fcmd.find('\n'));                 // remove newline for logging
       Logf("(%s) sending command: %s\n", function, fcmd.c_str());
     }
@@ -342,11 +342,10 @@ namespace Archon {
       error = NO_ERROR;
 
       // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
-      if ( (error==NO_ERROR)  &&
-           (cmd != "WCONFIG") &&
-           (cmd != "TIMER")   &&
-           (cmd != "STATUS")  &&
-           (cmd != "FRAME") ) {
+      if ( (cmd.compare(0,7,"WCONFIG") != 0) &&
+           (cmd.compare(0,5,"TIMER") != 0)   &&
+           (cmd.compare(0,6,"STATUS") != 0)  &&
+           (cmd.compare(0,5,"FRAME") != 0) ) {
         Logf("(%s) command 0x%02X success\n", function, this->msgref);
       }
 
@@ -541,8 +540,6 @@ namespace Archon {
 
     Logf("(%s) %s\n", function, cfgfile.c_str());
 
-    Common::Utilities util;
-
     std::string keyword, keystring, keyvalue, keytype, keycomment;
 
     std::string modesection;
@@ -582,7 +579,7 @@ namespace Archon {
       this->modeinfo[modenum].rawenable = -1;    //!< undefined. Set in ACF.
       this->modeinfo[modenum].parammap.clear();
       this->modeinfo[modenum].configmap.clear();
-      this->modeinfo[modenum].userkeys.clear();
+      this->modeinfo[modenum].fits.userkeys.clear();
     }
 
     linecount = 0;
@@ -597,9 +594,9 @@ namespace Archon {
        * parse mode sections
        */
       if (strncasecmp(line, "[MODE_",   6)==0) { // this is a mode section
-        util.chrrep(line, '[',  127);            // remove [ bracket (replace with DEL)
-        util.chrrep(line, ']',  127);            // remove ] bracket (replace with DEL)
-        util.chrrep(line, '\n', 127);            // remove newline (replace with DEL)
+        this->util.chrrep(line, '[',  127);      // remove [ bracket (replace with DEL)
+        this->util.chrrep(line, ']',  127);      // remove ] bracket (replace with DEL)
+        this->util.chrrep(line, '\n', 127);      // remove newline (replace with DEL)
         if (line!=NULL) modesection=line;        // create a string object out of the rest of the line
 
         // loop through all possible observing modes
@@ -653,8 +650,8 @@ namespace Archon {
       }
       strcpy((char*)line_ptr, orig_ptr);                  // copy the remainder of the line to the end
 
-      util.chrrep(line, '\\', '/');                       // replace backslash with forward slash
-      util.chrrep(line, '\"', 127);                       // remove all quotes (replace with DEL)
+      this->util.chrrep(line, '\\', '/');                 // replace backslash with forward slash
+      this->util.chrrep(line, '\"', 127);                 // remove all quotes (replace with DEL)
 
       /** ************************************************************
        * Store actual Archon parameters in their own STL map IN ADDITION to the map
@@ -688,7 +685,7 @@ namespace Archon {
       if (strncmp(lineptr, "ACF:",  4)==0) {
 
         if (strsep(&lineptr, ":") == NULL) continue;                      // strip off the "ACF:" portion
-        util.chrrep(lineptr, '\n', 127);                                  // remove newline (replace with DEL)
+        this->util.chrrep(lineptr, '\n', 127);                            // remove newline (replace with DEL)
 
         /**
          * We either hava a PARAMETER of the form: PARAMETERn=PARAMNAME=VALUE
@@ -722,7 +719,7 @@ namespace Archon {
       else
       if (strncmp(lineptr, "ARCH:", 5)==0) {
         if (strsep(&lineptr, ":") == NULL) continue;                      // strip off the "ARCH:" portion
-        util.chrrep(lineptr, '\n', 127);                                  // remove newline (replace with DEL)
+        this->util.chrrep(lineptr, '\n', 127);                            // remove newline (replace with DEL)
         if ( (keyptr = strsep(&lineptr, "=")) == NULL ) continue;         // keyptr: KEY, lineptr: VALUE
 
         this->modeinfo[obsmode].defined = TRUE;                           // this mode is defined
@@ -754,11 +751,11 @@ namespace Archon {
       if (strncmp(lineptr, "FITS:", 5)==0) {
         std::vector<std::string> tokens;
         if (strsep(&lineptr, ":") == NULL) continue;                      // strip off the "FITS:" portion
-        util.chrrep(lineptr, '\n', 127);                                  // remove newline (replace with DEL)
+        this->util.chrrep(lineptr, '\n', 127);                            // remove newline (replace with DEL)
 
         // First, tokenize on the equal sign "=".
         // The token left of "=" is the keyword. Immediate right is the value
-        util.Tokenize(lineptr, tokens, "=");
+        this->util.Tokenize(lineptr, tokens, "=");
         if (tokens.size() != 2) {                                         // need at least two tokens at this point
           Logf("(%s) error: token mismatch: expected KEYWORD=value//comment (found too many ='s)\n", function);
           if (line) free(line); fclose(fp);                               // getline() mallocs a buffer for line
@@ -769,7 +766,7 @@ namespace Archon {
 
         // Next, tokenize on the slash "/".
         // The token left of "/" is the value. Anything to the right is a comment.
-        util.Tokenize(keystring, tokens, "/");
+        this->util.Tokenize(keystring, tokens, "/");
         keyvalue   = tokens[0];
 
         if (tokens.size() == 2) {      // If there are two tokens then the second is a comment,
@@ -780,11 +777,11 @@ namespace Archon {
 
         // Set the key type based on the contents of the value string.
         // The type will be used in the fits_file.add_user_key(...) call.
-        if (util.get_keytype(keyvalue) == Common::Utilities::TYPE_INTEGER) {
+        if (this->camera_info.fits.get_keytype(keyvalue) == Common::FitsTools::TYPE_INTEGER) {
           keytype = "INT";
         }
         else
-        if (util.get_keytype(keyvalue) == Common::Utilities::TYPE_DOUBLE) {
+        if (this->camera_info.fits.get_keytype(keyvalue) == Common::FitsTools::TYPE_DOUBLE) {
           keytype = "REAL";
         }
         else {      // if not an int or float then a string by default
@@ -793,10 +790,10 @@ namespace Archon {
 
         // Save all of the user keyword information in a map for later
         //
-        this->modeinfo[obsmode].userkeys[keyword].keyword    = keyword;
-        this->modeinfo[obsmode].userkeys[keyword].keytype    = keytype;
-        this->modeinfo[obsmode].userkeys[keyword].keyvalue   = keyvalue;
-        this->modeinfo[obsmode].userkeys[keyword].keycomment = keycomment;
+        this->modeinfo[obsmode].fits.userkeys[keyword].keyword    = keyword;
+        this->modeinfo[obsmode].fits.userkeys[keyword].keytype    = keytype;
+        this->modeinfo[obsmode].fits.userkeys[keyword].keyvalue   = keyvalue;
+        this->modeinfo[obsmode].fits.userkeys[keyword].keycomment = keycomment;
       } // end if (strncmp(lineptr, "FITS:", 5)==0)
 
       /**
@@ -1015,6 +1012,17 @@ namespace Archon {
     std::istringstream( this->configmap["BIGBUF"].value  ) >> bigbuf;  // get value of BIGBUF from loaded acf file
     this->camera_info.nbufs = (bigbuf==1) ? 2 : 3;                     // set number of buffers based on BIGBUF
 
+    /**
+     * set bitpix based on SAMPLEMODE
+     */
+    int samplemode=-1;
+    std::istringstream( this->configmap["SAMPLEMODE"].value ) >> samplemode;  // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
+    if (samplemode < 0) {
+      Logf("(%s) bad or missing SAMPLEMODE from %s\n", function, this->camera_info.configfilename.c_str());
+      return (ERROR);
+    }
+    this->camera_info.bitpix = (samplemode==0) ? 16 : 32;
+
     this->frame.bufsample.resize( this->camera_info.nbufs );
     this->frame.bufcomplete.resize( this->camera_info.nbufs );
     this->frame.bufmode.resize( this->camera_info.nbufs );
@@ -1042,14 +1050,29 @@ namespace Archon {
       return(error);
     }
 
-    // set bytes per pixel (image_memory is set here)
+    // Set axes, image dimensions, calculate image_memory, etc.
+    // Raw will always be 16 bpp (USHORT).
+    // Image can be 16 or 32 bpp depending on SAMPLEMODE setting in ACF.
+    // Call set_axes(datatype) with the FITS data type needed.
     //
     if (this->camera_info.frame_type == FRAME_RAW) {
-      this->camera_info.set_axes(USHORT_IMG);
+      error = this->camera_info.set_axes(USHORT_IMG);
     }
     if (this->camera_info.frame_type == FRAME_IMAGE) {
-      this->camera_info.set_axes(FLOAT_IMG);
+      if (this->camera_info.bitpix == 16) error = this->camera_info.set_axes(USHORT_IMG);
+      else
+      if (this->camera_info.bitpix == 32) error = this->camera_info.set_axes(FLOAT_IMG);
+      else {
+        Logf("(%s) error bad bitpix %d\n", function, this->camera_info.bitpix);
+        return (ERROR);
+      }
     }
+    if (error != NO_ERROR) {
+      Logf("(%s) error setting axes\n", function);
+      return (ERROR);
+    }
+
+    Logf("(%s) will use %d bits per pixel\n", function, this->camera_info.bitpix);
 
     // allocate image_data in blocks because the controller outputs data in units of blocks
     //
@@ -1083,8 +1106,6 @@ namespace Archon {
                      bool configchanged = false;
 
     std::stringstream errstr;
-
-    Common::Utilities util;
 
     /**
      * iterate through configmap, writing each config key in the map
@@ -1149,7 +1170,7 @@ namespace Archon {
       // The value of TAPLINEn = ADxx,gain,offset --
       // tokenize by comma to separate out each parameter...
       //
-      util.Tokenize(this->configmap[tap.str().c_str()].value, tokens, ",");
+      this->util.Tokenize(this->configmap[tap.str().c_str()].value, tokens, ",");
 
       // If all three tokens present (ADxx,gain,offset) then parse it,
       // otherwise it's an unused tap and we can skip it.
@@ -1412,15 +1433,13 @@ namespace Archon {
     int  error;
     char reply[REPLY_LEN];
 
-    Common::Utilities util;
-
     // send TIMER command to get frame buffer status
     //
     if ( (error = this->archon_cmd(TIMER, reply)) != NO_ERROR ) {
       return(error);
     }
 
-    util.Tokenize(reply, tokens, "=");        // Tokenize the reply
+    this->util.Tokenize(reply, tokens, "=");        // Tokenize the reply
 
     // Reponse should be "TIMER=xxxx\n" so there needs
     // to be two tokens
@@ -1662,31 +1681,40 @@ namespace Archon {
   /**************** Archon::Interface::write_frame ****************************/
   /**
    * @fn     write_frame
-   * @brief  
-   * @param  
-   * @param  
+   * @brief  creates a FITS_file object to write the image_data buffer to disk
+   * @param  none
    * @return 
+   *
+   * A FITS_file object is created here to write the data. This object MUST remain
+   * valid while any (all) threads are writing data, so the write_data function
+   * will keep track of threads so that it doesn't terminate until all of its 
+   * threads terminate.
+   *
+   * The camera_info class was copied into fits_info when the exposure was started,
+   * so use fits_info from here on out.
    *
    */
   long Interface::write_frame() {
     const char* function = "Archon::Interface::write_frame";
-    unsigned int   *cbuf32;              //!< used to cast char buf into 32 bit int
-    unsigned short *cbuf16;              //!< used to cast char buf into 16 bit int
+    uint32_t   *cbuf32;                  //!< used to cast char buf into 32 bit int
+    uint16_t   *cbuf16;                  //!< used to cast char buf into 16 bit int
 
-    Logf("(%s) writing data from memory to disk\n", function);
+    Logf("(%s) writing %d-bit data from memory to disk\n", function, this->fits_info.bitpix);
 
     // The Archon sends four 8-bit numbers per pixel. To convert this into something usable,
-    // cast the image buffer into integers. Handled differently for different frame types.
+    // cast the image buffer into integers. Handled differently depending on bits per pixel.
     //
-    switch(this->fits_info.frame_type) {
+    switch (this->fits_info.bitpix) {
 
-      case FRAME_IMAGE:{                 // convert four 8-bit values into a 32-bit value and scale by 65535
-        FITS_file <float> fits_file;                       // Instantiate a FITS_file object 
-        cbuf32 = (unsigned int *)this->image_data;         // cast here
+      // convert four 8-bit values into a 32-bit value and scale by 2^16
+      //
+      case 32: {
+        FITS_file <float> fits_file;                       // Instantiate a FITS_file object with the appropriate type
+        cbuf32 = (uint32_t *)this->image_data;             // cast here to 32b
         float *fbuf = NULL;
         fbuf = new float[ this->fits_info.image_size ];    // allocate a float buffer of same number of pixels
 
-        for (pix=0; pix < this->fits_info.image_size; pix++) {
+        for (long pix=0; pix < this->fits_info.image_size; pix++) {
           fbuf[pix] = cbuf32[pix] / (float)65535;          // right shift 16 bits
         }
 
@@ -1697,20 +1725,19 @@ namespace Archon {
         break;
       }
 
-      case FRAME_RAW:{                   // for RAW convert into 16 bit values and no scaling
-        FITS_file <unsigned short> fits_file;              // Instantiate a FITS_file object
-        cbuf16 = (unsigned short *)this->image_data;
-        unsigned short *cbuf = NULL;
-        cbuf = new unsigned short[ this->fits_info.image_size ];
+      // convert four 8-bit values into 16 bit values and no scaling necessary
+      //
+      case 16: {
+        FITS_file <unsigned short> fits_file;              // Instantiate a FITS_file object with the appropriate type
+        cbuf16 = (uint16_t *)this->image_data;             // cast to 16b
         fits_file.write_image(cbuf16, this->fits_info);
-        if (cbuf != NULL) {
-          delete [] cbuf;
-        }
         break;
       }
 
-      default:                           // shouldn't happen
-        Logf("(%s) error unrecognized frame type: %d\n", function, this->fits_info.frame_type);
+      // shouldn't happen
+      //
+      default:
+        Logf("(%s) error unrecognized bits per pixel: %d\n", function, this->fits_info.bitpix);
         return (ERROR);
         break;
     }
@@ -1726,7 +1753,7 @@ namespace Archon {
    * @brief  write a configuration KEY=VALUE pair to the Archon controller
    * @param  key
    * @param  newvalue
-   * @return NO_ERROR or Interface::ARCHON_ERROR_INVALID_PARAMETER
+   * @return 
    *
    */
   long Interface::write_config_key( const char *key, const char *newvalue, bool &changed ) {
@@ -1796,7 +1823,7 @@ namespace Archon {
    * @brief  write a parameter to the Archon controller
    * @param  paramname
    * @param  newvalue
-   * @return NO_ERROR or Interface::ARCHON_ERROR_INVALID_PARAMETER
+   * @return NO_ERROR or ERROR
    *
    */
   long Interface::write_parameter( const char *paramname, const char *newvalue, bool &changed ) {
@@ -1872,16 +1899,14 @@ namespace Archon {
   /**************** Archon::Interface::expose *********************************/
   /**
    * @fn     expose
-   * @brief  
-   * @param  
-   * @return 
+   * @brief  triggers an Archon exposure by setting the EXPOSE parameter = 1
+   * @param  none
+   * @return ERROR or NO_ERROR
    *
    */
   long Interface::expose() {
     const char* function = "Archon::Interface::expose";
     long error;
-
-    Common::Utilities util;
 
 //  error = this->prep_parameter("dCDSRawExpose", "1");
 //  if (error == NO_ERROR) error = this->load_parameter("dCDSRawExpose", "1");
@@ -1889,11 +1914,11 @@ namespace Archon {
     if (error == NO_ERROR) error = this->load_parameter("Expose", "1");
 
     // get system time and Archon's timer after exposure starts
-    // fits_start_time is used by the FITS writer ?? //TODO (maybe can remove)
+    // start_time is used by the FITS writer ?? //TODO (maybe can remove)
     //
     if (error == NO_ERROR) {
-      this->camera_info.fits_start_time = util.get_time_string();  // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-      error = this->get_timer(&this->start_time);           // Archon internal timer
+      this->camera_info.start_time = this->util.get_time_string();  // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+      error = this->get_timer(&this->start_time);                   // Archon internal timer
     }
 
     if (error == NO_ERROR) {
@@ -1901,7 +1926,9 @@ namespace Archon {
     }
     if (error == NO_ERROR) error = this->prepare_image_buffer();
 
-    this->fits_info = this->camera_info;       //!< make a copy of the camera_info class here, to be given to fits writer
+    int mode = this->camera_info.current_observing_mode;
+    this->camera_info.fits.userkeys = this->modeinfo[mode].fits.userkeys;  // copy the mode's userkeys into camera_info
+    this->fits_info = this->camera_info;                                   // copy the camera_info class, to be given to fits writer
 
     return (NO_ERROR);
   }

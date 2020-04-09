@@ -139,7 +139,7 @@ namespace Common {
   /** Common::Utilities::chrrep ***********************************************/
 
 
-  /** Common::Utilities::get_keytype ******************************************/
+  /** Common::FitsTools::get_keytype ******************************************/
   /**
    * @fn     get_keytype
    * @brief  
@@ -147,7 +147,7 @@ namespace Common {
    * @return 
    *
    */
-  int Utilities::get_keytype(std::string keyvalue) {
+  int FitsTools::get_keytype(std::string keyvalue) {
     std::size_t pos(0);
 
     // skip the whitespaces
@@ -177,7 +177,7 @@ namespace Common {
     }
     else return TYPE_STRING;                 // lastly, must be a string
   }
-  /** Common::Utilities::get_keytype ******************************************/
+  /** Common::FitsTools::get_keytype ******************************************/
 
 
   /** Common::Utilities::get_time_string **************************************/
