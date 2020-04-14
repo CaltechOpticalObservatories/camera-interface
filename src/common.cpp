@@ -6,6 +6,8 @@
  *
  */
 #include <iostream>
+#include <fstream>
+#include <cstdio>
 #include <iomanip>
 #include <sstream>
 #include <vector>
@@ -22,6 +24,177 @@
 #include "common.h"
 
 namespace Common {
+
+  Common::Common() {
+    this->image_dir = "/tmp";
+    this->image_name = "test";
+    this->image_num = 0;
+  }
+
+
+  /** Common::Utilities::imnum ************************************************/
+  /**
+   * @fn     imnum
+   * @brief  set or get the image_num member
+   * @param  std::string num_in
+   * @return int
+   *
+   */
+  int Common::imnum(std::string num_in) {
+    const char* function = "Common::Common::imnum";
+
+    // If no string is passed then this is a request; return the current value.
+    //
+    if (num_in.empty()) {
+      Logf("(%s) image number: %d\n", function, this->image_num);
+    }
+    else {
+      int num = std::stoi(num_in);
+      if (num < 0) {
+        Logf("(%s) error number %d must be >= 0\n", function, num);
+        return -1;
+      }
+      else {
+        this->image_num = num;
+        Logf("(%s) new image number: %d\n", function, this->image_num);
+        return this->image_num;
+      }
+    }
+    return this->image_num;
+  }
+  /** Common::Utilities::imnum ************************************************/
+
+
+
+  /** Common::Utilities::imname ***********************************************/
+  /**
+   * @fn     imname
+   * @brief  set or get the image_name member
+   * @param  std::string name_in
+   * @return std::string
+   *
+   */
+  std::string Common::imname(std::string name_in) {
+    const char* function = "Common::Common::imname";
+
+    // If no string is passed then this is a request; return the current value.
+    //
+    if (name_in.empty()) {
+      Logf("(%s) image name: %s\n", function, this->image_name.c_str());
+    }
+    else {
+      this->image_name = name_in;
+      Logf("(%s) new image name: %s\n", function, this->image_name.c_str());
+    }
+    return this->image_name;
+  }
+  /** Common::Utilities::imname ***********************************************/
+
+
+
+  /** Common::Utilities::imdir ************************************************/
+  /**
+   * @fn     imdir
+   * @brief  set or get the image_dir member
+   * @param  std::string dir_in
+   * @return std::string
+   *
+   */
+  std::string Common::imdir(std::string dir_in) {
+    const char* function = "Common::Common::imdir";
+
+    // If no string is passed then this is a request; return the current value.
+    //
+    if (dir_in.empty()) {
+      Logf("(%s) image directory: %s\n", function, this->image_dir.c_str());
+      return this->image_dir;
+    }
+
+    struct stat st;
+    if (stat(dir_in.c_str(), &st) == 0) {
+      // Use stat to check that it's a directory
+      //
+      if (S_ISDIR(st.st_mode)) {
+        try {
+          // and if it is then try writing a test file to make sure we'll be able to write to it
+          //
+          std::string testfile;
+          testfile = dir_in + "/.tmp";
+          FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
+          if (!fp) {
+            Logf("(%s) error cannot write to %s\n", function, dir_in.c_str());
+            return std::string("ERROR");
+          }
+          else {                                           // remove the test file
+            std::fclose(fp);
+            if (std::remove(testfile.c_str()) != 0) Logf("(%s) error removing temporary file %s\n", function, testfile.c_str());
+          }
+        }
+        catch(...) {
+          Logf("(%s) error writing to %s\n", function, dir_in.c_str());
+          return std::string("ERROR");
+        }
+        this->image_dir = dir_in;                          // passed all tests so set the image_dir
+        Logf("(%s) set new image directory: %s\n", function, this->image_dir.c_str());
+        return this->image_dir;
+      }
+      else {
+        Logf("(%s) error: %s is not a directory\n", function, dir_in.c_str());
+        return std::string("ERROR");
+      }
+    }
+    else {
+      Logf("(%s) error: %s does not exist\n", function, dir_in.c_str());
+      return this->image_dir;
+    }
+  }
+  /** Common::Utilities::imdir ************************************************/
+
+
+  /** Common::Utilities::get_fitsname *****************************************/
+  /**
+   * @fn     get_fitsname
+   * @brief  assemble the FITS filename
+   * @param  none
+   * @return std::string
+   *
+   * This function assembles the fully qualified path to the output FITS filename
+   * using the parts (dir, basename, number) stored in the Common::Common class.
+   * If the filename already exists then a -number is inserted, incrementing that
+   * number until a unique name is achieved.
+   *
+   */
+  std::string Common::get_fitsname() {
+    // width of image_num portion of the filename is at least 4 digits, and grows as needed
+    //
+    int width = (this->image_num < 10000 ? 4 :   
+                (this->image_num < 100000 ? 5 :   
+                (this->image_num < 1000000 ? 6 :   
+                (this->image_num < 10000000 ? 7 :  
+                (this->image_num < 100000000 ? 8 :  
+                (this->image_num < 1000000000 ? 9 : 10)))))); 
+    // build the filename
+    //
+    std::stringstream fn;
+    fn.str("");
+    fn << this->image_dir << "/" << this->image_name << "_" << std::setfill('0') << std::setw(width)
+       << this->image_num << ".fits";
+
+    // Check if file exists and include a -# to set apart duplicates.
+    //
+    struct stat st;
+    int dupnumber=1;
+    while (stat(fn.str().c_str(), &st) == 0) {
+      fn.str("");
+      fn << this->image_dir << "/" << this->image_name << "_" << std::setfill('0') << std::setw(width)
+         << this->image_num << "-" << dupnumber << ".fits";
+      dupnumber++;  // keep incrementing until we have a unique filename
+    }
+
+    return fn.str();
+  }
+  /** Common::Utilities::get_fitsname *****************************************/
+
 
   /** Common::Utilities::parse_val ********************************************/
   /**
@@ -142,17 +315,21 @@ namespace Common {
   /** Common::FitsTools::get_keytype ******************************************/
   /**
    * @fn     get_keytype
-   * @brief  
-   * @param  
-   * @return 
+   * @brief  return the keyword type based on the keyvalue
+   * @param  std::string value
+   * @return std::string type
+   *
+   * This function looks at the contents of the value string to determine if it
+   * contains an INT, FLOAT or STRING, and returns a string identifying the type.
+   * That type is used in FITS_file::add_user_key() for adding keywords to the header.
    *
    */
-  int FitsTools::get_keytype(std::string keyvalue) {
+  std::string FitsTools::get_keytype(std::string keyvalue) {
     std::size_t pos(0);
 
     // skip the whitespaces
     pos = keyvalue.find_first_not_of(' ');
-    if (pos == keyvalue.size()) return TYPE_STRING;             // all spaces, so it's a string
+    if (pos == keyvalue.size()) return std::string("STRING");   // all spaces, so it's a string
 
     // check the significand
     if (keyvalue[pos] == '+' || keyvalue[pos] == '-') ++pos;    // skip the sign if exist
@@ -162,7 +339,7 @@ namespace Common {
         keyvalue[pos] == '.' ? ++n_pt : ++n_nm;
     }
     if (n_pt>1 || n_nm<1)                    // no more than one point, at least one digit
-      return TYPE_STRING;                    // more than one decimal or no numbers, it's a string
+      return std::string("STRING");          // more than one decimal or no numbers, it's a string
 
     // skip the trailing whitespaces
     while (keyvalue[pos] == ' ') {
@@ -171,11 +348,11 @@ namespace Common {
 
     if (pos == keyvalue.size()) {
       if (keyvalue.find(".") == std::string::npos)
-        return TYPE_INTEGER;                 // all numbers and no decimals, it's an integer
+        return std::string("INT");           // all numbers and no decimals, it's an integer
       else
-        return TYPE_DOUBLE;                  // numbers with a decimal, it's a float
+        return std::string("FLOAT");         // numbers with a decimal, it's a float
     }
-    else return TYPE_STRING;                 // lastly, must be a string
+    else return std::string("STRING");       // lastly, must be a string
   }
   /** Common::FitsTools::get_keytype ******************************************/
 

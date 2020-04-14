@@ -25,7 +25,6 @@ namespace Archon {
   Interface::Interface() {
     this->archon_busy = false;
     this->connection_open = false;
-    this->current_state = "uninitialized";
     this->sockfd = -1;
     this->msgref = 0;
     this->camera_info.hostname = "192.168.1.2";
@@ -109,12 +108,9 @@ namespace Archon {
     //
     Logf("(%s) opening a connection to the camera system\n", function);
 
-    this->current_state = "initializing";
-
     // open socket connection to camera controller
     //
     if ( (this->sockfd = connect_to_server( this->camera_info.hostname.c_str(), this->camera_info.port ) ) < 0 ) {
-      this->current_state = "uninitialized";
       Logf("(%s) error %d connecting to %s:%d\n", function, errno, this->camera_info.hostname.c_str(), this->camera_info.port);
       return(ERROR);
     }
@@ -128,7 +124,6 @@ namespace Archon {
     // empty the Archon log
     //
     error = this->fetchlog();
-    this->current_state = "initialized";
 
     return(error);
   }
@@ -154,7 +149,6 @@ namespace Archon {
     if (this->sockfd) {
       if (close(this->sockfd) == 0) {
         this->connection_open = false;
-        this->current_state = "uninitialized";
         error = NO_ERROR;
       }
       else {
@@ -775,23 +769,10 @@ namespace Archon {
           keycomment = "";
         }
 
-        // Set the key type based on the contents of the value string.
-        // The type will be used in the fits_file.add_user_key(...) call.
-        if (this->camera_info.fits.get_keytype(keyvalue) == Common::FitsTools::TYPE_INTEGER) {
-          keytype = "INT";
-        }
-        else
-        if (this->camera_info.fits.get_keytype(keyvalue) == Common::FitsTools::TYPE_DOUBLE) {
-          keytype = "REAL";
-        }
-        else {      // if not an int or float then a string by default
-          keytype = "STRING";
-        }
-
         // Save all of the user keyword information in a map for later
         //
         this->modeinfo[obsmode].fits.userkeys[keyword].keyword    = keyword;
-        this->modeinfo[obsmode].fits.userkeys[keyword].keytype    = keytype;
+        this->modeinfo[obsmode].fits.userkeys[keyword].keytype    = this->camera_info.fits.get_keytype(keyvalue);
         this->modeinfo[obsmode].fits.userkeys[keyword].keyvalue   = keyvalue;
         this->modeinfo[obsmode].fits.userkeys[keyword].keycomment = keycomment;
       } // end if (strncmp(lineptr, "FITS:", 5)==0)
@@ -1698,6 +1679,7 @@ namespace Archon {
     const char* function = "Archon::Interface::write_frame";
     uint32_t   *cbuf32;                  //!< used to cast char buf into 32 bit int
     uint16_t   *cbuf16;                  //!< used to cast char buf into 16 bit int
+    long        error;
 
     Logf("(%s) writing %d-bit data from memory to disk\n", function, this->fits_info.bitpix);
 
@@ -1718,7 +1700,15 @@ namespace Archon {
           fbuf[pix] = cbuf32[pix] / (float)65535;          // right shift 16 bits
         }
 
-        fits_file.write_image(fbuf, this->fits_info);
+        // write the image and increment image_num on success
+        //
+        error = fits_file.write_image(fbuf, this->fits_info);
+        if ( error == NO_ERROR ) {
+          this->common.increment_imnum();
+        }
+        else {
+          Logf("(%s) error writing image\n", function);
+        }
         if (fbuf != NULL) {
           delete [] fbuf;
         }
@@ -1928,6 +1918,9 @@ namespace Archon {
 
     int mode = this->camera_info.current_observing_mode;
     this->camera_info.fits.userkeys = this->modeinfo[mode].fits.userkeys;  // copy the mode's userkeys into camera_info
+
+    this->camera_info.fits_name = this->common.get_fitsname();             // assemble the FITS filenmae
+
     this->fits_info = this->camera_info;                                   // copy the camera_info class, to be given to fits writer
 
     return (NO_ERROR);

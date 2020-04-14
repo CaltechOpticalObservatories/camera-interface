@@ -25,7 +25,6 @@ namespace Common {
 
   class Utilities {
     private:
-
     public:
       Utilities() {}
       ~Utilities() {}
@@ -41,31 +40,35 @@ namespace Common {
       FitsTools() {}
       ~FitsTools() {}
 
-      int get_keytype(std::string keyvalue);
+      std::string get_keytype(std::string keyvalue);         //!< return type of keyword based on value
 
-      typedef enum {
-        TYPE_STRING,
-        TYPE_DOUBLE,
-        TYPE_INTEGER
-      } value_types;
-
-      /**
-       * define a structure and type for a FITS keyword internal database
-       */
-      typedef struct {
+      typedef struct {                                       //!< structure of FITS keyword internal database
         std::string keyword;
         std::string keytype;
         std::string keyvalue;
         std::string keycomment;
-      } user_key_t;                                          //!< user_key_t is the structure
+      } user_key_t;
 
-      typedef std::map<std::string, user_key_t> fits_key_t;  //!< STL map
+      typedef std::map<std::string, user_key_t> fits_key_t;  //!< STL map for the actual keyword database
 
       fits_key_t userkeys;
-
-//    inline std::string fitskey_type(int keytype);          //!< FITS keyword type  //TODO ?
   };
 
-}
+  class Common {
+    private:
+      std::string image_dir;
+      std::string image_name;
+      int image_num;
 
+    public:
+      Common();
+      ~Common() {}
+
+      std::string imdir(std::string dir_in);
+      std::string imname(std::string name_in);
+      int imnum(std::string num_in);
+      void increment_imnum() { this->image_num++; };
+      std::string get_fitsname();
+  };
+}
 #endif

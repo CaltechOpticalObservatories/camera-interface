@@ -1,15 +1,18 @@
 /**
  * @file    fits.h
- * @brief   fits interface functions header file
- * @details 
+ * @brief   fits interface functions to CCFits
+ * @details template class for FITS I/O operations using CCFits
  * @author  David Hale <dhale@astro.caltech.edu>
+ *
+ * This file includes the complete template class for FITS operations
+ * using the CCFits library.
  *
  */
 #include <CCfits/CCfits>
 #include <fstream>         //!< for ofstream
-#include "common.h"
 #include <thread>
 #include <atomic>
+#include "common.h"
 #include "build_date.h"
 
 template <class T>
@@ -50,13 +53,13 @@ class FITS_file {
 
       // Check that we can write the file, because CCFits will crash if it cannot
       //
-      std::ofstream checkfile ( info.image_name.c_str() );
+      std::ofstream checkfile ( info.fits_name.c_str() );
       if ( checkfile.is_open() ) {
         checkfile.close();
-        std::remove( info.image_name.c_str() );
+        std::remove( info.fits_name.c_str() );
       }
       else {
-        Logf("(%s) error unable to create file %s\n", function, info.image_name.c_str());
+        Logf("(%s) error unable to create file %s\n", function, info.fits_name.c_str());
         return(ERROR);
       }
 
@@ -64,7 +67,7 @@ class FITS_file {
         // Allocate the FITS file container, which holds the information used by CCfits to write a file
         // and write the primary camera header information.
         //
-        this->pFits.reset( new CCfits::FITS(info.image_name, info.datatype, info.naxis, info.axes) );
+        this->pFits.reset( new CCfits::FITS(info.fits_name, info.datatype, info.naxis, info.axes) );
         this->make_camera_header(info);
 
         // Add user-defined FITS keywords to the primary header.
@@ -78,7 +81,7 @@ class FITS_file {
         }
       }
       catch (CCfits::FITS::CantCreate){
-        Logf("(%s) error: unable to open FITS file %s\n", function, info.image_name.c_str());
+        Logf("(%s) error: unable to open FITS file %s\n", function, info.fits_name.c_str());
         return(ERROR);
       }
       catch (...) {
@@ -86,7 +89,7 @@ class FITS_file {
         return(ERROR);
       }
 
-      Logf("(%s) opened file %s for FITS write\n", function, info.image_name.c_str());
+      Logf("(%s) opened file %s for FITS write\n", function, info.fits_name.c_str());
 
       return (0);
     }
@@ -203,7 +206,7 @@ class FITS_file {
       // (internally mutex-protected)
       //
       if (self->open_file(info) != NO_ERROR) {
-        Logf("(%s) error failed to open FITS file %s\n", function, info.image_name.c_str());
+        Logf("(%s) error failed to open FITS file %s\n", function, info.fits_name.c_str());
         return;
       }
 
@@ -275,7 +278,7 @@ class FITS_file {
       if (type.compare("INT") == 0) {
         this->pFits->pHDU().addKey(keyword, atoi(value.c_str()), comment);
       }
-      else if (type.compare("REAL") == 0 || type.compare("FLOAT")) {
+      else if (type.compare("FLOAT")) {
         this->pFits->pHDU().addKey(keyword, atof(value.c_str()), comment);
       }
       else if (type.compare("STRING") == 0) {

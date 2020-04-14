@@ -89,7 +89,7 @@ namespace Archon {
       long          region_of_interest[4];
       long          image_center[2];
       bool          data_cube;
-      std::string   image_name;
+      std::string   fits_name;               //!< contatenation of Common's image_dir + image_name + image_num
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
 
       Common::FitsTools fits;                //!< create a FitsTools object
@@ -106,7 +106,6 @@ namespace Archon {
         this->image_center[0] = 1;
         this->image_center[1] = 1;
         this->data_cube = false;
-        this->image_name = "/tmp/test.fits";
       }
 
       long set_axes(int datatype_in) {
@@ -153,7 +152,6 @@ namespace Archon {
       ~Interface();
 
       bool connection_open;                  //!< is there a connection open to the controller?
-      std::string current_state;             //!< current state of the controller
       int  sockfd;                           //!< socket file descriptor to Archon controller
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       int  taplines;
@@ -200,6 +198,7 @@ namespace Archon {
       Information fits_info;                 //!< copy of camera_info class used to preserve info for FITS writing
 
       Common::Utilities util;                //!< create a Utility object
+      Common::Common    common;              //!< create a Common object
 
       typedef enum {
         MODE_DEFAULT = 0,

@@ -16,6 +16,7 @@
 #include <thread>
 
 #include "archon.h"
+#include "common.h"
 
 #define MATCH(buf1, buf2) (!strncasecmp(buf1, buf2, strlen(buf2)))
 
@@ -35,7 +36,7 @@
 
 namespace Archon {
 
-  class Server : public Archon::Interface {
+  class Server : public Interface {
     private:
     public:
       Server() { }

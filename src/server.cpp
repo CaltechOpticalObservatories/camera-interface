@@ -1,5 +1,5 @@
 /**
- * @file    archon.cpp
+ * @file    server.cpp
  * @brief   
  * @details 
  * @author  David Hale <dhale@astro.caltech.edu>
@@ -285,6 +285,27 @@ void doit(int threadnum) {
                     if (ret==ERROR) server.fetchlog();
                     }
     else
+    if (MATCH(cmd, "imname")) {
+                    std::string retstr = server.common.imname(sargs) + "\n";
+                    sock_rbputs(server.conndata[threadnum].connfd, (char*)retstr.c_str());
+                    }
+    else
+    if (MATCH(cmd, "imnum")) {
+                    ret = server.common.imnum(sargs);
+//                  sock_rbputs(server.conndata[threadnum].connfd, (char*)retstr.c_str());
+                    }
+    else
+    if (MATCH(cmd, "imdir")) {
+                    std::string retstr = server.common.imdir(sargs) + "\n";
+                    sock_rbputs(server.conndata[threadnum].connfd, (char*)retstr.c_str());
+                    }
+/**
+    else
+    if (MATCH(cmd, "key")) {
+                    ret = server.set_param();
+                    }
+**/
+    else
     if (MATCH(cmd, "getp")) {
                     std::string valstring;
                     ret = server.read_parameter(sargs, valstring);
@@ -322,66 +343,7 @@ void doit(int threadnum) {
     else {  // if no matching command found then assume it's a native command and send it straight to the controller
       ret = server.archon_native(buf);
     }
-/*
-    else
-    if (MATCH(buf, "get")) {
-                    ret = server.get_param(sargs);
-                    }
-                    if (!server.is_driver_open()) {       // API should, but can't handle two opens
-                      if ( server.open_driver(sargs) == ARC_STATUS_ERROR ) {
-                        server.log_last_error();
-                      }
-                    }
-                    if ( server.is_driver_open() ) ret=0; else ret=1;  // return 0 if open, 1 otherwise
-*/
-/*
-    else
-    if (MATCH(buf, "isopen")) {
-                    ret = server.is_driver_open();
-                    }
-    else
-    if (MATCH(buf, "setup")) {
-                    ret = server.setup_controller(sargs);
-                    }
-    else
-    if (MATCH(buf, "expose")) {
-                    ret = server.start_exposure();
-                    }
-    else
-    if (MATCH(buf, "clear_fitskeys")) {
-                    ret = server.fitskey.clear_fitskeys();
-                    }
-    else
-    if (MATCH(buf, "set")) {
-                    ret = server.set_param(paramname);
-                    }
-    else {
-      // convert buf to std::string and remove any newline and carriage returns
-      //
-      std::string bufstr = buf;
-      try {
-        bufstr.erase(std::remove(bufstr.begin(), bufstr.end(), '\r' ), bufstr.end());
-        bufstr.erase(std::remove(bufstr.begin(), bufstr.end(), '\n' ), bufstr.end());
-        if (bufstr.length() < 3) {
-          Logf("() ERROR: command length too short: %d (expected at least 3)\n", function, bufstr.length());
-          ret = -1;
-          continue;
-        }
-        for (i=0; i<3; i++) bufstr.at(i)=toupper(bufstr.at(i));
-        ret = server.command(bufstr);
-        }
-      catch ( std::runtime_error &e ) {
-        std::stringstream errstr; errstr << e.what();
-        Logf("(%s) error processing command: %s\n", function, errstr.str().c_str());
-        ret = -1;
-      }
-      catch ( ... ) {
-        Logf("(%s) unknown error processing command: %s\n", function, bufstr.c_str());
-        ret = -1;
-      }
-    }
 
-*/
     if (ret != NOTHING) {
       snprintf(retstr, sizeof(retstr), "%s\n", ret==0?"DONE":"ERROR");
       if (sock_rbputs(server.conndata[threadnum].connfd, retstr)<0) connection_open=false;
@@ -391,12 +353,6 @@ void doit(int threadnum) {
     // keep blocking connection open for interactive session.
     // 
     if (server.conndata[threadnum].port_type == server.NONBLOCK) break;
-
-    /**
-     * write back a character indicating success or error
-    if (err) { if (sock_rbputs(server.conndata[threadnum].connfd,"? \0")<0) conn=0; }
-    else     { if (sock_rbputs(server.conndata[threadnum].connfd,"# \0")<0) conn=0; }
-     */
   }
 
   close(server.conndata[threadnum].connfd);
