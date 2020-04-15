@@ -27,12 +27,12 @@ namespace Common {
 
   Common::Common() {
     this->image_dir = "/tmp";
-    this->image_name = "test";
+    this->image_name = "image";
     this->image_num = 0;
   }
 
 
-  /** Common::Utilities::imnum ************************************************/
+  /** Common::Common::imnum ***************************************************/
   /**
    * @fn     imnum
    * @brief  set or get the image_num member
@@ -62,11 +62,11 @@ namespace Common {
     }
     return this->image_num;
   }
-  /** Common::Utilities::imnum ************************************************/
+  /** Common::Common::imnum ***************************************************/
 
 
 
-  /** Common::Utilities::imname ***********************************************/
+  /** Common::Common::imname **************************************************/
   /**
    * @fn     imname
    * @brief  set or get the image_name member
@@ -88,11 +88,10 @@ namespace Common {
     }
     return this->image_name;
   }
-  /** Common::Utilities::imname ***********************************************/
+  /** Common::Common::imname **************************************************/
 
 
-
-  /** Common::Utilities::imdir ************************************************/
+  /** Common::Common::imdir ***************************************************/
   /**
    * @fn     imdir
    * @brief  set or get the image_dir member
@@ -148,7 +147,7 @@ namespace Common {
       return this->image_dir;
     }
   }
-  /** Common::Utilities::imdir ************************************************/
+  /** Common::Common::imdir ***************************************************/
 
 
   /** Common::Utilities::get_fitsname *****************************************/
@@ -312,51 +311,6 @@ namespace Common {
   /** Common::Utilities::chrrep ***********************************************/
 
 
-  /** Common::FitsTools::get_keytype ******************************************/
-  /**
-   * @fn     get_keytype
-   * @brief  return the keyword type based on the keyvalue
-   * @param  std::string value
-   * @return std::string type
-   *
-   * This function looks at the contents of the value string to determine if it
-   * contains an INT, FLOAT or STRING, and returns a string identifying the type.
-   * That type is used in FITS_file::add_user_key() for adding keywords to the header.
-   *
-   */
-  std::string FitsTools::get_keytype(std::string keyvalue) {
-    std::size_t pos(0);
-
-    // skip the whitespaces
-    pos = keyvalue.find_first_not_of(' ');
-    if (pos == keyvalue.size()) return std::string("STRING");   // all spaces, so it's a string
-
-    // check the significand
-    if (keyvalue[pos] == '+' || keyvalue[pos] == '-') ++pos;    // skip the sign if exist
-
-    int n_nm, n_pt;
-    for (n_nm = 0, n_pt = 0; std::isdigit(keyvalue[pos]) || keyvalue[pos] == '.'; ++pos) {
-        keyvalue[pos] == '.' ? ++n_pt : ++n_nm;
-    }
-    if (n_pt>1 || n_nm<1)                    // no more than one point, at least one digit
-      return std::string("STRING");          // more than one decimal or no numbers, it's a string
-
-    // skip the trailing whitespaces
-    while (keyvalue[pos] == ' ') {
-        ++pos;
-    }
-
-    if (pos == keyvalue.size()) {
-      if (keyvalue.find(".") == std::string::npos)
-        return std::string("INT");           // all numbers and no decimals, it's an integer
-      else
-        return std::string("FLOAT");         // numbers with a decimal, it's a float
-    }
-    else return std::string("STRING");       // lastly, must be a string
-  }
-  /** Common::FitsTools::get_keytype ******************************************/
-
-
   /** Common::Utilities::get_time_string **************************************/
   /**
    * @fn     get_time_string
@@ -393,4 +347,126 @@ namespace Common {
     return(current_time.str());
   }
   /** Common::Utilities::get_time_string **************************************/
+
+
+  /** Common::FitsKeys::get_keytype *******************************************/
+  /**
+   * @fn     get_keytype
+   * @brief  return the keyword type based on the keyvalue
+   * @param  std::string value
+   * @return std::string type: "STRING", "FLOAT", "INT"
+   *
+   * This function looks at the contents of the value string to determine if it
+   * contains an INT, FLOAT or STRING, and returns a string identifying the type.
+   * That type is used in FITS_file::add_user_key() for adding keywords to the header.
+   *
+   */
+  std::string FitsKeys::get_keytype(std::string keyvalue) {
+    std::size_t pos(0);
+
+    // skip the whitespaces
+    pos = keyvalue.find_first_not_of(' ');
+    if (pos == keyvalue.size()) return std::string("STRING");   // all spaces, so it's a string
+
+    // check the significand
+    if (keyvalue[pos] == '+' || keyvalue[pos] == '-') ++pos;    // skip the sign if exist
+
+    int n_nm, n_pt;
+    for (n_nm = 0, n_pt = 0; std::isdigit(keyvalue[pos]) || keyvalue[pos] == '.'; ++pos) {
+        keyvalue[pos] == '.' ? ++n_pt : ++n_nm;
+    }
+    if (n_pt>1 || n_nm<1 || pos<keyvalue.size()){ // no more than one point, no numbers, or a non-digit character
+      return std::string("STRING");               // then it's a string
+    }
+
+    // skip the trailing whitespaces
+    while (keyvalue[pos] == ' ') {
+        ++pos;
+    }
+
+    if (pos == keyvalue.size()) {
+      if (keyvalue.find(".") == std::string::npos)
+        return std::string("INT");           // all numbers and no decimals, it's an integer
+      else
+        return std::string("FLOAT");         // numbers with a decimal, it's a float
+    }
+    else return std::string("STRING");       // lastly, must be a string
+  }
+  /** Common::FitsKeys::get_keytype *******************************************/
+
+
+  /** Common::FitsKeys::addkey ************************************************/
+  /**
+   * @fn     addkey
+   * @brief  add FITS keyword to internal database
+   * @param  std::string arg
+   * @return nothing
+   *
+   * Expected format of input arg is KEYWORD=VALUE//COMMENT
+   * where COMMENT is optional. KEYWORDs are automatically converted to uppercase.
+   *
+   * Internal database is Common::FitsKeys::keydb
+   * 
+   */
+  void FitsKeys::addkey(std::string arg) {
+    const char* function = "Common::FitsKeys::addkey";
+    Utilities util;
+    std::vector<std::string> tokens;
+    std::string keyword, keystring, keyvalue, keytype, keycomment;
+    std::string comment_separator = "//";
+
+    // There must be one equal '=' sign in the incoming string, so that will make two tokens here
+    //
+    util.Tokenize(arg, tokens, "=");
+    if (tokens.size() != 2) {
+      Logf("(%s) error: missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)\n", function);
+      return;
+    }
+
+    keyword   = tokens[0].substr(0,8);                                     // truncate keyword to 8 characters
+    keyword   = keyword.erase(keyword.find_last_not_of(" ")+1);            // remove trailing spaces from keyword
+    std::locale loc;
+    for (std::string::size_type ii=0; ii<keyword.length(); ++ii) {         // Convert keyword to upper case:
+      keyword[ii] = std::toupper(keyword[ii],loc);                         // prevents duplications in STL map
+    }
+    keystring = tokens[1];                                                 // tokenize the rest in a moment
+
+    size_t pos = keystring.find(comment_separator);                        // location of the comment separator
+    keyvalue = keystring.substr(0, pos);                                   // keyvalue is everything up to comment
+    keyvalue = keyvalue.erase(0, keyvalue.find_first_not_of(" "));         // remove leading spaces from keyvalue
+    if (pos != std::string::npos) {
+      keycomment = keystring.erase(0, pos + comment_separator.length());
+      keycomment = keycomment.erase(0, keycomment.find_first_not_of(" ")); // remove leading spaces from keycomment
+    }
+
+    // Delete the keydb entry for associated keyword if the keyvalue is a sole period '.'
+    //
+    if (keyvalue == ".") {
+      fits_key_t::iterator ii = this->keydb.find(keyword);
+      if (ii==this->keydb.end()) {
+        Logf("(%s) error: keyword %s not found\n", function, keyword.c_str());
+      }
+      else {
+        this->keydb.erase(ii);
+        Logf("(%s) keyword %s erased\n", function, keyword.c_str());
+      }
+      return;
+    }
+
+    // check for instances of the comment separator in keycomment
+    //
+    if (keycomment.find(comment_separator) != std::string::npos) {
+      Logf("(%s) error: FITS comment delimiter: found too many instancces of %s in keycomment\n",
+           function, comment_separator.c_str());
+      return;
+    }
+
+    // insert new entry into the database
+    //
+    this->keydb[keyword].keyword    = keyword;
+    this->keydb[keyword].keytype    = this->get_keytype(keyvalue);
+    this->keydb[keyword].keyvalue   = keyvalue;
+    this->keydb[keyword].keycomment = keycomment;
+  }
+  /** Common::FitsKeys::addkey ************************************************/
 }

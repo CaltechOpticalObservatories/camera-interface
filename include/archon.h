@@ -12,9 +12,6 @@
 #include <atomic>
 #include "common.h"
 
-// number of observing modes
-//#define NUM_OBS_MODES 1
-
 // poll timeout in msec
 #define POLLTIMEOUT 5000
 
@@ -92,7 +89,7 @@ namespace Archon {
       std::string   fits_name;               //!< contatenation of Common's image_dir + image_name + image_num
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
 
-      Common::FitsTools fits;                //!< create a FitsTools object
+      Common::FitsKeys userkeys;             //!< create a FitsKeys object for FITS keys specified by the user
 
       Information() {
         this->axes[0] = 1;
@@ -194,18 +191,27 @@ namespace Archon {
       long write_parameter( const char *paramname, int newvalue );
       long expose();
 
-      Information camera_info;
-      Information fits_info;                 //!< copy of camera_info class used to preserve info for FITS writing
+      Information camera_info;               //!< this is the main camera_info object
+      Information fits_info;                 //!< used to copy the camera_info object to preserve info for FITS writing
 
-      Common::Utilities util;                //!< create a Utility object
-      Common::Common    common;              //!< create a Common object
+      Common::Utilities util;                //!< instantiate a Utility object
+      Common::Common    common;              //!< instantiate a Common object
+      Common::FitsKeys  userkeys;            //!< instantiate a Common object
 
+      /**
+       * @var     Observing_modes
+       * @details enum list of possible observing modes
+       */
       typedef enum {
         MODE_DEFAULT = 0,
         MODE_RAW,
         NUM_OBS_MODES
       } Observing_modes;
 
+      /**
+       * @var     Observing_mode_str
+       * @details string name for each corresponding observing mode in Observing_modes enum list
+       */
       const char * const Observing_mode_str[NUM_OBS_MODES] = {
         "MODE_DEFAULT",
         "MODE_RAW"
@@ -312,7 +318,7 @@ namespace Archon {
         int         rawenable;   //!< initialized to -1, then set according to RAWENABLE in .acf file
         cfg_map_t   configmap;   //!< key=value map for configuration lines set in mode sections
         param_map_t parammap;    //!< PARAMETERn=parametername=value map for mode sections
-        Common::FitsTools fits;  //!< create a FitsTools object to hold user keys read from ACF file for each mode
+        Common::FitsKeys acfkeys;  //!< create a FitsKeys object to hold user keys read from ACF file for each mode
       } modeinfo[NUM_OBS_MODES];
 
       /**

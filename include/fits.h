@@ -5,7 +5,9 @@
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  * This file includes the complete template class for FITS operations
- * using the CCFits library.
+ * using the CCFits library. If you're looking for the FITS keyword
+ * database you're in the wrong place -- that's in common. This is just
+ * FITS file operations.
  *
  */
 #include <CCfits/CCfits>
@@ -20,20 +22,18 @@ class FITS_file {
   private:
     std::mutex fits_mutex;                          //!< used to block writing_file semaphore in multiple threads
     std::unique_ptr<CCfits::FITS> pFits;            //!< pointer to FITS data container
-    std::string fits_name;                          //!< name for FITS file
-    int num_frames;
     std::atomic<bool> writing_file;                 //!< semaphore indicates file is being written
     std::atomic<int> threadcount;                   //!< keep track of number of write_image_thread threads
 
   public:
-    FITS_file() {
+    FITS_file() {                                   //!< constructor
       this->threadcount = 0;
-      this->num_frames = 0;
       this->writing_file = false;
     };
 
-    ~FITS_file() {
+    ~FITS_file() {                                  //!< deconstructor
     };
+
 
     /**************** FITS_file::open_file ************************************/
     /**
@@ -70,12 +70,11 @@ class FITS_file {
         this->pFits.reset( new CCfits::FITS(info.fits_name, info.datatype, info.naxis, info.axes) );
         this->make_camera_header(info);
 
-        // Add user-defined FITS keywords to the primary header.
-        // These have been defined with the "FITS:" tag in the .acf file
+        // Iterate through the user-defined FITS keyword databases and add them to the primary header.
         //
-        Common::FitsTools::fits_key_t::iterator keyit;
-        for (keyit  = info.fits.userkeys.begin();
-             keyit != info.fits.userkeys.end();
+        Common::FitsKeys::fits_key_t::iterator keyit;
+        for (keyit  = info.userkeys.keydb.begin();
+             keyit != info.userkeys.keydb.end();
              keyit++) {
           add_user_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
         }
@@ -98,17 +97,16 @@ class FITS_file {
 
     /**************** FITS_file::close_file ***********************************/
     /**
-     * @fn     cloe_file
+     * @fn     close_file
      * @brief  closes fits file
      * @param  none
-     * @return 
+     * @return none
      *
-     * Before closing the file, DATE and CHECKSUM keywords are added
+     * Before closing the file, DATE and CHECKSUM keywords are added.
+     * Nothing called returns anything so this doesn't return anything.
      *
      */
-    long close_file() {
-      const char* function = "FITS_file::close_file";
-
+    void close_file() {
       Common::Utilities util;
 
       // Add a header keyword for the time the file was written (right now!)
@@ -122,12 +120,6 @@ class FITS_file {
       // Deallocate the CCfits object and close the FITS file
       //
       this->pFits->destroy();
-
-      // Log that the file closed successfully
-      //
-      Logf("(%s) successfully closed FITS file %s\n", function, this->fits_name.c_str());;
-
-      return(NO_ERROR);
     }
     /**************** FITS_file::close_file ***********************************/
 
@@ -230,10 +222,8 @@ class FITS_file {
 
       // Close the FITS file
       //
-      if (self->close_file() != NO_ERROR){
-        Logf("(%s) error failed to close FITS file properly: \n", function, self->fits_name.c_str());
-        return;
-      }
+      self->close_file();
+      Logf("(%s) closed FITS file %s\n", function, info.fits_name.c_str());
       self->writing_file = false;
     }
     /**************** FITS_file::write_image_thread ***************************/
@@ -264,7 +254,7 @@ class FITS_file {
     /**************** FITS_file::add_user_key *********************************/
     /**
      * @fn     add_user_key
-     * @brief  this writes user-added keywords
+     * @brief  this writes user-added keywords to the FITS file header
      * @param  std::string keyword
      * @param  std::string type
      * @param  std::string value
@@ -278,7 +268,7 @@ class FITS_file {
       if (type.compare("INT") == 0) {
         this->pFits->pHDU().addKey(keyword, atoi(value.c_str()), comment);
       }
-      else if (type.compare("FLOAT")) {
+      else if (type.compare("FLOAT") == 0) {
         this->pFits->pHDU().addKey(keyword, atof(value.c_str()), comment);
       }
       else if (type.compare("STRING") == 0) {

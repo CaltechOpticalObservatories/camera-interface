@@ -570,10 +570,10 @@ namespace Archon {
      */
     for (int modenum=0; modenum<NUM_OBS_MODES; modenum++) {
       this->modeinfo[modenum].defined = FALSE;
-      this->modeinfo[modenum].rawenable = -1;    //!< undefined. Set in ACF.
+      this->modeinfo[modenum].rawenable = -1;    // -1 means undefined. Set in ACF.
       this->modeinfo[modenum].parammap.clear();
       this->modeinfo[modenum].configmap.clear();
-      this->modeinfo[modenum].fits.userkeys.clear();
+      this->modeinfo[modenum].acfkeys.keydb.clear();
     }
 
     linecount = 0;
@@ -771,10 +771,10 @@ namespace Archon {
 
         // Save all of the user keyword information in a map for later
         //
-        this->modeinfo[obsmode].fits.userkeys[keyword].keyword    = keyword;
-        this->modeinfo[obsmode].fits.userkeys[keyword].keytype    = this->camera_info.fits.get_keytype(keyvalue);
-        this->modeinfo[obsmode].fits.userkeys[keyword].keyvalue   = keyvalue;
-        this->modeinfo[obsmode].fits.userkeys[keyword].keycomment = keycomment;
+        this->modeinfo[obsmode].acfkeys.keydb[keyword].keyword    = keyword;
+        this->modeinfo[obsmode].acfkeys.keydb[keyword].keytype    = this->camera_info.userkeys.get_keytype(keyvalue);
+        this->modeinfo[obsmode].acfkeys.keydb[keyword].keyvalue   = keyvalue;
+        this->modeinfo[obsmode].acfkeys.keydb[keyword].keycomment = keycomment;
       } // end if (strncmp(lineptr, "FITS:", 5)==0)
 
       /**
@@ -1916,12 +1916,24 @@ namespace Archon {
     }
     if (error == NO_ERROR) error = this->prepare_image_buffer();
 
+    this->camera_info.fits_name = this->common.get_fitsname();      // assemble the FITS filenmae
+
+    this->camera_info.userkeys.keydb = this->userkeys.keydb;        // copy the userkeys database object into camera_info
+
+    // add any keys from the ACF file (from modeinfo[mode].acfkeys) into the camera_info.userkeys object
+    //
     int mode = this->camera_info.current_observing_mode;
-    this->camera_info.fits.userkeys = this->modeinfo[mode].fits.userkeys;  // copy the mode's userkeys into camera_info
+    Common::FitsKeys::fits_key_t::iterator keyit;
+    for (keyit  = this->modeinfo[mode].acfkeys.keydb.begin();
+         keyit != this->modeinfo[mode].acfkeys.keydb.end();
+         keyit++) {
+      this->camera_info.userkeys.keydb[keyit->second.keyword].keyword    = keyit->second.keyword;
+      this->camera_info.userkeys.keydb[keyit->second.keyword].keytype    = keyit->second.keytype;
+      this->camera_info.userkeys.keydb[keyit->second.keyword].keyvalue   = keyit->second.keyvalue;
+      this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
+    }
 
-    this->camera_info.fits_name = this->common.get_fitsname();             // assemble the FITS filenmae
-
-    this->fits_info = this->camera_info;                                   // copy the camera_info class, to be given to fits writer
+    this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer
 
     return (NO_ERROR);
   }

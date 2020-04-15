@@ -299,12 +299,11 @@ void doit(int threadnum) {
                     std::string retstr = server.common.imdir(sargs) + "\n";
                     sock_rbputs(server.conndata[threadnum].connfd, (char*)retstr.c_str());
                     }
-/**
     else
     if (MATCH(cmd, "key")) {
-                    ret = server.set_param();
+                    server.userkeys.addkey(sargs);
+                    ret=NO_ERROR;
                     }
-**/
     else
     if (MATCH(cmd, "getp")) {
                     std::string valstring;

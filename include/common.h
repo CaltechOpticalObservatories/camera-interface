@@ -34,13 +34,14 @@ namespace Common {
       std::string get_time_string();
   };
 
-  class FitsTools {
+  class FitsKeys {
     private:
     public:
-      FitsTools() {}
-      ~FitsTools() {}
+      FitsKeys() {}
+      ~FitsKeys() {}
 
       std::string get_keytype(std::string keyvalue);         //!< return type of keyword based on value
+      void addkey(std::string arg);
 
       typedef struct {                                       //!< structure of FITS keyword internal database
         std::string keyword;
@@ -51,7 +52,7 @@ namespace Common {
 
       typedef std::map<std::string, user_key_t> fits_key_t;  //!< STL map for the actual keyword database
 
-      fits_key_t userkeys;
+      fits_key_t keydb;                                      //!< keyword database
   };
 
   class Common {
