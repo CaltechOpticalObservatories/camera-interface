@@ -11,6 +11,7 @@
 #include <CCfits/CCfits>                 //!< needed here for types in set_axes()
 #include <atomic>
 #include "common.h"
+#include "config.h"
 
 // poll timeout in msec
 #define POLLTIMEOUT 5000
@@ -163,10 +164,12 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
 
+      long get_config();                     //!< get configuration parameters
       long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
       long connect_controller();             //!< open connection to archon controller
       long disconnect_controller();          //!< disconnect from archon controller
-      long load_config(std::string cfgfile);
+      long load_config();                    //!< load default configfilename (ACF)
+      long load_config(std::string acffile); //!< load specified configfilename (ACF)
       long set_camera_mode(int mode);
       long load_mode_settings(int mode);
       long archon_native(std::string cmd);
@@ -197,6 +200,8 @@ namespace Archon {
       Common::Utilities util;                //!< instantiate a Utility object
       Common::Common    common;              //!< instantiate a Common object
       Common::FitsKeys  userkeys;            //!< instantiate a Common object
+
+      Config config;
 
       /**
        * @var     Observing_modes

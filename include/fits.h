@@ -1,3 +1,5 @@
+#ifndef ARCHONFITS_H
+#define ARCHONFITS_H
 /**
  * @file    fits.h
  * @brief   fits interface functions to CCFits
@@ -282,3 +284,4 @@ class FITS_file {
     /**************** FITS_file::add_user_key *********************************/
 
 };
+#endif

@@ -10,6 +10,7 @@
 #include "archon.h"
 #include "tcplinux.h"
 #include "fits.h"
+#include "config.h"
 
 #include <sstream>   // for std::stringstream
 #include <iomanip>   // for setfil, setw, etc.
@@ -27,17 +28,56 @@ namespace Archon {
     this->connection_open = false;
     this->sockfd = -1;
     this->msgref = 0;
-    this->camera_info.hostname = "192.168.1.2";
-//  this->camera_info.hostname = "10.0.0.2";
-    this->camera_info.port=4242;
     this->image_data = NULL;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
+    this->config.filename = CONFIG_FILE;  //!< default config file set in CMakeLists.txt
   }
 
   // Archon::Interface deconstructor
   //
   Interface::~Interface() {
+  }
+
+
+  /**************** Archon::Interface::prepare_image_buffer *******************/
+  /**
+   * @fn     prepare_image_buffer
+   * @brief  prepare image_data buffer, allocating memory as needed
+   * @param  none
+   * @return NO_ERROR if successful or ERROR on error
+   *
+   */
+  long Interface::get_config() {
+    const char* function = "Archon::Interface::get_config";
+
+    // loop through the entries in the configuration file, stored in config class
+    //
+    for (int entry=0; entry < this->config.n_entries; entry++) {
+
+      if (config.param[entry].compare(0, 9, "ARCHON_IP")==0) {
+        this->camera_info.hostname = config.arg[entry];
+      }
+
+      if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {
+        this->camera_info.port = atoi( config.arg[entry].c_str() );
+      }
+
+      if (config.param[entry].compare(0, 11, "DEFAULT_ACF")==0) {
+        this->camera_info.configfilename = config.arg[entry];
+      }
+
+      if (config.param[entry].compare(0, 5, "IMDIR")==0) {
+        this->common.imdir( config.arg[entry] );
+      }
+
+      if (config.param[entry].compare(0, 6, "IMNAME")==0) {
+        this->common.imname( config.arg[entry] );
+      }
+
+    }
+    Logf("(%s) successfully read config file\n", function);
+    return NO_ERROR;
   }
 
 
@@ -104,6 +144,7 @@ namespace Archon {
       return(NO_ERROR);
     }
 
+Logf("(%s) config.filename=%s\n", function, this->config.filename.c_str());
     // Initialize the camera connection
     //
     Logf("(%s) opening a connection to the camera system\n", function);
@@ -517,8 +558,14 @@ namespace Archon {
    * @param  none
    * @return 
    *
+   * This function is overloaded. If no argument is passed then call the version
+   * requiring an argument, using the default configfilename specified in the .cfg file.
+   *
    */
-  long Interface::load_config(std::string cfgfile) {
+  long Interface::load_config() {
+    return( this->load_config( this->camera_info.configfilename ) );
+  }
+  long Interface::load_config(std::string acffile) {
     const char* function = "Archon::Interface::load_config";
     FILE    *fp;
     char    *line=NULL;  // if NULL, getline(3) will malloc/realloc space as required
@@ -530,9 +577,12 @@ namespace Archon {
     int      obsmode = -1;
     bool     begin_parsing=FALSE;
 
-    this->camera_info.configfilename = cfgfile;
+    if ( acffile.empty() )
+      acffile = this->camera_info.configfilename;
+    else
+      this->camera_info.configfilename = acffile;
 
-    Logf("(%s) %s\n", function, cfgfile.c_str());
+    Logf("(%s) %s\n", function, acffile.c_str());
 
     std::string keyword, keystring, keyvalue, keytype, keycomment;
 
@@ -558,8 +608,8 @@ namespace Archon {
     /**
      * open configuration file for reading, then parse it line-by-line
      */
-    if ( (fp = fopen(cfgfile.c_str(), "r")) == NULL ) {
-      Logf("(%s) opening Archon Config File: %s: errno: %d\n", function, cfgfile.c_str(), errno);
+    if ( (fp = fopen(acffile.c_str(), "r")) == NULL ) {
+      Logf("(%s) opening Archon Config File: %s: errno: %d\n", function, acffile.c_str(), errno);
       return(ERROR);
     }
 

@@ -40,7 +40,19 @@ namespace Archon {
     private:
     public:
       Server() { }
-      ~Server();
+
+      /** Archon::~Server **********************************************************/
+      /**
+       * @fn     ~Server
+       * @brief  class deconstructor cleans up on exit
+       */
+      ~Server() {
+        close(this->nonblocking_socket);
+        close(this->blocking_socket);
+        std::cerr << "(Archon::Server) closing sockets\n";
+      }
+      /** Archon::~Server **********************************************************/
+
       int nonblocking_socket;
       int blocking_socket;
 
@@ -60,8 +72,19 @@ namespace Archon {
 
       std::mutex conn_mutex;
 
-      void exit_cleanly(void);
-
+      /** Archon::Server::exit_cleanly *********************************************/
+      /**
+       * @fn     signal_handler
+       * @brief  handles ctrl-C and exits
+       * @param  int signo
+       * @return nothing
+       *
+       */
+      void exit_cleanly(void) {
+        Logf("(Archon::Server::exit_cleanly) server exiting\n");
+        exit(0);
+      }
+      /** Archon::Server::exit_cleanly *********************************************/
   };
 }
 #endif

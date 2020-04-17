@@ -145,7 +145,7 @@ int initlogentry(const char *appname) {
                    gmt->tm_year+1900, gmt->tm_mon+1, gmt->tm_mday);
 
 /*if (access(logfile, F_OK) != 0) newlogfile=TRUE; else newlogfile=FALSE;*/
-  logfp = fopen(logfile, "a");
+  logfp = fopen(logfile, "a");  //TODO this will fail if the path doesn't exist or can't be written
   if (logfp==NULL) fprintf(stderr, "ERROR: opening %s: %d: %s", logfile,
                                    errno, strerror(errno));
 

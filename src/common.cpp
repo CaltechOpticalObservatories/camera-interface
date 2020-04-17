@@ -51,7 +51,7 @@ namespace Common {
     else {
       int num = std::stoi(num_in);
       if (num < 0) {
-        Logf("(%s) error number %d must be >= 0\n", function, num);
+        Logf("(%s) error requested image number %d must be >= 0\n", function, num);
         return -1;
       }
       else {
@@ -84,7 +84,6 @@ namespace Common {
     }
     else {
       this->image_name = name_in;
-      Logf("(%s) new image name: %s\n", function, this->image_name.c_str());
     }
     return this->image_name;
   }
@@ -121,7 +120,7 @@ namespace Common {
           testfile = dir_in + "/.tmp";
           FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
           if (!fp) {
-            Logf("(%s) error cannot write to %s\n", function, dir_in.c_str());
+            Logf("(%s) error cannot write to requested image directory %s\n", function, dir_in.c_str());
             return std::string("ERROR");
           }
           else {                                           // remove the test file
@@ -134,16 +133,15 @@ namespace Common {
           return std::string("ERROR");
         }
         this->image_dir = dir_in;                          // passed all tests so set the image_dir
-        Logf("(%s) set new image directory: %s\n", function, this->image_dir.c_str());
         return this->image_dir;
       }
       else {
-        Logf("(%s) error: %s is not a directory\n", function, dir_in.c_str());
+        Logf("(%s) error requested image directory %s is not a directory\n", function, dir_in.c_str());
         return std::string("ERROR");
       }
     }
     else {
-      Logf("(%s) error: %s does not exist\n", function, dir_in.c_str());
+      Logf("(%s) error requested image directory %s does not exist\n", function, dir_in.c_str());
       return this->image_dir;
     }
   }

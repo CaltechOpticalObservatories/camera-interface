@@ -5,37 +5,25 @@
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <algorithm>
+#include <thread>
 
 #include "build_date.h"
 #include "tcplinux.h"
 #include "logentry.h"
 #include "server.h"
 #include "common.h"
-#include <thread>
+#include "config.h"
 
 #define  N_THREADS    10
 #define  BUFSIZE      1024  //!<
 #define  NBPORT       3030
 #define  BLKPORT      3031
 #define  CONN_TIMEOUT 3000  //<! incoming (non-blocking) connection timeout in milliseconds
-
-namespace Archon {
-
-  Server::~Server() {
-    close(nonblocking_socket);
-    close(blocking_socket);
-    Logf("(Archon::Server) closing sockets\n");
-  }
-
-  void Server::exit_cleanly(void) {
-    Logf("(Archon::Server::exit_cleanly) server exiting\n");
-    exit(0);
-  }
-}
 
 Archon::Server server;
 
@@ -80,13 +68,18 @@ void doit(int threadnum);
  *
  */
 int main(int argc, char **argv) {
+  const char* function = "Archon::main";
+
+  initlogentry("archon");
+
+  Logf("(%s) this version built %s %s\n", function, BUILD_DATE, BUILD_TIME);
 
   signal(SIGINT, signal_handler);
   signal(SIGPIPE, signal_handler);
 
-  initlogentry("archon");
+  server.config.read_config(server.config);          // read configuration file
 
-  Logf("(Archon::main) this version built %s %s\n", BUILD_DATE, BUILD_TIME);
+  server.get_config();
 
   server.nonblocking_socket = tcp_listen(NBPORT);    // initialize non-blocking TCP socket
   server.blocking_socket = tcp_listen(BLKPORT);      // initialize blocking TCP socket
