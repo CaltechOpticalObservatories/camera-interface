@@ -37,30 +37,33 @@ namespace Common {
    * @fn     imnum
    * @brief  set or get the image_num member
    * @param  std::string num_in
-   * @return int
+   * @param  std::string& num_out
+   * @return ERROR or NO_ERROR
    *
    */
-  int Common::imnum(std::string num_in) {
+  long Common::imnum(std::string num_in, std::string& num_out) {
     const char* function = "Common::Common::imnum";
 
     // If no string is passed then this is a request; return the current value.
     //
     if (num_in.empty()) {
       Logf("(%s) image number: %d\n", function, this->image_num);
+      num_out = std::to_string(this->image_num);
+      return(NO_ERROR);
     }
-    else {
+
+    else {                             // Otherwise check the incoming value
       int num = std::stoi(num_in);
-      if (num < 0) {
+      if (num < 0) {                   // can't be negative
         Logf("(%s) error requested image number %d must be >= 0\n", function, num);
-        return -1;
+        return(ERROR);
       }
-      else {
+      else {                           // value is OK
         this->image_num = num;
-        Logf("(%s) new image number: %d\n", function, this->image_num);
-        return this->image_num;
+        num_out = num_in;
+        return(NO_ERROR);
       }
     }
-    return this->image_num;
   }
   /** Common::Common::imnum ***************************************************/
 
@@ -71,21 +74,30 @@ namespace Common {
    * @fn     imname
    * @brief  set or get the image_name member
    * @param  std::string name_in
-   * @return std::string
+   * @param  std::string& name_out
+   * @return NO_ERROR
+   *
+   * This function is overloaded with a form that doesn't use a return value.
    *
    */
-  std::string Common::imname(std::string name_in) {
+  long Common::imname(std::string name_in) {
+    std::string dontcare;
+    return( imname(name_in, dontcare) );
+  }
+  long Common::imname(std::string name_in, std::string& name_out) {
     const char* function = "Common::Common::imname";
 
     // If no string is passed then this is a request; return the current value.
     //
     if (name_in.empty()) {
       Logf("(%s) image name: %s\n", function, this->image_name.c_str());
+      name_out = this->image_name;
     }
-    else {
+    else {                             // Otherwise set the image name
       this->image_name = name_in;
+      name_out = name_in;
     }
-    return this->image_name;
+    return(NO_ERROR);
   }
   /** Common::Common::imname **************************************************/
 
@@ -95,17 +107,25 @@ namespace Common {
    * @fn     imdir
    * @brief  set or get the image_dir member
    * @param  std::string dir_in
-   * @return std::string
+   * @param  std::string& dir_out
+   * @return ERROR or NO_ERROR
+   *
+   * This function is overloaded with a form that doesn't use a return value.
    *
    */
-  std::string Common::imdir(std::string dir_in) {
+  long Common::imdir(std::string dir_in) {
+    std::string dontcare;
+    return( imdir(dir_in, dontcare) );
+  }
+  long Common::imdir(std::string dir_in, std::string& dir_out) {
     const char* function = "Common::Common::imdir";
 
     // If no string is passed then this is a request; return the current value.
     //
     if (dir_in.empty()) {
       Logf("(%s) image directory: %s\n", function, this->image_dir.c_str());
-      return this->image_dir;
+      dir_out = this->image_dir;
+      return(NO_ERROR);
     }
 
     struct stat st;
@@ -121,7 +141,8 @@ namespace Common {
           FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
           if (!fp) {
             Logf("(%s) error cannot write to requested image directory %s\n", function, dir_in.c_str());
-            return std::string("ERROR");
+            dir_out = this->image_dir;
+            return(ERROR);
           }
           else {                                           // remove the test file
             std::fclose(fp);
@@ -130,19 +151,23 @@ namespace Common {
         }
         catch(...) {
           Logf("(%s) error writing to %s\n", function, dir_in.c_str());
-          return std::string("ERROR");
+          dir_out = this->image_dir;
+          return(ERROR);
         }
         this->image_dir = dir_in;                          // passed all tests so set the image_dir
-        return this->image_dir;
+        dir_out = this->image_dir;
+        return(NO_ERROR);
       }
       else {
         Logf("(%s) error requested image directory %s is not a directory\n", function, dir_in.c_str());
-        return std::string("ERROR");
+        dir_out = this->image_dir;
+        return(ERROR);
       }
     }
     else {
       Logf("(%s) error requested image directory %s does not exist\n", function, dir_in.c_str());
-      return this->image_dir;
+      dir_out = this->image_dir;
+      return(ERROR);
     }
   }
   /** Common::Common::imdir ***************************************************/
@@ -393,12 +418,38 @@ namespace Common {
   /** Common::FitsKeys::get_keytype *******************************************/
 
 
+  /** Common::FitsKeys::listkeys **********************************************/
+  /**
+   * @fn     listkeys
+   * @brief  list FITS keywords in internal database
+   * @param  none
+   * @return NO_ERROR
+   *
+   */
+  long FitsKeys::listkeys() {
+    const char* function = "Common::FitsKeys::listkeys";
+    fits_key_t::iterator keyit;
+    for (keyit  = this->keydb.begin();
+         keyit != this->keydb.end();
+         keyit++) {
+      Logf("(%s) %s = %s%s%s (%s)\n", function,
+           keyit->second.keyword.c_str(),
+           keyit->second.keyvalue.c_str(),
+           keyit->second.keycomment.empty() ? "" : " // ",
+           keyit->second.keycomment.empty() ? "" : keyit->second.keycomment.c_str(),
+           keyit->second.keytype.c_str());
+    }
+    return(NO_ERROR);
+  }
+  /** Common::FitsKeys::listkeys **********************************************/
+
+
   /** Common::FitsKeys::addkey ************************************************/
   /**
    * @fn     addkey
    * @brief  add FITS keyword to internal database
    * @param  std::string arg
-   * @return nothing
+   * @return ERROR for improper input arg, otherwise NO_ERROR
    *
    * Expected format of input arg is KEYWORD=VALUE//COMMENT
    * where COMMENT is optional. KEYWORDs are automatically converted to uppercase.
@@ -406,7 +457,7 @@ namespace Common {
    * Internal database is Common::FitsKeys::keydb
    * 
    */
-  void FitsKeys::addkey(std::string arg) {
+  long FitsKeys::addkey(std::string arg) {
     const char* function = "Common::FitsKeys::addkey";
     Utilities util;
     std::vector<std::string> tokens;
@@ -418,7 +469,7 @@ namespace Common {
     util.Tokenize(arg, tokens, "=");
     if (tokens.size() != 2) {
       Logf("(%s) error: missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)\n", function);
-      return;
+      return(ERROR);
     }
 
     keyword   = tokens[0].substr(0,8);                                     // truncate keyword to 8 characters
@@ -448,7 +499,7 @@ namespace Common {
         this->keydb.erase(ii);
         Logf("(%s) keyword %s erased\n", function, keyword.c_str());
       }
-      return;
+      return(NO_ERROR);
     }
 
     // check for instances of the comment separator in keycomment
@@ -456,7 +507,7 @@ namespace Common {
     if (keycomment.find(comment_separator) != std::string::npos) {
       Logf("(%s) error: FITS comment delimiter: found too many instancces of %s in keycomment\n",
            function, comment_separator.c_str());
-      return;
+      return(NO_ERROR);
     }
 
     // insert new entry into the database
@@ -465,6 +516,8 @@ namespace Common {
     this->keydb[keyword].keytype    = this->get_keytype(keyvalue);
     this->keydb[keyword].keyvalue   = keyvalue;
     this->keydb[keyword].keycomment = keycomment;
+
+    return(NO_ERROR);
   }
   /** Common::FitsKeys::addkey ************************************************/
 }

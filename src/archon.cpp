@@ -60,7 +60,11 @@ namespace Archon {
       }
 
       if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {
-        this->camera_info.port = atoi( config.arg[entry].c_str() );
+        this->camera_info.port = std::stoi( config.arg[entry] );
+      }
+
+      if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {
+        this->exposeparam = config.arg[entry];
       }
 
       if (config.param[entry].compare(0, 11, "DEFAULT_ACF")==0) {
@@ -144,7 +148,6 @@ namespace Archon {
       return(NO_ERROR);
     }
 
-Logf("(%s) config.filename=%s\n", function, this->config.filename.c_str());
     // Initialize the camera connection
     //
     Logf("(%s) opening a connection to the camera system\n", function);
@@ -1219,13 +1222,13 @@ Logf("(%s) config.filename=%s\n", function, this->config.filename.c_str());
         // AD# in TAPLINE is 1-based (numbered 1-16)
         // but convert here to 0-based (numbered 0-15) and check value before using
         //
-        int adnum = atoi(adchan.c_str()) - 1;
+        int adnum = std::stoi(adchan) - 1;
         if ( (adnum < 0) || (adnum > MAXADCHANS) ) {
           Logf("(%s) error: ADC channel %d outside range {%d:%d}\n", function, adnum, 0, MAXADCHANS);
           return(ERROR);
         }
-        this->gain  [ adnum ] = atoi(tokens[1].c_str()); // gain as function of AD channel
-        this->offset[ adnum ] = atoi(tokens[2].c_str()); // offset as function of AD channel
+        this->gain  [ adnum ] = std::stoi(tokens[1]);    // gain as function of AD channel
+        this->offset[ adnum ] = std::stoi(tokens[2]);    // offset as function of AD channel
       }
     }
 
@@ -1948,10 +1951,16 @@ Logf("(%s) config.filename=%s\n", function, this->config.filename.c_str());
     const char* function = "Archon::Interface::expose";
     long error;
 
-//  error = this->prep_parameter("dCDSRawExpose", "1");
-//  if (error == NO_ERROR) error = this->load_parameter("dCDSRawExpose", "1");
-    error = this->prep_parameter("Expose", "1");
-    if (error == NO_ERROR) error = this->load_parameter("Expose", "1");
+    // exposeparam is set by the configuration file, CONFIG_FILE
+    // check to make sure it was set, or else expose won't work
+    //
+    if (this->exposeparam.empty()) {
+      Logf("(%s) error EXPOSE_PARAM not set in configuration file %s\n", function, CONFIG_FILE);
+      return(ERROR);
+    }
+
+    error = this->prep_parameter(this->exposeparam, "1");
+    if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, "1");
 
     // get system time and Archon's timer after exposure starts
     // start_time is used by the FITS writer ?? //TODO (maybe can remove)

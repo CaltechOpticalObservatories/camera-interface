@@ -238,8 +238,11 @@ void doit(int threadnum) {
       if (args == NULL) sargs = ""; else sargs = args;
       if (cmd  == NULL) scmd  = ""; else scmd  = cmd;
 
+      if (scmd.empty()) continue;        // if no command then skip over everything
+
       sargs.erase(std::remove(sargs.begin(), sargs.end(), '\r' ), sargs.end());
       sargs.erase(std::remove(sargs.begin(), sargs.end(), '\n' ), sargs.end());
+
       Logf("(%s) thread %d received command: %s %s\n", function, threadnum, cmd, sargs.c_str());
     }
     catch ( std::runtime_error &e ) {
@@ -257,10 +260,6 @@ void doit(int threadnum) {
      */
     ret = NOTHING;
 
-    if (scmd == "") {
-                    fprintf(stderr, "ret=%ld\n", ret);
-                    }
-    else
     if (MATCH(cmd, "exit")) {
                     server.exit_cleanly();
                     }
@@ -279,23 +278,31 @@ void doit(int threadnum) {
                     }
     else
     if (MATCH(cmd, "imname")) {
-                    std::string retstr = server.common.imname(sargs) + "\n";
-                    sock_rbputs(server.conndata[threadnum].connfd, (char*)retstr.c_str());
+                    std::string imname;  // string for the return value
+                    ret = server.common.imname(sargs, imname);
+                    sock_rbputs(server.conndata[threadnum].connfd, (char*)imname.c_str());
+                    sock_rbputs(server.conndata[threadnum].connfd, (char*)" ");
                     }
     else
     if (MATCH(cmd, "imnum")) {
-                    ret = server.common.imnum(sargs);
-//                  sock_rbputs(server.conndata[threadnum].connfd, (char*)retstr.c_str());
+                    std::string imnum;   // string for the return value
+                    ret = server.common.imnum(sargs, imnum);
+                    sock_rbputs(server.conndata[threadnum].connfd, (char*)imnum.c_str());
+                    sock_rbputs(server.conndata[threadnum].connfd, (char*)" ");
                     }
     else
     if (MATCH(cmd, "imdir")) {
-                    std::string retstr = server.common.imdir(sargs) + "\n";
-                    sock_rbputs(server.conndata[threadnum].connfd, (char*)retstr.c_str());
+                    std::string imdir;   // string for the return value
+                    ret = server.common.imdir(sargs, imdir);
+                    sock_rbputs(server.conndata[threadnum].connfd, (char*)imdir.c_str());
+                    sock_rbputs(server.conndata[threadnum].connfd, (char*)" ");
                     }
     else
     if (MATCH(cmd, "key")) {
-                    server.userkeys.addkey(sargs);
-                    ret=NO_ERROR;
+                    if (sargs.compare(0, 4, "list")==0)
+                      ret = server.userkeys.listkeys();
+                    else
+                      ret = server.userkeys.addkey(sargs);
                     }
     else
     if (MATCH(cmd, "getp")) {

@@ -41,7 +41,8 @@ namespace Common {
       ~FitsKeys() {}
 
       std::string get_keytype(std::string keyvalue);         //!< return type of keyword based on value
-      void addkey(std::string arg);
+      long listkeys();                                       //!< list FITS keys in the internal database
+      long addkey(std::string arg);                          //!< add FITS key to the internal database
 
       typedef struct {                                       //!< structure of FITS keyword internal database
         std::string keyword;
@@ -65,9 +66,11 @@ namespace Common {
       Common();
       ~Common() {}
 
-      std::string imdir(std::string dir_in);
-      std::string imname(std::string name_in);
-      int imnum(std::string num_in);
+      long imdir(std::string dir_in);
+      long imdir(std::string dir_in, std::string& dir_out);
+      long imname(std::string name_in);
+      long imname(std::string name_in, std::string& name_out);
+      long imnum(std::string num_in, std::string& num_out);
       void increment_imnum() { this->image_num++; };
       std::string get_fitsname();
   };

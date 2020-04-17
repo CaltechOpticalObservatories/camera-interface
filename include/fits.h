@@ -16,6 +16,7 @@
 #include <fstream>         //!< for ofstream
 #include <thread>
 #include <atomic>
+#include <string>
 #include "common.h"
 #include "build_date.h"
 
@@ -268,10 +269,10 @@ class FITS_file {
     void add_user_key(std::string keyword, std::string type, std::string value, std::string comment) {
       const char* function = "FITS_file::add_user_key";
       if (type.compare("INT") == 0) {
-        this->pFits->pHDU().addKey(keyword, atoi(value.c_str()), comment);
+        this->pFits->pHDU().addKey(keyword, std::stoi(value), comment);
       }
       else if (type.compare("FLOAT") == 0) {
-        this->pFits->pHDU().addKey(keyword, atof(value.c_str()), comment);
+        this->pFits->pHDU().addKey(keyword, std::stof(value), comment);
       }
       else if (type.compare("STRING") == 0) {
         this->pFits->pHDU().addKey(keyword, value, comment);

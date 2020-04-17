@@ -11,11 +11,12 @@ SET(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 # Define a default configuration file for the server.
 # This can be overridden by setting environment variable ARCHONSERVCFG
 # or by command line argument when starting the server.
-SET(CONFIG_FILE "\"${PROJECT_BASE_DIR}/archonserver.cfg\"")
+#SET(CONFIG_FILE "\"$ENV{HOME}/CMOST/archonserver.cfg\"")
 SET(CONFIG_FILE "\"${PROJECT_BASE_DIR}/archonserver.cfg\"")
 CONFIGURE_FILE("${PROJECT_INCL_DIR}/config.h.in" "${PROJECT_INCL_DIR}/config.h")
 
 # Define the path for the log files
+#SET(LOGPATH "\"$ENV{HOME}/CMOST/logs\"")
 SET(LOGPATH "\"$ENV{HOME}/Logs\"")
 CONFIGURE_FILE("${PROJECT_INCL_DIR}/logentry.h.in" "${PROJECT_INCL_DIR}/logentry.h")
 

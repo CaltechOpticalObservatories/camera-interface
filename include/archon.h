@@ -164,6 +164,7 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
 
+      std::string exposeparam;               //!< param name to trigger exposure when set =1
       long get_config();                     //!< get configuration parameters
       long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
       long connect_controller();             //!< open connection to archon controller
