@@ -14,11 +14,9 @@
 
 #include "build_date.h"
 #include "tcplinux.h"
-//#include "logentry.h"
 #include "server.h"
 #include "common.h"
 #include "config.h"
-//#include "newlogentry.h"
 #include "utilities.h"
 
 #define  N_THREADS    10
@@ -73,8 +71,6 @@ void doit(int threadnum);
 int main(int argc, char **argv) {
   std::string function = "Archon::main";
   std::stringstream message;
-
-//  initlogentry("archon");
 
   initlog();
 
@@ -214,7 +210,7 @@ void thread_main(int threadnum) {
  *
  */
 void doit(int threadnum) {
-  const char* function = "Archon::doit";
+  std::string function = "Archon::doit";
   char  buf[BUFSIZE+1], cmd[BUFSIZE+1];
   char *args=buf;
   char *c_ptr;

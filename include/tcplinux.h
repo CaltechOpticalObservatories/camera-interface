@@ -25,7 +25,6 @@
 #include <errno.h>
 #include <poll.h>
 #include <sys/un.h>
-#include <pthread.h>
 #include <signal.h>                    /*!< for sigaction, catching SIGPIPE */
 
 #include <sys/resource.h>              /*!< for wait3(2) */

@@ -8,21 +8,23 @@ SET(PROJECT_INCL_DIR ${PROJECT_BASE_DIR}/include)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 
+# ----------------------------------------------------------------------------
 # Define a default configuration file for the server.
-# This can be overridden by setting environment variable ARCHONSERVCFG
-# or by command line argument when starting the server.
+#
 #SET(CONFIG_FILE "\"$ENV{HOME}/CMOST/archonserver.cfg\"")
 SET(CONFIG_FILE "\"${PROJECT_BASE_DIR}/archonserver.cfg\"")
 CONFIGURE_FILE("${PROJECT_INCL_DIR}/config.h.in" "${PROJECT_INCL_DIR}/config.h")
 
-# Define the path for the log files
+# ----------------------------------------------------------------------------
+# Define the path and base name for the log files
+#
 #SET(LOGPATH "\"$ENV{HOME}/CMOST/logs\"")
 SET(LOGPATH "\"$ENV{HOME}/Logs\"")
+SET(LOGNAME "\"archon\"")
 CONFIGURE_FILE("${PROJECT_INCL_DIR}/logentry.h.in" "${PROJECT_INCL_DIR}/logentry.h")
 
 FIND_PATH(ARCHON_INCLUDE server.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(UTILITIES_INCLUDE utilities.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(NEWLOGENTRY_INCLUDE newlogentry.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(LOGENTRY_INCLUDE logentry.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(TCPLINUX_INCLUDE tcplinux.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(COMMON_INCLUDE common.h PATHS ${PROJECT_INCL_DIR})
@@ -39,7 +41,7 @@ FIND_PACKAGE(Threads)
 
 INCLUDE_DIRECTORIES(
         ${ARCHON_INCLUDE}
-        ${NEWLOGENTRY_INCLUDE}
+        ${LOGENTRY_INCLUDE}
         ${LOGENTRY_INCLUDE}
         ${TCPLINUX_INCLUDE}
         ${COMMON_INCLUDE}
@@ -52,7 +54,6 @@ ADD_DEFINITIONS( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 )
 SET(COMMON_HEADERS
         ${ARCHON_INCLUDE}/server.h
         ${UTILITIES_INCLUDE}/utilities.h
-        ${NEWLOGENTRY_INCLUDE}/newlogentry.h
         ${LOGENTRY_INCLUDE}/logentry.h
         ${TCPLINUX_INCLUDE}/tcplinux.h
         ${COMMON_INCLUDE}/common.h
@@ -68,8 +69,7 @@ ADD_EXECUTABLE(archonserver
         ${PROJECT_SOURCE_DIR}/common.cpp
         ${PROJECT_SOURCE_DIR}/archon.cpp
         ${PROJECT_SOURCE_DIR}/tcplinux.c 
-        ${PROJECT_SOURCE_DIR}/newlogentry.cpp
-        ${PROJECT_SOURCE_DIR}/logentry.c
+        ${PROJECT_SOURCE_DIR}/logentry.cpp
         ${PROJECT_SOURCE_DIR}/utilities.cpp
         ${COMMON_HEADERS}
         )

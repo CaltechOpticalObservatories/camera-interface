@@ -14,7 +14,7 @@
 #define ARCHONCONFIG_H
 
 #include <fstream>
-#include "newlogentry.h"
+#include "logentry.h"
 
 // Default CONFIG_FILE is set in CMakeLists.txt in the toplevel directory.
 // Do not change it here.

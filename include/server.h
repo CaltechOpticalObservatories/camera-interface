@@ -17,7 +17,7 @@
 
 #include "archon.h"
 #include "common.h"
-#include "newlogentry.h"
+#include "logentry.h"
 
 #define MATCH(buf1, buf2) (!strncasecmp(buf1, buf2, strlen(buf2)))
 

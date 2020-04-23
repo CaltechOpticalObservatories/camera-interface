@@ -20,7 +20,7 @@
 #include "common.h"
 #include "build_date.h"
 #include "utilities.h"
-#include "newlogentry.h"
+#include "logentry.h"
 
 template <class T>
 class FITS_file {

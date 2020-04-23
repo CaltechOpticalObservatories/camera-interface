@@ -46,7 +46,7 @@ namespace Archon {
    *
    */
   long Interface::get_config() {
-    const char* function = "Archon::Interface::get_config";
+    std::string function = "Archon::Interface::get_config";
 
     // loop through the entries in the configuration file, stored in config class
     //
@@ -77,7 +77,7 @@ namespace Archon {
       }
 
     }
-    Logf("(%s) successfully read config file\n", function);
+    logwrite(function, "successfully read config file");
     return NO_ERROR;
   }
 
@@ -91,7 +91,8 @@ namespace Archon {
    *
    */
   long Interface::prepare_image_buffer() {
-    const char* function = "Archon::Interface::prepare_image_buffer";
+    std::string function = "Archon::Interface::prepare_image_buffer";
+    std::stringstream message;
 
     // If there is already a correctly-sized buffer allocated,
     // then don't do anything except initialize that space to zero.
@@ -100,14 +101,15 @@ namespace Archon {
          (this->image_data_bytes != 0) &&
          (this->image_data_allocated == this->image_data_bytes) ) {
       memset(this->image_data, 0, this->image_data_bytes);
-      Logf("(%s) initialized %d bytes of image_data memory\n", function, this->image_data_bytes);
+      message.str(""); message << "initialized " << this->image_data_bytes << " bytes of image_data memory";
+      logwrite(function, message.str());
     }
 
     // If memory needs to be re-allocated, delete the old buffer
     //
     else {
       if (this->image_data != NULL) {
-        Logf("(%s) delete image_data\n", function);
+        logwrite(function, "delete image_data");
         delete [] this->image_data;
         this->image_data=NULL;
       }
@@ -116,10 +118,11 @@ namespace Archon {
       if (this->image_data_bytes != 0) {
         this->image_data = new char[this->image_data_bytes];
         this->image_data_allocated=this->image_data_bytes;
-        Logf("(%s) allocated %d bytes for image_data\n", function, this->image_data_bytes);
+        message.str(""); message << "allocated " << this->image_data_bytes << " bytes for image_data";
+        logwrite(function, message.str());
       }
       else {
-        Logf("(%s) cannot allocate zero-length image memory\n", function);
+        logwrite(function, "cannot allocate zero-length image memory");
         return(ERROR);
       }
     }
@@ -137,30 +140,33 @@ namespace Archon {
    *
    */
   long Interface::connect_controller() {
-    const char* function = "Archon::Interface::connect_controller";
+    std::string function = "Archon::Interface::connect_controller";
+    std::stringstream message;
     long   error = ERROR;
 
     if (this->connection_open == true) {
-      Logf("(%s) camera connection already open\n", function);
+      logwrite(function, "camera connection already open");
       return(NO_ERROR);
     }
 
     // Initialize the camera connection
     //
-    Logf("(%s) opening a connection to the camera system\n", function);
+    logwrite(function, "opening a connection to the camera system");
 
     // open socket connection to camera controller
     //
     if ( (this->sockfd = connect_to_server( this->camera_info.hostname.c_str(), this->camera_info.port ) ) < 0 ) {
-      Logf("(%s) error %d connecting to %s:%d\n", function, errno, this->camera_info.hostname.c_str(), this->camera_info.port);
+      message.str(""); message << "error " << errno << " connecting to " << this->camera_info.hostname << ":" << this->camera_info.port;
+      logwrite(function, message.str());
       return(ERROR);
     }
     this->connection_open = true;
 
     // this->sockfd contains the socket file descriptor to the new conncection
     //
-    Logf("(%s) socket connection to %s:%d established on fd %d\n", function, 
-         this->camera_info.hostname.c_str(), this->camera_info.port, this->sockfd);
+    message.str("");
+    message << "socket connection to " << this->camera_info.hostname << ":" << this->camera_info.port << " established on fd " << this->sockfd;
+    logwrite(function, message.str());
 
     // empty the Archon log
     //
@@ -180,10 +186,10 @@ namespace Archon {
    *
    */
   long Interface::disconnect_controller() {
-    const char* function = "Archon::Interface::disconnect_controller";
+    std::string function = "Archon::Interface::disconnect_controller";
     long error;
     if (!this->connection_open) {
-      Logf("(%s) connection already closed\n", function);
+      logwrite(function, "connection already closed");
     }
     // close the socket file descriptor to the Archon controller
     //
@@ -202,7 +208,7 @@ namespace Archon {
 
     // Free the memory
     //
-    Logf("(%s) releasing allocated device memory\n", function);
+    logwrite(function, "releasing allocated device memory");
     if (this->image_data != NULL) {
       delete [] this->image_data;
       this->image_data=NULL;
@@ -211,12 +217,12 @@ namespace Archon {
     // On success, write the value to the log and return
     //
     if (error == NO_ERROR) {
-      Logf("(%s) Archon connection terminated\n", function);
+      logwrite(function, "Archon connection terminated");
     }
     // Throw an error for any other errors
     //
     else {
-      Logf("(%s) error disconnecting Archon camera!\n", function);
+      logwrite(function, "error disconnecting Archon camera!");
     }
 
     return(error);
@@ -236,10 +242,13 @@ namespace Archon {
    *
    */
   long Interface::archon_native(std::string cmd) { // use this form when the calling
+    std::string function = "Archon::Interface::archon_native";
+    std::stringstream message;
     char reply[REPLY_LEN];                         // function doesn't need to look at the reply
     long ret = archon_cmd(cmd, reply);
     if (strlen(reply) > 0) {
-      Logf("native reply: %s\n", reply);
+      message.str(""); message << "native reply: " << reply;
+      logwrite(function, message.str());
     }
     return( ret );
   }
@@ -259,7 +268,8 @@ namespace Archon {
     return( archon_cmd(cmd, reply) );
   }
   long Interface::archon_cmd(std::string cmd, char *reply) {
-    const char* function = "Archon::Interface::archon_cmd";
+    std::string function = "Archon::Interface::archon_cmd";
+    std::stringstream message;
     int     retval;
     char    check[4];
     char    buffer[BLOCK_LEN];                  //!< temporary buffer for holding Archon replies
@@ -268,7 +278,7 @@ namespace Archon {
     unsigned long bufcount;
 
     if (!this->connection_open) {               // nothing to do if no connection open to controller
-      Logf("(%s) error: connection not open to controller\n", function);;
+      logwrite(function, "error: connection not open to controller");
       return(ERROR);
     }
 
@@ -307,13 +317,14 @@ namespace Archon {
          (cmd.compare(0,6,"STATUS") != 0)  &&
          (cmd.compare(0,5,"FRAME") != 0) ) {
       std::string fcmd = scmd; fcmd.erase(fcmd.find('\n'));                 // remove newline for logging
-      Logf("(%s) sending command: %s\n", function, fcmd.c_str());
+      message.str(""); message << "sending command: " << fcmd;
+      logwrite(function, message.str());
     }
 
     // send the command
     //
     if ( (sock_write(this->sockfd, (char *)scmd.c_str())) == -1) {
-      Logf("(%s) error writing to camera socket\n", function);
+      logwrite(function, "error writing to camera socket");
     }
 
     // For the FETCH command we don't wait for a reply, but return immediately.
@@ -333,8 +344,8 @@ namespace Archon {
       memset(buffer, '\0', BLOCK_LEN);               // temporary buffer
 
       if ( (retval=Poll(this->sockfd, POLLTIMEOUT)) <= 0) {
-        if (retval==0) { Logf("(%s) Poll timeout\n", function); error = TIMEOUT; }
-        if (retval<0)  { Logf("(%s) Poll error\n", function);   error = ERROR;   }
+        if (retval==0) { logwrite(function, "Poll timeout"); error = TIMEOUT; }
+        if (retval<0)  { logwrite(function, "Poll error");   error = ERROR;   }
         break;
       }
       if ( (retval = read(this->sockfd, buffer, BLOCK_LEN)) <= 0) {  // read into temp buffer
@@ -348,7 +359,8 @@ namespace Archon {
       }
       else {
         error = ERROR;
-        Logf("(%s) error: buffer overflow: %d bytes in response to command: %s\n", function, bufcount, cmd.c_str());
+        message.str(""); message << "error: buffer overflow: " << bufcount << " bytes in response to command: " << cmd;
+        logwrite(function, message.str());
         break;
       }
       if (strstr(reply, "\n")) {
@@ -364,14 +376,15 @@ namespace Archon {
     //
     if (strncmp(reply, "?", 1) == 0) {
       error = ERROR;
-      Logf("(%s) Archon controller returned error processing command: %s\n", function, cmd.c_str());
+      message.str(""); message << "Archon controller returned error processing command: " << cmd;
+      logwrite(function, message.str());
     }
     else
     if (strncmp(reply, check, 3) != 0) {              // Command-Reply mismatch
       error = ERROR;
       std::string hdr = reply;
-      Logf("(%s) error: command-reply mismatch for command %s: received header:%s\n", 
-           function, cmd.c_str(), hdr.substr(0,3).c_str());
+      message.str(""); message << "error: command-reply mismatch for command " << cmd << ": received header:" << hdr.substr(0,3);
+      logwrite(function, message.str());
     }
     else {                                            // command and reply are a matched pair
       error = NO_ERROR;
@@ -381,7 +394,8 @@ namespace Archon {
            (cmd.compare(0,5,"TIMER") != 0)   &&
            (cmd.compare(0,6,"STATUS") != 0)  &&
            (cmd.compare(0,5,"FRAME") != 0) ) {
-        Logf("(%s) command 0x%02X success\n", function, this->msgref);
+        message.str(""); message << "command 0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << this->msgref << " success";
+        logwrite(function, message.str());
       }
 
       memmove( reply, reply+3, strlen(reply) );       // strip off the msgref from the reply
@@ -413,14 +427,16 @@ namespace Archon {
    *
    */
   long Interface::read_parameter(std::string paramname, std::string &valstring) {
-    const char* function = "Archon::Interface::read_parameter";
+    std::string function = "Archon::Interface::read_parameter";
+    std::stringstream message;
     std::stringstream cmd;
     int   error   = NO_ERROR;
     char *lineptr = NULL;
     char  reply[REPLY_LEN];
 
     if (this->parammap.find(paramname.c_str()) == this->parammap.end()) {
-      Logf("(%s) error: parameter \"%s\" not found\n", function, paramname.c_str());
+      message.str(""); message << "error: parameter \"" << paramname << "\" not found";
+      logwrite(function, message.str());
       return(ERROR);
     }
 
@@ -447,13 +463,15 @@ namespace Archon {
     }
 
     if (error != NO_ERROR) {
-      Logf("(%s) error:  malformed reply: %s\n", function, reply);
+      message << "error:  malformed reply: " << reply;
+      logwrite(function, message.str());
       valstring = "NaN";                                 // return "NaN" for parameter value on error
       error = ERROR;
     }
     else {
       valstring = lineptr;                               // return parameter value
-      Logf("(%s) %s = %s\n", function, paramname.c_str(), valstring.c_str());
+      message.str(""); message << paramname << " = " << valstring;
+      logwrite(function, message.str());
     }
     return(error);
   }
@@ -469,7 +487,8 @@ namespace Archon {
    *
    */
   long Interface::prep_parameter(std::string paramname, std::string value) {
-    const char* function = "Archon::Interface::prep_parameter";
+    std::string function = "Archon::Interface::prep_parameter";
+    std::stringstream message;
     std::stringstream scmd;
     int error = NO_ERROR;
 
@@ -479,10 +498,12 @@ namespace Archon {
     if (error == NO_ERROR) error = this->archon_cmd(scmd.str());
 
     if (error != NO_ERROR) {
-      Logf("(%s) error writing parameter \"%s=%s\" to configuration memory\n", function, paramname.c_str(), value.c_str());
+      message.str(""); message << "error writing parameter \"" << paramname << "=" << value << "\" to configuration memory";
+      logwrite(function, message.str());
     }
     else {
-      Logf("(%s) parameter: %s written to configuration memory\n", function, paramname.c_str());
+      message.str(""); message << "parameter: " << paramname << " written to configuration memory";
+      logwrite(function, message.str());
     }
 
     return(error);
@@ -499,7 +520,8 @@ namespace Archon {
    *
    */
   long Interface::load_parameter(std::string paramname, std::string value) {
-    const char* function = "Archon::Interface::load_parameter";
+    std::string function = "Archon::Interface::load_parameter";
+    std::stringstream message;
     std::stringstream scmd;
     int error = NO_ERROR;
 
@@ -507,10 +529,12 @@ namespace Archon {
 
     if (error == NO_ERROR) error = this->archon_cmd(scmd.str());
     if (error != NO_ERROR) {
-      Logf("(%s) error loading parameter \"%s=%s\" into Archon\n", function, paramname.c_str(), value.c_str());
+      message.str(""); message << "error loading parameter \"" << paramname << "=" << value << "\" into Archon";
+      logwrite(function, message.str());
     }
     else {
-      Logf("(%s) parameter \"%s=%s\" loaded into Archon\n", function, paramname.c_str(), value.c_str());
+      message.str(""); message << "parameter \"" << paramname << "=" << value << "\" loaded into Archon";
+      logwrite(function, message.str());
     }
     return(error);
   }
@@ -529,20 +553,22 @@ namespace Archon {
    *
    */
   long Interface::fetchlog() {
+    std::string function = "Archon::Interface::fetchlog";
+    std::stringstream message;
     int  retval;
     char reply[REPLY_LEN];
-    const char* function = "Archon::Interface::fetchlog";
 
     // send FETCHLOG command while reply is not (null)
     //
     do {
       if ( (retval=this->archon_cmd(FETCHLOG, reply))!=NO_ERROR ) {          // send command here
-        Logf("(%s) error %d calling FETCHLOG\n", function, retval);
+        message.str(""); message << "error " << retval << " calling FETCHLOG";
+        logwrite(function, message.str());
         return(retval);
       }
       if (strncmp(reply, "(null)", strlen("(null)"))!=0) {
         reply[strlen(reply)-1]=0;                                            // strip newline
-        Logf("(%s) %s\n", function, reply);                                  // log reply here
+        logwrite(function, reply);                                           // log reply here
       }
     } while (strncmp(reply, "(null)", strlen("(null)")) != 0);               // stop when reply is (null)
 
@@ -566,7 +592,8 @@ namespace Archon {
     return( this->load_config( this->camera_info.configfilename ) );
   }
   long Interface::load_config(std::string acffile) {
-    const char* function = "Archon::Interface::load_config";
+    std::string function = "Archon::Interface::load_config";
+    std::stringstream message;
     FILE    *fp;
     char    *line=NULL;  // if NULL, getline(3) will malloc/realloc space as required
     size_t   len=0;      // must set=0 for getline(3) to automatically malloc
@@ -582,7 +609,7 @@ namespace Archon {
     else
       this->camera_info.configfilename = acffile;
 
-    Logf("(%s) %s\n", function, acffile.c_str());
+    logwrite(function, acffile);
 
     std::string keyword, keystring, keyvalue, keytype, keycomment;
 
@@ -609,7 +636,8 @@ namespace Archon {
      * open configuration file for reading, then parse it line-by-line
      */
     if ( (fp = fopen(acffile.c_str(), "r")) == NULL ) {
-      Logf("(%s) opening Archon Config File: %s: errno: %d\n", function, acffile.c_str(), errno);
+      message.str(""); message << "error opening Archon Config File: " << acffile << ": errno: " << errno;
+      logwrite(function, message.str());
       return(ERROR);
     }
 
@@ -649,13 +677,15 @@ namespace Archon {
         for (int modenum=0; modenum<NUM_OBS_MODES; modenum++) {
           if (modesection == Observing_mode_str[modenum]) {
             obsmode = modenum;  // here is the observing mode for this section
-            Logf("(%s) found section for mode %d: %s\n", function, obsmode, modesection.c_str());
+            message.str(""); message << "found section for mode " << obsmode << ": " << modesection;
+            logwrite(function, message.str());
             begin_parsing=TRUE;
             continue;
           }
         }
         if (obsmode == -1) {
-          Logf("(%s) error: unrecognized observation mode section found in .acf file: %s\n", function, modesection.c_str());
+          message.str(""); message << "error: unrecognized observation mode section " << modesection << " found in .acf file";
+          logwrite(function, message.str());
           if (line) free(line); fclose(fp);                               // getline() mallocs a buffer for line
           return(ERROR);
         }
@@ -782,7 +812,8 @@ namespace Archon {
           this->geometry[obsmode].amps_per_ccd[1] = atoi(lineptr);
         }
         else {
-          Logf("(%s) error: unrecognized internal parameter specified: %s\n", function, internal_key.c_str());
+          message.str(""); message << "error: unrecognized internal parameter specified: "<< internal_key;
+          logwrite(function, message.str());
           if (line) free(line); fclose(fp);                               // getline() mallocs a buffer for line
           return(ERROR);
         }
@@ -801,7 +832,7 @@ namespace Archon {
         // The token left of "=" is the keyword. Immediate right is the value
         Tokenize(lineptr, tokens, "=");
         if (tokens.size() != 2) {                                         // need at least two tokens at this point
-          Logf("(%s) error: token mismatch: expected KEYWORD=value//comment (found too many ='s)\n", function);
+          logwrite(function, "error: token mismatch: expected KEYWORD=value//comment (found too many ='s)");
           if (line) free(line); fclose(fp);                               // getline() mallocs a buffer for line
           return(ERROR);
         }
@@ -916,7 +947,7 @@ namespace Archon {
     if (line) free(line);                 // getline() mallocs a buffer for line
     fclose(fp);
     if (error == NO_ERROR) {
-      Logf("(%s) loaded Archon config file OK\n", function);
+      logwrite(function, "loaded Archon config file OK");
     }
 
     this->camera_info.region_of_interest[0]=0;
@@ -943,7 +974,8 @@ namespace Archon {
    *
    */
   long Interface::set_camera_mode(int mode) {
-    const char* function = "Archon::Interface::set_camera_mode";
+    std::string function = "Archon::Interface::set_camera_mode";
+    std::stringstream message;
     bool configchanged = false;
     bool paramchanged = false;
 
@@ -951,7 +983,8 @@ namespace Archon {
      * first check is that mode is within allowable range
      */
     if (mode < 0 || mode >= NUM_OBS_MODES) {
-      Logf("(%s) invalid mode %s (%d)", function, this->Observing_mode_str[mode], mode);
+      message.str(""); message << "invalid mode " << this->Observing_mode_str[mode] << " (" << mode << ")";
+      logwrite(function, message.str());
       return(ERROR);
     }
 
@@ -960,14 +993,15 @@ namespace Archon {
      * in order to switch to that mode, or else undesirable behavior may result
      */
     if (!this->modeinfo[mode].defined) {
-      Logf("(%s) error undefined mode %s in ACF file %s\n", function,
-            this->Observing_mode_str[mode], this->camera_info.configfilename.c_str());
+      message.str(""); message << "error undefined mode " << this->Observing_mode_str[mode] << " in ACF file " << this->camera_info.configfilename;
+      logwrite(function, message.str());
       return(ERROR);
     }
 
     this->camera_info.current_observing_mode = mode;
 
-    Logf("(%s) requested mode: %d: %s\n", function, mode, this->Observing_mode_str[mode]);
+    message.str(""); message << "requested mode: " << mode << ": " << this->Observing_mode_str[mode];
+    logwrite(function, message.str());
 
     int num_ccds = this->geometry[this->camera_info.current_observing_mode].num_ccds;
 
@@ -998,7 +1032,8 @@ namespace Archon {
 
       default:
         this->camera_info.detector_pixels[0] = this->camera_info.detector_pixels[1] = 0;
-        Logf("(%s) error invalid frame type: %d\n", function, this->camera_info.frame_type);
+        message.str(""); message << "error invalid frame type: " << this->camera_info.frame_type;
+        logwrite(function, message.str());
         return(ERROR);
     }
 
@@ -1031,7 +1066,8 @@ namespace Archon {
         break;
 
       default:                           // Unspecified mode is an error
-        Logf("(%s) error invalid mode: %d\n", function, mode);
+        message.str(""); message << "error invalid mode: "<< mode;
+        logwrite(function, message.str());
         return(ERROR);
         break;
     }
@@ -1049,7 +1085,8 @@ namespace Archon {
     int samplemode=-1;
     std::istringstream( this->configmap["SAMPLEMODE"].value ) >> samplemode;  // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
     if (samplemode < 0) {
-      Logf("(%s) bad or missing SAMPLEMODE from %s\n", function, this->camera_info.configfilename.c_str());
+      message.str(""); message << "bad or missing SAMPLEMODE from " << this->camera_info.configfilename;
+      logwrite(function, message.str());
       return (ERROR);
     }
     this->camera_info.bitpix = (samplemode==0) ? 16 : 32;
@@ -1077,7 +1114,7 @@ namespace Archon {
     // Get the current frame buffer status
     if (error == NO_ERROR) error = this->get_frame_status();
     if (error != NO_ERROR) {
-      Logf("(%s) error unable to get frame status\n", function);
+      logwrite(function, "error unable to get frame status");
       return(error);
     }
 
@@ -1094,16 +1131,18 @@ namespace Archon {
       else
       if (this->camera_info.bitpix == 32) error = this->camera_info.set_axes(FLOAT_IMG);
       else {
-        Logf("(%s) error bad bitpix %d\n", function, this->camera_info.bitpix);
+        message.str(""); message << "error bad bitpix " << this->camera_info.bitpix;
+        logwrite(function, message.str());
         return (ERROR);
       }
     }
     if (error != NO_ERROR) {
-      Logf("(%s) error setting axes\n", function);
+      logwrite(function, "error setting axes");
       return (ERROR);
     }
 
-    Logf("(%s) will use %d bits per pixel\n", function, this->camera_info.bitpix);
+    message.str(""); message << "will use " << this->camera_info.bitpix << " bits per pixel";
+    logwrite(function, message.str());
 
     // allocate image_data in blocks because the controller outputs data in units of blocks
     //
@@ -1128,7 +1167,8 @@ namespace Archon {
    * the Archon controller.
    */
   long Interface::load_mode_settings(int mode) {
-    const char* function = "Archon::Interface::load_mode_settings";
+    std::string function = "Archon::Interface::load_mode_settings";
+    std::stringstream message;
 
     long error=NO_ERROR;
     cfg_map_t::iterator   cfg_it;
@@ -1161,7 +1201,8 @@ namespace Archon {
            param_it != this->modeinfo[mode].parammap.end();
            param_it++) {
         error = this->write_parameter( param_it->first.c_str(), param_it->second.value.c_str(), paramchanged );
-        Logf("(%s) paramchanged=%s\n", function, (paramchanged?"true":"false"));
+        message.str(""); message << "paramchanged=" << (paramchanged?"true":"false");
+        logwrite(function, message.str());
         if (error != NO_ERROR) {
           errstr  << "error writing parameter key:" << param_it->first << " value:" << param_it->second.value
                   << " for mode " << this->Observing_mode_str[mode];
@@ -1177,10 +1218,11 @@ namespace Archon {
     if ( (error == NO_ERROR) && configchanged ) error = this->archon_cmd(APPLYCDS);
 
     if (error == NO_ERROR) {
-      Logf("(%s) loaded mode: %s", function, this->Observing_mode_str[mode]);
+      message.str(""); message << "loaded mode: " << this->Observing_mode_str[mode];
+      logwrite(function, message.str());
     }
     else {
-      Logf("(%s) %s\n", function, errstr.str().c_str());
+      logwrite(function, errstr.str());
     }
 
     /**
@@ -1221,7 +1263,8 @@ namespace Archon {
         //
         int adnum = std::stoi(adchan) - 1;
         if ( (adnum < 0) || (adnum > MAXADCHANS) ) {
-          Logf("(%s) error: ADC channel %d outside range {%d:%d}\n", function, adnum, 0, MAXADCHANS);
+          message.str(""); message << "error: ADC channel " << adnum << " outside range {0:" << MAXADCHANS << "}";
+          logwrite(function, message.str());
           return(ERROR);
         }
         this->gain  [ adnum ] = std::stoi(tokens[1]);    // gain as function of AD channel
@@ -1247,18 +1290,19 @@ namespace Archon {
    *
    */
   long Interface::get_frame_status() {
+    std::string function = "Archon::Interface::get_frame_status";
+    std::stringstream message;
     char *saveptr, *token, *substr=0, *key=0;
     int   i, bc, newestframe, newestbuf;
     int   error=NO_ERROR;
     char  buf[64];
     char  reply[REPLY_LEN];
-    const char* function = "Archon::Interface::get_frame_status";
 
     /**
      * send FRAME command to get frame buffer status
      */
     if ( (error = this->archon_cmd(FRAME, reply)) ) {
-      Logf("(%s) error sending FRAME command\n", function);
+      logwrite(function, "error sending FRAME command");
       return(error);
     }
 
@@ -1331,7 +1375,8 @@ namespace Archon {
       newestframe = this->frame.bufframe[this->frame.index];
     }
     else {
-      Logf("(%s) error: index %d exceeds number of buffers %d\n", function, this->frame.index, this->frame.bufframe.size());
+      message.str(""); message << "error: index " << this->frame.index << " exceeds number of buffers " << this->frame.bufframe.size();
+      logwrite(function, message.str());
       return(ERROR);
     }
 
@@ -1381,18 +1426,19 @@ namespace Archon {
    *
    */
   long Interface::print_frame_status() {
+    std::string function = "Archon::Interface::print_frame_status";
+    std::stringstream message;
     int bufn;
     int error = NO_ERROR;
     char statestr[this->camera_info.nbufs][4];
-    const char* function = "Archon::Interface::print_frame_status";
-    std::stringstream message;
 
     // write as log message
     //
-    message << "    buf base       rawoff     frame ready lines rawlines rblks width height state";
-    Logf("(%s) %s\n", function, message.str().c_str()); message.str("");
-    message << "    --- ---------- ---------- ----- ----- ----- -------- ----- ----- ------ -----";
-    Logf("(%s) %s\n", function, message.str().c_str()); message.str("");
+    message.str(""); message << "    buf base       rawoff     frame ready lines rawlines rblks width height state";
+    logwrite(function, message.str());
+    message.str(""); message << "    --- ---------- ---------- ----- ----- ----- -------- ----- ----- ------ -----";
+    logwrite(function, message.str());
+    message.str("");
     for (bufn=0; bufn < this->camera_info.nbufs; bufn++) {
       memset(statestr[bufn], '\0', 4);
       if ( (this->frame.rbuf-1) == bufn)   strcat(statestr[bufn], "R");
@@ -1414,7 +1460,8 @@ namespace Archon {
       message << std::setw(5) << this->frame.bufwidth[bufn] << " ";                                   // width
       message << std::setw(6) << this->frame.bufheight[bufn] << " ";                                  // height
       message << std::setw(5) << statestr[bufn];                                                      // state
-      Logf("(%s) %s\n", function, message.str().c_str()); message.str("");
+      logwrite(function, message.str());
+      message.str("");
     }
     return(error);
   }
@@ -1430,13 +1477,15 @@ namespace Archon {
    *
    */
   long Interface::lock_buffer(int buffer) {
-    const char* function = "Archon::Interface::lock_buffer";
+    std::string function = "Archon::Interface::lock_buffer";
+    std::stringstream message;
     std::stringstream sscmd;
 
     sscmd.str("");
     sscmd << "LOCK" << buffer;
     if ( this->archon_cmd(sscmd.str()) ) {
-      Logf("(%s) error locking frame buffer %d\n", function, buffer);
+      message.str(""); message << "error locking frame buffer " << buffer;
+      logwrite(function, message.str());
       return(ERROR);
     }
     return (NO_ERROR);
@@ -1458,7 +1507,7 @@ namespace Archon {
    *
    */
   long Interface::get_timer(unsigned long int *timer) {
-    const char* function = "Archon::Interface::get_timer";
+    std::string function = "Archon::Interface::get_timer";
     std::stringstream message, timer_ss;
     std::vector<std::string> tokens;
     int  error;
@@ -1476,7 +1525,8 @@ namespace Archon {
     // to be two tokens
     //
     if (tokens.size() != 2) {
-      Logf("(%s) error unrecognized timer response: %s\n", function, reply);
+      message.str(""); message << "error unrecognized timer response: " << reply;
+      logwrite(function, message.str());
       return(ERROR);
     }
 
@@ -1485,7 +1535,8 @@ namespace Archon {
     std::string timer_str = tokens[1]; 
     timer_str.erase(timer_str.find('\n'));  // remove newline
     if (!std::all_of(timer_str.begin(), timer_str.end(), ::isxdigit)) {
-      Logf("(%s) error unrecognized timer value: %s\n", function, timer_str.c_str());
+      message.str(""); message << "error unrecognized timer value: " << timer_str;
+      logwrite(function, message.str());
       return(ERROR);
     }
 
@@ -1507,17 +1558,20 @@ namespace Archon {
    *
    */
   long Interface::fetch(uint64_t bufaddr, uint32_t bufblocks) {
-    const char* function = "Archon::Interface::fetch";
+    std::string function = "Archon::Interface::fetch";
+    std::stringstream message;
     uint32_t maxblocks = (uint32_t)(1.5E9 / this->camera_info.nbufs / 1024 );
     uint64_t maxoffset = this->camera_info.nbufs==2 ? 0xD0000000 : 0xE0000000;
     uint64_t maxaddr = maxoffset + maxblocks;
 
     if (bufaddr < 0xA0000000 || bufaddr > maxaddr) {
-      Logf("(%s) error: requested address 0x%0X outside range {0xA0000000:0x%0X}\n", function, bufaddr, maxaddr);
+      message.str(""); message << "error: requested address 0x" << std::hex << bufaddr << " outside range {0xA0000000:0x" << maxaddr << "}";
+      logwrite(function, message.str());
       return(ERROR);
     }
     if (bufblocks > maxblocks) {
-      Logf("(%s) error: requested blocks 0x%0X outside range {0:0x%0X}\n", function, bufblocks, maxblocks);
+      message.str(""); message << "error: requested blocks 0x" << std::hex << bufblocks << " outside range {0:0x" << maxblocks << "}";
+      logwrite(function, message.str());
       return(ERROR);
     }
 
@@ -1531,13 +1585,13 @@ namespace Archon {
     std::transform( scmd.begin(), scmd.end(), scmd.begin(), ::toupper );    // make uppercase
 
     if (this->archon_cmd(scmd) == ERROR) {
-      Logf("(%s) error sending FETCH command. Aborting read.\n", function);
+      logwrite(function, "error sending FETCH command. Aborting read.");
       this->archon_cmd(UNLOCK);                                             // unlock all buffers
       return(ERROR);
     }
 
-    Logf("(%s) reading %s data with %s\n", function, 
-          (this->camera_info.frame_type==FRAME_RAW?"raw":"image"), scmd.c_str());
+    message.str(""); message << "reading " << (this->camera_info.frame_type==FRAME_RAW?"raw":"image") << " with " << scmd;
+    logwrite(function, message.str());
     return(NO_ERROR);
   }
   /**************** Archon::Interface::fetch **********************************/
@@ -1552,7 +1606,8 @@ namespace Archon {
    *
    */
   long Interface::read_frame() {
-    const char* function = "Archon::Interface::read_frame";
+    std::string function = "Archon::Interface::read_frame";
+    std::stringstream message;
     int retval;
     int bufready;
     char check[5], header[5];
@@ -1568,7 +1623,7 @@ namespace Archon {
     if ( (this->image_data == NULL)    ||
          (this->image_data_bytes == 0) ||
          (this->image_data_allocated != this->image_data_bytes) ) {
-      Logf("(%s) error: image buffer not ready\n", function);
+      logwrite(function, "error: image buffer not ready");
       return(ERROR);
     }
 
@@ -1577,12 +1632,14 @@ namespace Archon {
     bufready = this->frame.index + 1;
 
     if (bufready < 1 || bufready > this->camera_info.nbufs) {
-      Logf("(%s) error: invalid buffer %d\n", function, bufready);
+      message.str(""); message << "error: invalid buffer " << bufready;
+      logwrite(function, message.str());
       return(ERROR);
     }
 
-    Logf("(%s) will read %s data from Archon controller buffer %d\n", 
-         function, (this->camera_info.frame_type == FRAME_RAW ? "raw" : "image"), bufready);
+    message.str(""); message << "will read " << (this->camera_info.frame_type == FRAME_RAW ? "raw" : "image")
+                             << " data from Archon controller buffer " << bufready;
+    logwrite(function, message.str());
 
     // Lock the frame buffer before reading it
     //
@@ -1611,13 +1668,15 @@ namespace Archon {
         break;
 
       default:
-        Logf("(%s) error: unknown frame type specified\n", function);
+        logwrite(function, "error: unknown frame type specified");
         return(ERROR);
         break;
     }
 
-    Logf("(%s) bufaddr=0x%0X image_memory=0x%0X bytes bufblocks=0x%0X\n", 
-          function, bufaddr, this->camera_info.image_memory, bufblocks);
+    message.str(""); message << "bufaddr=0x" << std::hex << bufaddr << " "
+                             << "image_memory=0x" << this->camera_info.image_memory << " bytes "
+                             << "bufblocks=0x" << bufblocks;
+    logwrite(function, message.str());
 
     // send the FETCH command.
     // This will take the archon_busy semaphore, but not release it -- must release in this function!
@@ -1632,8 +1691,8 @@ namespace Archon {
 
       // Are there data to read?
       if ( (retval=Poll(this->sockfd, POLLTIMEOUT)) <= 0) {
-        if (retval==0) Logf("(%s) Poll timeout\n", function);
-        if (retval<0)  Logf("(%s) Poll error\n", function);
+        if (retval==0) logwrite(function, "Poll timeout");
+        if (retval<0)  logwrite(function, "Poll error");
         error = ERROR;
         break;
       }
@@ -1646,20 +1705,22 @@ namespace Archon {
       //
       SNPRINTF(check, "<%02X:", this->msgref);
       if ( (retval=read(this->sockfd, header, 4)) != 4 ) {
-        Logf("(%s) error %d reading header\n", function, retval);
+        message.str(""); message << "error " << retval << " reading header";
+        logwrite(function, message.str());
         error = ERROR;
         break;
       }
       if (header[0] == '?') {  // Archon retured an error
-        Logf("(%s) error reading %s data\n", function,
-              (this->camera_info.frame_type==FRAME_RAW?"raw ":"image "));
+        message.str(""); message << "error reading " << (this->camera_info.frame_type==FRAME_RAW?"raw ":"image ") << " data";
+        logwrite(function, message.str());
         this->fetchlog();      // check the Archon log for error messages
         error = ERROR;
         break;
       }
       else if (strncmp(header, check, 4) != 0) {
-        Logf("(%s) Archon command-reply mismatch reading %s data. header=%s check=%s\n", function,
-              (this->camera_info.frame_type==FRAME_RAW?"raw ":"image "), header, check);
+        message.str(""); message << "Archon command-reply mismatch reading " << (this->camera_info.frame_type==FRAME_RAW?"raw ":"image ")
+                                 << " data. header=" << header << " check=" << check;
+        logwrite(function, message.str());
         error = ERROR;
         break;
       }
@@ -1696,13 +1757,14 @@ namespace Archon {
     //
     return 0;
     if (error == NO_ERROR) {
-      Logf("(%s) successfully read 0x%0X%s blocks (0x%0X bytes) from Archon controller\n",
-            function, (this->camera_info.frame_type==FRAME_RAW?" raw ":""), totalbytesread);
+      message.str(""); message << "successfully read 0x" << std::hex << bufblocks << (this->camera_info.frame_type==FRAME_RAW?" raw ":"")
+                               << " blocks (0x" << totalbytesread << " bytes) from Archon controller";
+      logwrite(function, message.str());
     }
     // Throw an error for any other errors
     //
     else {
-      Logf("(%s) error reading Archon camera data to memory! \n", function);
+      logwrite(function, "error reading Archon camera data to memory!");
     }
     return(0);
   }
@@ -1726,12 +1788,14 @@ namespace Archon {
    *
    */
   long Interface::write_frame() {
-    const char* function = "Archon::Interface::write_frame";
+    std::string function = "Archon::Interface::write_frame";
+    std::stringstream message;
     uint32_t   *cbuf32;                  //!< used to cast char buf into 32 bit int
     uint16_t   *cbuf16;                  //!< used to cast char buf into 16 bit int
     long        error;
 
-    Logf("(%s) writing %d-bit data from memory to disk\n", function, this->fits_info.bitpix);
+    message.str(""); message << "writing " << this->fits_info.bitpix << "-bit data from memory to disk";
+    logwrite(function, message.str());
 
     // The Archon sends four 8-bit numbers per pixel. To convert this into something usable,
     // cast the image buffer into integers. Handled differently depending on bits per pixel.
@@ -1757,7 +1821,7 @@ namespace Archon {
           this->common.increment_imnum();
         }
         else {
-          Logf("(%s) error writing image\n", function);
+          logwrite(function, "error writing image");
         }
         if (fbuf != NULL) {
           delete [] fbuf;
@@ -1777,7 +1841,8 @@ namespace Archon {
       // shouldn't happen
       //
       default:
-        Logf("(%s) error unrecognized bits per pixel: %d\n", function, this->fits_info.bitpix);
+        message.str(""); message << "error unrecognized bits per pixel: " << this->fits_info.bitpix;
+        logwrite(function, message.str());
         return (ERROR);
         break;
     }
@@ -1797,20 +1862,21 @@ namespace Archon {
    *
    */
   long Interface::write_config_key( const char *key, const char *newvalue, bool &changed ) {
-    const char* function = "Archon::Interface::write_config_key";
+    std::string function = "Archon::Interface::write_config_key";
     std::stringstream message, sscmd;
     int error=NO_ERROR;
 
     if ( key==NULL || newvalue==NULL ) {
       error = ERROR;
-      Logf("(%s) error: key|value cannot have NULL\n", function);
+      logwrite(function, "error: key|value cannot have NULL");
     }
 
     else
 
     if ( this->configmap.find(key) == this->configmap.end() ) {
       error = ERROR;
-      Logf("(%s) error: key %s not found in configmap\n", function, key);
+      message.str(""); message << "error: key " << key << " not found in configmap";
+      logwrite(function, message.str());
     }
 
     else
@@ -1820,7 +1886,8 @@ namespace Archon {
      */
     if ( this->configmap[key].value == newvalue ) {
       error = NO_ERROR;
-      Logf("(%s) config key %s=%s not written: no change in value\n", function, key, newvalue);
+      message.str(""); message << "config key " << key << "=" << newvalue << " not written: no change in value";
+      logwrite(function, message.str());
     }
 
     else
@@ -1836,14 +1903,16 @@ namespace Archon {
             << key
             << "="
             << newvalue;
-      Logf("(%s) sending: archon_cmd(%s)\n", function, sscmd.str().c_str());
+      message.str(""); message << "sending: archon_cmd(" << sscmd << ")";
+      logwrite(function, message.str());
       error=this->archon_cmd((char *)sscmd.str().c_str());   // send the WCONFIG command here
       if (error==NO_ERROR) {
         this->configmap[key].value = newvalue;               // save newvalue in the STL map
         changed = true;
       }
       else {
-        Logf("(%s) error: config key=value: %s=%s not written\n", function, key, newvalue);
+        message.str(""); message << "error: config key=value: " << key << "=" << newvalue << " not written";
+        logwrite(function, message.str());
       }
     }
     return(error);
@@ -1867,20 +1936,21 @@ namespace Archon {
    *
    */
   long Interface::write_parameter( const char *paramname, const char *newvalue, bool &changed ) {
-    const char* function = "Archon::Interface::write_parameter";
+    std::string function = "Archon::Interface::write_parameter";
     std::stringstream message, sscmd;
     int error=NO_ERROR;
 
     if ( paramname==NULL || newvalue==NULL ) {
       error = ERROR;
-      Logf("(%s) error: paramname|value cannot have NULL\n", function);
+      logwrite(function, "error: paramname|value cannot have NULL");
     }
 
     else
 
     if ( this->parammap.find(paramname) == this->parammap.end() ) {
       error = ERROR;
-      Logf("(%s) error parameter \"%s\" not found in parammap\n", function, paramname);
+      message.str(""); message << "error parameter \"" << paramname << "\" not found in parammap";
+      logwrite(function, message.str());
     }
 
     /**
@@ -1888,7 +1958,8 @@ namespace Archon {
      */
     if ( this->parammap[paramname].value == newvalue ) {
       error = NO_ERROR;
-      Logf("(%s) parameter %s=%s not written: no change in value\n", function, paramname, newvalue);
+      message.str(""); message << "parameter " << paramname << "=" << newvalue << " not written: no change in value";
+      logwrite(function, message.str());
     }
 
     else
@@ -1907,7 +1978,8 @@ namespace Archon {
             << this->parammap[paramname].name
             << "="
             << newvalue;
-      Logf("(%s) sending archon_cmd(%s)\n", function, sscmd.str().c_str());
+      message.str(""); message << "sending archon_cmd(" << sscmd << ")";
+      logwrite(function, message.str());
       error=this->archon_cmd((char *)sscmd.str().c_str());   // send the WCONFIG command here
       this->parammap[paramname].value = newvalue;            // save newvalue in the STL map
       changed = true;
@@ -1945,14 +2017,16 @@ namespace Archon {
    *
    */
   long Interface::expose() {
-    const char* function = "Archon::Interface::expose";
+    std::string function = "Archon::Interface::expose";
+    std::stringstream message;
     long error;
 
     // exposeparam is set by the configuration file, CONFIG_FILE
     // check to make sure it was set, or else expose won't work
     //
     if (this->exposeparam.empty()) {
-      Logf("(%s) error EXPOSE_PARAM not set in configuration file %s\n", function, CONFIG_FILE);
+      message.str(""); message << "error EXPOSE_PARAM not set in configuration file " << CONFIG_FILE;
+      logwrite(function, message.str());
       return(ERROR);
     }
 
@@ -1968,7 +2042,8 @@ namespace Archon {
     }
 
     if (error == NO_ERROR) {
-      Logf("(%s) exposure started at Archon time %ld\n", function, this->start_time);
+      message.str(""); message << "exposure started at Archon time " << this->start_time;
+      logwrite(function, message.str());
     }
     if (error == NO_ERROR) error = this->prepare_image_buffer();
 

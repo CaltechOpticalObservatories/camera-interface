@@ -15,7 +15,6 @@
 #include "common.h"
 #include "config.h"
 #include "logentry.h"
-#include "newlogentry.h"
 
 // poll timeout in msec
 #define POLLTIMEOUT 5000

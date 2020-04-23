@@ -1,12 +1,16 @@
 /**
- * @file    newlogentry.cpp
+ * @file    logentry.cpp
  * @brief   logentry functions
  * @details 
  * @author  David Hale <dhale@astro.caltech.edu>
  *
+ * Write time-stamped entries to log file using logwrite(function, message)
+ * where function is a string representing the calling function and
+ * message is an arbitrary string.
+ *
  */
 
-#include "newlogentry.h"
+#include "logentry.h"
 
 std::mutex newloglock;
 std::ofstream filestream;      //!< IO stream class
@@ -19,7 +23,8 @@ std::ofstream filestream;      //!< IO stream class
  * @param  none
  * @return 0 on success, 1 on error
  *
- * Opens an ofstream to the specified logfile.
+ * Opens an ofstream to the specified logfile, "LOGPATH/LOGNAME_YYYYMMDD.log"
+ * LOGPATH and LOGNAME are defined in logentry.h
  *
  */
 long initlog() {
@@ -28,7 +33,7 @@ long initlog() {
 
   std::lock_guard<std::mutex> lock(newloglock);
 
-  timenow = get_timenow();                 // current calendar time
+  timenow = get_timenow();                 // current calendar time (defined in utilities.h)
   if (timenow == NULL) return 1;           // error
 
   // assemble log file name from #define and current date
@@ -102,14 +107,18 @@ void closelog() {
 /** logwrite *****************************************************************/
 /**
  * @fn     logwrite
- * @brief  
- * @param  
+ * @brief  create a log file entry
+ * @param  function
+ * @param  message
  * @return none
+ *
+ * Create a time-stamped entry in the log file in the form of:
+ * YYYY-MM-DDTHH:MM:SS.ssssss (function) message\n
  *
  */
 void logwrite(std::string function, std::string message) {
   std::stringstream logmsg;
-  std::string timestamp = get_time_string();     // get the current time
+  std::string timestamp = get_time_string();     // get the current time (defined in utilities.h)
 
   std::lock_guard<std::mutex> lock(newloglock);  // lock mutex to protect from multiple access
 

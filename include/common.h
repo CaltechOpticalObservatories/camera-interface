@@ -12,7 +12,7 @@
 #include <vector>
 #include <mutex>
 
-#include "newlogentry.h"
+#include "logentry.h"
 #include "utilities.h"
 
 const long NOTHING = -1;
