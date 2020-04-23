@@ -14,10 +14,12 @@
 
 #include "build_date.h"
 #include "tcplinux.h"
-#include "logentry.h"
+//#include "logentry.h"
 #include "server.h"
 #include "common.h"
 #include "config.h"
+//#include "newlogentry.h"
+#include "utilities.h"
 
 #define  N_THREADS    10
 #define  BUFSIZE      1024  //!<
@@ -36,13 +38,14 @@ Archon::Server server;
  *
  */
 void signal_handler(int signo) {
+  std::string function = "Archon::signal_handler";
   switch (signo) {
     case SIGINT:
-      Logf("(Archon::signal_handler) received INT\n");
+      logwrite(function, "received INT");
       server.exit_cleanly();
       break;
     case SIGPIPE:
-      Logf("(Archon::signal_handler) caught SIGPIPE\n");
+      logwrite(function, "caught SIGPIPE");
       break;
     default:
       server.exit_cleanly();
@@ -68,11 +71,15 @@ void doit(int threadnum);
  *
  */
 int main(int argc, char **argv) {
-  const char* function = "Archon::main";
+  std::string function = "Archon::main";
+  std::stringstream message;
 
-  initlogentry("archon");
+//  initlogentry("archon");
 
-  Logf("(%s) this version built %s %s\n", function, BUILD_DATE, BUILD_TIME);
+  initlog();
+
+  message << "this version built " << BUILD_DATE << " " << BUILD_TIME;
+  logwrite(function, message.str());
 
   signal(SIGINT, signal_handler);
   signal(SIGPIPE, signal_handler);
@@ -117,6 +124,8 @@ int main(int argc, char **argv) {
  *
  */
 void block_main(int threadnum) {
+  std::string function = "Archon::block_main";
+  std::stringstream message;
   int connfd;
 
   struct sockaddr_in cliaddr;
@@ -124,7 +133,8 @@ void block_main(int threadnum) {
   char               buff[1024];
 
   if (threadnum != 0) {
-    Logf("(Archon::block_main) WARNING: block_main shouldn't be called with thr %d\n", threadnum);
+    message.str(""); message << "WARNING: block_main shouldn't be called with thread " << threadnum;
+    logwrite(function, message.str());
   }
 
   while(1) {
@@ -211,12 +221,11 @@ void doit(int threadnum) {
   int   i;
   long  ret;
   char  retstr[BUFSIZE];
+  std::stringstream message;
   std::string scmd, sargs;        // arg string is everything after command
   std::vector<std::string> tokens;
 
   bool connection_open=true;
-
-  Common::Utilities util;
 
   while (connection_open) {
     memset(buf,  '\0', BUFSIZE);  // init buffers
@@ -243,15 +252,18 @@ void doit(int threadnum) {
       sargs.erase(std::remove(sargs.begin(), sargs.end(), '\r' ), sargs.end());
       sargs.erase(std::remove(sargs.begin(), sargs.end(), '\n' ), sargs.end());
 
-      Logf("(%s) thread %d received command: %s %s\n", function, threadnum, cmd, sargs.c_str());
+      message.str(""); message << "thread " << threadnum << " received command: " << cmd << " " << sargs;
+      logwrite(function, message.str());
     }
     catch ( std::runtime_error &e ) {
       std::stringstream errstr; errstr << e.what();
-      Logf("(%s) error parsing arguments: %s\n", function, errstr.str().c_str());
+      message.str(""); message << "error parsing arguments: " << errstr;
+      logwrite(function, message.str());
       ret = -1;
     }
     catch ( ... ) {
-      Logf("() unknown error parsing arguments: %s\n", function, sargs.c_str());
+      message.str(""); message << "unknown error parsing arguments: " << sargs;
+      logwrite(function, message.str());
       ret = -1;
     }
 
@@ -308,14 +320,15 @@ void doit(int threadnum) {
     if (MATCH(cmd, "getp")) {
                     std::string valstring;
                     ret = server.read_parameter(sargs, valstring);
-                    Logf("(%s) %s\n", function, ret==ERROR?"ERROR":valstring.c_str());
+                    logwrite(function, valstring);
                     }
     else
     if (MATCH(cmd, "setp")) {
-                    util.Tokenize(sargs, tokens, " ");
+                    Tokenize(sargs, tokens, " ");
                     if (tokens.size() != 2) {
                       ret = ERROR;
-                      Logf("(%s) error: expected 2 arguments, got %d\n", function, (int)tokens.size());
+                      message.str(""); message << "error: expected 2 arguments, got " << tokens.size();
+                      logwrite(function, message.str());
                     }
                     else {
                       ret = server.prep_parameter(tokens[0], tokens[1]);

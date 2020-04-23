@@ -20,7 +20,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "logentry.h"
 #include "common.h"
 
 namespace Common {
@@ -42,12 +41,14 @@ namespace Common {
    *
    */
   long Common::imnum(std::string num_in, std::string& num_out) {
-    const char* function = "Common::Common::imnum";
+    std::string function = "Common::Common::imnum";
+    std::stringstream message;
 
     // If no string is passed then this is a request; return the current value.
     //
     if (num_in.empty()) {
-      Logf("(%s) image number: %d\n", function, this->image_num);
+      message.str(""); message << "image number: " << this->image_num;
+      logwrite(function, message.str());
       num_out = std::to_string(this->image_num);
       return(NO_ERROR);
     }
@@ -55,7 +56,8 @@ namespace Common {
     else {                             // Otherwise check the incoming value
       int num = std::stoi(num_in);
       if (num < 0) {                   // can't be negative
-        Logf("(%s) error requested image number %d must be >= 0\n", function, num);
+        message.str(""); message << "error requested image number " << num << " must be >= 0";
+        logwrite(function, message.str());
         return(ERROR);
       }
       else {                           // value is OK
@@ -66,7 +68,6 @@ namespace Common {
     }
   }
   /** Common::Common::imnum ***************************************************/
-
 
 
   /** Common::Common::imname **************************************************/
@@ -85,12 +86,14 @@ namespace Common {
     return( imname(name_in, dontcare) );
   }
   long Common::imname(std::string name_in, std::string& name_out) {
-    const char* function = "Common::Common::imname";
+    std::string function = "Common::Common::imname";
+    std::stringstream message;
 
     // If no string is passed then this is a request; return the current value.
     //
     if (name_in.empty()) {
-      Logf("(%s) image name: %s\n", function, this->image_name.c_str());
+      message.str(""); message << "image name:" << this->image_name;
+      logwrite(function, message.str());
       name_out = this->image_name;
     }
     else {                             // Otherwise set the image name
@@ -118,12 +121,14 @@ namespace Common {
     return( imdir(dir_in, dontcare) );
   }
   long Common::imdir(std::string dir_in, std::string& dir_out) {
-    const char* function = "Common::Common::imdir";
+    std::string function = "Common::Common::imdir";
+    std::stringstream message;
 
     // If no string is passed then this is a request; return the current value.
     //
     if (dir_in.empty()) {
-      Logf("(%s) image directory: %s\n", function, this->image_dir.c_str());
+      message.str(""); message << "image directory: " << this->image_dir;
+      logwrite(function, message.str());
       dir_out = this->image_dir;
       return(NO_ERROR);
     }
@@ -140,17 +145,22 @@ namespace Common {
           testfile = dir_in + "/.tmp";
           FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
           if (!fp) {
-            Logf("(%s) error cannot write to requested image directory %s\n", function, dir_in.c_str());
+            message.str(""); message << "error cannot write to requested image directory " << dir_in;
+            logwrite(function, message.str());
             dir_out = this->image_dir;
             return(ERROR);
           }
           else {                                           // remove the test file
             std::fclose(fp);
-            if (std::remove(testfile.c_str()) != 0) Logf("(%s) error removing temporary file %s\n", function, testfile.c_str());
+            if (std::remove(testfile.c_str()) != 0) {
+              message.str(""); message << "error removing temporary file " << testfile;
+              logwrite(function, message.str());
+            }
           }
         }
         catch(...) {
-          Logf("(%s) error writing to %s\n", function, dir_in.c_str());
+          message.str(""); message << "error writing to " << dir_in;
+          logwrite(function, message.str());
           dir_out = this->image_dir;
           return(ERROR);
         }
@@ -159,13 +169,15 @@ namespace Common {
         return(NO_ERROR);
       }
       else {
-        Logf("(%s) error requested image directory %s is not a directory\n", function, dir_in.c_str());
+        message.str(""); message << "error requested image directory " << dir_in << " is not a directory";
+        logwrite(function, message.str());
         dir_out = this->image_dir;
         return(ERROR);
       }
     }
     else {
-      Logf("(%s) error requested image directory %s does not exist\n", function, dir_in.c_str());
+      message.str(""); message << "error requested image directory " << dir_in << " does not exist";
+      logwrite(function, message.str());
       dir_out = this->image_dir;
       return(ERROR);
     }
@@ -173,7 +185,7 @@ namespace Common {
   /** Common::Common::imdir ***************************************************/
 
 
-  /** Common::Utilities::get_fitsname *****************************************/
+  /** Common::Common:get_fitsname *********************************************/
   /**
    * @fn     get_fitsname
    * @brief  assemble the FITS filename
@@ -215,161 +227,7 @@ namespace Common {
 
     return fn.str();
   }
-  /** Common::Utilities::get_fitsname *****************************************/
-
-
-  /** Common::Utilities::parse_val ********************************************/
-  /**
-   * @fn     parse_val
-   * @brief  returns an unsigned int from a string
-   * @param  string
-   * @return unsigned int
-   *
-   */
-  unsigned int Utilities::parse_val(const std::string& str) {
-    std::stringstream v;
-    unsigned int u=0;
-    if ( (str.find("0x")!=std::string::npos) || (str.find("0X")!=std::string::npos))
-      v << std::hex << str;
-    else
-      v << std::dec << str;
-    v >> u;
-    return u;
-  }
-  /** Common::Utilities::parse_val ********************************************/
-
-
-  /** Common::Utilities::Tokenize *********************************************/
-  /**
-   * @fn     Tokenize
-   * @brief  break a string into a vector
-   * @param  str, input string
-   * @param  tokens, vector of tokens
-   * @param  delimiters, string
-   * @return number of tokens
-   *
-   */
-  int Utilities::Tokenize(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters) {
-    // Clear the tokens vector, we only want to putput new tokens
-    tokens.clear();
-
-    // If the string is zero length, return now with no tokens
-    if (str.length() == 0) { return(0); }
-
-    // Skip delimiters at beginning.
-    std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
-    // Find first "non-delimiter".
-    std::string::size_type pos     = str.find_first_of(delimiters, lastPos);
-
-    std::string quote("\"");
-    unsigned int quote_start = str.find(quote); //finds first quote mark
-    bool quotes_found = false;
-
-    if (quote_start != std::string::npos) {
-    }
-    else {
-      quote_start = -1;
-    }
-
-    while (std::string::npos != pos || std::string::npos != lastPos) {
-      if (quotes_found == true) {
-        tokens.push_back(str.substr(lastPos + 1, pos - lastPos - 2));
-        pos++;
-        lastPos = str.find_first_not_of(delimiters, pos);
-        quotes_found = false;
-      }
-      else {
-        // Found a token, add it to the vector.
-        tokens.push_back(str.substr(lastPos, pos - lastPos));
-
-        // Skip delimiters.  Note the "not_of"
-        lastPos = str.find_first_not_of(delimiters, pos);
-      }
-
-      // If the next character is a quote, grab between the quotes 
-      if (std::string::npos != lastPos && lastPos == quote_start){
-        pos = str.find_first_of("\"", lastPos + 1) + 1;
-        quotes_found = true;
-      }
-      // Otherwise, find next "non-delimiter"
-      else {
-        pos = str.find_first_of(delimiters, lastPos);
-      }
-    }
-    return(tokens.size());
-  }
-  /** Common::Utilities::Tokenize *********************************************/
-
-
-  /** Common::Utilities::chrrep ***********************************************/
-  /**
-   * @fn     chrrep
-   * @brief  replace one character within a string with a new character
-   * @param  str     pointer to string
-   * @param  oldchr  the old character to replace in the string
-   * @param  newchr  the replacement value
-   * @return none
-   *
-   * This function modifies the original string pointed to by *str.
-   *
-   */
-  void Utilities::chrrep(char *str, char oldchr, char newchr) {
-    char *p = str;
-    int   i=0;
-    while ( *p ) {
-      if (*p == oldchr) {
-        /**
-         * special case for DEL character. move string over by one char
-         */
-        if (newchr == 127) {    // if newchr==DEL copy memory after that chr
-          memmove(&str[i], &str[i+1], strlen(str)-i);
-        }
-        else {                  // otherwise just replace chr
-          *p = newchr;
-        }
-      }
-      ++p; i++;                 // increment pointer and byte counter
-    }
-  }
-  /** Common::Utilities::chrrep ***********************************************/
-
-
-  /** Common::Utilities::get_time_string **************************************/
-  /**
-   * @fn     get_time_string
-   * @brief  
-   * @param  
-   * @return 
-   *
-   */
-  std::string Utilities::get_time_string() {
-    std::stringstream current_time;  // String to contain the time
-    time_t t;                        // Container for system time
-    struct timespec data;            // Time of day container
-    struct tm gmt;                   // GMT time container
-
-    // Get the system time, return a bad timestamp on error
-    //
-    if (clock_gettime(CLOCK_REALTIME, &data) != 0) return("9999-99-99T99:99:99.999");
-
-    // Convert the time of day to GMT
-    //
-    t = data.tv_sec;
-    if (gmtime_r(&t, &gmt) == NULL) return("9999-99-99T99:99:99.999");
-
-    current_time.setf(std::ios_base::right);
-    current_time << std::setfill('0') << std::setprecision(0)
-                 << std::setw(4) << gmt.tm_year + 1900   << "-"
-                 << std::setw(2) << gmt.tm_mon + 1 << "-"
-                 << std::setw(2) << gmt.tm_mday    << "T"
-                 << std::setw(2) << gmt.tm_hour  << ":"
-                 << std::setw(2) << gmt.tm_min << ":"
-                 << std::setw(2) << gmt.tm_sec
-                 << "." << std::setw(3) << data.tv_nsec/1000000;
-
-    return(current_time.str());
-  }
-  /** Common::Utilities::get_time_string **************************************/
+  /** Common::Common:get_fitsname *********************************************/
 
 
   /** Common::FitsKeys::get_keytype *******************************************/
@@ -427,17 +285,17 @@ namespace Common {
    *
    */
   long FitsKeys::listkeys() {
-    const char* function = "Common::FitsKeys::listkeys";
+    std::string function = "Common::FitsKeys::listkeys";
+    std::stringstream message;
     fits_key_t::iterator keyit;
     for (keyit  = this->keydb.begin();
          keyit != this->keydb.end();
          keyit++) {
-      Logf("(%s) %s = %s%s%s (%s)\n", function,
-           keyit->second.keyword.c_str(),
-           keyit->second.keyvalue.c_str(),
-           keyit->second.keycomment.empty() ? "" : " // ",
-           keyit->second.keycomment.empty() ? "" : keyit->second.keycomment.c_str(),
-           keyit->second.keytype.c_str());
+      message.str("");
+      message << keyit->second.keyword << " = " << keyit->second.keyvalue;
+      if ( ! keyit->second.keycomment.empty() ) message << " // " << keyit->second.keycomment;
+      message << " (" << keyit->second.keytype << ")";
+      logwrite(function, message.str());
     }
     return(NO_ERROR);
   }
@@ -458,17 +316,17 @@ namespace Common {
    * 
    */
   long FitsKeys::addkey(std::string arg) {
-    const char* function = "Common::FitsKeys::addkey";
-    Utilities util;
+    std::string function = "Common::FitsKeys::addkey";
+    std::stringstream message;
     std::vector<std::string> tokens;
     std::string keyword, keystring, keyvalue, keytype, keycomment;
     std::string comment_separator = "//";
 
     // There must be one equal '=' sign in the incoming string, so that will make two tokens here
     //
-    util.Tokenize(arg, tokens, "=");
+    Tokenize(arg, tokens, "=");
     if (tokens.size() != 2) {
-      Logf("(%s) error: missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)\n", function);
+      logwrite(function, "error: missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)");
       return(ERROR);
     }
 
@@ -493,11 +351,13 @@ namespace Common {
     if (keyvalue == ".") {
       fits_key_t::iterator ii = this->keydb.find(keyword);
       if (ii==this->keydb.end()) {
-        Logf("(%s) error: keyword %s not found\n", function, keyword.c_str());
+        message.str(""); message << "error: keyword " << keyword << " not found";
+        logwrite(function, message.str());
       }
       else {
         this->keydb.erase(ii);
-        Logf("(%s) keyword %s erased\n", function, keyword.c_str());
+        message.str(""); message << "keyword " << keyword << " erased";
+        logwrite(function, message.str());
       }
       return(NO_ERROR);
     }
@@ -505,8 +365,8 @@ namespace Common {
     // check for instances of the comment separator in keycomment
     //
     if (keycomment.find(comment_separator) != std::string::npos) {
-      Logf("(%s) error: FITS comment delimiter: found too many instancces of %s in keycomment\n",
-           function, comment_separator.c_str());
+      message.str(""); message << "error: FITS comment delimiter: found too many instancces of " << comment_separator << " in keycomment";
+      logwrite(function, message.str());
       return(NO_ERROR);
     }
 

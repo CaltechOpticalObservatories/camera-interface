@@ -14,6 +14,7 @@
 #define ARCHONCONFIG_H
 
 #include <fstream>
+#include "newlogentry.h"
 
 // Default CONFIG_FILE is set in CMakeLists.txt in the toplevel directory.
 // Do not change it here.
@@ -55,7 +56,7 @@
           filestream.open( this->filename, std::ios::in );
         }
         else {
-          Logf("(%s) no config file specified\n", function);
+          logwrite(function, "no config file specified");
           return(ERROR);
         }
 

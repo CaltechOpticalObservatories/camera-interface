@@ -19,6 +19,8 @@
 #include <string>
 #include "common.h"
 #include "build_date.h"
+#include "utilities.h"
+#include "newlogentry.h"
 
 template <class T>
 class FITS_file {
@@ -37,7 +39,6 @@ class FITS_file {
     ~FITS_file() {                                  //!< deconstructor
     };
 
-
     /**************** FITS_file::open_file ************************************/
     /**
      * @fn     open_file
@@ -50,7 +51,8 @@ class FITS_file {
      *
      */
     long open_file(Archon::Information & info) {
-      const char* function = "FITS_file::open_file";
+      std::string function = "FITS_file::open_file";
+      std::stringstream message;
 
       const std::lock_guard<std::mutex> lock(this->fits_mutex);
 
@@ -62,7 +64,8 @@ class FITS_file {
         std::remove( info.fits_name.c_str() );
       }
       else {
-        Logf("(%s) error unable to create file %s\n", function, info.fits_name.c_str());
+        message.str(""); message << "error unable to create file " << info.fits_name;
+        logwrite(function, message.str());
         return(ERROR);
       }
 
@@ -83,15 +86,17 @@ class FITS_file {
         }
       }
       catch (CCfits::FITS::CantCreate){
-        Logf("(%s) error: unable to open FITS file %s\n", function, info.fits_name.c_str());
+        message.str(""); message << "error: unable to open FITS file " << info.fits_name;
+        logwrite(function, message.str());
         return(ERROR);
       }
       catch (...) {
-        Logf("(%s) unknown error\n", function);
+        logwrite(function, "unknown error");
         return(ERROR);
       }
 
-      Logf("(%s) opened file %s for FITS write\n", function, info.fits_name.c_str());
+      message.str(""); message << "opened file " << info.fits_name << " for FITS write";
+      logwrite(function, message.str());
 
       return (0);
     }
@@ -110,11 +115,10 @@ class FITS_file {
      *
      */
     void close_file() {
-      Common::Utilities util;
 
       // Add a header keyword for the time the file was written (right now!)
       //
-      this->pFits->pHDU().addKey("DATE", util.get_time_string(), "FITS file write date");
+      this->pFits->pHDU().addKey("DATE", get_time_string(), "FITS file write date");
 
       // Write the checksum
       //
@@ -139,10 +143,10 @@ class FITS_file {
      *
      */
     long write_image(T* data, Archon::Information& info) {
-      const char* function = "FITS::write_image";
+      std::string function = "FITS::write_image";
 
       if (info.data_cube == true) {
-        Logf("(%s) error data cube not supported\n", function);
+        logwrite(function, "error data cube not supported");
         return (ERROR);
       }
       else {
@@ -163,11 +167,11 @@ class FITS_file {
           std::lock_guard<std::mutex> lock(this->fits_mutex);  // lock and
           this->threadcount--;                                 // decrement threadcount
         }).detach();
-        Logf("(%s) waiting for threads to complete\n", function);
+        logwrite(function, "waiting for threads to complete");
         while (this->threadcount > 0) usleep(1000);            // wait for all threads to complete
       }
 
-      Logf("(%s) complete\n", function);
+      logwrite(function, "complete");
       return(NO_ERROR);
     }
     /**************** FITS_file::write_image **********************************/
@@ -184,7 +188,8 @@ class FITS_file {
      *
      */
     void write_image_thread(std::valarray<T> &data, Archon::Information &info, FITS_file<T> *self) {
-      const char* function = "FITS_file::write_image_thread";
+      std::string function = "FITS_file::write_image_thread";
+      std::stringstream message;
 
       // This makes the thread wait while another thread is writing images. This
       // function is really for single image writing, it's here just in case.
@@ -201,7 +206,8 @@ class FITS_file {
       // (internally mutex-protected)
       //
       if (self->open_file(info) != NO_ERROR) {
-        Logf("(%s) error failed to open FITS file %s\n", function, info.fits_name.c_str());
+        message.str(""); message << "error failed to open FITS file " << info.fits_name;
+        logwrite(function, message.str());
         return;
       }
 
@@ -218,7 +224,8 @@ class FITS_file {
         self->pFits->flush();  // make sure the image is written to disk
       }
       catch (CCfits::FitsError& error){
-        Logf("(%s) FITS file error thrown: %s\n", function, error.message().c_str());
+        message.str(""); message << "FITS file error thrown: " << error.message();
+        logwrite(function, message.str());
         self->writing_file = false;
         return;
       }
@@ -226,7 +233,8 @@ class FITS_file {
       // Close the FITS file
       //
       self->close_file();
-      Logf("(%s) closed FITS file %s\n", function, info.fits_name.c_str());
+      message.str(""); message << "closed FITS file " << info.fits_name;
+      logwrite(function, message.str());
       self->writing_file = false;
     }
     /**************** FITS_file::write_image_thread ***************************/
@@ -242,13 +250,15 @@ class FITS_file {
      * Uses CCFits
      */
     void make_camera_header(Archon::Information &info) {
-      const char* function = "FITS_file::make_camera_header";
+      std::string function = "FITS_file::make_camera_header";
+      std::stringstream message;
       try {
         std::string build(BUILD_DATE); build.append(" "); build.append(BUILD_TIME);
         this->pFits->pHDU().addKey("SERV_VER", build, "server build date");
       }
       catch (CCfits::FitsError & err) {
-        Logf("(%s) error creating FITS header: %s\n", function, err.message().c_str());
+        message.str(""); message << "error creating FITS header: " << err.message();
+        logwrite(function, message.str());
       }
     }
     /**************** FITS_file::make_camera_header ***************************/
@@ -267,7 +277,8 @@ class FITS_file {
      * Uses CCFits
      */
     void add_user_key(std::string keyword, std::string type, std::string value, std::string comment) {
-      const char* function = "FITS_file::add_user_key";
+      std::string function = "FITS_file::add_user_key";
+      std::stringstream message;
       if (type.compare("INT") == 0) {
         this->pFits->pHDU().addKey(keyword, std::stoi(value), comment);
       }
@@ -278,8 +289,8 @@ class FITS_file {
         this->pFits->pHDU().addKey(keyword, value, comment);
       }
       else {
-        Logf("(%s) error unknown type: %s for user keyword: %s = %s / %s", function, 
-             type.c_str(), keyword.c_str(), value.c_str(), comment.c_str());
+        message.str(""); message << "error unknown type: " << type << " for user keyword: " << keyword << "=" << value << " / " << comment;
+        logwrite(function, message.str());
       }
     }
     /**************** FITS_file::add_user_key *********************************/

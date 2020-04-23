@@ -5,12 +5,9 @@
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
-#include "logentry.h"
-#include "common.h"
 #include "archon.h"
 #include "tcplinux.h"
 #include "fits.h"
-#include "config.h"
 
 #include <sstream>   // for std::stringstream
 #include <iomanip>   // for setfil, setw, etc.
@@ -641,9 +638,9 @@ namespace Archon {
        * parse mode sections
        */
       if (strncasecmp(line, "[MODE_",   6)==0) { // this is a mode section
-        this->util.chrrep(line, '[',  127);      // remove [ bracket (replace with DEL)
-        this->util.chrrep(line, ']',  127);      // remove ] bracket (replace with DEL)
-        this->util.chrrep(line, '\n', 127);      // remove newline (replace with DEL)
+        chrrep(line, '[',  127);                 // remove [ bracket (replace with DEL)
+        chrrep(line, ']',  127);                 // remove ] bracket (replace with DEL)
+        chrrep(line, '\n', 127);                 // remove newline (replace with DEL)
         if (line!=NULL) modesection=line;        // create a string object out of the rest of the line
 
         // loop through all possible observing modes
@@ -697,8 +694,8 @@ namespace Archon {
       }
       strcpy((char*)line_ptr, orig_ptr);                  // copy the remainder of the line to the end
 
-      this->util.chrrep(line, '\\', '/');                 // replace backslash with forward slash
-      this->util.chrrep(line, '\"', 127);                 // remove all quotes (replace with DEL)
+      chrrep(line, '\\', '/');                            // replace backslash with forward slash
+      chrrep(line, '\"', 127);                            // remove all quotes (replace with DEL)
 
       /** ************************************************************
        * Store actual Archon parameters in their own STL map IN ADDITION to the map
@@ -732,7 +729,7 @@ namespace Archon {
       if (strncmp(lineptr, "ACF:",  4)==0) {
 
         if (strsep(&lineptr, ":") == NULL) continue;                      // strip off the "ACF:" portion
-        this->util.chrrep(lineptr, '\n', 127);                            // remove newline (replace with DEL)
+        chrrep(lineptr, '\n', 127);                                       // remove newline (replace with DEL)
 
         /**
          * We either hava a PARAMETER of the form: PARAMETERn=PARAMNAME=VALUE
@@ -766,7 +763,7 @@ namespace Archon {
       else
       if (strncmp(lineptr, "ARCH:", 5)==0) {
         if (strsep(&lineptr, ":") == NULL) continue;                      // strip off the "ARCH:" portion
-        this->util.chrrep(lineptr, '\n', 127);                            // remove newline (replace with DEL)
+        chrrep(lineptr, '\n', 127);                                       // remove newline (replace with DEL)
         if ( (keyptr = strsep(&lineptr, "=")) == NULL ) continue;         // keyptr: KEY, lineptr: VALUE
 
         this->modeinfo[obsmode].defined = TRUE;                           // this mode is defined
@@ -798,11 +795,11 @@ namespace Archon {
       if (strncmp(lineptr, "FITS:", 5)==0) {
         std::vector<std::string> tokens;
         if (strsep(&lineptr, ":") == NULL) continue;                      // strip off the "FITS:" portion
-        this->util.chrrep(lineptr, '\n', 127);                            // remove newline (replace with DEL)
+        chrrep(lineptr, '\n', 127);                                       // remove newline (replace with DEL)
 
         // First, tokenize on the equal sign "=".
         // The token left of "=" is the keyword. Immediate right is the value
-        this->util.Tokenize(lineptr, tokens, "=");
+        Tokenize(lineptr, tokens, "=");
         if (tokens.size() != 2) {                                         // need at least two tokens at this point
           Logf("(%s) error: token mismatch: expected KEYWORD=value//comment (found too many ='s)\n", function);
           if (line) free(line); fclose(fp);                               // getline() mallocs a buffer for line
@@ -813,7 +810,7 @@ namespace Archon {
 
         // Next, tokenize on the slash "/".
         // The token left of "/" is the value. Anything to the right is a comment.
-        this->util.Tokenize(keystring, tokens, "/");
+        Tokenize(keystring, tokens, "/");
         keyvalue   = tokens[0];
 
         if (tokens.size() == 2) {      // If there are two tokens then the second is a comment,
@@ -1204,7 +1201,7 @@ namespace Archon {
       // The value of TAPLINEn = ADxx,gain,offset --
       // tokenize by comma to separate out each parameter...
       //
-      this->util.Tokenize(this->configmap[tap.str().c_str()].value, tokens, ",");
+      Tokenize(this->configmap[tap.str().c_str()].value, tokens, ",");
 
       // If all three tokens present (ADxx,gain,offset) then parse it,
       // otherwise it's an unused tap and we can skip it.
@@ -1473,7 +1470,7 @@ namespace Archon {
       return(error);
     }
 
-    this->util.Tokenize(reply, tokens, "=");        // Tokenize the reply
+    Tokenize(reply, tokens, "=");                   // Tokenize the reply
 
     // Reponse should be "TIMER=xxxx\n" so there needs
     // to be two tokens
@@ -1966,7 +1963,7 @@ namespace Archon {
     // start_time is used by the FITS writer ?? //TODO (maybe can remove)
     //
     if (error == NO_ERROR) {
-      this->camera_info.start_time = this->util.get_time_string();  // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+      this->camera_info.start_time = get_time_string();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       error = this->get_timer(&this->start_time);                   // Archon internal timer
     }
 

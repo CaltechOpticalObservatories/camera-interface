@@ -17,6 +17,7 @@
 
 #include "archon.h"
 #include "common.h"
+#include "newlogentry.h"
 
 #define MATCH(buf1, buf2) (!strncasecmp(buf1, buf2, strlen(buf2)))
 
@@ -49,7 +50,7 @@ namespace Archon {
       ~Server() {
         close(this->nonblocking_socket);
         close(this->blocking_socket);
-        std::cerr << "(Archon::Server) closing sockets\n";
+        closelog();  // close the logfile, if open
       }
       /** Archon::~Server **********************************************************/
 
@@ -81,7 +82,8 @@ namespace Archon {
        *
        */
       void exit_cleanly(void) {
-        Logf("(Archon::Server::exit_cleanly) server exiting\n");
+        std::string function = "Archon::Server::exit_cleanly";
+        logwrite(function, "server exiting");
         exit(0);
       }
       /** Archon::Server::exit_cleanly *********************************************/

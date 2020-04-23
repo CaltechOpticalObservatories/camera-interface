@@ -12,6 +12,9 @@
 #include <vector>
 #include <mutex>
 
+#include "newlogentry.h"
+#include "utilities.h"
+
 const long NOTHING = -1;
 const long NO_ERROR = 0;
 const long ERROR = 1;
@@ -22,17 +25,6 @@ const long TIMEOUT = 3;
 #define SNPRINTF(VAR, ...) { snprintf(VAR, sizeof(VAR), __VA_ARGS__); }
 
 namespace Common {
-
-  class Utilities {
-    private:
-    public:
-      Utilities() {}
-      ~Utilities() {}
-      unsigned int parse_val(const std::string& str);
-      int Tokenize(const std::string& str, std::vector<std::string>& tokens, const std::string& delimiters);
-      void chrrep(char *str, char oldchr, char newchr);
-      std::string get_time_string();
-  };
 
   class FitsKeys {
     private:

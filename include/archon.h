@@ -10,8 +10,12 @@
 
 #include <CCfits/CCfits>                 //!< needed here for types in set_axes()
 #include <atomic>
+
+#include "utilities.h"
 #include "common.h"
 #include "config.h"
+#include "logentry.h"
+#include "newlogentry.h"
 
 // poll timeout in msec
 #define POLLTIMEOUT 5000
@@ -198,7 +202,6 @@ namespace Archon {
       Information camera_info;               //!< this is the main camera_info object
       Information fits_info;                 //!< used to copy the camera_info object to preserve info for FITS writing
 
-      Common::Utilities util;                //!< instantiate a Utility object
       Common::Common    common;              //!< instantiate a Common object
       Common::FitsKeys  userkeys;            //!< instantiate a Common object
 
