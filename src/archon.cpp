@@ -1673,9 +1673,8 @@ namespace Archon {
         break;
     }
 
-    message.str(""); message << "bufaddr=0x" << std::hex << bufaddr << " "
-                             << "image_memory=0x" << this->camera_info.image_memory << " bytes "
-                             << "bufblocks=0x" << bufblocks;
+    message.str(""); message << "will read " << std::dec << this->camera_info.image_memory << " bytes "
+                             << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
     logwrite(function, message.str());
 
     // send the FETCH command.
@@ -1698,8 +1697,18 @@ namespace Archon {
       }
 
       // Wait for a block+header Bytes to be available
-      while ( fion_read(this->sockfd) < (BLOCK_LEN+4) )
-        ;
+      // (but don't wait more than 1 second -- this should be tens of microseconds or less)
+      //
+      auto start = std::chrono::high_resolution_clock::now();    // start a timer now
+
+      while ( fion_read(this->sockfd) < (BLOCK_LEN+4) ) {
+        auto now = std::chrono::high_resolution_clock::now();    // check the time again
+        std::chrono::duration<double> diff = now-start;          // calculate the duration
+        if (diff.count() > 1) {                                  // break while loop if duration > 1 second
+          logwrite(function, "error timeout waiting for data from Archon");
+          return(ERROR);
+        }
+      }
 
       // Check message header
       //
@@ -1733,7 +1742,7 @@ namespace Archon {
         if ( (retval=read(this->sockfd, ptr_image, (size_t)toread)) > 0 ) {
           bytesread += retval;         // this will get zeroed after each block
           totalbytesread += retval;    // this won't (used only for info purposes)
-          printf("%10d\b\b\b\b\b\b\b\b\b\b", totalbytesread);
+          std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
           ptr_image += retval;         // advance pointer
         }
       } while (bytesread < BLOCK_LEN);
@@ -1746,8 +1755,13 @@ namespace Archon {
     this->archon_busy = false;
     this->archon_mutex.unlock();
 
-    printf("%10d complete\n", totalbytesread);
-    printf("   bytes read %d (%d 1024-Byte blocks)\n", totalbytesread, bufblocks);
+    std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
+
+    if (block < bufblocks) {
+      message.str(""); message << "error incomplete frame read " << std::dec 
+                               << totalbytesread << " bytes: " << block << " of " << bufblocks << " 1024-byte blocks";
+      logwrite(function, message.str());
+    }
 
     // Unlock the frame buffer
     //
@@ -1755,10 +1769,9 @@ namespace Archon {
 
     // On success, write the value to the log and return
     //
-    return 0;
     if (error == NO_ERROR) {
-      message.str(""); message << "successfully read 0x" << std::hex << bufblocks << (this->camera_info.frame_type==FRAME_RAW?" raw ":"")
-                               << " blocks (0x" << totalbytesread << " bytes) from Archon controller";
+      message.str(""); message << "successfully read " << totalbytesread << (this->camera_info.frame_type==FRAME_RAW?" raw ":"")
+                               << " bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
       logwrite(function, message.str());
     }
     // Throw an error for any other errors

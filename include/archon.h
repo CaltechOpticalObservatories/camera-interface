@@ -10,6 +10,8 @@
 
 #include <CCfits/CCfits>                 //!< needed here for types in set_axes()
 #include <atomic>
+#include <chrono>
+#include <numeric>
 
 #include "utilities.h"
 #include "common.h"
