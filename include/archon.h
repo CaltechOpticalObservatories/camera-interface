@@ -8,7 +8,7 @@
 #ifndef ARCHON_H
 #define ARCHON_H
 
-#include <CCfits/CCfits>                 //!< needed here for types in set_axes()
+#include <CCfits/CCfits>           //!< needed here for types in set_axes()
 #include <atomic>
 #include <chrono>
 #include <numeric>
@@ -17,27 +17,15 @@
 #include "common.h"
 #include "config.h"
 #include "logentry.h"
+#include "network.h"
 
-// poll timeout in msec
-#define POLLTIMEOUT 5000
-
-// number of modules per controller
-#define NMODS 12
-
-// number of channels per ADC module
-#define NADCHAN 4
-
-// max number of AD channels per controller
-#define MAXADCHANS 16
-
-// max number of CCDs handled by one controller
-#define MAXCCDS 4
-
-// Archon block size
-#define BLOCK_LEN   1024
-
-// Reply buffer size (over-estimate)
-#define REPLY_LEN   100 * BLOCK_LEN
+#define POLLTIMEOUT 5000           //!< poll timeout in msec
+#define NMODS 12                   //!< number of modules per controller
+#define NADCHAN 4                  //!< number of channels per ADC module
+#define MAXADCHANS 16              //!< max number of AD channels per controller
+#define MAXCCDS 4                  //!< max number of CCDs handled by one controller
+#define BLOCK_LEN 1024             //!< Archon block size
+#define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
 
 // Archon commands
 #define  SYSTEM        std::string("SYSTEM")
@@ -154,8 +142,8 @@ namespace Archon {
       Interface();
       ~Interface();
 
-      bool connection_open;                  //!< is there a connection open to the controller?
-      int  sockfd;                           //!< socket file descriptor to Archon controller
+      Network::TcpSocket archon;
+
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       int  taplines;
       int  gain[MAXADCHANS];                 //!< digital CDS gain (from TAPLINE definition)

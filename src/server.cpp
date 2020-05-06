@@ -1,29 +1,13 @@
 /**
  * @file    server.cpp
- * @brief   
- * @details 
+ * @brief   this is the main server
+ * @details spawns threads to handle requests, receives and parses commands
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <algorithm>
-#include <thread>
 
 #include "build_date.h"
-#include "tcplinux.h"
 #include "server.h"
-#include "common.h"
-#include "config.h"
-#include "utilities.h"
-
-#define  N_THREADS    10
-#define  BUFSIZE      1024  //!<
-#define  NBPORT       3030
-#define  BLKPORT      3031
-#define  CONN_TIMEOUT 3000  //<! incoming (non-blocking) connection timeout in milliseconds
 
 Archon::Server server;
 
@@ -54,10 +38,10 @@ void signal_handler(int signo) {
 /** signal_handler ***********************************************************/
 
 
-void block_main(int threadnum);
-int  main(int argc, char **argv);
-void thread_main(int threadnum);
-void doit(int threadnum);
+int  main(int argc, char **argv);           // main thread (just gets things started)
+void block_main(Network::TcpSocket sock);   // this thread handles requests on blocking port
+void thread_main(Network::TcpSocket sock);  // this thread handles requests on non-blocking port
+void doit(Network::TcpSocket sock);         // the worker thread
 
 
 /** main *********************************************************************/
@@ -72,7 +56,7 @@ int main(int argc, char **argv) {
   std::string function = "Archon::main";
   std::stringstream message;
 
-  initlog();
+  initlog();                                         // required to initialize the logging system before use
 
   message << "this version built " << BUILD_DATE << " " << BUILD_TIME;
   logwrite(function, message.str());
@@ -82,25 +66,43 @@ int main(int argc, char **argv) {
 
   server.config.read_config(server.config);          // read configuration file
 
-  server.get_config();
+  server.get_config();                               // get needed values out of read-in configuration file
 
-  server.nonblocking_socket = tcp_listen(NBPORT);    // initialize non-blocking TCP socket
-  server.blocking_socket = tcp_listen(BLKPORT);      // initialize blocking TCP socket
-  
-  // spawn thread for blocking port, detached from the main thread.
-  // this will be thread_num = 0 and the non-blocking threads will
-  // count from 1 to N_THREADS.
+  // This will pre-thread N_THREADS threads.
+  // The 0th thread is reserved for the blocking port, and the rest are for the non-blocking port.
+  // Each thread gets a socket object. All of the socket objects are stored in a vector container.
+  // The blocking thread socket object is of course unique.
+  // For the non-blocking thread socket objects, create a listening socket with one object,
+  // then the remaining objects are copies of the first.
   //
-  std::thread(block_main, 0).detach();
+  // TcpSocket objects are instantiated with (PORT#, BLOCKING_STATE, POLL_TIMEOUT_MSEC, THREAD_ID#)
+  //
+  std::vector<Network::TcpSocket> socklist;          // create a vector container to hold N_THREADS TcpSocket objects
+  socklist.reserve(N_THREADS);
 
-  // pre-thread up to N-1 detached threads. The Nth is saved for the blocking port.
+  Network::TcpSocket s(BLKPORT, true, -1, 0);        // instantiate TcpSocket object with blocking port
+  s.Listen();                                        // create a listening socket
+  socklist.push_back(s);                             // add it to the socklist vector
+  std::thread(block_main, socklist[0]).detach();     // spawn a thread to handle requests on this socket
+
+  // pre-thread N_THREADS-1 detached threads to handle requests on the non-blocking port
+  // thread #0 is reserved for the blocking port (above)
   //
-  for (int i=1; i<N_THREADS; i++) {
-    std::thread(thread_main, i).detach();
+  for (int i=1; i<N_THREADS; i++) {                  // create N_THREADS-1 non-blocking socket objects
+    if (i==1) {                                      // first one only
+      Network::TcpSocket s(NBPORT, false, CONN_TIMEOUT, i);   // instantiate TcpSocket object with non-blocking port
+      s.Listen();                                    // create a listening socket
+      socklist.push_back(s);
+    }
+    else {                                           // subsequent socket objects are copies of the first
+      Network::TcpSocket s = socklist[1];            // copy the first one, which has a valid listening socket
+      s.id = i;
+      socklist.push_back(s);
+    }
+    std::thread(thread_main, socklist[i]).detach();  // spawn a thread to handle each non-blocking socket request
   }
 
   for (;;) pause();                                  // main thread suspends
-
   return 0;
 }
 /** main *********************************************************************/
@@ -110,45 +112,22 @@ int main(int argc, char **argv) {
 /**
  * @fn     block_main
  * @brief  main function for blocking connection thread
- * @param  void* arg, thread id
+ * @param  Network::TcpSocket sock, socket object
  * @return nothing
  *
  * accepts a socket connection and processes the request by
- * calling function doit() with port_type=BLOCK
+ * calling function doit()
  *
  * This thread never terminates.
  *
  */
-void block_main(int threadnum) {
-  std::string function = "Archon::block_main";
-  std::stringstream message;
-  int connfd;
-
-  struct sockaddr_in cliaddr;
-  socklen_t          len;
-  char               buff[1024];
-
-  if (threadnum != 0) {
-    message.str(""); message << "WARNING: block_main shouldn't be called with thread " << threadnum;
-    logwrite(function, message.str());
-  }
-
+void block_main(Network::TcpSocket sock) {
   while(1) {
-    len=sizeof(cliaddr);
-    connfd=accept(server.blocking_socket,(struct sockaddr *) &cliaddr, &len);
-
-    sprintf(server.conndata[threadnum].cliaddr_str, "%s",
-            inet_ntop(AF_INET, &cliaddr.sin_addr, buff, sizeof(buff)));
-
-    server.conndata[threadnum].cliport    = ntohs(cliaddr.sin_port);
-    server.conndata[threadnum].connfd     = connfd;
-    server.conndata[threadnum].port_type  = server.BLOCK;
-
-    doit(threadnum);                         // call function to do the work
-
-    close(server.conndata[threadnum].connfd);
+    sock.Accept();
+    doit(sock);                   // call function to do the work
+    sock.Close();
   }
-  return ;
+  return;
 }
 /** block_main ***************************************************************/
 
@@ -157,39 +136,26 @@ void block_main(int threadnum) {
 /**
  * @fn     thread_main
  * @brief  main function for all non-blocked threads
- * @param  void* arg, thread id
- * @return nothin
+ * @param  Network::TcpSocket sock, socket object
+ * @return nothing
  *
  * accepts a socket connection and processes the request by
  * calling function doit()
  *
- * There are N_THREADS-1 of these, one for each nb connection.
+ * There are N_THREADS-1 of these, one for each non-blocking connection.
  * These threads never terminate.
  *
+ * This function differs from block_main only in that the call to Accept
+ * is mutex-protected.
+ *
  */
-void thread_main(int threadnum) {
-  int connfd;                                  /* connection file descriptor */
-
-  struct sockaddr_in cliaddr;
-  socklen_t          len=(socklen_t)sizeof(cliaddr);
-  char               buff[1024];
-
-  while(1) {
+void thread_main(Network::TcpSocket sock) {
+  while (1) {
     server.conn_mutex.lock();
-
-    connfd = accept(server.nonblocking_socket, (struct sockaddr *) &cliaddr, &len);
-
-    server.conndata[threadnum].cliport    = ntohs(cliaddr.sin_port);
-    server.conndata[threadnum].connfd     = connfd;
-    server.conndata[threadnum].port_type  = server.NONBLOCK;
-    sprintf(server.conndata[threadnum].cliaddr_str, "%s", 
-            inet_ntop(AF_INET, &cliaddr.sin_addr, buff, sizeof(buff)));
-
+    sock.Accept();
     server.conn_mutex.unlock();
-
-    doit(threadnum);                         // call function to do the work
-
-    close(server.conndata[threadnum].connfd);
+    doit(sock);                // call function to do the work
+    sock.Close();
   }
   return;
 }
@@ -209,14 +175,13 @@ void thread_main(int threadnum) {
  * <device> [all|<app>] [_BLOCK_] <command> [<arg>]
  *
  */
-void doit(int threadnum) {
+void doit(Network::TcpSocket sock) {
   std::string function = "Archon::doit";
   char  buf[BUFSIZE+1], cmd[BUFSIZE+1];
   char *args=buf;
   char *c_ptr;
   int   i;
   long  ret;
-  char  retstr[BUFSIZE];
   std::stringstream message;
   std::string scmd, sargs;        // arg string is everything after command
   std::vector<std::string> tokens;
@@ -227,14 +192,30 @@ void doit(int threadnum) {
     memset(buf,  '\0', BUFSIZE);  // init buffers
     args=buf;
 
-    if ( Poll(server.conndata[threadnum].connfd, 
-             (server.conndata[threadnum].port_type==server.NONBLOCK) ? CONN_TIMEOUT : -1) <= 0 ) 
-      break;
-    if ( read(server.conndata[threadnum].connfd, buf, (size_t)BUFSIZE) <= 0 )
+    // Wait (poll) connected socket for incoming data...
+    //
+    int pollret;
+    if ( ( pollret=sock.Poll() ) <= 0 ) {
+      if (pollret==0) {
+        message.str(""); message << "Poll timeout on thread " << sock.id;
+        logwrite(function, message.str());
+      }
+      if (pollret <0) {
+        message.str(""); message << "Poll error on thread " << sock.id << ": " << strerror(errno);
+        logwrite(function, message.str());
+      }
+      break;                      // this will close the connection
+    }
+
+    // Data available, now read from connected socket...
+    //
+    if ( sock.Read(buf, (size_t)BUFSIZE) <= 0 ) {
+      message.str(""); message << "Read error: " << strerror(errno); logwrite(function, message.str());
       break;                      // close connection -- this probably means that
                                   // the client has terminated abnormally, having
                                   // sent FIN but not stuck around long enough
                                   // to accept CLOSE and give the LAST_ACK.
+    }
 
     i=0; while (buf[i] != '\0') i++;
 
@@ -248,7 +229,7 @@ void doit(int threadnum) {
       sargs.erase(std::remove(sargs.begin(), sargs.end(), '\r' ), sargs.end());
       sargs.erase(std::remove(sargs.begin(), sargs.end(), '\n' ), sargs.end());
 
-      message.str(""); message << "thread " << threadnum << " received command: " << cmd << " " << sargs;
+      message.str(""); message << "thread " << sock.id << " received command: " << cmd << " " << sargs;
       logwrite(function, message.str());
     }
     catch ( std::runtime_error &e ) {
@@ -288,22 +269,22 @@ void doit(int threadnum) {
     if (MATCH(cmd, "imname")) {
                     std::string imname;  // string for the return value
                     ret = server.common.imname(sargs, imname);
-                    sock_rbputs(server.conndata[threadnum].connfd, (char*)imname.c_str());
-                    sock_rbputs(server.conndata[threadnum].connfd, (char*)" ");
+                    sock.Write(imname);
+                    sock.Write(" ");
                     }
     else
     if (MATCH(cmd, "imnum")) {
                     std::string imnum;   // string for the return value
                     ret = server.common.imnum(sargs, imnum);
-                    sock_rbputs(server.conndata[threadnum].connfd, (char*)imnum.c_str());
-                    sock_rbputs(server.conndata[threadnum].connfd, (char*)" ");
+                    sock.Write(imnum);
+                    sock.Write(" ");
                     }
     else
     if (MATCH(cmd, "imdir")) {
                     std::string imdir;   // string for the return value
                     ret = server.common.imdir(sargs, imdir);
-                    sock_rbputs(server.conndata[threadnum].connfd, (char*)imdir.c_str());
-                    sock_rbputs(server.conndata[threadnum].connfd, (char*)" ");
+                    sock.Write(imdir);
+                    sock.Write(" ");
                     }
     else
     if (MATCH(cmd, "key")) {
@@ -348,22 +329,25 @@ void doit(int threadnum) {
     if (MATCH(cmd, "expose")) {
                     ret = server.expose();
                     }
+    else
+    if (MATCH(cmd, "echo")) {
+                    sock.Write(sargs);
+                    sock.Write("\n");
+                    }
     else {  // if no matching command found then assume it's a native command and send it straight to the controller
       ret = server.archon_native(buf);
     }
 
     if (ret != NOTHING) {
-      snprintf(retstr, sizeof(retstr), "%s\n", ret==0?"DONE":"ERROR");
-      if (sock_rbputs(server.conndata[threadnum].connfd, retstr)<0) connection_open=false;
+      std::string retstr=(ret==0?"DONE\n":"ERROR\n");
+      if (sock.Write(retstr)<0) connection_open=false;
     }
 
-    // non-blocking connection exits immediately.
-    // keep blocking connection open for interactive session.
-    // 
-    if (server.conndata[threadnum].port_type == server.NONBLOCK) break;
+    if (!sock.isblocking()) break;       // Non-blocking connection exits immediately.
+                                         // Keep blocking connection open for interactive session.
   }
 
-  close(server.conndata[threadnum].connfd);
+  sock.Close();
   return;
 }
 /** doit *********************************************************************/

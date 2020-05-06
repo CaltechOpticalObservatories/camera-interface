@@ -22,9 +22,7 @@
 // LOGPATH and LOGNAME are set in CMakeLists.txt in the toplevel directory.
 // DO NOT CHANGE THEM HERE
 
-// where to save the logs
-//
-#define LOGPATH @LOGPATH@
+#define LOGPATH @LOGPATH@                                  // where to save the logs
 
 // base name for log file name (date will be appended)
 //

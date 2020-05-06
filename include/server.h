@@ -10,14 +10,27 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <algorithm>
 #include <csignal>
 #include <map>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include "archon.h"
-#include "common.h"
 #include "logentry.h"
+#include "config.h"
+#include "network.h"
+
+#define  NBPORT       3030  //!< non-blocking port
+#define  BLKPORT      3031  //!< blocking port
+#define  N_THREADS    10    //!< total number of threads spawned by server, one for blocking and the remainder for non-blocking
+#define  BUFSIZE      1024  //!< size of the input command buffer
+#define  CONN_TIMEOUT 3000  //<! incoming (non-blocking) connection timeout in milliseconds
 
 #define MATCH(buf1, buf2) (!strncasecmp(buf1, buf2, strlen(buf2)))
 
@@ -57,21 +70,9 @@ namespace Archon {
       int nonblocking_socket;
       int blocking_socket;
 
-      typedef enum { BLOCK, NONBLOCK } port_type_t;
+      Network::TcpSocket nonblocking;
 
-      typedef struct {
-        port_type_t  port_type;
-        char         cliaddr_str[20];
-        int          cliport;
-        int          connfd;
-        char        *command;
-      } conndata_struct;
-
-      typedef std::map<int, conndata_struct> conndata_t;
-
-      conndata_t conndata;
-
-      std::mutex conn_mutex;
+      std::mutex conn_mutex;             //!< mutex to protect against simultaneous access to Accept()
 
       /** Archon::Server::exit_cleanly *********************************************/
       /**
@@ -84,7 +85,7 @@ namespace Archon {
       void exit_cleanly(void) {
         std::string function = "Archon::Server::exit_cleanly";
         logwrite(function, "server exiting");
-        exit(0);
+        exit(EXIT_SUCCESS);
       }
       /** Archon::Server::exit_cleanly *********************************************/
   };

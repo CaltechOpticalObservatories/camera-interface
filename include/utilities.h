@@ -16,21 +16,6 @@
 #include <cstring>
 #include <algorithm>
 
-/***
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-#include <sstream>
-#include <vector>
-#include <thread>
-#include <fstream>
-#include <algorithm>  //!< vector iterators, find, count
-#include <functional> //!< pass by reference to threads
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-***/
-
 unsigned int parse_val(const std::string& str);     //!< returns an unsigned int from a string
 
 int Tokenize(const std::string& str, 

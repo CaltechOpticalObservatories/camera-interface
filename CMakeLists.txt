@@ -26,7 +26,7 @@ CONFIGURE_FILE("${PROJECT_INCL_DIR}/logentry.h.in" "${PROJECT_INCL_DIR}/logentry
 FIND_PATH(ARCHON_INCLUDE server.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(UTILITIES_INCLUDE utilities.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(LOGENTRY_INCLUDE logentry.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(TCPLINUX_INCLUDE tcplinux.h PATHS ${PROJECT_INCL_DIR})
+FIND_PATH(NETWORK_INCLUDE network.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(COMMON_INCLUDE common.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(ARCHON_INCLUDE archon.h PATHS ${PROJECT_INCL_DIR})
 FIND_PATH(CCFITS_INCLUDE CCfits PATHS /usr/local/include/CCfits)
@@ -43,7 +43,7 @@ INCLUDE_DIRECTORIES(
         ${ARCHON_INCLUDE}
         ${LOGENTRY_INCLUDE}
         ${LOGENTRY_INCLUDE}
-        ${TCPLINUX_INCLUDE}
+        ${NETWORK_INCLUDE}
         ${COMMON_INCLUDE}
         ${MY_FITS_INCLUDE}
         ${FITS_INCLUDE}
@@ -55,7 +55,7 @@ SET(COMMON_HEADERS
         ${ARCHON_INCLUDE}/server.h
         ${UTILITIES_INCLUDE}/utilities.h
         ${LOGENTRY_INCLUDE}/logentry.h
-        ${TCPLINUX_INCLUDE}/tcplinux.h
+        ${NETWORK_INCLUDE}/network.h
         ${COMMON_INCLUDE}/common.h
         ${ARCHON_INCLUDE}/archon.h
         ${CCFITS_INCLUDE}/CCfits
@@ -68,7 +68,7 @@ ADD_EXECUTABLE(archonserver
         ${PROJECT_SOURCE_DIR}/server.cpp 
         ${PROJECT_SOURCE_DIR}/common.cpp
         ${PROJECT_SOURCE_DIR}/archon.cpp
-        ${PROJECT_SOURCE_DIR}/tcplinux.c 
+        ${PROJECT_SOURCE_DIR}/network.cpp
         ${PROJECT_SOURCE_DIR}/logentry.cpp
         ${PROJECT_SOURCE_DIR}/utilities.cpp
         ${COMMON_HEADERS}

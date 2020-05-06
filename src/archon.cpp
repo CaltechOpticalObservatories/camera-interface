@@ -6,7 +6,6 @@
  *
  */
 #include "archon.h"
-#include "tcplinux.h"
 #include "fits.h"
 
 #include <sstream>   // for std::stringstream
@@ -22,8 +21,6 @@ namespace Archon {
   //
   Interface::Interface() {
     this->archon_busy = false;
-    this->connection_open = false;
-    this->sockfd = -1;
     this->msgref = 0;
     this->image_data = NULL;
     this->image_data_bytes = 0;
@@ -37,10 +34,10 @@ namespace Archon {
   }
 
 
-  /**************** Archon::Interface::prepare_image_buffer *******************/
+  /**************** Archon::Interface::get_config *****************************/
   /**
-   * @fn     prepare_image_buffer
-   * @brief  prepare image_data buffer, allocating memory as needed
+   * @fn     get_config
+   * @brief  get needed values out of the read configuration files
    * @param  none
    * @return NO_ERROR if successful or ERROR on error
    *
@@ -54,10 +51,12 @@ namespace Archon {
 
       if (config.param[entry].compare(0, 9, "ARCHON_IP")==0) {
         this->camera_info.hostname = config.arg[entry];
+        this->archon.sethost( config.arg[entry] );
       }
 
       if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {
         this->camera_info.port = std::stoi( config.arg[entry] );
+        this->archon.setport( std::stoi( config.arg[entry] ) );
       }
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {
@@ -144,7 +143,7 @@ namespace Archon {
     std::stringstream message;
     long   error = ERROR;
 
-    if (this->connection_open == true) {
+    if ( this->archon.isconnected() ) {
       logwrite(function, "camera connection already open");
       return(NO_ERROR);
     }
@@ -153,19 +152,15 @@ namespace Archon {
     //
     logwrite(function, "opening a connection to the camera system");
 
-    // open socket connection to camera controller
-    //
-    if ( (this->sockfd = connect_to_server( this->camera_info.hostname.c_str(), this->camera_info.port ) ) < 0 ) {
+    if ( this->archon.Connect() != 0 ) {
       message.str(""); message << "error " << errno << " connecting to " << this->camera_info.hostname << ":" << this->camera_info.port;
       logwrite(function, message.str());
       return(ERROR);
     }
-    this->connection_open = true;
 
-    // this->sockfd contains the socket file descriptor to the new conncection
-    //
     message.str("");
-    message << "socket connection to " << this->camera_info.hostname << ":" << this->camera_info.port << " established on fd " << this->sockfd;
+    message << "socket connection to " << this->camera_info.hostname << ":" << this->camera_info.port << " "
+            << "established on fd " << this->archon.getfd();;
     logwrite(function, message.str());
 
     // empty the Archon log
@@ -188,28 +183,17 @@ namespace Archon {
   long Interface::disconnect_controller() {
     std::string function = "Archon::Interface::disconnect_controller";
     long error;
-    if (!this->connection_open) {
+    if (!this->archon.isconnected()) {
       logwrite(function, "connection already closed");
     }
     // close the socket file descriptor to the Archon controller
     //
-    if (this->sockfd) {
-      if (close(this->sockfd) == 0) {
-        this->connection_open = false;
-        error = NO_ERROR;
-      }
-      else {
-        error = ERROR;
-      }
-    }
-    else {
-      error = NO_ERROR;
-    }
+    error = this->archon.Close();
 
     // Free the memory
     //
-    logwrite(function, "releasing allocated device memory");
     if (this->image_data != NULL) {
+      logwrite(function, "releasing allocated device memory");
       delete [] this->image_data;
       this->image_data=NULL;
     }
@@ -277,7 +261,7 @@ namespace Archon {
 
     unsigned long bufcount;
 
-    if (!this->connection_open) {               // nothing to do if no connection open to controller
+    if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
       logwrite(function, "error: connection not open to controller");
       return(ERROR);
     }
@@ -323,7 +307,7 @@ namespace Archon {
 
     // send the command
     //
-    if ( (sock_write(this->sockfd, (char *)scmd.c_str())) == -1) {
+    if ( (this->archon.Write(scmd)) == -1) {
       logwrite(function, "error writing to camera socket");
     }
 
@@ -343,12 +327,12 @@ namespace Archon {
     while (1) {
       memset(buffer, '\0', BLOCK_LEN);               // temporary buffer
 
-      if ( (retval=Poll(this->sockfd, POLLTIMEOUT)) <= 0) {
+      if ( (retval=this->archon.Poll()) <= 0) {
         if (retval==0) { logwrite(function, "Poll timeout"); error = TIMEOUT; }
         if (retval<0)  { logwrite(function, "Poll error");   error = ERROR;   }
         break;
       }
-      if ( (retval = read(this->sockfd, buffer, BLOCK_LEN)) <= 0) {  // read into temp buffer
+      if ( (retval = this->archon.Read(buffer, BLOCK_LEN)) <= 0) {  // read into temp buffer
         break;
       }
 
@@ -1371,7 +1355,7 @@ namespace Archon {
 
     newestbuf   = this->frame.index;
 
-    if (this->frame.index < (int)this->frame.bufframe.size()) {
+    if (this->frame.index < (int)this->frame.bufframe.size()) {  // TODO fails if no ACF loaded
       newestframe = this->frame.bufframe[this->frame.index];
     }
     else {
@@ -1689,7 +1673,7 @@ namespace Archon {
     for (block=0; block<bufblocks; block++) {
 
       // Are there data to read?
-      if ( (retval=Poll(this->sockfd, POLLTIMEOUT)) <= 0) {
+      if ( (retval=this->archon.Poll()) <= 0) {
         if (retval==0) logwrite(function, "Poll timeout");
         if (retval<0)  logwrite(function, "Poll error");
         error = ERROR;
@@ -1701,7 +1685,7 @@ namespace Archon {
       //
       auto start = std::chrono::high_resolution_clock::now();    // start a timer now
 
-      while ( fion_read(this->sockfd) < (BLOCK_LEN+4) ) {
+      while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) {
         auto now = std::chrono::high_resolution_clock::now();    // check the time again
         std::chrono::duration<double> diff = now-start;          // calculate the duration
         if (diff.count() > 1) {                                  // break while loop if duration > 1 second
@@ -1713,7 +1697,7 @@ namespace Archon {
       // Check message header
       //
       SNPRINTF(check, "<%02X:", this->msgref);
-      if ( (retval=read(this->sockfd, header, 4)) != 4 ) {
+      if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "error " << retval << " reading header";
         logwrite(function, message.str());
         error = ERROR;
@@ -1739,7 +1723,7 @@ namespace Archon {
       bytesread = 0;
       do {
         toread = BLOCK_LEN - bytesread;
-        if ( (retval=read(this->sockfd, ptr_image, (size_t)toread)) > 0 ) {
+        if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
           bytesread += retval;         // this will get zeroed after each block
           totalbytesread += retval;    // this won't (used only for info purposes)
           std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
