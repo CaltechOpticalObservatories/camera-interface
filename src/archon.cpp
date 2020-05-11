@@ -26,6 +26,24 @@ namespace Archon {
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
     this->config.filename = CONFIG_FILE;  //!< default config file set in CMakeLists.txt
+
+    // TODO I should change these to STL maps instead
+    //
+    this->frame.bufsample.resize( Archon::nbufs );
+    this->frame.bufcomplete.resize( Archon::nbufs );
+    this->frame.bufmode.resize( Archon::nbufs );
+    this->frame.bufbase.resize( Archon::nbufs );
+    this->frame.bufframe.resize( Archon::nbufs );
+    this->frame.bufwidth.resize( Archon::nbufs );
+    this->frame.bufheight.resize( Archon::nbufs );
+    this->frame.bufpixels.resize( Archon::nbufs );
+    this->frame.buflines.resize( Archon::nbufs );
+    this->frame.bufrawblocks.resize( Archon::nbufs );
+    this->frame.bufrawlines.resize( Archon::nbufs );
+    this->frame.bufrawoffset.resize( Archon::nbufs );
+    this->frame.buftimestamp.resize( Archon::nbufs );
+    this->frame.bufretimestamp.resize( Archon::nbufs );
+    this->frame.buffetimestamp.resize( Archon::nbufs );
   }
 
   // Archon::Interface deconstructor
@@ -55,8 +73,20 @@ namespace Archon {
       }
 
       if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {
-        this->camera_info.port = std::stoi( config.arg[entry] );
-        this->archon.setport( std::stoi( config.arg[entry] ) );
+        int port;
+        try {
+          port = std::stoi( config.arg[entry] );
+        }
+        catch (std::invalid_argument ) {
+          logwrite(function, "error invalid port number: unable to convert to integer");
+          return(ERROR);
+        }
+        catch (std::out_of_range) {
+          logwrite(function, "port number out of integer range");
+          return(ERROR);
+        }
+        this->camera_info.port = port;
+        this->archon.setport(port);
       }
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {
@@ -225,12 +255,12 @@ namespace Archon {
    * //TODO: communicate with future ASYNC port?
    *
    */
-  long Interface::archon_native(std::string cmd) { // use this form when the calling
+  long Interface::archon_native(std::string cmd) {
     std::string function = "Archon::Interface::archon_native";
     std::stringstream message;
-    char reply[REPLY_LEN];                         // function doesn't need to look at the reply
+    std::string reply;
     long ret = archon_cmd(cmd, reply);
-    if (strlen(reply) > 0) {
+    if (!reply.empty()) {
       message.str(""); message << "native reply: " << reply;
       logwrite(function, message.str());
     }
@@ -242,24 +272,23 @@ namespace Archon {
   /**************** Archon::Interface::archon_cmd *****************************/
   /**
    * @fn     archon_cmd
-   * @brief
-   * @param  none
-   * @return 
+   * @brief  send a command to Archon
+   * @param  cmd
+   * @param  reply (optional)
+   * @return ERROR or NO_ERROR
    *
    */
   long Interface::archon_cmd(std::string cmd) { // use this form when the calling
-    char reply[REPLY_LEN];                      // function doesn't need to look at the reply
+    std::string reply;                          // function doesn't need to look at the reply
     return( archon_cmd(cmd, reply) );
   }
-  long Interface::archon_cmd(std::string cmd, char *reply) {
+  long Interface::archon_cmd(std::string cmd, std::string &reply) {
     std::string function = "Archon::Interface::archon_cmd";
     std::stringstream message;
     int     retval;
     char    check[4];
-    char    buffer[BLOCK_LEN];                  //!< temporary buffer for holding Archon replies
+    char    buffer[1024];                       //!< temporary buffer for holding Archon replies
     int     error = NO_ERROR;
-
-    unsigned long bufcount;
 
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
       logwrite(function, "error: connection not open to controller");
@@ -284,7 +313,13 @@ namespace Archon {
              << std::hex
              << this->msgref;
     std::string prefix=ssprefix.str();
-    std::transform( prefix.begin(), prefix.end(), prefix.begin(), ::toupper );    // make uppercase
+    try {
+      std::transform( prefix.begin(), prefix.end(), prefix.begin(), ::toupper );    // make uppercase
+    }
+    catch (...) {
+      logwrite(function, "error converting command to uppercase");
+      return(ERROR);
+    }
 
     std::stringstream  sscmd;         // sscmd = stringstream, building command
     sscmd << prefix << cmd << "\n";
@@ -322,35 +357,21 @@ namespace Archon {
 
     // For all other commands, receive the reply
     //
-    memset(reply, '\0', REPLY_LEN);                  // zero reply buffer
-    bufcount = 0;                                    // zero bytes read counter
-    while (1) {
-      memset(buffer, '\0', BLOCK_LEN);               // temporary buffer
-
+    reply="";                                        // zero reply buffer
+    do {
       if ( (retval=this->archon.Poll()) <= 0) {
         if (retval==0) { logwrite(function, "Poll timeout"); error = TIMEOUT; }
         if (retval<0)  { logwrite(function, "Poll error");   error = ERROR;   }
         break;
       }
-      if ( (retval = this->archon.Read(buffer, BLOCK_LEN)) <= 0) {  // read into temp buffer
-        break;
+      memset(buffer, '\0', 1024);                    // init temporary buffer
+      retval = this->archon.Read(buffer, 1024);      // read into temp buffer
+      if (retval <= 0) {
+        logwrite(function, "error reading Archon");
+        break; 
       }
-
-      bufcount += retval;                            // keep track of the total bytes read
-
-      if (bufcount < REPLY_LEN) {                    // make sure not to overflow buffer with strncat
-        strncat(reply, buffer, (size_t)retval);      // cat into reply buffer
-      }
-      else {
-        error = ERROR;
-        message.str(""); message << "error: buffer overflow: " << bufcount << " bytes in response to command: " << cmd;
-        logwrite(function, message.str());
-        break;
-      }
-      if (strstr(reply, "\n")) {
-        break;
-      }
-    } // end while(1)
+      reply.append(buffer);                          // append read buffer into the reply string
+    } while(retval>0 && reply.find("\n") == std::string::npos);
 
     // The first three bytes of the reply should contain the msgref of the
     // command, which can be used as a check that the received reply belongs
@@ -358,19 +379,19 @@ namespace Archon {
     //
     // Error processing command (no other information is provided by Archon)
     //
-    if (strncmp(reply, "?", 1) == 0) {
+    if (reply.compare(0, 1, "?")==0) {               // "?" means Archon experienced an error processing command
       error = ERROR;
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
       logwrite(function, message.str());
     }
     else
-    if (strncmp(reply, check, 3) != 0) {              // Command-Reply mismatch
+    if (reply.compare(0, 3, check)!=0) {             // First 3 bytes of reply must equal checksum else reply doesn't belong to command
       error = ERROR;
       std::string hdr = reply;
-      message.str(""); message << "error: command-reply mismatch for command " << cmd << ": received header:" << hdr.substr(0,3);
+      message.str(""); message << "error: command-reply mismatch for command: " << scmd.erase(scmd.find('\n'));
       logwrite(function, message.str());
     }
-    else {                                            // command and reply are a matched pair
+    else {                                           // command and reply are a matched pair
       error = NO_ERROR;
 
       // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
@@ -382,8 +403,8 @@ namespace Archon {
         logwrite(function, message.str());
       }
 
-      memmove( reply, reply+3, strlen(reply) );       // strip off the msgref from the reply
-      this->msgref = (this->msgref + 1) % 256;        // increment msgref
+      reply.erase(0, 3);                             // strip off the msgref from the reply
+      this->msgref = (this->msgref + 1) % 256;       // increment msgref
     }
 
     // clear the semaphore (still had the mutex this entire function)
@@ -400,7 +421,7 @@ namespace Archon {
    * @fn     read_parameter
    * @brief  read a parameter from Archon configuration memory
    * @param  paramname  char pointer to name of paramter
-   * @param  valstring  reference to string for return value
+   * @param  value  reference to string for return value
    * @return ERROR on error, NO_ERROR if okay.
    *
    * The string reference contains the value of the parameter
@@ -410,13 +431,12 @@ namespace Archon {
    * which in turn handles all of the Archon in-use locking.
    *
    */
-  long Interface::read_parameter(std::string paramname, std::string &valstring) {
+  long Interface::read_parameter(std::string paramname, std::string &value) {
     std::string function = "Archon::Interface::read_parameter";
     std::stringstream message;
     std::stringstream cmd;
+    std::string reply;
     int   error   = NO_ERROR;
-    char *lineptr = NULL;
-    char  reply[REPLY_LEN];
 
     if (this->parammap.find(paramname.c_str()) == this->parammap.end()) {
       message.str(""); message << "error: parameter \"" << paramname << "\" not found";
@@ -431,30 +451,37 @@ namespace Archon {
         << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
         << this->parammap[paramname.c_str()].line;
     error = this->archon_cmd(cmd.str(), reply);          // send RCONFIG command here
-    reply[strlen(reply)-1]=0;                            // strip newline
+    reply.erase(reply.find('\n'));                       // strip newline
 
-    // reply should be of the form PARAMETERn=PARAMNAME=VALUE
+    // reply should now be of the form PARAMETERn=PARAMNAME=VALUE
     // and we want just the VALUE here
     //
-    lineptr = reply;
 
-    if (strncmp(lineptr, "PARAMETER", 9) == 0) {         // lineptr: PARAMETERn=PARAMNAME=VALUE
-      if ( strsep(&lineptr, "=") == NULL ) error=ERROR;  // lineptr: PARAMNAME=VALUE
-      if ( strsep(&lineptr, "=") == NULL ) error=ERROR;  // lineptr: VALUE
+    unsigned int loc;
+    value = reply;
+    if (value.compare(0, 9, "PARAMETER") == 0) {                                      // value: PARAMETERn=PARAMNAME=VALUE
+      if ( (loc=value.find("=")) != std::string::npos ) value = value.substr(++loc);  // value: PARAMNAME=VALUE
+      else {
+        value="NaN";
+        error = ERROR;
+      }
+      if ( (loc=value.find("=")) != std::string::npos ) value = value.substr(++loc);  // value: VALUE
+      else {
+        value="NaN";
+        error = ERROR;
+      }
     }
     else {
+      value="NaN";
       error = ERROR;
     }
 
-    if (error != NO_ERROR) {
+    if (error==ERROR) {
       message << "error:  malformed reply: " << reply;
       logwrite(function, message.str());
-      valstring = "NaN";                                 // return "NaN" for parameter value on error
-      error = ERROR;
     }
     else {
-      valstring = lineptr;                               // return parameter value
-      message.str(""); message << paramname << " = " << valstring;
+      message.str(""); message << paramname << " = " << value;
       logwrite(function, message.str());
     }
     return(error);
@@ -538,9 +565,9 @@ namespace Archon {
    */
   long Interface::fetchlog() {
     std::string function = "Archon::Interface::fetchlog";
+    std::string reply;
     std::stringstream message;
     int  retval;
-    char reply[REPLY_LEN];
 
     // send FETCHLOG command while reply is not (null)
     //
@@ -550,11 +577,11 @@ namespace Archon {
         logwrite(function, message.str());
         return(retval);
       }
-      if (strncmp(reply, "(null)", strlen("(null)"))!=0) {
-        reply[strlen(reply)-1]=0;                                            // strip newline
+      if (reply != "(null)") {
+        reply.erase(reply.find("\n"));                                       // strip newline
         logwrite(function, reply);                                           // log reply here
       }
-    } while (strncmp(reply, "(null)", strlen("(null)")) != 0);               // stop when reply is (null)
+    } while (reply != "(null)");                                             // stop when reply is (null)
 
     return(retval);
   }
@@ -1061,7 +1088,7 @@ namespace Archon {
      */
     int bigbuf=-1;
     std::istringstream( this->configmap["BIGBUF"].value  ) >> bigbuf;  // get value of BIGBUF from loaded acf file
-    this->camera_info.nbufs = (bigbuf==1) ? 2 : 3;                     // set number of buffers based on BIGBUF
+    this->camera_info.activebufs = (bigbuf==1) ? 2 : 3;                // set number of active buffers based on BIGBUF
 
     /**
      * set bitpix based on SAMPLEMODE
@@ -1074,22 +1101,6 @@ namespace Archon {
       return (ERROR);
     }
     this->camera_info.bitpix = (samplemode==0) ? 16 : 32;
-
-    this->frame.bufsample.resize( this->camera_info.nbufs );
-    this->frame.bufcomplete.resize( this->camera_info.nbufs );
-    this->frame.bufmode.resize( this->camera_info.nbufs );
-    this->frame.bufbase.resize( this->camera_info.nbufs );
-    this->frame.bufframe.resize( this->camera_info.nbufs );
-    this->frame.bufwidth.resize( this->camera_info.nbufs );
-    this->frame.bufheight.resize( this->camera_info.nbufs );
-    this->frame.bufpixels.resize( this->camera_info.nbufs );
-    this->frame.buflines.resize( this->camera_info.nbufs );
-    this->frame.bufrawblocks.resize( this->camera_info.nbufs );
-    this->frame.bufrawlines.resize( this->camera_info.nbufs );
-    this->frame.bufrawoffset.resize( this->camera_info.nbufs );
-    this->frame.buftimestamp.resize( this->camera_info.nbufs );
-    this->frame.bufretimestamp.resize( this->camera_info.nbufs );
-    this->frame.buffetimestamp.resize( this->camera_info.nbufs );
 
     long error = NO_ERROR;
     if ((error == NO_ERROR) && paramchanged)  error = this->archon_cmd(LOADPARAMS);
@@ -1245,14 +1256,37 @@ namespace Archon {
         // AD# in TAPLINE is 1-based (numbered 1-16)
         // but convert here to 0-based (numbered 0-15) and check value before using
         //
-        int adnum = std::stoi(adchan) - 1;
+        int adnum;
+        try {
+          adnum = std::stoi(adchan) - 1;
+        }
+        catch (std::invalid_argument ) {
+          logwrite(function, "error invalid AD number: unable to convert to integer");
+          return(ERROR);
+        }
+        catch (std::out_of_range) {
+          logwrite(function, "AD number out of integer range");
+          return(ERROR);
+        }
         if ( (adnum < 0) || (adnum > MAXADCHANS) ) {
           message.str(""); message << "error: ADC channel " << adnum << " outside range {0:" << MAXADCHANS << "}";
           logwrite(function, message.str());
           return(ERROR);
         }
-        this->gain  [ adnum ] = std::stoi(tokens[1]);    // gain as function of AD channel
-        this->offset[ adnum ] = std::stoi(tokens[2]);    // offset as function of AD channel
+        // Now that adnum is OK, convert next two tokens to gain, offset
+        //
+        try {
+          this->gain  [ adnum ] = std::stoi(tokens[1]);    // gain as function of AD channel
+          this->offset[ adnum ] = std::stoi(tokens[2]);    // offset as function of AD channel
+        }
+        catch (std::invalid_argument ) {
+          logwrite(function, "error invalid GAIN and/or OFFSET: unable to convert to integer");
+          return(ERROR);
+        }
+        catch (std::out_of_range) {
+          logwrite(function, "GAIN and/or OFFSET out of integer range");
+          return(ERROR);
+        }
       }
     }
 
@@ -1275,87 +1309,106 @@ namespace Archon {
    */
   long Interface::get_frame_status() {
     std::string function = "Archon::Interface::get_frame_status";
+    std::string reply;
     std::stringstream message;
-    char *saveptr, *token, *substr=0, *key=0;
-    int   i, bc, newestframe, newestbuf;
+    int   newestframe, newestbuf;
     int   error=NO_ERROR;
-    char  buf[64];
-    char  reply[REPLY_LEN];
 
-    /**
-     * send FRAME command to get frame buffer status
-     */
+    // send FRAME command to get frame buffer status
+    //
     if ( (error = this->archon_cmd(FRAME, reply)) ) {
       logwrite(function, "error sending FRAME command");
       return(error);
     }
 
-    bool first_pass = 1;
-    do {                                  // while (1)
-      if (first_pass) {                   // first call to strtok_r is different
-        if ( (token = strtok_r(reply, " ", &saveptr)) != NULL ) {
-          substr = strstr(token, "=");
-          substr++;
-          key   = strsep(&token, "=");
-        }
-      }
-      else {                              // subsequent strtok_r calls...
-        if ((token = strtok_r(NULL, " ", &saveptr)) != NULL) {
-          if ( (substr = strstr(token, "=")) == NULL ) break;
-          substr++;
-          if ( (key=strsep(&token, "=")) == NULL) break;
-        }
-        else break;
-      }
-      first_pass=0;                       // clear for subsequent strtok_r calls
+    // First Tokenize breaks the single, continuous string into vector of individual strings,
+    // from "TIMER=xxxx RBUF=xxxx " to:
+    //   tokens[0] : TIMER=xxxx
+    //   tokens[1] : RBUF=xxxx
+    //   tokens[2] : etc.
+    //
+    std::vector<std::string> tokens;
+    Tokenize(reply, tokens, " ");
 
-      /**
-       * match received key against keywords and store matching value
-       * in appropriate variable in the framestatus structure.
-       */
-      if (strcmp(key, "TIMER")==0) SNPRINTF(this->frame.timer,"%s", substr);
-      if (strcmp(key, "RBUF")==0) this->frame.rbuf = atoi(substr);
-      if (strcmp(key, "WBUF")==0) this->frame.wbuf = atoi(substr);
+    for (size_t i=0; i<tokens.size(); i++) {
 
-      // loop through the number of buffers
+      // Second Tokenize separates the paramater from the value
       //
-      for (i=0; i<this->camera_info.nbufs; i++) {
-        SNPRINTF(buf, "BUF%dSAMPLE", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufsample[i]     =atoi(substr);
-        SNPRINTF(buf, "BUF%dCOMPLETE", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufcomplete[i]   =atoi(substr);
-        SNPRINTF(buf, "BUF%dMODE", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufmode[i]       =atoi(substr);
-        SNPRINTF(buf, "BUF%dBASE", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufbase[i]       =atol(substr);
-        SNPRINTF(buf, "BUF%dFRAME", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufframe[i]      =atoi(substr);
-        SNPRINTF(buf, "BUF%dWIDTH", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufwidth[i]      =atoi(substr);
-        SNPRINTF(buf, "BUF%dHEIGHT", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufheight[i]     =atoi(substr);
-        SNPRINTF(buf, "BUF%dPIXELS", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufpixels[i]     =atoi(substr);
-        SNPRINTF(buf, "BUF%dLINES", i+1);
-        if (strcmp(key, buf)==0) this->frame.buflines[i]      =atoi(substr);
-        SNPRINTF(buf, "BUF%dRAWBLOCKS", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufrawblocks[i]  =atoi(substr);
-        SNPRINTF(buf, "BUF%dRAWLINES", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufrawlines[i]   =atoi(substr);
-        SNPRINTF(buf, "BUF%dRAWOFFSET", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufrawoffset[i]  =atoi(substr);
-        SNPRINTF(buf, "BUF%dTIMESTAMP", i+1);
-        if (strcmp(key, buf)==0) this->frame.buftimestamp[i]  =atoi(substr);
-        SNPRINTF(buf, "BUF%dRETIMESTAMP", i+1);
-        if (strcmp(key, buf)==0) this->frame.bufretimestamp[i]=atoi(substr);
-        SNPRINTF(buf, "BUF%dFETIMESTAMP", i+1);
-        if (strcmp(key, buf)==0) this->frame.buffetimestamp[i]=atoi(substr);
+      std::vector<std::string> subtokens;
+      subtokens.clear();
+      Tokenize(tokens[i], subtokens, "=");
+
+      // Each entry in the FRAME message must have two tokens, one for each side of the "=" equal sign
+      // (in other words there must be two subtokens per token)
+      //
+      if (subtokens.size() != 2) {
+        message.str("");
+        message << "error: invalid number of tokens (" << subtokens.size() << ") in FRAME message:";
+        for (size_t i=0; i<subtokens.size(); i++) message << " " << subtokens[i];
+        logwrite(function, message.str());
+        return(ERROR);  // We could continue; but if one is bad then we could miss seeing a larger problem
       }
-    } while (1);
+
+      int bufnum=0;
+      int value=0;
+      uint64_t lvalue=0;
+
+      if (subtokens[0]=="TIMER") this->frame.timer = subtokens[1];  // timer is a string
+      else {                                                        // everything else is going to be a number
+        try {                                                       // use "try..catch" to catch exceptions converting strings to numbers
+          if (subtokens[0].compare(0, 3, "BUF")==0) {               // for all "BUFnSOMETHING=VALUE" we want the bufnum "n"
+            bufnum = std::stoi( subtokens[0].substr(3, 1) );        // extract the "n" here which is 1-based (1,2,3)
+          }
+          if (subtokens[0].substr(4)=="BASE") {                     // for "BUFnBASE=VALUE" the value is unit64
+            lvalue  = std::stol( subtokens[1] );                    // this value will get assigned to the corresponding parameter
+          }
+          else                                                      // everything else is an int
+            value  = std::stoi( subtokens[1] );                     // this value will get assigned to the corresponding parameter
+        }
+        catch (std::invalid_argument ) {
+          logwrite(function, "error invalid buffer or value: unable to convert to integer");
+          return(ERROR);
+        }
+        catch (std::out_of_range) {
+          logwrite(function, "buffer or value out of integer range");
+          return(ERROR);
+        }
+      }
+      if (subtokens[0]=="RBUF")  this->frame.rbuf  = value;
+      if (subtokens[0]=="WBUF")  this->frame.wbuf  = value;
+
+      // The next group are BUFnSOMETHING=VALUE
+      // Extract the "n" which must be a number from 1 to Archon::nbufs
+      // After getting the buffer number we assign the corresponding value.
+      //
+      if (subtokens[0].compare(0, 3, "BUF")==0) {
+        if (bufnum < 1 || bufnum > Archon::nbufs) {
+          message.str(""); message << "error: buffer number " << bufnum << " outside range {1:" << Archon::nbufs << "}";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        bufnum--;   // subtract 1 because it is 1-based in the message but need 0-based for the indexing
+        if (subtokens[0].substr(4) == "SAMPLE")      this->frame.bufsample[bufnum]      =  value;
+        if (subtokens[0].substr(4) == "COMPLETE")    this->frame.bufcomplete[bufnum]    =  value;
+        if (subtokens[0].substr(4) == "MODE")        this->frame.bufmode[bufnum]        =  value;
+        if (subtokens[0].substr(4) == "BASE")        this->frame.bufbase[bufnum]        = lvalue;
+        if (subtokens[0].substr(4) == "FRAME")       this->frame.bufframe[bufnum]       =  value;
+        if (subtokens[0].substr(4) == "WIDTH")       this->frame.bufwidth[bufnum]       =  value;
+        if (subtokens[0].substr(4) == "HEIGHT")      this->frame.bufheight[bufnum]      =  value;
+        if (subtokens[0].substr(4) == "PIXELS")      this->frame.bufpixels[bufnum]      =  value;
+        if (subtokens[0].substr(4) == "LINES")       this->frame.buflines[bufnum]       =  value;
+        if (subtokens[0].substr(4) == "RAWBLOCKS")   this->frame.bufrawblocks[bufnum]   =  value;
+        if (subtokens[0].substr(4) == "RAWLINES")    this->frame.bufrawlines[bufnum]    =  value;
+        if (subtokens[0].substr(4) == "RAWOFFSET")   this->frame.bufrawoffset[bufnum]   =  value;
+        if (subtokens[0].substr(4) == "TIMESTAMP")   this->frame.buftimestamp[bufnum]   =  value;
+        if (subtokens[0].substr(4) == "RETIMESTAMP") this->frame.bufretimestamp[bufnum] =  value;
+        if (subtokens[0].substr(4) == "FETIMESTAMP") this->frame.buffetimestamp[bufnum] =  value;
+      }
+    }
 
     newestbuf   = this->frame.index;
 
-    if (this->frame.index < (int)this->frame.bufframe.size()) {  // TODO fails if no ACF loaded
+    if (this->frame.index < (int)this->frame.bufframe.size()) {
       newestframe = this->frame.bufframe[this->frame.index];
     }
     else {
@@ -1367,7 +1420,7 @@ namespace Archon {
     // loop through the number of buffers
     //
     int num_zero = 0;
-    for (bc=0; bc<this->camera_info.nbufs; bc++) {
+    for (int bc=0; bc<Archon::nbufs; bc++) {
 
       // look for special start-up case, when all frame buffers are zero
       //
@@ -1382,7 +1435,7 @@ namespace Archon {
 
     // start-up case, all frame buffers are zero
     //
-    if (num_zero == this->camera_info.nbufs) {
+    if (num_zero == Archon::nbufs) {
       newestframe = 0;
       newestbuf   = 0;
     }
@@ -1397,7 +1450,7 @@ namespace Archon {
   /**************** Archon::Interface::get_frame_status ***********************/
 
 
-  /**************** Archon::Interface::get_frame_status ***********************/
+  /**************** Archon::Interface::print_frame_status *********************/
   /**
    * @fn     print_frame_status
    * @brief  print the Archon frame buffer status
@@ -1414,7 +1467,7 @@ namespace Archon {
     std::stringstream message;
     int bufn;
     int error = NO_ERROR;
-    char statestr[this->camera_info.nbufs][4];
+    char statestr[Archon::nbufs][4];
 
     // write as log message
     //
@@ -1423,13 +1476,13 @@ namespace Archon {
     message.str(""); message << "    --- ---------- ---------- ----- ----- ----- -------- ----- ----- ------ -----";
     logwrite(function, message.str());
     message.str("");
-    for (bufn=0; bufn < this->camera_info.nbufs; bufn++) {
+    for (bufn=0; bufn < Archon::nbufs; bufn++) {
       memset(statestr[bufn], '\0', 4);
       if ( (this->frame.rbuf-1) == bufn)   strcat(statestr[bufn], "R");
       if ( (this->frame.wbuf-1) == bufn)   strcat(statestr[bufn], "W");
       if ( this->frame.bufcomplete[bufn] ) strcat(statestr[bufn], "C");
     }
-    for (bufn=0; bufn < this->camera_info.nbufs; bufn++) {
+    for (bufn=0; bufn < Archon::nbufs; bufn++) {
       message << std::setw(3) << (bufn==this->frame.index ? "-->" : "") << " ";                       // buf
       message << std::setw(3) << bufn+1 << " ";
       message << "0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex
@@ -1449,7 +1502,7 @@ namespace Archon {
     }
     return(error);
   }
-  /**************** Archon::Interface::get_frame_status ***********************/
+  /**************** Archon::Interface::print_frame_status *********************/
 
 
   /**************** Archon::Interface::lock_buffer ****************************/
@@ -1492,10 +1545,10 @@ namespace Archon {
    */
   long Interface::get_timer(unsigned long int *timer) {
     std::string function = "Archon::Interface::get_timer";
+    std::string reply;
     std::stringstream message, timer_ss;
     std::vector<std::string> tokens;
     int  error;
-    char reply[REPLY_LEN];
 
     // send TIMER command to get frame buffer status
     //
@@ -1544,8 +1597,8 @@ namespace Archon {
   long Interface::fetch(uint64_t bufaddr, uint32_t bufblocks) {
     std::string function = "Archon::Interface::fetch";
     std::stringstream message;
-    uint32_t maxblocks = (uint32_t)(1.5E9 / this->camera_info.nbufs / 1024 );
-    uint64_t maxoffset = this->camera_info.nbufs==2 ? 0xD0000000 : 0xE0000000;
+    uint32_t maxblocks = (uint32_t)(1.5E9 / this->camera_info.activebufs / 1024 );
+    uint64_t maxoffset = this->camera_info.activebufs==2 ? 0xD0000000 : 0xE0000000;
     uint64_t maxaddr = maxoffset + maxblocks;
 
     if (bufaddr < 0xA0000000 || bufaddr > maxaddr) {
@@ -1566,7 +1619,13 @@ namespace Archon {
           << std::setfill('0') << std::setw(8) << std::hex
           << bufblocks;
     std::string scmd = sscmd.str();
-    std::transform( scmd.begin(), scmd.end(), scmd.begin(), ::toupper );    // make uppercase
+    try {
+      std::transform( scmd.begin(), scmd.end(), scmd.begin(), ::toupper );  // make uppercase
+    }
+    catch (...) {
+      logwrite(function, "error converting command to uppercase");
+      return(ERROR);
+    }
 
     if (this->archon_cmd(scmd) == ERROR) {
       logwrite(function, "error sending FETCH command. Aborting read.");
@@ -1615,7 +1674,7 @@ namespace Archon {
     //
     bufready = this->frame.index + 1;
 
-    if (bufready < 1 || bufready > this->camera_info.nbufs) {
+    if (bufready < 1 || bufready > this->camera_info.activebufs) {
       message.str(""); message << "error: invalid buffer " << bufready;
       logwrite(function, message.str());
       return(ERROR);
@@ -1763,7 +1822,7 @@ namespace Archon {
     else {
       logwrite(function, "error reading Archon camera data to memory!");
     }
-    return(0);
+    return(error);
   }
   /**************** Archon::Interface::read_frame *****************************/
 
@@ -1773,7 +1832,7 @@ namespace Archon {
    * @fn     write_frame
    * @brief  creates a FITS_file object to write the image_data buffer to disk
    * @param  none
-   * @return 
+   * @return ERROR or NO_ERROR
    *
    * A FITS_file object is created here to write the data. This object MUST remain
    * valid while any (all) threads are writing data, so the write_data function
@@ -1831,7 +1890,7 @@ namespace Archon {
       case 16: {
         FITS_file <unsigned short> fits_file;              // Instantiate a FITS_file object with the appropriate type
         cbuf16 = (uint16_t *)this->image_data;             // cast to 16b
-        fits_file.write_image(cbuf16, this->fits_info);
+        error = fits_file.write_image(cbuf16, this->fits_info);
         break;
       }
 
@@ -1840,11 +1899,11 @@ namespace Archon {
       default:
         message.str(""); message << "error unrecognized bits per pixel: " << this->fits_info.bitpix;
         logwrite(function, message.str());
-        return (ERROR);
+        error = ERROR;
         break;
     }
 
-    return(NO_ERROR);
+    return(error);
   }
   /**************** Archon::Interface::write_frame ****************************/
 
@@ -1855,7 +1914,7 @@ namespace Archon {
    * @brief  write a configuration KEY=VALUE pair to the Archon controller
    * @param  key
    * @param  newvalue
-   * @return 
+   * @return ERROR or NO_ERROR
    *
    */
   long Interface::write_config_key( const char *key, const char *newvalue, bool &changed ) {
@@ -2063,7 +2122,7 @@ namespace Archon {
 
     this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer
 
-    return (NO_ERROR);
+    return (error);
   }
   /**************** Archon::Interface::expose *********************************/
 

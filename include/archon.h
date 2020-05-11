@@ -20,8 +20,6 @@
 #include "network.h"
 
 #define POLLTIMEOUT 5000           //!< poll timeout in msec
-#define NMODS 12                   //!< number of modules per controller
-#define NADCHAN 4                  //!< number of channels per ADC module
 #define MAXADCHANS 16              //!< max number of AD channels per controller
 #define MAXCCDS 4                  //!< max number of CCDs handled by one controller
 #define BLOCK_LEN 1024             //!< Archon block size
@@ -48,6 +46,13 @@
 
 namespace Archon {
 
+  // Archon hardware-based constants.
+  // These shouldn't change unless there is a significant hardware change.
+  //
+  const int nbufs = 3;             //!< total number of frame buffers
+  const int nmods = 12;            //!< number of modules per controller
+  const int nadchan = 4;           //!< number of channels per ADC module
+
   typedef enum {
     FRAME_IMAGE,
     FRAME_RAW,
@@ -64,7 +69,7 @@ namespace Archon {
     public:
       std::string   hostname;                //!< Archon controller hostname
       int           port;                    //!< Archon controller TPC/IP port number
-      int           nbufs;                   //!< Archon controller number of frame buffers
+      int           activebufs;              //!< Archon controller number of active frame buffers
       int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
       int           datatype;                //!< FITS data type (corresponding to bitpix)
       std::string   configfilename;          //!< Archon controller configuration file
@@ -168,7 +173,7 @@ namespace Archon {
       long load_mode_settings(int mode);
       long archon_native(std::string cmd);
       long archon_cmd(std::string cmd);
-      long archon_cmd(std::string cmd, char *reply);
+      long archon_cmd(std::string cmd, std::string &reply);
       long read_parameter(std::string paramname, std::string &valstring);
       long prep_parameter(std::string paramname, std::string value);
       long load_parameter(std::string paramname, std::string value);
@@ -244,7 +249,7 @@ namespace Archon {
        */
       struct frame_data_t {
         int      index;                       // index of newest buffer data
-        char     timer[17];                   // current hex 64 bit internal timer
+        std::string timer;                    // current hex 64 bit internal timer
         int      rbuf;                        // current buffer locked for reading
         int      wbuf;                        // current buffer locked for writing
         std::vector<int>      bufsample;      // sample mode 0=16 bit, 1=32 bit

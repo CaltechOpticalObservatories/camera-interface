@@ -276,8 +276,7 @@ void doit(Network::TcpSocket sock) {
     if (MATCH(cmd, "imnum")) {
                     std::string imnum;   // string for the return value
                     ret = server.common.imnum(sargs, imnum);
-                    sock.Write(imnum);
-                    sock.Write(" ");
+                    if (!imnum.empty()) { sock.Write(imnum); sock.Write(" "); }
                     }
     else
     if (MATCH(cmd, "imdir")) {
@@ -295,9 +294,9 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (MATCH(cmd, "getp")) {
-                    std::string valstring;
-                    ret = server.read_parameter(sargs, valstring);
-                    logwrite(function, valstring);
+                    std::string value;
+                    ret = server.read_parameter(sargs, value);
+                    if (!value.empty()) { sock.Write(value); sock.Write(" "); }
                     }
     else
     if (MATCH(cmd, "setp")) {

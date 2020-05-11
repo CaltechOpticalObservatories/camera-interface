@@ -54,7 +54,18 @@ namespace Common {
     }
 
     else {                             // Otherwise check the incoming value
-      int num = std::stoi(num_in);
+      int num;
+      try {
+        num = std::stoi(num_in);
+      }
+      catch (std::invalid_argument ) {
+        logwrite(function, "error invalid number: unable to convert to integer");
+        return(ERROR);
+      }
+      catch (std::out_of_range) {
+        logwrite(function, "error imnum out of integer range");
+        return(ERROR);
+      }
       if (num < 0) {                   // can't be negative
         message.str(""); message << "error requested image number " << num << " must be >= 0";
         logwrite(function, message.str());
