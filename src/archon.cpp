@@ -1444,6 +1444,7 @@ namespace Archon {
      * save index of newest buffer. From this we can find the newest frame, etc.
      */
     this->frame.index = newestbuf;
+    this->frame.frame = newestframe;
 
     return(error);
   }
@@ -1670,6 +1671,13 @@ namespace Archon {
       return(ERROR);
     }
 
+    // Get the current frame buffer status
+    error = this->get_frame_status();
+    if (error != NO_ERROR) {
+      logwrite(function, "error unable to get frame status");
+      return(error);
+    }
+
     // Archon buffer number of the last frame read into memory
     //
     bufready = this->frame.index + 1;
@@ -1681,7 +1689,7 @@ namespace Archon {
     }
 
     message.str(""); message << "will read " << (this->camera_info.frame_type == FRAME_RAW ? "raw" : "image")
-                             << " data from Archon controller buffer " << bufready;
+                             << " data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
     logwrite(function, message.str());
 
     // Lock the frame buffer before reading it

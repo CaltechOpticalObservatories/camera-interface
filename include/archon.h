@@ -249,6 +249,7 @@ namespace Archon {
        */
       struct frame_data_t {
         int      index;                       // index of newest buffer data
+        int      frame;                       // index of newest buffer data
         std::string timer;                    // current hex 64 bit internal timer
         int      rbuf;                        // current buffer locked for reading
         int      wbuf;                        // current buffer locked for writing
