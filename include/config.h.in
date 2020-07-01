@@ -37,16 +37,16 @@
       std::vector<std::string> arg;
 
 
-      /** Archon::Server::read_config **********************************************/
+      /** Config::read_config ******************************************************/
       /**
        * @fn     read_config
        * @brief  read the configuration file
        * @param  reference to Config class object
-       * @return ERROR or NO_ERROR
+       * @return 0 (no error) or 1 (error)
        *
        */
       long read_config(Config &config) {
-        const char* function = "Config::read_config";
+        std::string function = "Config::read_config";
         std::fstream filestream;                                // I/O stream class
         std::string line;                                       // Temporary string to read file lines into
         size_t index1, index2;                                  // String indexing variables
@@ -57,7 +57,7 @@
         }
         else {
           logwrite(function, "no config file specified");
-          return(ERROR);
+          return(1);
         }
 
         // Clear the vectors to load the new information from the config file
@@ -135,10 +135,14 @@
           filestream.close();
         }
 
-        return(NO_ERROR);
+        std::stringstream message;
+        message << this->n_entries << " lines read from " << this->filename;
+        logwrite(function, message.str());
+
+        return(0);
 
       }
-      /** Archon::Server::read_config **********************************************/
+      /** Config::read_config ******************************************************/
 
   };
 #endif

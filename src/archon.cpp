@@ -52,16 +52,26 @@ namespace Archon {
   }
 
 
-  /**************** Archon::Interface::get_config *****************************/
+  /**************** Archon::Interface::interface ******************************/
+  long Interface::interface(std::string &iface) {
+    std::string function = "Archon::Interface::interface";
+    iface = "STA-Archon";
+    logwrite(function, iface);
+    return(0);
+  }
+  /**************** Archon::Interface::interface ******************************/
+
+
+  /**************** Archon::Interface::configure_controller *******************/
   /**
-   * @fn     get_config
-   * @brief  get needed values out of the read configuration files
+   * @fn     configure_controller
+   * @brief  get controller-specific values out of the configuration file
    * @param  none
    * @return NO_ERROR if successful or ERROR on error
    *
    */
-  long Interface::get_config() {
-    std::string function = "Archon::Interface::get_config";
+  long Interface::configure_controller() {
+    std::string function = "Archon::Interface::configure_controller";
 
     // loop through the entries in the configuration file, stored in config class
     //
@@ -106,9 +116,10 @@ namespace Archon {
       }
 
     }
-    logwrite(function, "successfully read config file");
+    logwrite(function, "successfully applied configuration");
     return NO_ERROR;
   }
+  /**************** Archon::Interface::configure_controller *******************/
 
 
   /**************** Archon::Interface::prepare_image_buffer *******************/
@@ -244,9 +255,9 @@ namespace Archon {
   /**************** Archon::Interface::disconnect_controller ******************/
 
 
-  /**************** Archon::Interface::archon_native **************************/
+  /**************** Archon::Interface::native *********************************/
   /**
-   * @fn     archon_native
+   * @fn     native
    * @brief  send native commands directly to Archon and log result
    * @param  std::string cmd
    * @return long ret from archon_cmd() call
@@ -255,8 +266,8 @@ namespace Archon {
    * //TODO: communicate with future ASYNC port?
    *
    */
-  long Interface::archon_native(std::string cmd) {
-    std::string function = "Archon::Interface::archon_native";
+  long Interface::native(std::string cmd) {
+    std::string function = "Archon::Interface::native";
     std::stringstream message;
     std::string reply;
     long ret = archon_cmd(cmd, reply);
@@ -266,7 +277,7 @@ namespace Archon {
     }
     return( ret );
   }
-  /**************** Archon::Interface::archon_native **************************/
+  /**************** Archon::Interface::native *********************************/
 
 
   /**************** Archon::Interface::archon_cmd *****************************/

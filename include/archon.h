@@ -163,7 +163,8 @@ namespace Archon {
                                              //!< use in conjunction with archon_busy flag
 
       std::string exposeparam;               //!< param name to trigger exposure when set =1
-      long get_config();                     //!< get configuration parameters
+      long interface(std::string &iface);    //!< get interface type
+      long configure_controller();           //!< get configuration parameters
       long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
       long connect_controller();             //!< open connection to archon controller
       long disconnect_controller();          //!< disconnect from archon controller
@@ -171,7 +172,7 @@ namespace Archon {
       long load_config(std::string acffile); //!< load specified configfilename (ACF)
       long set_camera_mode(int mode);
       long load_mode_settings(int mode);
-      long archon_native(std::string cmd);
+      long native(std::string cmd);
       long archon_cmd(std::string cmd);
       long archon_cmd(std::string cmd, std::string &reply);
       long read_parameter(std::string paramname, std::string &valstring);

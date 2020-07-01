@@ -1,85 +1,204 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+# ----------------------------------------------------------------------------
+# BEGIN USER DEFINITIONS
+# ----------------------------------------------------------------------------
+# user must define the interface type here
+# valid types are: "ARC-PCIe" | "ARC-PCI" | "STA-Archon"
 
-PROJECT(archon-interface)
+#set(INTERFACE_TYPE "STA-Archon")
+#set(INTERFACE_TYPE "ARC-PCIe")
+set(INTERFACE_TYPE "ARC-PCI")
 
-SET(PROJECT_BASE_DIR $ENV{HOME}/archon-interface)
-SET(PROJECT_SOURCE_DIR ${PROJECT_BASE_DIR}/src)
-SET(PROJECT_INCL_DIR ${PROJECT_BASE_DIR}/include)
-SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
-SET(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
+# ----------------------------------------------------------------------------
+# END USER DEFINITIONS
+# DO NOT EDIT BEYOND THIS LINE
+# ----------------------------------------------------------------------------
+
+cmake_minimum_required(VERSION 3.5)
+
+project(camera-interface VERSION 1.0)
+
+set(PROJECT_BASE_DIR $ENV{HOME}/camera-interface)
+set(PROJECT_SOURCE_DIR ${PROJECT_BASE_DIR}/src)
+set(PROJECT_INCL_DIR ${PROJECT_BASE_DIR}/include)
+set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
+set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
+set(CMAKE_C_COMPILER /usr/bin/g++)
+set(CMAKE_CXX_COMPILER /usr/bin/g++)
+add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 )
+include_directories(${PROJECT_INCL_DIR})
 
 # ----------------------------------------------------------------------------
 # Define a default configuration file for the server.
 #
-#SET(CONFIG_FILE "\"$ENV{HOME}/CMOST/archonserver.cfg\"")
-SET(CONFIG_FILE "\"${PROJECT_BASE_DIR}/archonserver.cfg\"")
-CONFIGURE_FILE("${PROJECT_INCL_DIR}/config.h.in" "${PROJECT_INCL_DIR}/config.h")
+#set(CONFIG_FILE "\"$ENV{HOME}/CMOST/cameraserver.cfg\"")
+set(CONFIG_FILE "\"${PROJECT_BASE_DIR}/cameraserver.cfg\"")
+configure_file("${PROJECT_INCL_DIR}/config.h.in" "${PROJECT_INCL_DIR}/config.h")
 
 # ----------------------------------------------------------------------------
 # Define the path and base name for the log files
 #
-#SET(LOGPATH "\"$ENV{HOME}/CMOST/logs\"")
-SET(LOGPATH "\"$ENV{HOME}/Logs\"")
-SET(LOGNAME "\"archon\"")
-CONFIGURE_FILE("${PROJECT_INCL_DIR}/logentry.h.in" "${PROJECT_INCL_DIR}/logentry.h")
+#set(LOGPATH "\"$ENV{HOME}/CMOST/logs\"")
+set(LOGPATH "\"$ENV{HOME}/Logs\"")
+set(LOGNAME "\"camera\"")
+configure_file("${PROJECT_INCL_DIR}/logentry.h.in" "${PROJECT_INCL_DIR}/logentry.h")
 
-FIND_PATH(ARCHON_INCLUDE server.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(UTILITIES_INCLUDE utilities.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(LOGENTRY_INCLUDE logentry.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(NETWORK_INCLUDE network.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(COMMON_INCLUDE common.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(ARCHON_INCLUDE archon.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(CCFITS_INCLUDE CCfits PATHS /usr/local/include/CCfits)
-FIND_PATH(FITS_INCLUDE fitsio.h PATHS /usr/local/cfitsio/include)
-FIND_PATH(MY_FITS_INCLUDE fits.h PATHS ${PROJECT_INCL_DIR})
-FIND_PATH(CONFIG_INCLUDE config.h PATHS ${PROJECT_INCL_DIR})
+# ----------------------------------------------------------------------------
+# Set "BITS" for detected host system processor
+#
+if (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "i686")
+        message(STATUS "detected 32 bit architecture")
+        set(BITS "32")
+elseif (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64")
+        message(STATUS "detected 64 bit architecture")
+        set(BITS "64")
+else()
+        message(FATAL_ERROR " can't set BITS: unknown architecture: " ${CMAKE_HOST_SYSTEM_PROCESSOR})
+endif()
 
-FIND_LIBRARY(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
-FIND_LIBRARY(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/local/cfitsio/lib)
+# ----------------------------------------------------------------------------
+# Setup for appropriate hardware interface...
+#
+# Each interface must define the following:
+#   INTERFACE_TARGET    name to use for the target interface
+#   INTERFACE_SOURCE    list of sources required for target interface
+#   INTERFACE_INCLUDES  list of include paths for target interface
+#   interface           target for interfacing to appropriate hardware
+# ----------------------------------------------------------------------------
 
-FIND_PACKAGE(Threads)
+# AstroCam ARC-66 PCIe interface
+#
+if (${INTERFACE_TYPE} STREQUAL "ARC-PCIe")
+        message(STATUS "compiling for AstroCam ARC-66 PCIe")
+        set(INTERFACE_TARGET arc66)
+        set(ARCAPI_DIR "/opt/ARC_API_35")
+        add_definitions(-DARC66_PCIE)
+        find_path(ARCAPI_FITS ArcFitsFileCAPI.h PATHS ${ARCAPI_DIR}/CArcFitsFile/src)
+        find_path(ARCAPI_CFITS CArcFitsFile.h PATHS ${ARCAPI_DIR}/CArcFitsFile/src)
+        find_path(ARCAPI_DEVICE ArcDeviceCAPI.h PATHS ${ARCAPI_DIR}/CArcDevice/src)
+        find_path(ARCAPI_PCI CArcPCIe.h PATHS ${ARCAPI_DIR}/CArcDevice/src)
+        find_path(ARCAPI_EXPIFACE CExpIFace.h PATHS ${ARCAPI_DIR}/CArcDevice/src)
+        find_path(ARCAPI_DEFS ArcDefs.h PATHS ${ARCAPI_DIR}/CArcDevice/src)
+        find_path(ARC_INTERFACE arc66.h PATHS ${PROJECT_INCL_DIR})
+        list(APPEND INTERFACE_SOURCE
+                "${PROJECT_SOURCE_DIR}/arc66.cpp"
+                "${PROJECT_SOURCE_DIR}/astrocam.cpp"
+                )
+        list(APPEND INTERFACE_INCLUDES
+                "${ARC_INTERFACE}"
+                "${ARCAPI_FITS}"
+                "${ARCAPI_CFITS}"
+                "${ARCAPI_DEVICE}"
+                "${ARCAPI_PCI}"
+                "${ARCAPI_EXPIFACE}"
+                "${ARCAPI_DEFS}"
+                )
+        add_library(interface SHARED IMPORTED
+                ${ARCAPI_DIR}/CArcFitsFile/Release_x${BITS}/libCArcFitsFile.so
+                ${ARCAPI_DIR}/CArcDevice/Release_x${BITS}/libCArcDevice.so
+                )
+        set_target_properties(interface PROPERTIES 
+                IMPORTED_LOCATION ${ARCAPI_DIR}/CArcDevice/Release_x${BITS}/libCArcFitsFile.so
+                IMPORTED_LOCATION ${ARCAPI_DIR}/CArcDevice/Release_x${BITS}/libCArcDevice.so
+                )
 
-INCLUDE_DIRECTORIES(
-        ${ARCHON_INCLUDE}
-        ${LOGENTRY_INCLUDE}
-        ${LOGENTRY_INCLUDE}
-        ${NETWORK_INCLUDE}
-        ${COMMON_INCLUDE}
-        ${MY_FITS_INCLUDE}
-        ${FITS_INCLUDE}
-        ${CCFITS_INCLUDE}
-        )
-ADD_DEFINITIONS( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 )
+# AstroCam ARC-64 PCI interface
+#
+elseif(${INTERFACE_TYPE} STREQUAL "ARC-PCI")
+        message(STATUS "compiling for AstroCam ARC-64 PCI")
+        set(INTERFACE_TARGET arc64)
+        set(ARCAPI_DIR "/opt/ARC_API_21")
+        add_definitions(-DARC64_PCI)
+        find_path(ARCAPI_FITS CFitsFile.h PATHS ${ARCAPI_DIR}/CFitsFile)
+        find_path(ARCAPI_DEVICE CController.h PATHS ${ARCAPI_DIR}/CController)
+        find_path(ARC_INTERFACE arc64.h PATHS ${PROJECT_INCL_DIR})
+        list(APPEND INTERFACE_SOURCE
+                "${PROJECT_SOURCE_DIR}/arc64.cpp"
+                "${PROJECT_SOURCE_DIR}/astrocam.cpp"
+                )
+        list(APPEND INTERFACE_INCLUDES
+                "${ARC_INTERFACE}"
+                "${ARCAPI_FITS}"
+                "${ARCAPI_DEVICE}"
+                )
+        add_library(interface SHARED IMPORTED
+                ${ARCAPI_DIR}/CFitsFile/linux/x${BITS}/libCFitsFile.so
+                ${ARCAPI_DIR}/CController/linux/x${BITS}/libCController.so
+                )
+        set_target_properties(interface PROPERTIES 
+                IMPORTED_LOCATION ${ARCAPI_DIR}/CFitsFile/linux/x${BITS}/libCFitsFile.so
+                IMPORTED_LOCATION ${ARCAPI_DIR}/CController/linux/x${BITS}/libCController.so
+                )
 
-SET(COMMON_HEADERS
-        ${ARCHON_INCLUDE}/server.h
-        ${UTILITIES_INCLUDE}/utilities.h
-        ${LOGENTRY_INCLUDE}/logentry.h
-        ${NETWORK_INCLUDE}/network.h
-        ${COMMON_INCLUDE}/common.h
-        ${ARCHON_INCLUDE}/archon.h
-        ${CCFITS_INCLUDE}/CCfits
-        ${FITS_INCLUDE}/fitsio.h
-        ${MY_FITS_INCLUDE}/fits.h
-        ${CONFIG_INCLUDE}/config.h
-        )
+# STA Archon interface
+#
+elseif(${INTERFACE_TYPE} STREQUAL "STA-Archon")
+        message(STATUS "compiling for STA Archon")
+        set(INTERFACE_TARGET archon)
+        add_definitions(-DSTA_ARCHON)
+        list(APPEND INTERFACE_SOURCE
+                "${PROJECT_SOURCE_DIR}/archon.cpp"
+                )
+        list(APPEND INTERFACE_INCLUDES
+                "${ARCHON_INCLUDE}"
+                )
+        add_library(interface OBJECT
+                ${PROJECT_SOURCE_DIR}/archon.cpp
+                )
+else()
+        message(FATAL_ERROR " unknown interface type: " ${INTERFACE_TYPE})
+endif()
+# ----------------------------------------------------------------------------
+# End interface setup
+# ----------------------------------------------------------------------------
 
-ADD_EXECUTABLE(archonserver 
-        ${PROJECT_SOURCE_DIR}/server.cpp 
+# Now add the defined interface target:
+#
+add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
+target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
+
+# ----------------------------------------------------------------------------
+# External libraries, such as FITS, etc.
+# ----------------------------------------------------------------------------
+
+find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
+find_library(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/local/lib)
+
+find_package(Threads)
+
+# ----------------------------------------------------------------------------
+# Here are all the targets
+# ----------------------------------------------------------------------------
+
+add_library(common OBJECT
         ${PROJECT_SOURCE_DIR}/common.cpp
-        ${PROJECT_SOURCE_DIR}/archon.cpp
-        ${PROJECT_SOURCE_DIR}/network.cpp
-        ${PROJECT_SOURCE_DIR}/logentry.cpp
-        ${PROJECT_SOURCE_DIR}/utilities.cpp
-        ${COMMON_HEADERS}
         )
 
-TARGET_LINK_LIBRARIES(archonserver
+add_library(utilities OBJECT
+        ${PROJECT_SOURCE_DIR}/utilities.cpp
+        )
+
+add_library(logentry OBJECT
+        ${PROJECT_SOURCE_DIR}/logentry.cpp
+        )
+
+add_library(network OBJECT
+        ${PROJECT_SOURCE_DIR}/network.cpp
+        )
+
+add_executable(cameraserver 
+        ${PROJECT_SOURCE_DIR}/server.cpp 
+        ${INTERFACE_INCLUDES}
+        )
+
+target_link_libraries(cameraserver
+        common
+        network
+        logentry
+        utilities
+        interface
+        ${INTERFACE_TARGET}
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
         ${CFITS_LIB}
         )
-
-SET(CMAKE_C_COMPILER /usr/bin/g++)
-SET(CMAKE_CXX_COMPILER /usr/bin/g++)
 

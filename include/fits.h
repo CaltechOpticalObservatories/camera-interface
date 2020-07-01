@@ -1,5 +1,5 @@
-#ifndef ARCHONFITS_H
-#define ARCHONFITS_H
+#ifndef CAMERA_FITS_H
+#define CAMERA_FITS_H
 /**
  * @file    fits.h
  * @brief   fits interface functions to CCFits

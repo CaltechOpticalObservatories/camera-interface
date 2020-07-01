@@ -9,7 +9,7 @@
 #include "build_date.h"
 #include "server.h"
 
-Archon::Server server;
+Camera::Server server;
 
 /** signal_handler ***********************************************************/
 /**
@@ -20,7 +20,7 @@ Archon::Server server;
  *
  */
 void signal_handler(int signo) {
-  std::string function = "Archon::signal_handler";
+  std::string function = "Camera::signal_handler";
   switch (signo) {
     case SIGINT:
       logwrite(function, "received INT");
@@ -53,7 +53,7 @@ void doit(Network::TcpSocket sock);         // the worker thread
  *
  */
 int main(int argc, char **argv) {
-  std::string function = "Archon::main";
+  std::string function = "Camera::main";
   std::stringstream message;
 
   initlog();                                         // required to initialize the logging system before use
@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
 
   server.config.read_config(server.config);          // read configuration file
 
-  server.get_config();                               // get needed values out of read-in configuration file
+  server.configure_controller();                     // get needed values out of read-in configuration file
 
   // This will pre-thread N_THREADS threads.
   // The 0th thread is reserved for the blocking port, and the rest are for the non-blocking port.
@@ -176,21 +176,17 @@ void thread_main(Network::TcpSocket sock) {
  *
  */
 void doit(Network::TcpSocket sock) {
-  std::string function = "Archon::doit";
-  char  buf[BUFSIZE+1], cmd[BUFSIZE+1];
-  char *args=buf;
-  char *c_ptr;
-  int   i;
+  std::string function = "Camera::doit";
+  char  buf[BUFSIZE+1];
   long  ret;
   std::stringstream message;
-  std::string scmd, sargs;        // arg string is everything after command
+  std::string cmd, args;        // arg string is everything after command
   std::vector<std::string> tokens;
 
   bool connection_open=true;
 
   while (connection_open) {
     memset(buf,  '\0', BUFSIZE);  // init buffers
-    args=buf;
 
     // Wait (poll) connected socket for incoming data...
     //
@@ -217,19 +213,28 @@ void doit(Network::TcpSocket sock) {
                                   // to accept CLOSE and give the LAST_ACK.
     }
 
-    i=0; while (buf[i] != '\0') i++;
+    std::string sbuf = buf;
 
     try {
-      STRIPCOMMAND(cmd, args);
-      if (args == NULL) sargs = ""; else sargs = args;
-      if (cmd  == NULL) scmd  = ""; else scmd  = cmd;
+      std::size_t cmd_sep = sbuf.find_first_of(" "); // find the first space, which separates command from argument list
 
-      if (scmd.empty()) continue;        // if no command then skip over everything
+      cmd = sbuf.substr(0, cmd_sep);                 // cmd is everything up until that space
 
-      sargs.erase(std::remove(sargs.begin(), sargs.end(), '\r' ), sargs.end());
-      sargs.erase(std::remove(sargs.begin(), sargs.end(), '\n' ), sargs.end());
+      cmd.erase(std::remove(cmd.begin(), cmd.end(), '\r' ), cmd.end());
+      cmd.erase(std::remove(cmd.begin(), cmd.end(), '\n' ), cmd.end());
 
-      message.str(""); message << "thread " << sock.id << " received command: " << cmd << " " << sargs;
+      if (cmd.empty()) continue;                     // If no command then skip over everything.
+
+      if (cmd_sep == string::npos) {                 // If no space was found,
+        args="";                                     // then the arg list is empty,
+      }
+      else {
+        args= sbuf.substr(cmd_sep+1);                // otherwise args is everything after that space.
+        args.erase(std::remove(args.begin(), args.end(), '\r' ), args.end());
+        args.erase(std::remove(args.begin(), args.end(), '\n' ), args.end());
+      }
+
+      message.str(""); message << "thread " << sock.id << " received command: " << cmd << " " << args;
       logwrite(function, message.str());
     }
     catch ( std::runtime_error &e ) {
@@ -239,7 +244,7 @@ void doit(Network::TcpSocket sock) {
       ret = -1;
     }
     catch ( ... ) {
-      message.str(""); message << "unknown error parsing arguments: " << sargs;
+      message.str(""); message << "unknown error parsing arguments: " << args;
       logwrite(function, message.str());
       ret = -1;
     }
@@ -249,58 +254,61 @@ void doit(Network::TcpSocket sock) {
      */
     ret = NOTHING;
 
-    if (MATCH(cmd, "exit")) {
+    if (cmd.compare("exit")==0) {
                     server.exit_cleanly();
                     }
     else
-    if (MATCH(cmd, "open")) {
+    if (cmd.compare("open")==0) {
                     ret = server.connect_controller();
                     }
     else
-    if (MATCH(cmd, "close")) {
+    if (cmd.compare("close")==0) {
                     ret = server.disconnect_controller();
                     }
     else
-    if (MATCH(cmd, "load")) {
-                    ret = server.load_config(sargs);
+/***
+    if (cmd.compare("load")==0) {
+                    ret = server.load_config(args);
                     if (ret==ERROR) server.fetchlog();
                     }
     else
-    if (MATCH(cmd, "imname")) {
+***/
+    if (cmd.compare("imname")==0) {
                     std::string imname;  // string for the return value
-                    ret = server.common.imname(sargs, imname);
+                    ret = server.common.imname(args, imname);
                     sock.Write(imname);
                     sock.Write(" ");
                     }
     else
-    if (MATCH(cmd, "imnum")) {
+    if (cmd.compare("imnum")==0) {
                     std::string imnum;   // string for the return value
-                    ret = server.common.imnum(sargs, imnum);
+                    ret = server.common.imnum(args, imnum);
                     if (!imnum.empty()) { sock.Write(imnum); sock.Write(" "); }
                     }
     else
-    if (MATCH(cmd, "imdir")) {
+    if (cmd.compare("imdir")==0) {
                     std::string imdir;   // string for the return value
-                    ret = server.common.imdir(sargs, imdir);
+                    ret = server.common.imdir(args, imdir);
                     sock.Write(imdir);
                     sock.Write(" ");
                     }
     else
-    if (MATCH(cmd, "key")) {
-                    if (sargs.compare(0, 4, "list")==0)
+/***
+    if (cmd.compare("key")==0) {
+                    if (args.compare(0, 4, "list")==0)
                       ret = server.userkeys.listkeys();
                     else
-                      ret = server.userkeys.addkey(sargs);
+                      ret = server.userkeys.addkey(args);
                     }
     else
-    if (MATCH(cmd, "getp")) {
+    if (cmd.compare("getp")==0) {
                     std::string value;
-                    ret = server.read_parameter(sargs, value);
+                    ret = server.read_parameter(args, value);
                     if (!value.empty()) { sock.Write(value); sock.Write(" "); }
                     }
     else
-    if (MATCH(cmd, "setp")) {
-                    Tokenize(sargs, tokens, " ");
+    if (cmd.compare("setp")==0) {
+                    Tokenize(args, tokens, " ");
                     if (tokens.size() != 2) {
                       ret = ERROR;
                       message.str(""); message << "error: expected 2 arguments, got " << tokens.size();
@@ -312,29 +320,37 @@ void doit(Network::TcpSocket sock) {
                     }
                     }
     else
-    if (MATCH(cmd, "printstatus")) {
+    if (cmd.compare("printstatus")==0) {
                     ret = server.get_frame_status();
                     if (ret==NO_ERROR) ret = server.print_frame_status();
                     }
     else
-    if (MATCH(cmd, "readframe")) {
+    if (cmd.compare("readframe")==0) {
                     ret = server.read_frame();
                     }
     else
-    if (MATCH(cmd, "writeframe")) {
+    if (cmd.compare("writeframe")==0) {
                     ret = server.write_frame();
                     }
     else
-    if (MATCH(cmd, "expose")) {
+***/
+    if (cmd.compare("expose")==0) {
                     ret = server.expose();
                     }
     else
-    if (MATCH(cmd, "echo")) {
-                    sock.Write(sargs);
+    if (cmd.compare("echo")==0) {
+                    sock.Write(args);
                     sock.Write("\n");
                     }
+    else
+    if (cmd.compare("interface")==0) {
+                    std::string iface;   // string for the return value
+                    ret = server.interface(iface);
+                    sock.Write(iface);
+                    sock.Write(" ");
+                    }
     else {  // if no matching command found then assume it's a native command and send it straight to the controller
-      ret = server.archon_native(buf);
+      ret = server.native(buf);
     }
 
     if (ret != NOTHING) {
