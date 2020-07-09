@@ -64,9 +64,9 @@ int main(int argc, char **argv) {
   signal(SIGINT, signal_handler);
   signal(SIGPIPE, signal_handler);
 
-  server.config.read_config(server.config);          // read configuration file
+  server.config.read_config(server.config);  // read configuration file
 
-  server.configure_controller();                     // get needed values out of read-in configuration file
+  server.configure_controller();                       // get needed values out of read-in configuration file
 
   // This will pre-thread N_THREADS threads.
   // The 0th thread is reserved for the blocking port, and the rest are for the non-blocking port.
@@ -213,15 +213,17 @@ void doit(Network::TcpSocket sock) {
                                   // to accept CLOSE and give the LAST_ACK.
     }
 
+    // convert the input buffer into a string and remove any trailing linefeed
+    // and carriage return
+    //
     std::string sbuf = buf;
+    sbuf.erase(std::remove(sbuf.begin(), sbuf.end(), '\r' ), sbuf.end());
+    sbuf.erase(std::remove(sbuf.begin(), sbuf.end(), '\n' ), sbuf.end());
 
     try {
       std::size_t cmd_sep = sbuf.find_first_of(" "); // find the first space, which separates command from argument list
 
       cmd = sbuf.substr(0, cmd_sep);                 // cmd is everything up until that space
-
-      cmd.erase(std::remove(cmd.begin(), cmd.end(), '\r' ), cmd.end());
-      cmd.erase(std::remove(cmd.begin(), cmd.end(), '\n' ), cmd.end());
 
       if (cmd.empty()) continue;                     // If no command then skip over everything.
 
@@ -230,8 +232,6 @@ void doit(Network::TcpSocket sock) {
       }
       else {
         args= sbuf.substr(cmd_sep+1);                // otherwise args is everything after that space.
-        args.erase(std::remove(args.begin(), args.end(), '\r' ), args.end());
-        args.erase(std::remove(args.begin(), args.end(), '\n' ), args.end());
       }
 
       message.str(""); message << "thread " << sock.id << " received command: " << cmd << " " << args;
@@ -266,13 +266,10 @@ void doit(Network::TcpSocket sock) {
                     ret = server.disconnect_controller();
                     }
     else
-/***
     if (cmd.compare("load")==0) {
-                    ret = server.load_config(args);
-                    if (ret==ERROR) server.fetchlog();
+                    ret = server.load_firmware(args);
                     }
     else
-***/
     if (cmd.compare("imname")==0) {
                     std::string imname;  // string for the return value
                     ret = server.common.imname(args, imname);
@@ -334,6 +331,10 @@ void doit(Network::TcpSocket sock) {
                     }
     else
 ***/
+    if (cmd.compare("set")==0) {
+                    ret = server.set_something("hi there");
+                    }
+    else
     if (cmd.compare("expose")==0) {
                     ret = server.expose();
                     }
@@ -350,7 +351,7 @@ void doit(Network::TcpSocket sock) {
                     sock.Write(" ");
                     }
     else {  // if no matching command found then assume it's a native command and send it straight to the controller
-      ret = server.native(buf);
+      ret = server.native(sbuf);
     }
 
     if (ret != NOTHING) {

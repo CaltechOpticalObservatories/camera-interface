@@ -5,36 +5,11 @@
 #include "config.h"
 #include "logentry.h"
 #include "utilities.h"
+#include "Defs.h"
 #include "CController.h"  // defines namesspace "arc"
-#include "astrocam.h"     // defines namespace "AstroCam"
+#include "CExpIFace.h"    // defines arc::Expose callbacks
 
 namespace Arc64 {
-
-  class Interface : public AstroCam::Information, public AstroCam::CommonInterface {
-
-    private:
-
-    public:
-      Interface();
-      ~Interface();
-
-      Common::Common    common;              //!< instantiate a Common object
-
-      CommonInterface astrocam;              //!< common astrocam interface
-
-      Information camera_info;               //!< this is the main camera_info object
-      Information fits_info;                 //!< used to copy the camera_info object to preserve info for FITS writing
-
-      std::vector<arc::CController> controller;
-      arc::CController  cController;
-      arc::CController *pController;
-
-      long interface(std::string &iface);
-      long connect_controller();
-      long disconnect_controller();
-      long native(std::string cmd);
-      long expose();
-  };
 
   class Callback : public arc::CExpIFace {
     public:
@@ -46,6 +21,30 @@ namespace Arc64 {
                           int   dRows,
                           int   dCols,
                           void* pBuffer );
+  };
+
+  class Interface {
+    private:
+    public:
+      Interface();
+      ~Interface();
+
+      Common::Common    common;              //!< instantiate a Common object
+
+      std::vector<arc::CController> controller;  //!< vector of arc::CController objects, one for each PCI device
+      std::vector<Callback*> callback;           //!< vector of Callback interface object pointers
+
+      int num_controllers;                   //!< number of installed controllers (detected PCI drivers)
+
+//    arc::CController  cController;
+//    arc::CController *pController;
+
+      long interface(std::string &iface);
+      long connect_controller();
+      long disconnect_controller();
+      long native(std::string cmd);
+      long arc_expose(int nframes, int expdelay, int rows, int cols);
+      long arc_load_firmware(std::string timlodfile);
   };
 
 }

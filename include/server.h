@@ -21,12 +21,10 @@
 #include <thread>
 #include <vector>
 
-#ifdef ARC66_PCIE
-#include "arc66.h"
-#elif ARC64_PCI
-#include "arc64.h"
+#ifdef ASTROCAM
+#include "astrocam.h"       //!< for any Leach interface, ARC-64 or ARC-66
 #elif STA_ARCHON
-#include "archon.h"
+#include "archon.h"         //!< for STA-Archon
 #endif
 
 #include "logentry.h"
@@ -41,10 +39,10 @@
 
 namespace Camera {
 
-#ifdef ARC66_PCIE
-  class Server : public Arc66::Interface {
-#elif ARC64_PCI
-  class Server : public Arc64::Interface {
+// Camera::Server class must inherit appropriate interface class
+//
+#ifdef ASTROCAM
+  class Server : public AstroCam::AstroCam {
 #elif STA_ARCHON
   class Server : public Archon::Interface {
 #endif
@@ -85,6 +83,8 @@ namespace Camera {
         exit(EXIT_SUCCESS);
       }
       /** Camera::Server::exit_cleanly *********************************************/
-  };
-}
+
+  };  // end class Server
+
+} // end namespace Camera
 #endif

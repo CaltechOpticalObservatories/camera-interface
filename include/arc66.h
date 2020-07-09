@@ -6,11 +6,10 @@
 #include "logentry.h"
 #include "utilities.h"
 #include "ArcDeviceCAPI.h"
-#include "astrocam.h"     // defines namespace "AstroCam"
 
 namespace Arc66 {
 
-  class Interface : public AstroCam::Information, public AstroCam::CommonInterface {
+  class Interface {
 
     private:
 
@@ -18,12 +17,7 @@ namespace Arc66 {
       Interface();
       ~Interface();
 
-//    Common::Common    common;              //!< instantiate a Common object
-
-      CommonInterface astrocam;              //!< common astrocam interface
-
-      Information camera_info;               //!< this is the main camera_info object
-      Information fits_info;                 //!< used to copy the camera_info object to preserve info for FITS writing
+      Common::Common    common;              //!< instantiate a Common object
 
       long interface(std::string &iface);
       long connect_controller();

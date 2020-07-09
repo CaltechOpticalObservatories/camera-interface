@@ -599,9 +599,9 @@ namespace Archon {
   /**************** Archon::Interface::fetchlog *******************************/
 
 
-  /**************** Archon::Interface::load_config ****************************/
+  /**************** Archon::Interface::load_firmware **************************/
   /**
-   * @fn     load_config
+   * @fn     load_firmware
    * @brief
    * @param  none
    * @return 
@@ -610,11 +610,13 @@ namespace Archon {
    * requiring an argument, using the default configfilename specified in the .cfg file.
    *
    */
-  long Interface::load_config() {
-    return( this->load_config( this->camera_info.configfilename ) );
+  long Interface::load_firmware() {
+    long ret = this->load_firmware( this->camera_info.configfilename );
+    if (ret == ERROR) this->fetchlog();
+    return(ret);
   }
-  long Interface::load_config(std::string acffile) {
-    std::string function = "Archon::Interface::load_config";
+  long Interface::load_firmware(std::string acffile) {
+    std::string function = "Archon::Interface::load_firmware";
     std::stringstream message;
     FILE    *fp;
     char    *line=NULL;  // if NULL, getline(3) will malloc/realloc space as required
@@ -972,6 +974,10 @@ namespace Archon {
       logwrite(function, "loaded Archon config file OK");
     }
 
+    // If there was an Archon error then read the Archon error log
+    //
+    if (error != NO_ERROR) this->fetchlog();
+
     this->camera_info.region_of_interest[0]=0;
     this->camera_info.region_of_interest[1]=5;
     this->camera_info.region_of_interest[2]=0;
@@ -984,7 +990,7 @@ namespace Archon {
 
     return(error);
   }
-  /**************** Archon::Interface::load_config ****************************/
+  /**************** Archon::Interface::load_firmware **************************/
 
 
   /**************** Archon::Interface::set_camera_mode ************************/

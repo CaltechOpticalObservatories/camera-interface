@@ -16,7 +16,6 @@ namespace Arc66 {
     return(0);
   }
 
-  }
   /** Arc66::Interface::interface *********************************************/
 
 
