@@ -39,93 +39,189 @@ namespace AstroCam {
   /** AstroCam::AstroCam::configure_controller ********************************/
 
 
-  /** AstroCam::AstroCam::set_something ***************************************/
+  /** AstroCam::AstroCam::native **********************************************/
   /**
-   * @fn     set_something
+   * @fn     native
+   * @brief  send a 3-letter command to the Leach controller
+   * @param  cmdstr, string containing command and arguments
+   * @return 0 on success, 1 on error
+   *
+   */
+  long AstroCam::native(std::string cmdstr) {
+    std::string function = "AstroCam::AstroCam::native";
+    std::stringstream message;
+    std::vector<std::string> tokens;
+
+    int arg[4]={-1,-1,-1,-1};
+    int cmd=0, c0, c1, c2;
+
+    Tokenize(cmdstr, tokens, " ");
+
+    int nargs = tokens.size() - 1;  // one token is for the command, this is number of args
+
+    // max 4 arguments
+    //
+    if (nargs > 4) {
+      message.str(""); message << "error: too many arguments: " << nargs << " (max 4)";
+      logwrite(function, message.str());
+      return(1);
+    }
+
+    // convert each arg into a number
+    //
+    for (int i=0,j=1; i<nargs; i++,j++) {
+      arg[i] = parse_val(tokens[j]);
+    }
+
+    // first token is command and require a 3-letter command
+    //
+    if (tokens[0].length() != 3) {
+      message.str(""); message << "error: unrecognized command: " << tokens[0];
+      logwrite(function, message.str());
+      return(1);
+    }
+
+    // change the 3-letter (ASCII) command into hex byte representation
+    //
+    c0  = (int)tokens[0].at(0); c0 = c0 << 16;
+    c1  = (int)tokens[0].at(1); c1 = c1 <<  8;
+    c2  = (int)tokens[0].at(2);
+    cmd = c0 | c1 | c2;
+
+    message.str(""); message << "sending command: " 
+                             << std::setfill('0') << std::setw(2) << std::uppercase << std::hex
+                             << "0x" << cmd
+                             << " 0x" << arg[0]
+                             << " 0x" << arg[1]
+                             << " 0x" << arg[2]
+                             << " 0x" << arg[3];
+    logwrite(function, message.str());
+
+    // send the command here to the interface
+    //
+    return this->arc_native(cmd, arg[0], arg[1], arg[2], arg[3]);
+
+  }
+  /** AstroCam::AstroCam::native **********************************************/
+
+
+  /** AstroCam::AstroCam::get_parameter ***************************************/
+  /**
+   * @fn     get_parameter
    * @brief  
    * @param  
    * @return 
    *
    */
-  long AstroCam::set_something(std::string something) {
-    std::string function = "AstroCam::AstroCam::set_something";
+  long AstroCam::get_parameter(std::string parameter, std::string &retstring) {
+    std::string function = "AstroCam::AstroCam::get_parameter";
+    logwrite(function, "error: invalid command for this controller");
+    return(ERROR);
+  }
+  /** AstroCam::AstroCam::get_parameter ***************************************/
+
+
+  /** AstroCam::AstroCam::set_parameter ***************************************/
+  /**
+   * @fn     set_parameter
+   * @brief  
+   * @param  
+   * @return 
+   *
+   */
+  long AstroCam::set_parameter(std::string parameter) {
+    std::string function = "AstroCam::AstroCam::set_parameter";
+    logwrite(function, "error: invalid command for this controller");
+    return(ERROR);
+  }
+  /** AstroCam::AstroCam::set_parameter ***************************************/
+
+
+  /** AstroCam::AstroCam::nframes *********************************************/
+  /**
+   * @fn     nframes
+   * @brief  
+   * @param  
+   * @return 
+   *
+   */
+  long AstroCam::access_nframes(std::string valstring) {
+    std::string function = "AstroCam::AstroCam::nframes";
     std::stringstream message;
-    size_t pos = something.find_first_of(" ");             // position of the first space : to delimit the param name
+    std::vector<std::string> tokens;
 
-    std::string paramname = something.substr(0, pos);      // the param name : first space-delimited argument
-    std::string arg = something.erase(0, pos + 1);         // the argument(s) : everything else
+    Tokenize(valstring, tokens, " ");
 
-    std::stringstream fitskeystr;
-
-    int  value = parse_val(arg);                           // parse arg as an integer : many things use this
-
-    // set nframes
-    //
-    if (paramname == "nframes") {
-      int rows = this->get_rows();
-      int cols = this->get_cols();
-
-      this->nfpseq  = value;                           // requested nframes is nframes/sequence
-      this->nframes = this->nfpseq * this->nsequences; // number of frames is (frames/sequence) x (sequences)
-      std::stringstream snf;
-      snf << "SNF " << this->nframes;                  // SNF sets total number of frames (Y:<N_FRAMES) on timing board
-
-      message.str(""); message << "sending " << snf;
+    if (tokens.size() != 2) {
+      message.str(""); message << "error: nframes expected 1 value but got " << tokens.size()-1;
       logwrite(function, message.str());
+      return(ERROR);
+    }
+    int rows = this->get_rows();
+    int cols = this->get_cols();
 
-      if ( this->native(snf.str()) != 0x444F4E ) return -1;
+    this->nfpseq  = parse_val(tokens[1]);            // requested nframes is nframes/sequence
+    this->nframes = this->nfpseq * this->nsequences; // number of frames is (frames/sequence) x (sequences)
+    std::stringstream snf;
+    snf << "SNF " << this->nframes;                  // SNF sets total number of frames (Y:<N_FRAMES) on timing board
 
-      std::stringstream fps;
-      fps << "FPS " << nfpseq;            // FPS sets number of frames per sequence (Y:<N_SEQUENCES) on timing board
+    message.str(""); message << "sending " << snf;
+    logwrite(function, message.str());
 
-      message.str(""); message << "sending " << fps;
+    if ( this->native(snf.str()) != 0x444F4E ) return -1;
+
+    std::stringstream fps;
+    fps << "FPS " << nfpseq;            // FPS sets number of frames per sequence (Y:<N_SEQUENCES) on timing board
+
+    message.str(""); message << "sending " << fps;
+    logwrite(function, message.str());
+
+    if ( this->native(fps.str()) != 0x444F4E ) return -1;
+
+//TODO
+/**
+    fitskeystr.str(""); fitskeystr << "NFRAMES=" << this->nframes << "//number of frames";
+    this->fitskey.set_fitskey(fitskeystr.str()); // TODO
+**/
+
+    int _framesize = rows * cols * sizeof(unsigned short);
+    if (_framesize < 1) {
+      message.str(""); message << "error: bad framesize: " << _framesize;
       logwrite(function, message.str());
+      return (-1);
+    }
+    unsigned int _nfpb = (unsigned int)( this->get_bufsize() / _framesize );
 
-      if ( this->native(fps.str()) != 0x444F4E ) return -1;
-
-      fitskeystr.str(""); fitskeystr << "NFRAMES=" << this->nframes << "//number of frames";
-//    this->fitskey.set_fitskey(fitskeystr.str()); // TODO
-
-      int _framesize = rows * cols * sizeof(unsigned short);
-      if (_framesize < 1) {
-        message.str(""); message << "error: bad framesize: " << _framesize;
-        logwrite(function, message.str());
-        return (-1);
-      }
-      unsigned int _nfpb = (unsigned int)( this->get_bufsize() / _framesize );
-
-      if ( (_nfpb < 1) ||
-           ( (this->nframes > 1) &&
-             (this->get_bufsize() < (int)(2*rows*cols*sizeof(unsigned short))) ) ) {
-        message.str(""); message << "insufficient buffer size (" 
-                                 << this->get_bufsize()
-                                 << " bytes) for "
-                                 << this->nframes
-                                 << " frame"
-                                 << (this->nframes>1 ? "s" : "")
-                                 << " of "
-                                 << rows << " x " << cols << " pixels";
-        logwrite(function, message.str());
-        message.str(""); message << "minimum buffer size is "
-                                 << 2 * this->nframes * rows * cols
-                                 << " bytes";
-        logwrite(function, message.str());
-        return -1;
-      }
-
-      std::stringstream fpb;
-      fpb << "FPB " << _nfpb;
-
-      message.str(""); message << "sending " << fpb;
+    if ( (_nfpb < 1) ||
+         ( (this->nframes > 1) &&
+           (this->get_bufsize() < (int)(2*rows*cols*sizeof(unsigned short))) ) ) {
+      message.str(""); message << "insufficient buffer size (" 
+                               << this->get_bufsize()
+                               << " bytes) for "
+                               << this->nframes
+                               << " frame"
+                               << (this->nframes>1 ? "s" : "")
+                               << " of "
+                               << rows << " x " << cols << " pixels";
       logwrite(function, message.str());
+      message.str(""); message << "minimum buffer size is "
+                               << 2 * this->nframes * rows * cols
+                               << " bytes";
+      logwrite(function, message.str());
+      return -1;
+    }
 
-      if ( this->native(fpb.str()) == 0x444F4E ) return 0; else return -1;
+    std::stringstream fpb;
+    fpb << "FPB " << _nfpb;
 
-    } // set nframes
+    message.str(""); message << "sending " << fpb;
+    logwrite(function, message.str());
+
+    if ( this->native(fpb.str()) == 0x444F4E ) return 0; else return -1;
 
     return 0;
   }
-  /** AstroCam::AstroCam::set_something ***************************************/
+  /** AstroCam::AstroCam::nframes *********************************************/
 
 
   /** AstroCam::AstroCam::expose **********************************************/

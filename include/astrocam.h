@@ -142,16 +142,24 @@ namespace AstroCam {
       AstroCam();
       ~AstroCam();
 
+      // Class Objects
+      //
       Config config;
-
       Common::Common common;       //!< instantiate a Common object
-
       Information camera_info;     //!< this is the main camera_info object
       Information fits_info;       //!< used to copy the camera_info object to preserve info for FITS writing
+      Common::FitsKeys userkeys;   //!< create a FitsKeys object for FITS keys specified by the user
 
+      // Functions
+      //
       long configure_controller();
-      long set_something(std::string something);
+      long get_parameter(std::string parameter, std::string &retstring);
+      long set_parameter(std::string parameter);
+      long access_nframes(std::string valstring);
+      int get_driversize();
 
+      // Functions fully defined here (no code in astrocam.c)
+      //
       int keytype_string()  { return this->FITS_STRING_KEY;  };
       int keytype_double()  { return this->FITS_DOUBLE_KEY;  };
       int keytype_integer() { return this->FITS_INTEGER_KEY; };
@@ -160,16 +168,12 @@ namespace AstroCam {
       int get_rows() { return this->rows; };
       int get_cols() { return this->cols; };
       int get_bufsize() { return this->bufsize; };
-      int get_driversize();
       bool get_abortexposure() { return this->isabort_exposure; };
       void abort_exposure() { this->isabort_exposure = true; };
-
       int set_rows(int r) { if (r>0) this->rows = r; return r; };
       int set_cols(int c) { if (c>0) this->cols = c; return c; };
-
       int get_image_rows() { return this->rows; };
       int get_image_cols() { return this->cols; };
-
       void set_framecount( int num ) { this->framecount = num; };
       void increment_framecount() { this->framecount++; };
       int get_framecount() { return this->framecount; };
@@ -182,6 +186,7 @@ namespace AstroCam {
       //
       long expose();
       long load_firmware(std::string timlodfile);
+      long native(std::string cmdstr);
   };
 
 }

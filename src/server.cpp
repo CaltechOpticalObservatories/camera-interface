@@ -290,7 +290,6 @@ void doit(Network::TcpSocket sock) {
                     sock.Write(" ");
                     }
     else
-/***
     if (cmd.compare("key")==0) {
                     if (args.compare(0, 4, "list")==0)
                       ret = server.userkeys.listkeys();
@@ -299,24 +298,16 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("getp")==0) {
-                    std::string value;
-                    ret = server.read_parameter(args, value);
-                    if (!value.empty()) { sock.Write(value); sock.Write(" "); }
+                    std::string retstring;
+                    ret = server.get_parameter(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
     if (cmd.compare("setp")==0) {
-                    Tokenize(args, tokens, " ");
-                    if (tokens.size() != 2) {
-                      ret = ERROR;
-                      message.str(""); message << "error: expected 2 arguments, got " << tokens.size();
-                      logwrite(function, message.str());
-                    }
-                    else {
-                      ret = server.prep_parameter(tokens[0], tokens[1]);
-                      if (ret == NO_ERROR) ret = server.load_parameter(tokens[0], tokens[1]);
-                    }
+                    ret = server.set_parameter(args);
                     }
     else
+/***
     if (cmd.compare("printstatus")==0) {
                     ret = server.get_frame_status();
                     if (ret==NO_ERROR) ret = server.print_frame_status();
@@ -331,10 +322,6 @@ void doit(Network::TcpSocket sock) {
                     }
     else
 ***/
-    if (cmd.compare("set")==0) {
-                    ret = server.set_something("hi there");
-                    }
-    else
     if (cmd.compare("expose")==0) {
                     ret = server.expose();
                     }
@@ -351,6 +338,13 @@ void doit(Network::TcpSocket sock) {
                     sock.Write(" ");
                     }
     else {  // if no matching command found then assume it's a native command and send it straight to the controller
+      try {
+        std::transform( sbuf.begin(), sbuf.end(), sbuf.begin(), ::toupper );    // make uppercase
+      }
+      catch (...) {
+        logwrite(function, "error converting command to uppercase");
+        ret=ERROR;
+      }
       ret = server.native(sbuf);
     }
 

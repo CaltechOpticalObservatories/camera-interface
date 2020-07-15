@@ -147,7 +147,14 @@ namespace Archon {
       Interface();
       ~Interface();
 
+      // Class Objects
+      //
       Network::TcpSocket archon;
+      Information camera_info;               //!< this is the main camera_info object
+      Information fits_info;                 //!< used to copy the camera_info object to preserve info for FITS writing
+      Common::Common common;                 //!< instantiate a Common object
+      Common::FitsKeys userkeys;             //!< instantiate a Common object
+      Config config;
 
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       int  taplines;
@@ -161,8 +168,10 @@ namespace Archon {
       std::atomic<bool> archon_busy;         //!< indicates a thread is accessing Archon
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
-
       std::string exposeparam;               //!< param name to trigger exposure when set =1
+
+      // Functions
+      //
       long interface(std::string &iface);    //!< get interface type
       long configure_controller();           //!< get configuration parameters
       long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
@@ -193,14 +202,8 @@ namespace Archon {
       long write_parameter( const char *paramname, const char *newvalue );
       long write_parameter( const char *paramname, int newvalue );
       long expose();
-
-      Information camera_info;               //!< this is the main camera_info object
-      Information fits_info;                 //!< used to copy the camera_info object to preserve info for FITS writing
-
-      Common::Common    common;              //!< instantiate a Common object
-      Common::FitsKeys  userkeys;            //!< instantiate a Common object
-
-      Config config;
+      long get_parameter(std::string parameter, std::string &retstring);
+      long set_parameter(std::string parameter);
 
       /**
        * @var     Observing_modes

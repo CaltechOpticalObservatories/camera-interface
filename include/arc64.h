@@ -42,7 +42,7 @@ namespace Arc64 {
       long interface(std::string &iface);
       long connect_controller();
       long disconnect_controller();
-      long native(std::string cmd);
+      long arc_native(int cmd, int arg1, int arg2, int arg3, int arg4);
       long arc_expose(int nframes, int expdelay, int rows, int cols);
       long arc_load_firmware(std::string timlodfile);
   };

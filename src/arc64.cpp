@@ -49,92 +49,63 @@ namespace Arc64 {
                                 int   dRows,
                                 int   dCols,
                                 void* pBuffer ) {
+    std::string function = "Arc64::Callback::FrameCallback";
+    std::stringstream message;
+
+    message << "spawning \"handle_frame\" thread: frame=" << dFPBCount
+            << " FrameCount=" << dPCIFrameCount
+            << " buffer=0x" << std::uppercase << std::hex << pBuffer;
+    logwrite(function, message.str());
+//  std::thread(&AstroCam::AstroCam::handle_frame, dFPBCount, dPCIFrameCount, pBuffer).detahc();
   }
   /** Arc64::Callback::FrameCallback ******************************************/
 
 
-  /** Arc64::Interface::native ************************************************/
+  /** Arc64::Interface::arc_native ********************************************/
   /**
    * @fn     native
    * @brief  send a 3-letter command to the Leach controller
-   * @param  cmdstr, string containing command and arguments
+   * @param  int cmd
+   * @param  int arg1
+   * @param  int arg2
+   * @param  int arg3
+   * @param  int arg4
    * @return 0 on success, 1 on error
    *
    */
-  long Interface::native(std::string cmdstr) {
-    std::string function = "Arc64::Interface::native";
+  long Interface::arc_native(int cmd, int arg1, int arg2, int arg3, int arg4) {
+    std::string function = "Arc64::Interface::arc_native";
     std::stringstream message;
-    std::vector<std::string> tokens;
-
     int lReply;
-    int arg[4]={-1,-1,-1,-1};
-    int cmd=0, c0, c1, c2;
 
-    Tokenize(cmdstr, tokens, " ");
-
-    int nargs = tokens.size() - 1;  // one token is for the command, this is number of args
-
-    // max 4 arguments
-    //
-    if (nargs > 4) {
-      message.str(""); message << "error: too many arguments: " << nargs << " (max 4)";
-      logwrite(function, message.str());
+    if (this->num_controllers < 1) {
+      logwrite(function, "error: no connected PCI devices");
       return(1);
     }
-
-    // convert each arg into a number
-    //
-    for (int i=0,j=1; i<nargs; i++,j++) {
-      arg[i] = parse_val(tokens[j]);
-    }
-
-    // first token is command and require a 3-letter command
-    //
-    if (tokens[0].length() != 3) {
-      message.str(""); message << "error: poorly formatted command: " << tokens[0] << " (expected 3 letters but got " << tokens[0].length() << ")";
-      logwrite(function, message.str());
-      return(1);
-    }
-
-    // change the 3-letter (ASCII) command into hex byte representation
-    //
-    c0  = (int)tokens[0].at(0); c0 = c0 << 16;
-    c1  = (int)tokens[0].at(1); c1 = c1 <<  8;
-    c2  = (int)tokens[0].at(2);
-    cmd = c0 | c1 | c2;
-
-    message.str(""); message << "sending command: " 
-                             << std::setfill('0') << std::setw(2) << std::uppercase << std::hex
-                             << "0x" << cmd
-                             << " 0x" << arg[0]
-                             << " 0x" << arg[1]
-                             << " 0x" << arg[2]
-                             << " 0x" << arg[3];
-    logwrite(function, message.str());
 
     // send the command here
     //
     try { // TODO for Thur: make lReply a vector and report only one reply if all the same, report diff if one different.
-      for (int dev=0; dev<this->num_controllers; dev++) {
-        lReply = controller[dev].Command( arc::TIM_ID, cmd, arg[0], arg[1], arg[2], arg[3] );
-        message.str(""); message << "command: " << cmd << " received: " << lReply;
+      for (int dev=0; dev < this->num_controllers; dev++) {
+        lReply = controller[dev].Command( arc::TIM_ID, cmd, arg1, arg2, arg3, arg4 );
+        message.str(""); message << "command: 0x" << std::uppercase << std::hex << cmd << " received: 0x" << lReply;
         logwrite(function, message.str());
       }
     }
     catch ( std::runtime_error &e ) {
-      message.str(""); message << "error: " << e.what() << " sending command: " << cmd;
+      message.str(""); message << "error: " << e.what() << " sending command: 0x" << std::uppercase << std::hex << cmd;
       logwrite(function, message.str());
       return(1);
       }
     catch ( ... ) {
-      message.str(""); message << "unknown error sending command: " << cmd;
+      message.str(""); message << "unknown error sending command: 0x" << std::uppercase << std::hex << cmd;
       logwrite(function, message.str());
       return(1);
       }
 
-    return 0;
+    return 0;  //TODO needs to be updated with combined lReply
   }
-  /** Arc64::Interface::native ************************************************/
+  /** Arc64::Interface::arc_native ********************************************/
 
 
   /** Arc64::Interface::interface *********************************************/

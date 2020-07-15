@@ -2152,4 +2152,51 @@ namespace Archon {
   /**************** Archon::Interface::expose *********************************/
 
 
+  /**************** Archon::Interface::get_parameter **************************/
+  /**
+   * @fn     get_parameter
+   * @brief  get parameter using read_parameter()
+   * @param  string
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::get_parameter(std::string parameter, std::string &retstring) {
+    std::string function = "Archon::Interface::get_parameter";
+
+    return this->read_parameter(parameter, retstring);
+  }
+  /**************** Archon::Interface::get_parameter **************************/
+
+
+  /**************** Archon::Interface::set_parameter **************************/
+  /**
+   * @fn     set_parameter
+   * @brief  set an Archon parameter
+   * @param  string
+   * @return ERROR or NO_ERROR
+   *
+   * This function calls "prep_parameter()" and "load_parameter()"
+   *
+   */
+  long Interface::set_parameter(std::string parameter) {
+    std::string function = "Archon::Interface::set_parameter";
+    std::stringstream message;
+    long ret=ERROR;
+    std::vector<std::string> tokens;
+
+    Tokenize(parameter, tokens, " ");
+
+    if (tokens.size() != 2) {
+      message.str(""); message << "error: param expected 2 arguments (paramname and value) but got " << tokens.size();
+      logwrite(function, message.str());
+      ret=ERROR;
+    }
+    else {
+      ret = this->prep_parameter(tokens[0], tokens[1]);
+      if (ret == NO_ERROR) ret = this->load_parameter(tokens[0], tokens[1]);
+    }
+    return(ret);
+  }
+  /**************** Archon::Interface::set_parameter **************************/
+
 }
