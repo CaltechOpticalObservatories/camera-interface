@@ -307,7 +307,6 @@ void doit(Network::TcpSocket sock) {
                     ret = server.set_parameter(args);
                     }
     else
-/***
     if (cmd.compare("printstatus")==0) {
                     ret = server.get_frame_status();
                     if (ret==NO_ERROR) ret = server.print_frame_status();
@@ -321,9 +320,14 @@ void doit(Network::TcpSocket sock) {
                     ret = server.write_frame();
                     }
     else
-***/
     if (cmd.compare("expose")==0) {
                     ret = server.expose();
+                    }
+    else
+    if (cmd.compare("exptime")==0) {
+                    std::string retstring;
+                    ret = server.exptime(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
     if (cmd.compare("echo")==0) {

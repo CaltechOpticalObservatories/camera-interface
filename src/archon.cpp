@@ -22,6 +22,9 @@ namespace Archon {
   Interface::Interface() {
     this->archon_busy = false;
     this->msgref = 0;
+    this->lastframe = 0;
+    this->frame.index = 0;
+    this->abort = false;
     this->image_data = NULL;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
@@ -33,7 +36,7 @@ namespace Archon {
     this->frame.bufcomplete.resize( Archon::nbufs );
     this->frame.bufmode.resize( Archon::nbufs );
     this->frame.bufbase.resize( Archon::nbufs );
-    this->frame.bufframe.resize( Archon::nbufs );
+    this->frame.bufframen.resize( Archon::nbufs );
     this->frame.bufwidth.resize( Archon::nbufs );
     this->frame.bufheight.resize( Archon::nbufs );
     this->frame.bufpixels.resize( Archon::nbufs );
@@ -298,7 +301,7 @@ namespace Archon {
     std::stringstream message;
     int     retval;
     char    check[4];
-    char    buffer[1024];                       //!< temporary buffer for holding Archon replies
+    char    buffer[2048];                       //!< temporary buffer for holding Archon replies
     int     error = NO_ERROR;
 
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
@@ -375,8 +378,8 @@ namespace Archon {
         if (retval<0)  { logwrite(function, "Poll error");   error = ERROR;   }
         break;
       }
-      memset(buffer, '\0', 1024);                    // init temporary buffer
-      retval = this->archon.Read(buffer, 1024);      // read into temp buffer
+      memset(buffer, '\0', 2048);                    // init temporary buffer
+      retval = this->archon.Read(buffer, 2048);      // read into temp buffer
       if (retval <= 0) {
         logwrite(function, "error reading Archon");
         break; 
@@ -1409,7 +1412,7 @@ namespace Archon {
         if (subtokens[0].substr(4) == "COMPLETE")    this->frame.bufcomplete[bufnum]    =  value;
         if (subtokens[0].substr(4) == "MODE")        this->frame.bufmode[bufnum]        =  value;
         if (subtokens[0].substr(4) == "BASE")        this->frame.bufbase[bufnum]        = lvalue;
-        if (subtokens[0].substr(4) == "FRAME")       this->frame.bufframe[bufnum]       =  value;
+        if (subtokens[0].substr(4) == "FRAME")       this->frame.bufframen[bufnum]      =  value;
         if (subtokens[0].substr(4) == "WIDTH")       this->frame.bufwidth[bufnum]       =  value;
         if (subtokens[0].substr(4) == "HEIGHT")      this->frame.bufheight[bufnum]      =  value;
         if (subtokens[0].substr(4) == "PIXELS")      this->frame.bufpixels[bufnum]      =  value;
@@ -1425,11 +1428,11 @@ namespace Archon {
 
     newestbuf   = this->frame.index;
 
-    if (this->frame.index < (int)this->frame.bufframe.size()) {
-      newestframe = this->frame.bufframe[this->frame.index];
+    if (this->frame.index < (int)this->frame.bufframen.size()) {
+      newestframe = this->frame.bufframen[this->frame.index];
     }
     else {
-      message.str(""); message << "error: index " << this->frame.index << " exceeds number of buffers " << this->frame.bufframe.size();
+      message.str(""); message << "error: index " << this->frame.index << " exceeds number of buffers " << this->frame.bufframen.size();
       logwrite(function, message.str());
       return(ERROR);
     }
@@ -1441,11 +1444,11 @@ namespace Archon {
 
       // look for special start-up case, when all frame buffers are zero
       //
-      if ( this->frame.bufframe[bc] == 0 ) num_zero++;
+      if ( this->frame.bufframen[bc] == 0 ) num_zero++;
 
-      if ( (this->frame.bufframe[bc] > newestframe) &&
+      if ( (this->frame.bufframen[bc] > newestframe) &&
             this->frame.bufcomplete[bc] ) {
-        newestframe = this->frame.bufframe[bc];
+        newestframe = this->frame.bufframen[bc];
         newestbuf   = bc;
       }
     }
@@ -1507,7 +1510,7 @@ namespace Archon {
               << this->frame.bufbase[bufn] << " ";                                                    // base
       message << "0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex
               << this->frame.bufrawoffset[bufn] << " ";                                               // rawoff
-      message << std::setfill(' ') << std::setw(5) << std::dec << this->frame.bufframe[bufn] << " ";  // frame
+      message << std::setfill(' ') << std::setw(5) << std::dec << this->frame.bufframen[bufn] << " "; // frame
       message << std::setw(5) << this->frame.bufcomplete[bufn] << " ";                                // ready
       message << std::setw(5) << this->frame.buflines[bufn] << " ";                                   // lines
       message << std::setw(8) << this->frame.bufrawlines[bufn] << " ";                                // rawlines
@@ -2092,9 +2095,17 @@ namespace Archon {
   /**************** Archon::Interface::expose *********************************/
   /**
    * @fn     expose
-   * @brief  triggers an Archon exposure by setting the EXPOSE parameter = 1
+   * @brief  initiate an exposure
    * @param  none
    * @return ERROR or NO_ERROR
+   *
+   * This function really does three things before returning successful completion:
+   *  1) trigger an Archon exposure by setting the EXPOSE parameter = 1
+   *  2) wait for exposure delay
+   *  3) wait for readout into Archon frame buffer
+   *
+   * Note that this assumes that the Archon ACF has been programmed to automatically
+   * read out the detector into the frame buffer after an exposure.
    *
    */
   long Interface::expose() {
@@ -2122,11 +2133,9 @@ namespace Archon {
       error = this->get_timer(&this->start_time);                   // Archon internal timer
     }
 
-    if (error == NO_ERROR) {
-      message.str(""); message << "exposure started at Archon time " << this->start_time;
-      logwrite(function, message.str());
-    }
-    if (error == NO_ERROR) error = this->prepare_image_buffer();
+    if (error == NO_ERROR) logwrite(function, "exposure started");
+
+    if (error == NO_ERROR) error = this->prepare_image_buffer();    // do this during the exposure delay
 
     this->camera_info.fits_name = this->common.get_fitsname();      // assemble the FITS filenmae
 
@@ -2145,11 +2154,217 @@ namespace Archon {
       this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
     }
 
+    // add the internal system keys into the camera_info.userkeys object
+    //
+/*
+    for (keyit  = this->systemkeys.keydb.begin();
+         keyit != this->systemkeys.keydb.end();
+         keyit++) {
+      this->camera_info.userkeys.keydb[keyit->second.keyword].keyword    = keyit->second.keyword;
+      this->camera_info.userkeys.keydb[keyit->second.keyword].keytype    = keyit->second.keytype;
+      this->camera_info.userkeys.keydb[keyit->second.keyword].keyvalue   = keyit->second.keyvalue;
+      this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
+    }
+*/
+
     this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer
+
+    this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
+
+    error = this->wait_for_exposure();                              // wait for the exposure delay to complete
+
+    if (error==ERROR) {
+      logwrite(function, "exposure delay error");
+      return(error);
+    }
+    else {
+      logwrite(function, "exposure delay complete");
+    }
+
+    error = this->wait_for_readout();                               // wait for the readout into frame buffer
+
+    if (error==ERROR) {
+      logwrite(function, "readout error");
+      return(error);
+    }
+    else {
+      logwrite(function, "readout complete");
+    }
 
     return (error);
   }
   /**************** Archon::Interface::expose *********************************/
+
+
+  /**************** Archon::Interface::wait_for_exposure **********************/
+  /**
+   * @fn     wait_for_exposure
+   * @brief  
+   * @param  none
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::wait_for_exposure() {
+    std::string function = "Archon::Interface::wait_for_exposure";
+    std::stringstream message;
+    long error = NO_ERROR;
+
+    int exposure_timeout_time;  // Time to wait for the exposure delay to time out
+    unsigned long int timer;
+
+    // waited is an integral number of seconds below 80% of the exposure time, in millisec,
+    // and will be used to keep track of elapsed time, for timeout errors
+    //
+    int waited = (int)floor(0.8 * this->camera_info.exposure_time);
+
+    // Wait, (don't sleep) for approx 80% of the exposure time.
+    //
+    double end_time = get_clock_time()*1000 + waited;  // get_clock_time returns seconds, and I'm counting msec
+    double now = get_clock_time()*1000;
+    while ( (now - end_time < 0) && this->abort == false ) {
+      timeout(0.001);
+      now = get_clock_time()*1000;
+    }
+
+    // Set the time out value.  If the exposure time is less than a second, set
+    // the timeout to 1 second.  Otherwise, set it to the exposure time plus
+    // 1 second.
+    //
+    if (this->camera_info.exposure_time < 1){
+      exposure_timeout_time = 1000; //ms
+    }
+    else {
+      exposure_timeout_time = (this->camera_info.exposure_time) + 1000;
+    }
+
+    bool done = false;
+    while (done == false && this->abort == false) {
+      // Poll Archon's internal timer
+      if ( this->get_timer(&timer) == ERROR ) {
+        logwrite(function, "error getting timer");
+        break;
+      }
+      if ( ((timer - this->start_time)*10e-6) >= this->camera_info.exposure_time ) {
+        this->finish_time = timer;
+        done  = true;
+        break;
+      }
+
+      // Enough time has passed to trigger a timeout error.
+      //
+      if (waited > exposure_timeout_time) {
+        done = true;
+        error = ERROR;
+        logwrite(function, "error: timeout acquiring frame!");
+      }
+      int polldelay = 1;                   // msec wait time
+      timeout( (float)polldelay/1000. );   // 
+      waited += polldelay;                 // Keep track of how long we've been waiting.
+    }  // end while (done == false && this->abort == false)
+
+    // On success, write the value to the log and return
+    //
+    if (error == NO_ERROR && this->abort == false){
+      return(NO_ERROR);
+    }
+    // If the wait was stopped, log a message and return NO_ERROR
+    //
+    else if (this->abort == true) {
+      logwrite(function, "error: waiting for exposure stopped by external signal");
+      return(NO_ERROR);
+    }
+    // Throw an error for any other errors
+    //
+    else {
+      logwrite(function, "error: waiting for Archon camera data");
+      return(error);
+    }
+  }
+  /**************** Archon::Interface::wait_for_exposure **********************/
+
+
+  /**************** Archon::Interface::wait_for_readout ***********************/
+  /**
+   * @fn     wait_for_readout
+   * @brief  
+   * @param  none
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::wait_for_readout() {
+    std::string function = "Archon::Interface::wait_for_readout";
+    std::stringstream message;
+    long error = NO_ERROR;
+    int readout_timeout_time;  // Time to wait for the readout to time out
+    int currentframe=this->lastframe;
+    bool done = false;
+
+    message.str("");
+    message << "waiting for new frame: lastframe=" << this->lastframe << " frame.index=" << this->frame.index;
+    logwrite(function, message.str());
+
+    // waited will be used to keep track of elapsed time, for timeout errors
+    //
+    int waited = 0;
+
+    // Set the timeout value to CCD_READOUT_TIME seconds, plus 10%.
+    //
+    readout_timeout_time = CCD_READOUT_TIME * 110 / 100;
+
+    // Poll frame status until current frame is not the last frame and the buffer is ready to read.
+    // The last frame was recorded before the readout was triggered in get_frame().
+    //
+    while (done == false && this->abort == false) {
+
+      error = this->get_frame_status();
+
+      if (error != NO_ERROR) {
+        logwrite(function, "unable to get frame status");
+        break;
+      }
+      currentframe = this->frame.bufframen[this->frame.index];
+
+      if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
+        done  = true;
+        error = NO_ERROR;
+        break;
+      }  // end if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) )
+
+      // Enough time has passed to trigger a timeout error.
+      //
+      if (waited > readout_timeout_time) {
+        done = true;
+        error = ERROR;
+        logwrite(function, "timeout acquiring frame!");
+      }
+      int polldelay = 1;                   // msec wait time
+      timeout( (float)polldelay/1000. );   // 
+      waited += polldelay;                 // Keep track of how long we've been waiting.
+    } // end while (done == false && this->abort == false)
+
+    // On success, write the value to the log and return
+    //
+    if (error == NO_ERROR && this->abort == false) {
+      message.str("");
+      message << "received currentframe: " << currentframe;
+      logwrite(function, message.str());
+      return(NO_ERROR);
+    }
+    // If the wait was stopped, log a message and return NO_ERROR
+    //
+    else
+    if (this->abort == true) {
+      logwrite(function, "waiting for acquisition stopped by external signal");
+      return(NO_ERROR);
+    }
+    // Throw an error for any other errors
+    //
+    else {
+      logwrite(function, "error waiting for Archon camera data");
+      return(error);
+    }
+  }
+  /**************** Archon::Interface::wait_for_readout ***********************/
 
 
   /**************** Archon::Interface::get_parameter **************************/
@@ -2198,5 +2413,35 @@ namespace Archon {
     return(ret);
   }
   /**************** Archon::Interface::set_parameter **************************/
+
+
+  /**************** Archon::Interface::exptime ********************************/
+  /**
+   * @fn     exptime
+   * @brief  set/get the exposure time
+   * @param  string
+   * @return ERROR or NO_ERROR
+   *
+   * This function calls "set_parameter()" and "get_parameter()" using
+   * the "exptime" parameter (which must already be defined in the ACF file).
+   *
+   */
+  long Interface::exptime(std::string exptime_in, std::string &retstring) {
+    std::string function = "Archon::Interface::exptime";
+    std::stringstream message;
+    long ret=NO_ERROR;
+
+    if ( !exptime_in.empty() ) {
+      std::stringstream cmd;
+      cmd << "exptime " << exptime_in;
+      ret = this->set_parameter( cmd.str() );
+      if (ret != ERROR) this->camera_info.exposure_time = std::stoi( exptime_in );
+    }
+    retstring = std::to_string( this->camera_info.exposure_time );
+    message.str(""); message << "exposure time is " << retstring << " msec";
+    logwrite(function, message.str());
+    return(ret);
+  }
+  /**************** Archon::Interface::exptime ********************************/
 
 }

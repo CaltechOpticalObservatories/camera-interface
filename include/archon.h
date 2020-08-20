@@ -19,6 +19,8 @@
 #include "logentry.h"
 #include "network.h"
 
+#define CCD_READOUT_TIME 10000     //!< time to read out CCD in msec //TODO this is bad to have hard-coded! get from WDL!
+
 #define POLLTIMEOUT 5000           //!< poll timeout in msec
 #define MAXADCHANS 16              //!< max number of AD channels per controller
 #define MAXCCDS 4                  //!< max number of CCDs handled by one controller
@@ -85,10 +87,12 @@ namespace Archon {
       long          region_of_interest[4];
       long          image_center[2];
       bool          data_cube;
+      int           exposure_time;           //!< exposure time in msec
       std::string   fits_name;               //!< contatenation of Common's image_dir + image_name + image_num
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
 
       Common::FitsKeys userkeys;             //!< create a FitsKeys object for FITS keys specified by the user
+      Common::FitsKeys systemkeys;           //!< create a FitsKeys object for FITS keys imposed by the software
 
       Information() {
         this->axes[0] = 1;
@@ -157,6 +161,7 @@ namespace Archon {
       Config config;
 
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
+      bool  abort;
       int  taplines;
       int  gain[MAXADCHANS];                 //!< digital CDS gain (from TAPLINE definition)
       int  offset[MAXADCHANS];               //!< digital CDS offset (from TAPLINE definition)
@@ -202,8 +207,11 @@ namespace Archon {
       long write_parameter( const char *paramname, const char *newvalue );
       long write_parameter( const char *paramname, int newvalue );
       long expose();
+      long wait_for_exposure();
+      long wait_for_readout();
       long get_parameter(std::string parameter, std::string &retstring);
       long set_parameter(std::string parameter);
+      long exptime(std::string exptime_in, std::string &retstring);
 
       /**
        * @var     Observing_modes
@@ -261,7 +269,7 @@ namespace Archon {
         std::vector<int>      bufcomplete;    // buffer complete, 1=ready to read
         std::vector<int>      bufmode;        // buffer mode: 0=top 1=bottom 2=split
         std::vector<uint64_t> bufbase;        // buffer base address for fetching
-        std::vector<int>      bufframe;       // buffer frame number
+        std::vector<int>      bufframen;      // buffer frame number
         std::vector<int>      bufwidth;       // buffer width
         std::vector<int>      bufheight;      // buffer height
         std::vector<int>      bufpixels;      // buffer pixel progress
