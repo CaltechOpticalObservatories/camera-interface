@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstring>
 #include <algorithm>
+#include <unistd.h>
 
 unsigned int parse_val(const std::string& str);     //!< returns an unsigned int from a string
 
@@ -27,5 +28,9 @@ void chrrep(char *str, char oldchr, char newchr);   //!< replace one character w
 std::tm* get_timenow();                             //!< return tm pointer to current time
 
 std::string get_time_string();                      //!< return current time in formatted string "YYYY-MM-DDTHH:MM:SS.ssssss"
+
+double get_clock_time();
+
+void timeout(float seconds=0, bool next_sec=true);
 
 #endif

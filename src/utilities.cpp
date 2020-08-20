@@ -125,6 +125,14 @@
   /** chrrep ******************************************************************/
 
 
+  /** get_timenow *************************************************************/
+  /**
+   * @fn     get_timenow
+   * @brief  
+   * @param  
+   * @return 
+   *
+   */
   std::tm* get_timenow() {
     std::tm *timenow; 
     std::time_t timer = std::time(nullptr);  // current calendar time encoded as a std::time_t object
@@ -137,6 +145,8 @@
     }
     return timenow;
   }
+  /** get_timenow *************************************************************/
+
 
   /** get_time_string *********************************************************/
   /**
@@ -175,3 +185,53 @@
   }
   /** get_time_string *********************************************************/
 
+
+  /** get_clock_time **********************************************************/
+  /**
+   * @fn     get_clock_time
+   * @brief  get the current clock time using REALTIME flag from the processor
+   * @param  nonw
+   * @return time in seconds
+   *
+   */
+  double get_clock_time() {
+    struct timespec data;  // Container for the current time
+    if (clock_gettime(CLOCK_REALTIME, &data) != 0) return 0;
+    return ( data.tv_sec + (data.tv_nsec / 1000000000.0) );
+  }
+  /** get_clock_time **********************************************************/
+
+
+  /** timeout *****************************************************************/
+  /**
+   * @fn     timeout
+   * @brief  
+   * @param  
+   * @return 
+   *
+   */
+  void timeout(float seconds, bool next_sec) {
+    if (seconds < 1 && seconds > 0) {
+      usleep(seconds * 1000000);
+    }
+    else {
+      // Sleep the number of seconds called for
+      //
+      if (seconds > 0) {
+        sleep((int)seconds);
+      }
+
+      if (next_sec == true) {
+        // Get the current time to the microsecond
+        //
+        struct timespec data;                // Time of day container
+        if(clock_gettime(CLOCK_REALTIME, &data) != 0) return;
+
+        // If the microseconds are less than 0.9999999, we sleep that long
+        //
+        if (data.tv_nsec/1000000000 < 0.999999999) {
+          usleep((useconds_t)((999999999-data.tv_nsec)/1000));
+        }
+      }
+    }
+  }
