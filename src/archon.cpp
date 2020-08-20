@@ -1889,24 +1889,16 @@ namespace Archon {
       // convert four 8-bit values into a 32-bit value and scale by 2^16
       //
       case 32: {
-        FITS_file <float> fits_file;                       // Instantiate a FITS_file object with the appropriate type
-        cbuf32 = (uint32_t *)this->image_data;             // cast here to 32b
+        FITS_file <float> fits_file;                            // Instantiate a FITS_file object with the appropriate type
+        cbuf32 = (uint32_t *)this->image_data;                  // cast here to 32b
         float *fbuf = NULL;
-        fbuf = new float[ this->fits_info.image_size ];    // allocate a float buffer of same number of pixels
+        fbuf = new float[ this->fits_info.image_size ];         // allocate a float buffer of same number of pixels for scaling
 
         for (long pix=0; pix < this->fits_info.image_size; pix++) {
-          fbuf[pix] = cbuf32[pix] / (float)65535;          // right shift 16 bits
+          fbuf[pix] = cbuf32[pix] / (float)65535;               // right shift 16 bits
         }
 
-        // write the image and increment image_num on success
-        //
-        error = fits_file.write_image(fbuf, this->fits_info);
-        if ( error == NO_ERROR ) {
-          this->common.increment_imnum();
-        }
-        else {
-          logwrite(function, "error writing image");
-        }
+        error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk
         if (fbuf != NULL) {
           delete [] fbuf;
         }
@@ -1916,9 +1908,9 @@ namespace Archon {
       // convert four 8-bit values into 16 bit values and no scaling necessary
       //
       case 16: {
-        FITS_file <unsigned short> fits_file;              // Instantiate a FITS_file object with the appropriate type
-        cbuf16 = (uint16_t *)this->image_data;             // cast to 16b
-        error = fits_file.write_image(cbuf16, this->fits_info);
+        FITS_file <unsigned short> fits_file;                   // Instantiate a FITS_file object with the appropriate type
+        cbuf16 = (uint16_t *)this->image_data;                  // cast to 16b
+        error = fits_file.write_image(cbuf16, this->fits_info); // write the image to disk
         break;
       }
 
@@ -1929,6 +1921,15 @@ namespace Archon {
         logwrite(function, message.str());
         error = ERROR;
         break;
+    }
+
+    // increment image_num after successful write
+    //
+    if ( error == NO_ERROR ) {
+      this->common.increment_imnum();
+    }
+    else {
+      logwrite(function, "error writing image");
     }
 
     return(error);
