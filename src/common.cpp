@@ -26,9 +26,47 @@ namespace Common {
 
   Common::Common() {
     this->image_dir = "/tmp";
-    this->image_name = "image";
+    this->base_name = "image";
     this->image_num = 0;
+    this->fits_naming = "time";
+    this->fitstime = "";
   }
+
+
+  /** Common::Common::fitsnaming **********************************************/
+  /**
+   * @fn     fitsnaming
+   * @brief  set or get the fits naming type
+   * @param  std::string naming_in
+   * @param  std::string& naming_out
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Common::fitsnaming(std::string naming_in, std::string& naming_out) {
+    std::string function = "Common::Common::fitsnaming";
+    std::stringstream message;
+    long error;
+
+    message.str(""); message << "fits naming: " << this->fits_naming;
+
+    if (naming_in.empty()) {           // no string passed so this is a request. do nothing but will return the current value
+      error = NO_ERROR;
+    }
+    else
+    if ( (naming_in.compare("time")==0) || (naming_in.compare("number")==0) ) {
+      this->fits_naming = naming_in;   // set new value
+      error = NO_ERROR;
+    }
+    else {
+      message.str(""); message << "error: invalid naming type: " << naming_in << ". Must be \"time\" or \"number\".";
+      error = ERROR;
+    }
+
+    logwrite(function, message.str());
+    naming_out = this->fits_naming;    // return the current value
+    return error;
+  }
+  /** Common::Common::fitsnaming **********************************************/
 
 
   /** Common::Common::imnum ***************************************************/
@@ -81,10 +119,10 @@ namespace Common {
   /** Common::Common::imnum ***************************************************/
 
 
-  /** Common::Common::imname **************************************************/
+  /** Common::Common::basename ************************************************/
   /**
-   * @fn     imname
-   * @brief  set or get the image_name member
+   * @fn     basename
+   * @brief  set or get the base_name member
    * @param  std::string name_in
    * @param  std::string& name_out
    * @return NO_ERROR
@@ -92,28 +130,28 @@ namespace Common {
    * This function is overloaded with a form that doesn't use a return value.
    *
    */
-  long Common::imname(std::string name_in) {
+  long Common::basename(std::string name_in) {
     std::string dontcare;
-    return( imname(name_in, dontcare) );
+    return( basename(name_in, dontcare) );
   }
-  long Common::imname(std::string name_in, std::string& name_out) {
-    std::string function = "Common::Common::imname";
+  long Common::basename(std::string name_in, std::string& name_out) {
+    std::string function = "Common::Common::basename";
     std::stringstream message;
 
     // If no string is passed then this is a request; return the current value.
     //
     if (name_in.empty()) {
-      message.str(""); message << "image name:" << this->image_name;
+      message.str(""); message << "base name is " << this->base_name;
       logwrite(function, message.str());
-      name_out = this->image_name;
+      name_out = this->base_name;
     }
     else {                             // Otherwise set the image name
-      this->image_name = name_in;
+      this->base_name = name_in;
       name_out = name_in;
     }
     return(NO_ERROR);
   }
-  /** Common::Common::imname **************************************************/
+  /** Common::Common::basename ************************************************/
 
 
   /** Common::Common::imdir ***************************************************/
@@ -196,6 +234,43 @@ namespace Common {
   /** Common::Common::imdir ***************************************************/
 
 
+  /** Common::Common:set_fitstime *********************************************/
+  /**
+   * @fn     set_fitstime
+   * @brief  set the "fitstime" variable used for the filename
+   * @param  string formatted as "YYYY-MM-DDTHH:MM:SS.ssssss"
+   * @return std::string
+   *
+   * The Common class has a public string variable "fitstime" which is
+   * to be used for the FITS filename, when the time-format is selected.
+   * This time should be the whole-second of the time that the exposure
+   * was started, so that time is passed in here. This function strips
+   * that string down to just the numerals for use in the filename.
+   *
+   */
+  void Common::set_fitstime(std::string time_in) {
+    std::string function = "Common::Common::set_fitstime";
+    std::stringstream message;
+
+    if ( time_in.length() != 26 ) {  // wrong number of characters, input can't be formatted correctly
+      message.str(""); message << "error: bad input time: " << time_in;
+      logwrite(function, message.str());
+      this->fitstime = "99999999999999";
+      return;
+    }
+
+    this->fitstime = time_in.substr(0,4)     // YYYY
+                   + time_in.substr(5,2)     // MM
+                   + time_in.substr(8,2)     // DD
+                   + time_in.substr(11,2)    // HH
+                   + time_in.substr(14,2)    // MM
+                   + time_in.substr(17,2);   // SS
+
+    return;
+  }
+  /** Common::Common:set_fitstime *********************************************/
+
+
   /** Common::Common:get_fitsname *********************************************/
   /**
    * @fn     get_fitsname
@@ -204,37 +279,51 @@ namespace Common {
    * @return std::string
    *
    * This function assembles the fully qualified path to the output FITS filename
-   * using the parts (dir, basename, number) stored in the Common::Common class.
+   * using the parts (dir, basename, time or number) stored in the Common::Common class.
    * If the filename already exists then a -number is inserted, incrementing that
    * number until a unique name is achieved.
    *
    */
   std::string Common::get_fitsname() {
-    // width of image_num portion of the filename is at least 4 digits, and grows as needed
+    std::string function = "Common::Common::get_fitsname";
+    std::stringstream message;
+    std::stringstream fn, fitsname;
+
+    // start building the filename with directory/basename_
     //
-    int width = (this->image_num < 10000 ? 4 :   
-                (this->image_num < 100000 ? 5 :   
-                (this->image_num < 1000000 ? 6 :   
-                (this->image_num < 10000000 ? 7 :  
-                (this->image_num < 100000000 ? 8 :  
-                (this->image_num < 1000000000 ? 9 : 10)))))); 
-    // build the filename
-    //
-    std::stringstream fn;
-    fn.str("");
-    fn << this->image_dir << "/" << this->image_name << "_" << std::setfill('0') << std::setw(width)
-       << this->image_num << ".fits";
+    fitsname.str("");
+    fitsname << this->image_dir << "/" << this->base_name << "_";
+
+    if (this->fits_naming.compare("time")==0) {
+      fitsname << this->fitstime;
+    }
+    else
+    if (this->fits_naming.compare("number")==0) {
+      // width of image_num portion of the filename is at least 4 digits, and grows as needed
+      //
+      int width = (this->image_num < 10000 ? 4 :   
+                  (this->image_num < 100000 ? 5 :   
+                  (this->image_num < 1000000 ? 6 :   
+                  (this->image_num < 10000000 ? 7 :  
+                  (this->image_num < 100000000 ? 8 :  
+                  (this->image_num < 1000000000 ? 9 : 10)))))); 
+      fitsname << std::setfill('0') << std::setw(width) << this->image_num;
+    }
 
     // Check if file exists and include a -# to set apart duplicates.
     //
     struct stat st;
     int dupnumber=1;
+    fn.str(""); fn << fitsname.str();
+    fn << ".fits";
     while (stat(fn.str().c_str(), &st) == 0) {
-      fn.str("");
-      fn << this->image_dir << "/" << this->image_name << "_" << std::setfill('0') << std::setw(width)
-         << this->image_num << "-" << dupnumber << ".fits";
+      fn.str(""); fn << fitsname.str();
+      fn << "-" << dupnumber << ".fits";
       dupnumber++;  // keep incrementing until we have a unique filename
     }
+
+    message.str(""); message << "will write to file: " << fn.str();
+    logwrite(function, message.str());
 
     return fn.str();
   }

@@ -114,8 +114,8 @@ namespace Archon {
         this->common.imdir( config.arg[entry] );
       }
 
-      if (config.param[entry].compare(0, 6, "IMNAME")==0) {
-        this->common.imname( config.arg[entry] );
+      if (config.param[entry].compare(0, 6, "BASENAME")==0) {
+        this->common.basename( config.arg[entry] );
       }
 
     }
@@ -1924,6 +1924,7 @@ namespace Archon {
     }
 
     // increment image_num after successful write
+    // this will only happen when fitsnaming == "number"
     //
     if ( error == NO_ERROR ) {
       this->common.increment_imnum();
@@ -2127,11 +2128,12 @@ namespace Archon {
     if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, "1");
 
     // get system time and Archon's timer after exposure starts
-    // start_time is used by the FITS writer ?? //TODO (maybe can remove)
+    // start_time is used to determine when the exposure has ended, in wait_for_exposure()
     //
     if (error == NO_ERROR) {
       this->camera_info.start_time = get_time_string();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       error = this->get_timer(&this->start_time);                   // Archon internal timer
+      this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
     }
 
     if (error == NO_ERROR) logwrite(function, "exposure started");

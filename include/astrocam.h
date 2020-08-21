@@ -127,7 +127,7 @@ namespace AstroCam {
       bool iscds;                  //!< is CDS mode enabled?
       bool iscdsneg;               //!< is CDS subtraction polarity negative? (IE. reset-read ?)
       bool isutr;                  //!< is SUTR mode enabled?
-      std::string imname;          //!<
+      std::string basename;        //!<
       std::string imdir;
       std::string fitsname;
       std::vector<int> validchans; //!< outputs supported by detector / controller

@@ -152,8 +152,8 @@
   /**
    * @fn     get_time_string
    * @brief  return current time in formatted string "YYYY-MM-DDTHH:MM:SS.ssssss"
-   * @param  
-   * @return 
+   * @param  none
+   * @return string
    *
    */
   std::string get_time_string() {
@@ -184,6 +184,45 @@
     return(current_time.str());
   }
   /** get_time_string *********************************************************/
+
+
+  /** get_file_time ***********************************************************/
+  /**
+   * @fn     get_file_time
+   * @brief  return current time in formatted string "YYYYMMDDHHMMSS"
+   * @param  none
+   * @return string
+   *
+   * Used for filenames
+   *
+   */
+  std::string get_file_time() {
+    std::stringstream current_time;  // String to contain the time
+    time_t t;                        // Container for system time
+    struct timespec data;            // Time of day container
+    struct tm gmt;                   // GMT time container
+
+    // Get the system time, return a bad timestamp on error
+    //
+    if (clock_gettime(CLOCK_REALTIME, &data) != 0) return("99999999999999");
+
+    // Convert the time of day to GMT
+    //
+    t = data.tv_sec;
+    if (gmtime_r(&t, &gmt) == NULL) return("99999999999999");
+
+    current_time.setf(std::ios_base::right);
+    current_time << std::setfill('0') << std::setprecision(0)
+                 << std::setw(4) << gmt.tm_year + 1900
+                 << std::setw(2) << gmt.tm_mon + 1
+                 << std::setw(2) << gmt.tm_mday
+                 << std::setw(2) << gmt.tm_hour
+                 << std::setw(2) << gmt.tm_min
+                 << std::setw(2) << gmt.tm_sec;
+
+    return(current_time.str());
+  }
+  /** get_file_time ***********************************************************/
 
 
   /** get_clock_time **********************************************************/

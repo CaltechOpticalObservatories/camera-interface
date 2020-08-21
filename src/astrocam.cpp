@@ -28,8 +28,8 @@ namespace AstroCam {
         this->common.imdir( config.arg[entry] );
       }
 
-      if (config.param[entry].compare(0, 6, "IMNAME")==0) {
-        this->common.imname( config.arg[entry] );
+      if (config.param[entry].compare(0, 6, "BASENAME")==0) {
+        this->common.basename( config.arg[entry] );
       }
 
     }

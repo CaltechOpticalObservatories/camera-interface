@@ -270,10 +270,10 @@ void doit(Network::TcpSocket sock) {
                     ret = server.load_firmware(args);
                     }
     else
-    if (cmd.compare("imname")==0) {
-                    std::string imname;  // string for the return value
-                    ret = server.common.imname(args, imname);
-                    sock.Write(imname);
+    if (cmd.compare("basename")==0) {
+                    std::string basename;  // string for the return value
+                    ret = server.common.basename(args, basename);
+                    sock.Write(basename);
                     sock.Write(" ");
                     }
     else
@@ -288,6 +288,12 @@ void doit(Network::TcpSocket sock) {
                     ret = server.common.imdir(args, imdir);
                     sock.Write(imdir);
                     sock.Write(" ");
+                    }
+    else
+    if (cmd.compare("fitsnaming")==0) {
+                    std::string fitsnaming;
+                    ret = server.common.fitsnaming(args, fitsnaming);
+                    if (!fitsnaming.empty()) { sock.Write(fitsnaming); sock.Write(" "); }
                     }
     else
     if (cmd.compare("key")==0) {

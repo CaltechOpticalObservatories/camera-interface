@@ -51,7 +51,9 @@ namespace Common {
   class Common {
     private:
       std::string image_dir;
-      std::string image_name;
+      std::string base_name;
+      std::string fits_naming;
+      std::string fitstime;                                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
       int image_num;
 
     public:
@@ -60,10 +62,12 @@ namespace Common {
 
       long imdir(std::string dir_in);
       long imdir(std::string dir_in, std::string& dir_out);
-      long imname(std::string name_in);
-      long imname(std::string name_in, std::string& name_out);
+      long basename(std::string name_in);
+      long basename(std::string name_in, std::string& name_out);
       long imnum(std::string num_in, std::string& num_out);
-      void increment_imnum() { this->image_num++; };
+      long fitsnaming(std::string naming_in, std::string& naming_out);
+      void increment_imnum() { if (this->fits_naming.compare("number")==0) this->image_num++; };
+      void set_fitstime(std::string time_in);
       std::string get_fitsname();
   };
 }
