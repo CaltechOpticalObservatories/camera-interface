@@ -989,7 +989,7 @@ namespace Archon {
     this->camera_info.binning[0]=1;
     this->camera_info.binning[1]=1;
 
-    this->set_camera_mode(FRAME_IMAGE);
+    this->set_camera_mode();
 
     return(error);
   }
@@ -1004,11 +1004,30 @@ namespace Archon {
    * @return 
    *
    */
-  long Interface::set_camera_mode(int mode) {
+  long Interface::set_camera_mode() {
     std::string function = "Archon::Interface::set_camera_mode";
     std::stringstream message;
     bool configchanged = false;
     bool paramchanged = false;
+
+    int mode; // TODO is this needed?
+
+    try {
+      int rawenable;
+      std::istringstream( this->configmap["RAWENABLE"].value  ) >> rawenable;
+      if (rawenable==1) {
+        mode = FRAME_RAW;
+      }
+      else
+      if (rawenable==0) {
+        mode = FRAME_IMAGE;
+      }
+      else throw std::invalid_argument( "bad rawenable value" );
+    }
+    catch (...) {
+      logwrite(function, "error parsing RAWENABLE from ACF");
+      return(ERROR);
+    }
 
     /**
      * first check is that mode is within allowable range
@@ -1044,6 +1063,7 @@ namespace Archon {
     std::istringstream( this->configmap["RAWSEL"].value     ) >> this->rawinfo.adchan;
     std::istringstream( this->configmap["RAWENABLE"].value  ) >> this->modeinfo[mode].rawenable;
 
+/**** moved this stuff into switch(mode) below. Can get rid of this, but here just for a reminder for now.
     switch (this->camera_info.frame_type) {
 
       case FRAME_IMAGE:
@@ -1067,12 +1087,18 @@ namespace Archon {
         logwrite(function, message.str());
         return(ERROR);
     }
+*****/
 
     // The following are unique settings for each particular mode:
     //
     switch(mode) {
 
       case MODE_RAW:
+        std::istringstream( this->configmap["RAWSAMPLES"].value ) >> this->camera_info.detector_pixels[0];
+        std::istringstream( this->configmap["RAWENDLINE"].value ) >> this->camera_info.detector_pixels[1]; 
+        this->camera_info.detector_pixels[1]++;
+        this->rawinfo.raw_samples = this->camera_info.detector_pixels[0];
+        this->rawinfo.raw_lines   = this->camera_info.detector_pixels[1];
         // frame_type will determine the bits per pixel and where the detector_axes come from
         this->camera_info.frame_type = FRAME_RAW;
         this->camera_info.region_of_interest[0] = 1;
@@ -1085,6 +1111,10 @@ namespace Archon {
         break;
 
       case MODE_DEFAULT:
+        std::istringstream( this->configmap["PIXELCOUNT"].value ) >> this->camera_info.detector_pixels[0];
+        std::istringstream( this->configmap["LINECOUNT"].value  ) >> this->camera_info.detector_pixels[1];
+        this->camera_info.detector_pixels[0] *= this->geometry[this->camera_info.current_observing_mode].amps_per_ccd[0];
+        this->camera_info.detector_pixels[1] *= this->geometry[this->camera_info.current_observing_mode].amps_per_ccd[1];
         this->camera_info.frame_type = FRAME_IMAGE;
         // ROI is the full detector
         this->camera_info.region_of_interest[0] = 1;
