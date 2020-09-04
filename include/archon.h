@@ -51,7 +51,7 @@ namespace Archon {
   // Archon hardware-based constants.
   // These shouldn't change unless there is a significant hardware change.
   //
-  const int nbufs = 3;             //!< total number of frame buffers
+  const int nbufs = 3;             //!< total number of frame buffers  //TODO rename to maxnbufs?
   const int nmods = 12;            //!< number of modules per controller
   const int nadchan = 4;           //!< number of channels per ADC module
 
@@ -73,7 +73,7 @@ namespace Archon {
       int           port;                    //!< Archon controller TPC/IP port number
       int           activebufs;              //!< Archon controller number of active frame buffers
       int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
-      int           datatype;                //!< FITS data type (corresponding to bitpix)
+      int           datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
       std::string   configfilename;          //!< Archon controller configuration file
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];
@@ -87,7 +87,9 @@ namespace Archon {
       long          region_of_interest[4];
       long          image_center[2];
       bool          data_cube;
+      int           extension;               //!< extension number for data cubes
       int           exposure_time;           //!< exposure time in msec
+      double        exposure_progress;       //!< exposure progress (fraction)
       std::string   fits_name;               //!< contatenation of Common's image_dir + image_name + image_num
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
 
@@ -145,7 +147,7 @@ namespace Archon {
 
   class Interface {
     private:
-      unsigned long int start_time, finish_time;  //!< Archon internal timer, start and end of exposure
+      unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
 
     public:
       Interface();
@@ -163,8 +165,8 @@ namespace Archon {
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       bool  abort;
       int  taplines;
-      int  gain[MAXADCHANS];                 //!< digital CDS gain (from TAPLINE definition)
-      int  offset[MAXADCHANS];               //!< digital CDS offset (from TAPLINE definition)
+      int  gain[MAXADCHANS];                 //!< digital CDS gain (from TAPLINE definition)   //TODO convert to vector
+      int  offset[MAXADCHANS];               //!< digital CDS offset (from TAPLINE definition) //TODO convert to vector
 
       char *image_data;                      //!< image data buffer
       uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
@@ -184,7 +186,7 @@ namespace Archon {
       long disconnect_controller();          //!< disconnect from archon controller
       long load_firmware();                  //!< load default configfilename (ACF)
       long load_firmware(std::string acffile); //!< load specified configfilename (ACF)
-      long set_camera_mode();
+      long set_camera_mode(std::string mode_in);
       long load_mode_settings(int mode);
       long native(std::string cmd);
       long archon_cmd(std::string cmd);
@@ -199,13 +201,16 @@ namespace Archon {
       long get_timer(unsigned long int *timer);
       long fetch(uint64_t bufaddr, uint32_t bufblocks);
       long read_frame();                     //!< read Archon frame buffer into host memory
+      long read_frame(frame_type_t frame_type); //!< read Archon frame buffer into host memory
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
+      long write_raw();                      //!< write raw 16 bit data to a FITS file
       long write_config_key( const char *key, const char *newvalue, bool &changed );
       long write_config_key( const char *key, int newvalue, bool &changed );
       long write_parameter( const char *paramname, const char *newvalue, bool &changed );
       long write_parameter( const char *paramname, int newvalue, bool &changed );
       long write_parameter( const char *paramname, const char *newvalue );
       long write_parameter( const char *paramname, int newvalue );
+      template <class T> long get_configmap_value(std::string key_in, T& value_out);
       long expose();
       long wait_for_exposure();
       long wait_for_readout();
@@ -218,19 +223,33 @@ namespace Archon {
        * @details enum list of possible observing modes
        */
       typedef enum {
-        MODE_DEFAULT = 0,
+        MODE_SCIENCE = 0,
+        MODE_GUIDER,
+        MODE_FOCUS,
+        MODE_SINGLE_FRAME,
         MODE_RAW,
+        MODE_DEFAULT,
+        SINGLE_FRAME_MODE,
+        RAPID_READOUT_MODE,
+        TIP_TILT_MODE,
         NUM_OBS_MODES
-      } Observing_modes;
+      } Observing_modes;  //TODO needs rethinking!!
 
       /**
        * @var     Observing_mode_str
        * @details string name for each corresponding observing mode in Observing_modes enum list
        */
       const char * const Observing_mode_str[NUM_OBS_MODES] = {
+        "MODE_SCIENCE",
+        "MODE_GUIDER",
+        "MODE_FOCUS",
+        "MODE_SINGLE_FRAME",
+        "MODE_RAW",
         "MODE_DEFAULT",
-        "MODE_RAW"
-      };
+        "SINGLE_FRAME_MODE",
+        "RAPID_READOUT_MODE",
+        "TIP_TILT_MODE"
+      };   //TODO needs rethinking!!
 
       /**
        * @var     struct geometry_t geometry[]
@@ -292,8 +311,8 @@ namespace Archon {
        */
       struct rawinfo_t {
         int adchan;          // selected A/D channels
-        int raw_samples;     // number of raw samples per line
-        int raw_lines;       // number of raw lines
+        int rawsamples;      // number of raw samples per line
+        int rawlines;        // number of raw lines
         int iteration;       // iteration number
         int iterations;      // number of iterations
       } rawinfo;

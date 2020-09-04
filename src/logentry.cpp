@@ -125,6 +125,7 @@ void logwrite(std::string function, std::string message) {
   logmsg << timestamp << "  (" << function << ") " << message << "\n";
 
   filestream << logmsg.str();                    // send to the file stream
+  filestream.flush();
   std::cerr << logmsg.str();                     // send to standard error
 }
 /** logwrite *****************************************************************/

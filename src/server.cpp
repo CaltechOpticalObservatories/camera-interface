@@ -205,11 +205,13 @@ void doit(Network::TcpSocket sock) {
 
     // Data available, now read from connected socket...
     //
-    if ( sock.Read(buf, (size_t)BUFSIZE) <= 0 ) {
-      message.str(""); message << "Read error: " << strerror(errno); logwrite(function, message.str());
-      break;                      // close connection -- this probably means that
-                                  // the client has terminated abnormally, having
-                                  // sent FIN but not stuck around long enough
+    if ( (ret=sock.Read(buf, (size_t)BUFSIZE)) <= 0 ) {
+      if (ret<0) {                // could be an actual read error
+        message.str(""); message << "Read error: " << strerror(errno); logwrite(function, message.str());
+      }
+      break;                      // Breaking out of the while loop will close the connection.
+                                  // This probably means that the client has terminated abruptly, 
+                                  // having sent FIN but not stuck around long enough
                                   // to accept CLOSE and give the LAST_ACK.
     }
 
@@ -270,30 +272,34 @@ void doit(Network::TcpSocket sock) {
                     ret = server.load_firmware(args);
                     }
     else
+    if (cmd.compare("mode")==0) {
+                    ret = server.set_camera_mode(args);
+                    }
+    else
     if (cmd.compare("basename")==0) {
-                    std::string basename;  // string for the return value
-                    ret = server.common.basename(args, basename);
-                    sock.Write(basename);
+                    std::string retstring;  // string for the return value
+                    ret = server.common.basename(args, retstring);
+                    sock.Write(retstring);
                     sock.Write(" ");
                     }
     else
     if (cmd.compare("imnum")==0) {
-                    std::string imnum;   // string for the return value
-                    ret = server.common.imnum(args, imnum);
-                    if (!imnum.empty()) { sock.Write(imnum); sock.Write(" "); }
+                    std::string retstring;   // string for the return value
+                    ret = server.common.imnum(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
     if (cmd.compare("imdir")==0) {
-                    std::string imdir;   // string for the return value
-                    ret = server.common.imdir(args, imdir);
-                    sock.Write(imdir);
+                    std::string retstring;   // string for the return value
+                    ret = server.common.imdir(args, retstring);
+                    sock.Write(retstring);
                     sock.Write(" ");
                     }
     else
     if (cmd.compare("fitsnaming")==0) {
-                    std::string fitsnaming;
-                    ret = server.common.fitsnaming(args, fitsnaming);
-                    if (!fitsnaming.empty()) { sock.Write(fitsnaming); sock.Write(" "); }
+                    std::string retstring;
+                    ret = server.common.fitsnaming(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
     if (cmd.compare("key")==0) {
@@ -342,9 +348,9 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("interface")==0) {
-                    std::string iface;   // string for the return value
-                    ret = server.interface(iface);
-                    sock.Write(iface);
+                    std::string retstring;   // string for the return value
+                    ret = server.interface(retstring);
+                    sock.Write(retstring);
                     sock.Write(" ");
                     }
     else {  // if no matching command found then assume it's a native command and send it straight to the controller
