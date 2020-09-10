@@ -31,8 +31,6 @@
 #include "config.h"
 #include "network.h"
 
-#define  NBPORT       3030  //!< non-blocking port
-#define  BLKPORT      3031  //!< blocking port
 #define  N_THREADS    10    //!< total number of threads spawned by server, one for blocking and the remainder for non-blocking
 #define  BUFSIZE      1024  //!< size of the input command buffer
 #define  CONN_TIMEOUT 3000  //<! incoming (non-blocking) connection timeout in milliseconds
@@ -48,7 +46,10 @@ namespace Camera {
 #endif
     private:
     public:
-      Server() { }
+      Server() {
+        this->nbport=-1;
+        this->blkport=-1;
+      }
 
       /** Camera::~Server **********************************************************/
       /**
@@ -61,6 +62,9 @@ namespace Camera {
         closelog();  // close the logfile, if open
       }
       /** Camera::~Server **********************************************************/
+
+      int nbport;                        //!< non-blocking port
+      int blkport;                       //!< blocking port
 
       int nonblocking_socket;
       int blocking_socket;
@@ -83,6 +87,72 @@ namespace Camera {
         exit(EXIT_SUCCESS);
       }
       /** Camera::Server::exit_cleanly *********************************************/
+
+      /** Camera::Server::configure_server *****************************************/
+      /**
+       * @fn     configure_server
+       * @brief  
+       * @param  none
+       * @return ERROR or NO_ERROR
+       *
+       */
+      long configure_server() {
+        std::string function = "Camera::Server::configure_server";
+        std::stringstream message;
+        int applied=0;
+        long error;
+
+        // loop through the entries in the configuration file, stored in config class
+        //
+        for (int entry=0; entry < this->config.n_entries; entry++) {
+
+          if (config.param[entry].compare(0, 6, "NBPORT")==0) {
+            int port;
+            try {
+              port = std::stoi( config.arg[entry] );
+            }
+            catch (std::invalid_argument ) {
+              logwrite(function, "ERROR: bad NBPORT: unable to convert to integer");
+              return(ERROR);
+            }
+            catch (std::out_of_range) {
+              logwrite(function, "NBPORT number out of integer range");
+              return(ERROR);
+            }
+            this->nbport = port;
+            applied++;
+          }
+
+          if (config.param[entry].compare(0, 7, "BLKPORT")==0) {
+            int port;
+            try {
+              port = std::stoi( config.arg[entry] );
+            }
+            catch (std::invalid_argument ) {
+              logwrite(function, "ERROR: bad BLKPORT: unable to convert to integer");
+              return(ERROR);
+            }
+            catch (std::out_of_range) {
+              logwrite(function, "BLKPORT number out of integer range");
+              return(ERROR);
+            }
+            this->blkport = port;
+            applied++;
+          }
+        }
+        message.str("");
+        if (applied==0) {
+          message << "ERROR: ";
+          error = ERROR;
+        } 
+        else {
+          error = NO_ERROR;
+        } 
+        message << "applied " << applied << " configuration lines to server";
+        logwrite(function, message.str());
+        return error;
+      }
+      /** Camera::Server::configure_server *****************************************/
 
   };  // end class Server
 

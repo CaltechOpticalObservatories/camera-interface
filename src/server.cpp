@@ -56,17 +56,53 @@ int main(int argc, char **argv) {
   std::string function = "Camera::main";
   std::stringstream message;
 
-  initlog();                                         // required to initialize the logging system before use
+  signal(SIGINT, signal_handler);
+  signal(SIGPIPE, signal_handler);
+
+  // get the configuration file from the command line
+  //
+  long ret;
+  if (argc>1) {
+    server.config.filename = std::string( argv[1] );
+    ret = server.config.read_config(server.config);      // read configuration file specified on command line
+  }
+  else {
+    logwrite(function, "ERROR: no configuration file specified");
+    server.exit_cleanly();
+  }
+
+  std::string logpath;
+  for (int entry=0; entry < server.config.n_entries; entry++) {
+    if (server.config.param[entry] == "LOGPATH") logpath = server.config.arg[entry];
+  }
+  if (logpath.empty()) {
+    logwrite(function, "ERROR: LOGPATH not specified in configuration file");
+    server.exit_cleanly();
+  }
+
+  if ( (initlog(logpath) != 0) ) {                       // initialize the logging system
+    logwrite(function, "ERROR: unable to initialize logging system");
+    server.exit_cleanly();
+  }
 
   message << "this version built " << BUILD_DATE << " " << BUILD_TIME;
   logwrite(function, message.str());
 
-  signal(SIGINT, signal_handler);
-  signal(SIGPIPE, signal_handler);
+  message.str(""); message << server.config.n_entries << " lines read from " << server.config.filename;
+  logwrite(function, message.str());
 
-  server.config.read_config(server.config);  // read configuration file
+  if (ret==NO_ERROR) ret=server.configure_server();      // get needed values out of read-in configuration file for the server
+  if (ret==NO_ERROR) ret=server.configure_controller();  // get needed values out of read-in configuration file for the controller
 
-  server.configure_controller();                       // get needed values out of read-in configuration file
+  if (ret != NO_ERROR) {
+    logwrite(function, "ERROR: unable to configure system");
+    server.exit_cleanly();
+  }
+
+  if (server.nbport == -1 || server.blkport == -1) {
+    logwrite(function, "ERROR: server ports not configured");
+    server.exit_cleanly();
+  }
 
   // This will pre-thread N_THREADS threads.
   // The 0th thread is reserved for the blocking port, and the rest are for the non-blocking port.
@@ -80,7 +116,7 @@ int main(int argc, char **argv) {
   std::vector<Network::TcpSocket> socklist;          // create a vector container to hold N_THREADS TcpSocket objects
   socklist.reserve(N_THREADS);
 
-  Network::TcpSocket s(BLKPORT, true, -1, 0);        // instantiate TcpSocket object with blocking port
+  Network::TcpSocket s(server.blkport, true, -1, 0); // instantiate TcpSocket object with blocking port
   s.Listen();                                        // create a listening socket
   socklist.push_back(s);                             // add it to the socklist vector
   std::thread(block_main, socklist[0]).detach();     // spawn a thread to handle requests on this socket
@@ -90,7 +126,7 @@ int main(int argc, char **argv) {
   //
   for (int i=1; i<N_THREADS; i++) {                  // create N_THREADS-1 non-blocking socket objects
     if (i==1) {                                      // first one only
-      Network::TcpSocket s(NBPORT, false, CONN_TIMEOUT, i);   // instantiate TcpSocket object with non-blocking port
+      Network::TcpSocket s(server.nbport, false, CONN_TIMEOUT, i);   // instantiate TcpSocket object with non-blocking port
       s.Listen();                                    // create a listening socket
       socklist.push_back(s);
     }
@@ -273,7 +309,14 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("mode")==0) {
-                    ret = server.set_camera_mode(args);
+                    if (args.empty()) {     // no argument means asking for current mode
+                      if (server.modeselected) {
+                        ret=NO_ERROR;
+                        sock.Write(server.camera_info.current_observing_mode); sock.Write(" ");
+                      }
+                      else ret=ERROR;       // no mode selected returns an error
+                    }
+                    else ret = server.set_camera_mode(args);
                     }
     else
     if (cmd.compare("basename")==0) {

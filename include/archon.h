@@ -79,7 +79,7 @@ namespace Archon {
       long          detector_pixels[2];
       long          image_size;              //!< pixels per image sensor
       long          image_memory;            //!< bytes per image sensor
-      int           current_observing_mode;
+      std::string   current_observing_mode;  //!< the current mode
       long          naxis;
       long          axes[2];
       int           binning[2];
@@ -163,10 +163,11 @@ namespace Archon {
       Config config;
 
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
-      bool  abort;
+      bool abort;
       int  taplines;
       int  gain[MAXADCHANS];                 //!< digital CDS gain (from TAPLINE definition)   //TODO convert to vector
       int  offset[MAXADCHANS];               //!< digital CDS offset (from TAPLINE definition) //TODO convert to vector
+      bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
 
       char *image_data;                      //!< image data buffer
       uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
@@ -187,7 +188,7 @@ namespace Archon {
       long load_firmware();                  //!< load default configfilename (ACF)
       long load_firmware(std::string acffile); //!< load specified configfilename (ACF)
       long set_camera_mode(std::string mode_in);
-      long load_mode_settings(int mode);
+      long load_mode_settings(std::string mode);
       long native(std::string cmd);
       long archon_cmd(std::string cmd);
       long archon_cmd(std::string cmd, std::string &reply);
@@ -219,39 +220,6 @@ namespace Archon {
       long exptime(std::string exptime_in, std::string &retstring);
 
       /**
-       * @var     Observing_modes
-       * @details enum list of possible observing modes
-       */
-      typedef enum {
-        MODE_SCIENCE = 0,
-        MODE_GUIDER,
-        MODE_FOCUS,
-        MODE_SINGLE_FRAME,
-        MODE_RAW,
-        MODE_DEFAULT,
-        SINGLE_FRAME_MODE,
-        RAPID_READOUT_MODE,
-        TIP_TILT_MODE,
-        NUM_OBS_MODES
-      } Observing_modes;  //TODO needs rethinking!!
-
-      /**
-       * @var     Observing_mode_str
-       * @details string name for each corresponding observing mode in Observing_modes enum list
-       */
-      const char * const Observing_mode_str[NUM_OBS_MODES] = {
-        "MODE_SCIENCE",
-        "MODE_GUIDER",
-        "MODE_FOCUS",
-        "MODE_SINGLE_FRAME",
-        "MODE_RAW",
-        "MODE_DEFAULT",
-        "SINGLE_FRAME_MODE",
-        "RAPID_READOUT_MODE",
-        "TIP_TILT_MODE"
-      };   //TODO needs rethinking!!
-
-      /**
        * @var     struct geometry_t geometry[]
        * @details structure of geometry which is unique to each observing mode
        */
@@ -260,7 +228,7 @@ namespace Archon {
         int  num_ccds;             // number of CCDs, set in set_camera_mode
         int  linecount;            // number of lines per tap
         int  pixelcount;           // number of pixels per tap
-      } geometry[NUM_OBS_MODES];
+      };
 
       /**
        * @var     struct tapinfo_t tapinfo[]
@@ -272,7 +240,7 @@ namespace Archon {
         float gain[16];
         float offset[16];
         std::string readoutdir[16];
-      } tapinfo[NUM_OBS_MODES];
+      };
 
       /**
        * @var     struct frame_data_t frame
@@ -296,9 +264,9 @@ namespace Archon {
         std::vector<int>      bufrawblocks;   // buffer raw blocks per line
         std::vector<int>      bufrawlines;    // buffer raw lines
         std::vector<int>      bufrawoffset;   // buffer raw offset
-        std::vector<int>      buftimestamp;   // buffer hex 64 bit timestamp
-        std::vector<int>      bufretimestamp; // buf trigger rising edge time stamp
-        std::vector<int>      buffetimestamp; // buf trigger falling edge time stamp
+        std::vector<uint64_t> buftimestamp;   // buffer hex 64 bit timestamp
+        std::vector<uint64_t> bufretimestamp; // buf trigger rising edge time stamp
+        std::vector<uint64_t> buffetimestamp; // buf trigger falling edge time stamp
       } frame;
 
       /** @var      int lastframe
@@ -348,13 +316,16 @@ namespace Archon {
        * \details structure contains a configmap and parammap unique to each mode,
        *          specified in the [MODE_*] sections at the end of the .acf file.
        */
-      struct modeinfo_t {
-        bool        defined;     //!< clear by default, set if mode section encountered in .acf file
-        int         rawenable;   //!< initialized to -1, then set according to RAWENABLE in .acf file
-        cfg_map_t   configmap;   //!< key=value map for configuration lines set in mode sections
-        param_map_t parammap;    //!< PARAMETERn=parametername=value map for mode sections
+      typedef struct {
+        int         rawenable;     //!< initialized to -1, then set according to RAWENABLE in .acf file
+        cfg_map_t   configmap;     //!< key=value map for configuration lines set in mode sections
+        param_map_t parammap;      //!< PARAMETERn=parametername=value map for mode sections
         Common::FitsKeys acfkeys;  //!< create a FitsKeys object to hold user keys read from ACF file for each mode
-      } modeinfo[NUM_OBS_MODES];
+        geometry_t  geometry;
+        tapinfo_t   tapinfo;
+      } modeinfo_t;
+
+      std::map<std::string, modeinfo_t> modemap;
 
       /**
        * generic key=value STL map for Archon commands

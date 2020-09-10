@@ -4,9 +4,9 @@
 # user must define the interface type here
 # valid types are: "ARC-PCIe" | "ARC-PCI" | "STA-Archon"
 
-#set(INTERFACE_TYPE "STA-Archon")
+set(INTERFACE_TYPE "STA-Archon")
 #set(INTERFACE_TYPE "ARC-PCIe")
-set(INTERFACE_TYPE "ARC-PCI")
+#set(INTERFACE_TYPE "ARC-PCI")
 
 # ----------------------------------------------------------------------------
 # END USER DEFINITIONS
@@ -26,21 +26,6 @@ set(CMAKE_C_COMPILER /usr/bin/g++)
 set(CMAKE_CXX_COMPILER /usr/bin/g++)
 add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 )
 include_directories(${PROJECT_INCL_DIR})
-
-# ----------------------------------------------------------------------------
-# Define a default configuration file for the server.
-#
-#set(CONFIG_FILE "\"$ENV{HOME}/CMOST/cameraserver.cfg\"")
-set(CONFIG_FILE "\"${PROJECT_BASE_DIR}/cameraserver.cfg\"")
-configure_file("${PROJECT_INCL_DIR}/config.h.in" "${PROJECT_INCL_DIR}/config.h")
-
-# ----------------------------------------------------------------------------
-# Define the path and base name for the log files
-#
-#set(LOGPATH "\"$ENV{HOME}/CMOST/logs\"")
-set(LOGPATH "\"$ENV{HOME}/Logs\"")
-set(LOGNAME "\"camera\"")
-configure_file("${PROJECT_INCL_DIR}/logentry.h.in" "${PROJECT_INCL_DIR}/logentry.h")
 
 # ----------------------------------------------------------------------------
 # Set "BITS" for detected host system processor

@@ -27,21 +27,23 @@ std::ofstream filestream;      //!< IO stream class
  * LOGPATH and LOGNAME are defined in logentry.h
  *
  */
-long initlog() {
+long initlog(std::string logpath) {
+  std::string function = "initlog";
   std::tm *timenow;
   std::stringstream filename;
+  std::stringstream message;
 
-  std::lock_guard<std::mutex> lock(newloglock);
+//std::lock_guard<std::mutex> lock(newloglock);
 
   timenow = get_timenow();                 // current calendar time (defined in utilities.h)
   if (timenow == NULL) return 1;           // error
 
   // assemble log file name from #define and current date
   //
-  filename << LOGPATH << "/" << LOGNAME << "_" << std::setfill('0')
-                                               << std::setw(4) << timenow->tm_year + 1900
-                                               << std::setw(2) << timenow->tm_mon + 1
-                                               << std::setw(2) << timenow->tm_mday << ".log";
+  filename << logpath << "/cameraserver_" << std::setfill('0')
+                      << std::setw(4) << timenow->tm_year + 1900
+                      << std::setw(2) << timenow->tm_mon + 1
+                      << std::setw(2) << timenow->tm_mday << ".log";
   // number of seconds until a new day
   //
   int nextday = (unsigned int)(86410 - timenow->tm_hour*3600 - timenow->tm_min*60 - timenow->tm_sec);
@@ -52,13 +54,19 @@ long initlog() {
     filestream.open(filename.str(), std::ios_base::app);
   }
   catch(...) {
-    std::cerr << "(initlog) error opening log file " << filename.str() << ": " << std::strerror(errno) << "\n";
+    message << "ERROR: opening log file " << filename.str() << ": " << std::strerror(errno);
+    logwrite(function, message.str());
+    return 1;
+  }
+  if ( ! filestream.is_open() ) {
+    message << "ERROR: log file " << filename.str() << " not open";
+    logwrite(function, message.str());
     return 1;
   }
 
   // spawn a thread to create a new logfile each day
   //
-  std::thread(create_new_log, nextday).detach();
+  std::thread(create_new_log, nextday, logpath).detach();
 
   return 0;
 }
@@ -77,10 +85,10 @@ long initlog() {
  * closes the logfile and creates a new one.
  *
  */
-void create_new_log(int nextday_in) {
+void create_new_log(int nextday_in, std::string logpath) {
   std::this_thread::sleep_for(std::chrono::seconds(nextday_in));
   closelog();
-  initlog();
+  initlog(logpath);
 }
 /** create_new_log ***********************************************************/
 
@@ -115,6 +123,9 @@ void closelog() {
  * Create a time-stamped entry in the log file in the form of:
  * YYYY-MM-DDTHH:MM:SS.ssssss (function) message\n
  *
+ * This function can also be used for logging to stderr, even if the
+ * log filestream isn't open.
+ *
  */
 void logwrite(std::string function, std::string message) {
   std::stringstream logmsg;
@@ -124,8 +135,10 @@ void logwrite(std::string function, std::string message) {
 
   logmsg << timestamp << "  (" << function << ") " << message << "\n";
 
-  filestream << logmsg.str();                    // send to the file stream
-  filestream.flush();
+  if (filestream.is_open()) {
+    filestream << logmsg.str();                  // send to the file stream (if open)
+    filestream.flush();
+  }
   std::cerr << logmsg.str();                     // send to standard error
 }
 /** logwrite *****************************************************************/

@@ -21,6 +21,7 @@ namespace Archon {
   //
   Interface::Interface() {
     this->archon_busy = false;
+    this->modeselected = false;
     this->msgref = 0;
     this->lastframe = 0;
     this->frame.index = 0;
@@ -29,7 +30,7 @@ namespace Archon {
     this->image_data = NULL;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
-    this->config.filename = CONFIG_FILE;  //!< default config file set in CMakeLists.txt
+//  this->config.filename = CONFIG_FILE;  //!< default config file set in CMakeLists.txt
 
     // TODO I should change these to STL maps instead
     //
@@ -76,6 +77,9 @@ namespace Archon {
    */
   long Interface::configure_controller() {
     std::string function = "Archon::Interface::configure_controller";
+    std::stringstream message;
+    int applied=0;
+    long error;
 
     // loop through the entries in the configuration file, stored in config class
     //
@@ -84,6 +88,7 @@ namespace Archon {
       if (config.param[entry].compare(0, 9, "ARCHON_IP")==0) {
         this->camera_info.hostname = config.arg[entry];
         this->archon.sethost( config.arg[entry] );
+        applied++;
       }
 
       if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {
@@ -101,27 +106,42 @@ namespace Archon {
         }
         this->camera_info.port = port;
         this->archon.setport(port);
+        applied++;
       }
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {
         this->exposeparam = config.arg[entry];
+        applied++;
       }
 
-      if (config.param[entry].compare(0, 11, "DEFAULT_ACF")==0) {
+      if (config.param[entry].compare(0, 16, "DEFAULT_FIRMWARE")==0) {
         this->camera_info.configfilename = config.arg[entry];
+        applied++;
       }
 
       if (config.param[entry].compare(0, 5, "IMDIR")==0) {
         this->common.imdir( config.arg[entry] );
+        applied++;
       }
 
-      if (config.param[entry].compare(0, 6, "BASENAME")==0) {
+      if (config.param[entry].compare(0, 8, "BASENAME")==0) {
         this->common.basename( config.arg[entry] );
+        applied++;
       }
 
     }
-    logwrite(function, "successfully applied configuration");
-    return NO_ERROR;
+
+    message.str("");
+    if (applied==0) {
+      message << "ERROR: ";
+      error = ERROR;
+    }
+    else {
+      error = NO_ERROR;
+    }
+    message << "applied " << applied << " configuration lines to controller";
+    logwrite(function, message.str());
+    return error;
   }
   /**************** Archon::Interface::configure_controller *******************/
 
@@ -630,8 +650,7 @@ namespace Archon {
     ssize_t  read;
     int      linecount;
     int      error=NO_ERROR;
-    int      obsmode = -1;
-    bool     begin_parsing=FALSE;
+    bool     begin_parsing=false;
 
     if ( acffile.empty() )
       acffile = this->camera_info.configfilename;
@@ -643,6 +662,7 @@ namespace Archon {
     std::string keyword, keystring, keyvalue, keytype, keycomment;
 
     std::string modesection;
+    std::string mode;
     std::stringstream sscmd;
     std::stringstream key, value;
 
@@ -670,27 +690,16 @@ namespace Archon {
       return(ERROR);
     }
 
-    /**
-     * default all modes undefined,
-     * set defined=TRUE only when entries are found in the .acf file
-     * and remove all elements from the map containers
-     */
-    for (int modenum=0; modenum<NUM_OBS_MODES; modenum++) {
-      this->modeinfo[modenum].defined = FALSE;
-      this->modeinfo[modenum].rawenable = -1;    // -1 means undefined. Set in ACF.
-      this->modeinfo[modenum].parammap.clear();
-      this->modeinfo[modenum].configmap.clear();
-      this->modeinfo[modenum].acfkeys.keydb.clear();
-    }
+    modemap.clear();                             // file is open, clear all modes
 
     linecount = 0;
     while ((read=getline(&line, &len, fp)) != EOF) {
       /**
        * don't start parsing until [CONFIG] and stop on a newline or [SYSTEM]
        */
-      if (strncasecmp(line, "[CONFIG]", 8)==0) { begin_parsing=TRUE;  continue; }
-      if (strncasecmp(line, "\n",       1)==0) { begin_parsing=FALSE; continue; }
-      if (strncasecmp(line, "[SYSTEM]", 8)==0) { begin_parsing=FALSE; continue; }
+      if (strncasecmp(line, "[CONFIG]", 8)==0) { begin_parsing=true;  continue; }
+      if (strncasecmp(line, "\n",       1)==0) { begin_parsing=false; continue; }
+      if (strncasecmp(line, "[SYSTEM]", 8)==0) { begin_parsing=false; continue; }
       /**
        * parse mode sections
        */
@@ -698,31 +707,20 @@ namespace Archon {
         chrrep(line, '[',  127);                 // remove [ bracket (replace with DEL)
         chrrep(line, ']',  127);                 // remove ] bracket (replace with DEL)
         chrrep(line, '\n', 127);                 // remove newline (replace with DEL)
-        if (line!=NULL) modesection=line;        // create a string object out of the rest of the line
-
-        // loop through all possible observing modes
-        // to validate this mode
-        //
-        for (int modenum=0; modenum<NUM_OBS_MODES; modenum++) {
-          if (modesection == Observing_mode_str[modenum]) {
-            obsmode = modenum;  // here is the observing mode for this section
-            message.str(""); message << "found section for mode " << obsmode << ": " << modesection;
+        if (line!=NULL) {
+          modesection=line;                      // create a string object out of the rest of the line
+          mode=modesection.substr(5);            // everything after "MODE_" is the mode name
+          std::transform( mode.begin(), mode.end(), mode.begin(), ::toupper );    // make uppercase
+          if ( this->modemap.find(mode) != this->modemap.end() ) {
+            message.str(""); message << "ERROR: duplicate definition of mode: " << mode << ": load aborted";
             logwrite(function, message.str());
-            begin_parsing=TRUE;
-            continue;
+            return ERROR;
           }
-//        else {
-//          message.str(""); message << "[DEBUG] modenum=" << modenum << " modesection=" << modesection << " parsing=FALSE";
-//          logwrite(function, message.str());
-//          begin_parsing=FALSE;
-//          continue;
-//        }
-        }
-        if (obsmode == -1) {
-          message.str(""); message << "ERROR: unrecognized observation mode section " << modesection << " found in .acf file";
-          logwrite(function, message.str());
-          if (line) free(line); fclose(fp);                               // getline() mallocs a buffer for line
-          return(ERROR);
+          else {
+            begin_parsing = true;
+            message.str(""); message << "detected mode: " << mode; logwrite(function, message.str());
+            this->modemap[mode].rawenable=-1;    // initialize to -1, require it be set somewhere in the ACF
+          }
         }
       }
 
@@ -807,9 +805,8 @@ namespace Archon {
           // save the parametername and value
           // don't care about PARAMETERn key or line number,
           // we'll look those up in this->parammap when we need them
-          this->modeinfo[obsmode].parammap[paramnameptr].name  = paramnameptr;
-          this->modeinfo[obsmode].parammap[paramnameptr].value = lineptr;
-          this->modeinfo[obsmode].defined = TRUE;                         // this mode is defined
+          this->modemap[mode].parammap[paramnameptr].name  = paramnameptr;
+          this->modemap[mode].parammap[paramnameptr].value = lineptr;
         }
         /**
          * ...or we have any other CONFIG line of the form KEY=VALUE
@@ -818,8 +815,7 @@ namespace Archon {
           if ( (keyptr = strsep(&lineptr, "=")) == NULL ) continue;       // keyptr: KEY, lineptr: VALUE
           // save the VALUE, indexed by KEY
           // don't need the line number
-          this->modeinfo[obsmode].configmap[keyptr].value = lineptr;      //valueptr;
-          this->modeinfo[obsmode].defined = TRUE;                         // this mode is defined
+          this->modemap[mode].configmap[keyptr].value = lineptr;          //valueptr;
         }
       } // end if (strncmp(lineptr, "ACF:",  4)==0)
 
@@ -833,20 +829,22 @@ namespace Archon {
         chrrep(lineptr, '\n', 127);                                       // remove newline (replace with DEL)
         if ( (keyptr = strsep(&lineptr, "=")) == NULL ) continue;         // keyptr: KEY, lineptr: VALUE
 
-        this->modeinfo[obsmode].defined = TRUE;                           // this mode is defined
-
         std::string internal_key = keyptr;
 
         if (internal_key == "NUM_CCDS") {
-          this->geometry[obsmode].num_ccds = atoi(lineptr);
+          this->modemap[mode].geometry.num_ccds = atoi(lineptr);
         }
         else
         if (internal_key == "AMPS_PER_CCD_HORI") {
-          this->geometry[obsmode].amps_per_ccd[0] = atoi(lineptr);
+          this->modemap[mode].geometry.amps_per_ccd[0] = atoi(lineptr);
+          message.str(""); message << "[DEBUG] loaded amps_per_ccd[0]=" << this->modemap[mode].geometry.amps_per_ccd[0] << " for mode " << mode;
+          logwrite(function, message.str());
         }
         else
         if (internal_key == "AMPS_PER_CCD_VERT") {
-          this->geometry[obsmode].amps_per_ccd[1] = atoi(lineptr);
+          this->modemap[mode].geometry.amps_per_ccd[1] = atoi(lineptr);
+          message.str(""); message << "[DEBUG] loaded amps_per_ccd[1]=" << this->modemap[mode].geometry.amps_per_ccd[1] << " for mode " << mode;
+          logwrite(function, message.str());
         }
         else {
           message.str(""); message << "ERROR: unrecognized internal parameter specified: "<< internal_key;
@@ -889,10 +887,10 @@ namespace Archon {
 
         // Save all of the user keyword information in a map for later
         //
-        this->modeinfo[obsmode].acfkeys.keydb[keyword].keyword    = keyword;
-        this->modeinfo[obsmode].acfkeys.keydb[keyword].keytype    = this->camera_info.userkeys.get_keytype(keyvalue);
-        this->modeinfo[obsmode].acfkeys.keydb[keyword].keyvalue   = keyvalue;
-        this->modeinfo[obsmode].acfkeys.keydb[keyword].keycomment = keycomment;
+        this->modemap[mode].acfkeys.keydb[keyword].keyword    = keyword;
+        this->modemap[mode].acfkeys.keydb[keyword].keytype    = this->camera_info.userkeys.get_keytype(keyvalue);
+        this->modemap[mode].acfkeys.keydb[keyword].keyvalue   = keyvalue;
+        this->modemap[mode].acfkeys.keydb[keyword].keycomment = keycomment;
       } // end if (strncmp(lineptr, "FITS:", 5)==0)
 
       /**
@@ -999,12 +997,7 @@ namespace Archon {
     this->camera_info.binning[0]=1;
     this->camera_info.binning[1]=1;
 
-    // set MODE_DEFAULT automatically
-    //
-//  if (error == NO_ERROR) {
-//    logwrite(function, "firmware loaded. setting camera mode to \"default\"");
-//    error = this->set_camera_mode("default");
-//  }
+    this->modeselected = false;           // require that a mode be selected after loading new firmware
 
     return(error);
   }
@@ -1018,136 +1011,108 @@ namespace Archon {
    * @param  none
    * @return 
    *
-   * //TODO THIS NEEDS RE-THINKING !! 
-   * //TODO BUT REPRODUCE ZTF-LIKE CODE HERE FOR NOW, TO GET STEVE GOING
-   *
    */
-  long Interface::set_camera_mode(std::string mode_in) {
+  long Interface::set_camera_mode(std::string mode) {
     std::string function = "Archon::Interface::set_camera_mode";
     std::stringstream message;
     bool configchanged = false;
     bool paramchanged = false;
-    int mode;
     long error;
 
-    if (mode_in.compare("raw")==0) {
-      mode = MODE_RAW;
-    }
-    else
-    if (mode_in.compare("default")==0) {
-      mode = MODE_DEFAULT;
-    }
-    else {
-      logwrite(function, "ERROR: invalid mode specified. must specify \"raw\" or \"default\"");
-      return ERROR;
-    }
+    std::transform( mode.begin(), mode.end(), mode.begin(), ::toupper );    // make uppercase
 
-    /**
-     * there needs to have been a modes section defined in the .acf file
-     * in order to switch to that mode, or else undesirable behavior may result
-     */
-    if (!this->modeinfo[mode].defined) {
-      message.str(""); message << "ERROR: undefined mode " << this->Observing_mode_str[mode] << " in ACF file " << this->camera_info.configfilename;
+    // The requested mode must have been read in the current ACF file
+    // and put into the modemap...
+    //
+    if (this->modemap.find(mode) == this->modemap.end()) {
+      message.str(""); message << "ERROR: undefined mode " << mode << " in ACF file " << this->camera_info.configfilename;
       logwrite(function, message.str());
       return(ERROR);
     }
 
-    this->camera_info.current_observing_mode = mode;
+    // load specific mode settings from .acf and apply to Archon
+    //
+    if ( load_mode_settings(mode) != NO_ERROR) {
+      message.str(""); message << "ERROR: failed to load mode settings for mode: " << mode;
+      logwrite(function, message.str());
+      return(ERROR);
+    }
 
-    message.str(""); message << "requested mode: " << mode << ": " << this->Observing_mode_str[mode];
-    logwrite(function, message.str());
-
-
-    /**
-     * load specific mode settings from .acf and apply to Archon
-     */
-    if ( load_mode_settings(mode) != NO_ERROR) logwrite(function, "ERROR: failed to load mode settings");
-
-    /**
-     * set internal variables based on new .acf values loaded
-     */
+    // set internal variables based on new .acf values loaded
+    //
     error = NO_ERROR;
-    if (error==NO_ERROR) error = get_configmap_value("LINECOUNT", this->geometry[mode].linecount);
-    if (error==NO_ERROR) error = get_configmap_value("PIXELCOUNT", this->geometry[mode].pixelcount);
-    if (error==NO_ERROR) error = get_configmap_value("RAWENABLE", this->modeinfo[mode].rawenable);
+    if (error==NO_ERROR) error = get_configmap_value("LINECOUNT", this->modemap[mode].geometry.linecount);
+    if (error==NO_ERROR) error = get_configmap_value("PIXELCOUNT", this->modemap[mode].geometry.pixelcount);
+    if (error==NO_ERROR) error = get_configmap_value("RAWENABLE", this->modemap[mode].rawenable);
     if (error==NO_ERROR) error = get_configmap_value("RAWSEL", this->rawinfo.adchan);
     if (error==NO_ERROR) error = get_configmap_value("RAWSAMPLES", this->rawinfo.rawsamples);
     if (error==NO_ERROR) error = get_configmap_value("RAWENDLINE", this->rawinfo.rawlines);
 
     message.str(""); 
-    message << "[DEBUG] mode=" << mode << " RAWENABLE=" << this->modeinfo[mode].rawenable 
+    message << "[DEBUG] mode=" << mode << " RAWENABLE=" << this->modemap[mode].rawenable 
             << " RAWSAMPLES=" << this->rawinfo.rawsamples << " RAWLINES=" << this->rawinfo.rawlines;
     logwrite(function, message.str());
 
-    int num_ccds = this->geometry[mode].num_ccds; // for convenience
+    int num_ccds = this->modemap[mode].geometry.num_ccds;                 // for convenience
 
-    /**
-     * set current number of Archon buffers and resize local memory
-     */
+    // set current number of Archon buffers and resize local memory
+    //
     int bigbuf=-1;
     if (error==NO_ERROR) error = get_configmap_value("BIGBUF", bigbuf);   // get value of BIGBUF from loaded acf file
     this->camera_info.activebufs = (bigbuf==1) ? 2 : 3;                   // set number of active buffers based on BIGBUF
 
-    // The following are unique settings for each particular mode:
+    // There is one special reserved mode name, "RAW"
     //
-    switch(mode) {
-
-      // *********************************************************************
-      // Raw Mode carries with it the bare minimum amount of information,
-      // requiring instead that everything be set in the .acf file. This
-      // can be dangerous, leading to system crashes, but gives the most
-      // flexibility to the expert user.
-      // *********************************************************************
-      //
-      case MODE_RAW:
-        this->camera_info.detector_pixels[0] = this->rawinfo.rawsamples;
-        this->camera_info.detector_pixels[1] = this->rawinfo.rawlines; 
-        this->camera_info.detector_pixels[1]++;
-        // frame_type will determine the bits per pixel and where the detector_axes come from
-        this->camera_info.frame_type = FRAME_RAW;
-        this->camera_info.region_of_interest[0] = 1;
-        this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
-        this->camera_info.region_of_interest[2] = 1;
-        this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
-        // Binning factor (no binning)
-        this->camera_info.binning[0] = 1;
-        this->camera_info.binning[1] = 1;
-message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (RAWSAMPLES) = " << this->camera_info.detector_pixels[0];
-logwrite(function, message.str());
-message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (RAWENDLINE) = " << this->camera_info.detector_pixels[1];
-logwrite(function, message.str());
-        break;
-
-      case MODE_DEFAULT:
-        if (error==NO_ERROR) error = get_configmap_value("PIXELCOUNT", this->camera_info.detector_pixels[0]);
-        if (error==NO_ERROR) error = get_configmap_value("LINECOUNT", this->camera_info.detector_pixels[1]);
-        this->camera_info.detector_pixels[0] *= this->geometry[this->camera_info.current_observing_mode].amps_per_ccd[0];
-        this->camera_info.detector_pixels[1] *= this->geometry[this->camera_info.current_observing_mode].amps_per_ccd[1];
-        this->camera_info.frame_type = FRAME_IMAGE;
-        // ROI is the full detector
-        this->camera_info.region_of_interest[0] = 1;
-        this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
-        this->camera_info.region_of_interest[2] = 1;
-        this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
-        // Binning factor (no binning)
-        this->camera_info.binning[0] = 1;
-        this->camera_info.binning[1] = 1;
-message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (PIXELCOUNT) = " << this->camera_info.detector_pixels[0];
-logwrite(function, message.str());
-message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (LINECOUNT) = " << this->camera_info.detector_pixels[1];
-logwrite(function, message.str());
-        break;
-
-      default:                           // Unspecified mode is an error
-        message.str(""); message << "ERROR: invalid mode: "<< mode;
-        logwrite(function, message.str());
-        return(ERROR);
-        break;
+    if (mode=="RAW") {
+      this->camera_info.detector_pixels[0] = this->rawinfo.rawsamples;
+      this->camera_info.detector_pixels[1] = this->rawinfo.rawlines; 
+      this->camera_info.detector_pixels[1]++;
+      // frame_type will determine the bits per pixel and where the detector_axes come from
+      this->camera_info.frame_type = FRAME_RAW;
+      this->camera_info.region_of_interest[0] = 1;
+      this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
+      this->camera_info.region_of_interest[2] = 1;
+      this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
+      // Binning factor (no binning)
+      this->camera_info.binning[0] = 1;
+      this->camera_info.binning[1] = 1;
+      message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (RAWSAMPLES) = " << this->camera_info.detector_pixels[0];
+      logwrite(function, message.str());
+      message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (RAWENDLINE) = " << this->camera_info.detector_pixels[1];
+      logwrite(function, message.str());
     }
 
-    /**
-     * set bitpix based on SAMPLEMODE
-     */
+    // Any other mode falls under here
+    //
+    else {
+      if (error==NO_ERROR) error = get_configmap_value("PIXELCOUNT", this->camera_info.detector_pixels[0]);
+      if (error==NO_ERROR) error = get_configmap_value("LINECOUNT", this->camera_info.detector_pixels[1]);
+      message.str(""); message << "[DEBUG] mode=" << mode; logwrite(function, message.str());
+      message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (PIXELCOUNT) = " << this->camera_info.detector_pixels[0]
+                               << " amps_per_ccd[0] = " << this->modemap[mode].geometry.amps_per_ccd[0];
+      logwrite(function, message.str());
+      message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (LINECOUNT) = " << this->camera_info.detector_pixels[1]
+                               << " amps_per_ccd[1] = " << this->modemap[mode].geometry.amps_per_ccd[1];
+      logwrite(function, message.str());
+      this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps_per_ccd[0];
+      this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps_per_ccd[1];
+      this->camera_info.frame_type = FRAME_IMAGE;
+      // ROI is the full detector
+      this->camera_info.region_of_interest[0] = 1;
+      this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
+      this->camera_info.region_of_interest[2] = 1;
+      this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
+      // Binning factor (no binning)
+      this->camera_info.binning[0] = 1;
+      this->camera_info.binning[1] = 1;
+      message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (PIXELCOUNT) = " << this->camera_info.detector_pixels[0];
+      logwrite(function, message.str());
+      message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (LINECOUNT) = " << this->camera_info.detector_pixels[1];
+      logwrite(function, message.str());
+    }
+
+    // set bitpix based on SAMPLEMODE
+    //
     int samplemode=-1;
     if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode); // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
     if (samplemode < 0) {
@@ -1159,11 +1124,6 @@ logwrite(function, message.str());
 
     // Load parameters and Apply CDS/Deint configuration if any of them changed
     //
-    message.str("");
-    message << " paramchanged="  << (paramchanged?"true":"false");
-    message << " configchanged=" << (configchanged?"true":"false");
-    logwrite(function, message.str());
-
     if ((error == NO_ERROR) && paramchanged)  error = this->archon_cmd(LOADPARAMS);
     if ((error == NO_ERROR) && configchanged) error = this->archon_cmd(APPLYCDS);
 
@@ -1197,13 +1157,16 @@ logwrite(function, message.str());
       return (ERROR);
     }
 
-    message.str(""); message << "will use " << this->camera_info.bitpix << " bits per pixel";
-    logwrite(function, message.str());
-
     // allocate image_data in blocks because the controller outputs data in units of blocks
     //
     this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_ccds) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
     message.str(""); message << "[DEBUG] image_data_bytes = " << image_data_bytes; logwrite(function, message.str());
+
+    this->camera_info.current_observing_mode = mode;       // identify the newly selected mode in the camera_info class object
+    this->modeselected = true;                             // a valid mode has been selected
+
+    message.str(""); message << "new mode: " << mode << " will use " << this->camera_info.bitpix << " bits per pixel";
+    logwrite(function, message.str());
 
     return(NO_ERROR);
   }
@@ -1223,7 +1186,7 @@ logwrite(function, message.str());
    * when the configuration file is loaded. This function writes them to
    * the Archon controller.
    */
-  long Interface::load_mode_settings(int mode) {
+  long Interface::load_mode_settings(std::string mode) {
     std::string function = "Archon::Interface::load_mode_settings";
     std::stringstream message;
 
@@ -1238,13 +1201,12 @@ logwrite(function, message.str());
     /**
      * iterate through configmap, writing each config key in the map
      */
-    for (cfg_it  = this->modeinfo[mode].configmap.begin();
-         cfg_it != this->modeinfo[mode].configmap.end();
+    for (cfg_it  = this->modemap[mode].configmap.begin();
+         cfg_it != this->modemap[mode].configmap.end();
          cfg_it++) {
       error = this->write_config_key( cfg_it->first.c_str(), cfg_it->second.value.c_str(), configchanged );
       if (error != NO_ERROR) {
-        errstr  << "ERROR: writing config key:" << cfg_it->first << " value:" << cfg_it->second.value
-                << " for mode " << this->Observing_mode_str[mode];
+        errstr  << "ERROR: writing config key:" << cfg_it->first << " value:" << cfg_it->second.value << " for mode " << mode;
         break;
       }
     }
@@ -1254,15 +1216,14 @@ logwrite(function, message.str());
      * iterate through the parammap, writing each parameter in the map
      */
     if (error == NO_ERROR) {
-      for (param_it  = this->modeinfo[mode].parammap.begin();
-           param_it != this->modeinfo[mode].parammap.end();
+      for (param_it  = this->modemap[mode].parammap.begin();
+           param_it != this->modemap[mode].parammap.end();
            param_it++) {
         error = this->write_parameter( param_it->first.c_str(), param_it->second.value.c_str(), paramchanged );
         message.str(""); message << "paramchanged=" << (paramchanged?"true":"false");
         logwrite(function, message.str());
         if (error != NO_ERROR) {
-          errstr  << "ERROR: writing parameter key:" << param_it->first << " value:" << param_it->second.value
-                  << " for mode " << this->Observing_mode_str[mode];
+          errstr  << "ERROR: writing parameter key:" << param_it->first << " value:" << param_it->second.value << " for mode " << mode;
           break;
         }
       }
@@ -1275,7 +1236,7 @@ logwrite(function, message.str());
     if ( (error == NO_ERROR) && configchanged ) error = this->archon_cmd(APPLYCDS);
 
     if (error == NO_ERROR) {
-      message.str(""); message << "loaded mode: " << this->Observing_mode_str[mode];
+      message.str(""); message << "loaded mode: " << mode;
       logwrite(function, message.str());
     }
     else {
@@ -1421,7 +1382,11 @@ logwrite(function, message.str());
           if (subtokens[0].compare(0, 3, "BUF")==0) {               // for all "BUFnSOMETHING=VALUE" we want the bufnum "n"
             bufnum = std::stoi( subtokens[0].substr(3, 1) );        // extract the "n" here which is 1-based (1,2,3)
           }
-          if (subtokens[0].substr(4)=="BASE") {                     // for "BUFnBASE=VALUE" the value is unit64
+          if (subtokens[0].substr(4)=="BASE" ) {                    // for "BUFnBASE=xxx" the value is uint64
+            lvalue  = std::stol( subtokens[1] );                    // this value will get assigned to the corresponding parameter
+          }
+          else
+          if (subtokens[0].find("TIMESTAMP")!=std::string::npos) {  // for any "xxxTIMESTAMPxxx" the value is uint64
             lvalue  = std::stol( subtokens[1] );                    // this value will get assigned to the corresponding parameter
           }
           else                                                      // everything else is an int
@@ -1462,9 +1427,9 @@ logwrite(function, message.str());
         if (subtokens[0].substr(4) == "RAWBLOCKS")   this->frame.bufrawblocks[bufnum]   =  value;
         if (subtokens[0].substr(4) == "RAWLINES")    this->frame.bufrawlines[bufnum]    =  value;
         if (subtokens[0].substr(4) == "RAWOFFSET")   this->frame.bufrawoffset[bufnum]   =  value;
-        if (subtokens[0].substr(4) == "TIMESTAMP")   this->frame.buftimestamp[bufnum]   =  value;
-        if (subtokens[0].substr(4) == "RETIMESTAMP") this->frame.bufretimestamp[bufnum] =  value;
-        if (subtokens[0].substr(4) == "FETIMESTAMP") this->frame.buffetimestamp[bufnum] =  value;
+        if (subtokens[0].substr(4) == "TIMESTAMP")   this->frame.buftimestamp[bufnum]   = lvalue;
+        if (subtokens[0].substr(4) == "RETIMESTAMP") this->frame.bufretimestamp[bufnum] = lvalue;
+        if (subtokens[0].substr(4) == "FETIMESTAMP") this->frame.buffetimestamp[bufnum] = lvalue;
       }
     }
 
@@ -1724,23 +1689,28 @@ logwrite(function, message.str());
     std::stringstream message;
     long error = NO_ERROR;
 
-    int rawenable = this->modeinfo[this->camera_info.current_observing_mode].rawenable;
+    if ( ! this->modeselected ) {
+      logwrite(function, "ERROR: no mode selected");
+      return ERROR;
+    }
+
+    int rawenable = this->modemap[this->camera_info.current_observing_mode].rawenable;
     message.str(""); message << "[DEBUG] rawenable=" << rawenable; logwrite(function, message.str());
 
     if (rawenable == -1) {
-      logwrite(function, "ERROR: RAWENABLE is undefined. Please check the ACF.");
+      logwrite(function, "ERROR: RAWENABLE is undefined");
       return ERROR;
     }
 
     // RAW-only
     //
-    if (this->camera_info.current_observing_mode == MODE_RAW) {
+    if (this->camera_info.current_observing_mode == "RAW") {              // "RAW" is the only reserved mode name
       logwrite(function, "[DEBUG] observing mode is RAW");
 
       // the RAWENABLE parameter must be set in the ACF file, in order to read RAW data
       //
       if (rawenable==0) {
-        logwrite(function, "ERROR: observing mode is raw but RAWENABLE=0 -- change mode or set RAWENABLE?");
+        logwrite(function, "ERROR: observing mode is RAW but RAWENABLE=0 -- change mode or set RAWENABLE?");
         return ERROR;
       }
       else {
@@ -1751,13 +1721,11 @@ logwrite(function, message.str());
       }
     }
 
-    else
-
     // IMAGE, or IMAGE+RAW
     //
-    if (this->camera_info.current_observing_mode == MODE_DEFAULT) {
-      if (rawenable == 1) {
-        this->camera_info.data_cube = true;
+    else {
+      if (rawenable == 1) {                                               // rawenable can still be set even if mode != RAW
+        this->camera_info.data_cube = true;                               // in which case we should write a data cube
         this->camera_info.extension = 0;
       }
 
@@ -1766,31 +1734,24 @@ logwrite(function, message.str());
       logwrite(function, "[DEBUG] calling write_frame()");
       if (error == NO_ERROR) error = this->write_frame();                 // write image frame
 
-      // If mode=DEFAULT (i.e. "IMAGE") and RAWENABLE=1, then we will read both,
-      // first the image frame (above) and then a raw frame (below). To do that we
+      // If mode is not RAW but RAWENABLE=1, then we will first read an image
+      // frame (just done above) and then a raw frame (below). To do that we
       // must switch to raw mode then read the raw frame. Afterwards, switch back
-      // to the original default mode, for any subsequent exposures..
+      // to the original mode, for any subsequent exposures..
       //
       if (rawenable == 1) {
         logwrite(function, "[DEBUG] rawenable is set -- IMAGE+RAW file will be saved (I hope)");
         logwrite(function, "[DEBUG] switching to mode=RAW");
+        std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode so we can come back to it
         if (error == NO_ERROR) error = this->set_camera_mode("raw");      // switch to raw mode
 
         message.str(""); message << "[DEBUG] error=" << error << " calling read_frame(FRAME_RAW) if error=0"; logwrite(function, message.str());
         if (error == NO_ERROR) error = this->read_frame(FRAME_RAW);       // read raw frame
         message.str(""); message << "[DEBUG] error=" << error << " calling write_raw() if error=0"; logwrite(function, message.str());
         if (error == NO_ERROR) error = this->write_raw();                 // write raw frame
-        message.str(""); message << "[DEBUG] error=" << error << " switching back to mode=DEFAULT if error=0"; logwrite(function, message.str());
-        if (error == NO_ERROR) error = this->set_camera_mode("default");  // switch back to default mode
+        message.str(""); message << "[DEBUG] error=" << error << " switching back to original mode if error=0"; logwrite(function, message.str());
+        if (error == NO_ERROR) error = this->set_camera_mode(orig_mode);  // switch back to the original mode
       }
-    }
-
-    // unknown mode
-    //
-    else {
-      message.str(""); message << "ERROR: unknown mode: " << this->camera_info.current_observing_mode;
-      logwrite(function, message.str());
-      return ERROR;
     }
 
     return error;
@@ -1821,7 +1782,7 @@ logwrite(function, message.str());
     uint64_t bufaddr;
     unsigned int block, bufblocks=0;
     long error = ERROR;
-    int num_ccds = this->geometry[this->camera_info.current_observing_mode].num_ccds;
+    int num_ccds = this->modemap[this->camera_info.current_observing_mode].geometry.num_ccds;
 
     this->camera_info.frame_type = frame_type;
 
@@ -1916,6 +1877,7 @@ logwrite(function, message.str());
     //
     ptr_image = this->image_data;
     totalbytesread = 0;
+    std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
 
       // Are there data to read?
@@ -2036,6 +1998,11 @@ logwrite(function, message.str());
     uint32_t   *cbuf32;                  //!< used to cast char buf into 32 bit int
     uint16_t   *cbuf16;                  //!< used to cast char buf into 16 bit int
     long        error;
+
+    if ( ! this->modeselected ) {
+      logwrite(function, "ERROR: no mode selected");
+      return ERROR;
+    }
 
 //  message.str(""); message << "writing " << this->fits_info.bitpix << "-bit data from memory to disk";  //TODO
     message.str(""); message << "writing " << this->camera_info.bitpix << "-bit data from memory to disk";
@@ -2176,7 +2143,7 @@ logwrite(function, message.str());
 
     // supplemental header keywords
     //
-    fits_write_key( FP, TINT,    "MODE", &this->camera_info.current_observing_mode, "observing mode", &status );
+    fits_write_key( FP, TSTRING,    "MODE", &this->camera_info.current_observing_mode, "observing mode", &status );
 
     // write HDU
     //
@@ -2380,6 +2347,7 @@ logwrite(function, message.str());
 
     if ( this->configmap.find(key_in) != this->configmap.end() ) {
       std::istringstream( this->configmap[key_in].value  ) >> value_out;
+      message.str(""); message << "[DEBUG] key_in=" << key_in << " value_out=" << value_out; logwrite(function, message.str());
       return NO_ERROR;
     }
     else {
@@ -2413,11 +2381,16 @@ logwrite(function, message.str());
     std::stringstream message;
     long error;
 
-    // exposeparam is set by the configuration file, CONFIG_FILE
+    if ( ! this->modeselected ) {
+      logwrite(function, "ERROR: no mode selected");
+      return ERROR;
+    }
+
+    // exposeparam is set by the configuration file
     // check to make sure it was set, or else expose won't work
     //
     if (this->exposeparam.empty()) {
-      message.str(""); message << "ERROR: EXPOSE_PARAM not set in configuration file " << CONFIG_FILE;
+      message.str(""); message << "ERROR: EXPOSE_PARAM not defined in configuration file " << this->config.filename;
       logwrite(function, message.str());
       return(ERROR);
     }
@@ -2436,19 +2409,18 @@ logwrite(function, message.str());
 
     if (error == NO_ERROR) logwrite(function, "exposure started");
     message.str(""); 
-    message << "[DEBUG] mode " << this->camera_info.current_observing_mode << " = " << Observing_mode_str[this->camera_info.current_observing_mode];
+    message << "[DEBUG] mode " << this->camera_info.current_observing_mode;
     logwrite(function, message.str());
 
     this->camera_info.fits_name = this->common.get_fitsname();      // assemble the FITS filenmae
 
     this->camera_info.userkeys.keydb = this->userkeys.keydb;        // copy the userkeys database object into camera_info
 
-    // add any keys from the ACF file (from modeinfo[mode].acfkeys) into the camera_info.userkeys object
+    // add any keys from the ACF file (from modemap[mode].acfkeys) into the camera_info.userkeys object
     //
-    int mode = this->camera_info.current_observing_mode;
     Common::FitsKeys::fits_key_t::iterator keyit;
-    for (keyit  = this->modeinfo[mode].acfkeys.keydb.begin();
-         keyit != this->modeinfo[mode].acfkeys.keydb.end();
+    for (keyit  = this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.begin();
+         keyit != this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.end();
          keyit++) {
       this->camera_info.userkeys.keydb[keyit->second.keyword].keyword    = keyit->second.keyword;
       this->camera_info.userkeys.keydb[keyit->second.keyword].keytype    = keyit->second.keytype;
@@ -2469,11 +2441,10 @@ logwrite(function, message.str());
     }
 */
 
-    // If mode is DEFAULT but RAWENABLE is set then we're going to require a multi-extension data cube,
+    // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
     // one extension each for CDS and RAW data
     //
-    int rawenable = this->modeinfo[mode].rawenable;
-    if (mode==MODE_DEFAULT && rawenable) {
+    if (this->camera_info.current_observing_mode!="RAW" && this->modemap[this->camera_info.current_observing_mode].rawenable) {
       this->camera_info.data_cube = true;
       this->camera_info.extension = 0;
     }
@@ -2500,8 +2471,8 @@ logwrite(function, message.str());
       logwrite(function, "exposure delay complete");
     }
 
-    if (this->camera_info.current_observing_mode == MODE_DEFAULT) {
-      error = this->wait_for_readout();                             // wait for the readout into frame buffer
+    if (this->camera_info.current_observing_mode != "RAW") {        // If not raw mode then
+      error = this->wait_for_readout();                             // wait for the readout into frame buffer.
     }
 
     if (error==ERROR) {
