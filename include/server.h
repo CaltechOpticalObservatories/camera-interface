@@ -111,11 +111,11 @@ namespace Camera {
             try {
               port = std::stoi( config.arg[entry] );
             }
-            catch (std::invalid_argument ) {
+            catch (std::invalid_argument &) {
               logwrite(function, "ERROR: bad NBPORT: unable to convert to integer");
               return(ERROR);
             }
-            catch (std::out_of_range) {
+            catch (std::out_of_range &) {
               logwrite(function, "NBPORT number out of integer range");
               return(ERROR);
             }
@@ -128,11 +128,11 @@ namespace Camera {
             try {
               port = std::stoi( config.arg[entry] );
             }
-            catch (std::invalid_argument ) {
+            catch (std::invalid_argument &) {
               logwrite(function, "ERROR: bad BLKPORT: unable to convert to integer");
               return(ERROR);
             }
-            catch (std::out_of_range) {
+            catch (std::out_of_range &) {
               logwrite(function, "BLKPORT number out of integer range");
               return(ERROR);
             }

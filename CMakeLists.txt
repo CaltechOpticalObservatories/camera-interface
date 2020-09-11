@@ -78,7 +78,7 @@ if (${INTERFACE_TYPE} STREQUAL "ARC-PCIe")
                 "${ARCAPI_EXPIFACE}"
                 "${ARCAPI_DEFS}"
                 )
-        add_library(interface SHARED IMPORTED
+	add_library(interface STATIC IMPORTED
                 ${ARCAPI_DIR}/CArcFitsFile/Release_x${BITS}/libCArcFitsFile.so
                 ${ARCAPI_DIR}/CArcDevice/Release_x${BITS}/libCArcDevice.so
                 )
@@ -107,7 +107,7 @@ elseif(${INTERFACE_TYPE} STREQUAL "ARC-PCI")
                 "${ARCAPI_FITS}"
                 "${ARCAPI_DEVICE}"
                 )
-        add_library(interface SHARED IMPORTED
+	add_library(interface STATIC IMPORTED
                 ${ARCAPI_DIR}/CFitsFile/linux/x${BITS}/libCFitsFile.so
                 ${ARCAPI_DIR}/CController/linux/x${BITS}/libCController.so
                 )
@@ -128,7 +128,7 @@ elseif(${INTERFACE_TYPE} STREQUAL "STA-Archon")
         list(APPEND INTERFACE_INCLUDES
                 "${ARCHON_INCLUDE}"
                 )
-        add_library(interface OBJECT
+	add_library(interface STATIC
                 ${PROJECT_SOURCE_DIR}/archon.cpp
                 )
 else()
@@ -156,19 +156,19 @@ find_package(Threads)
 # Here are all the targets
 # ----------------------------------------------------------------------------
 
-add_library(common OBJECT
+add_library(common STATIC
         ${PROJECT_SOURCE_DIR}/common.cpp
         )
 
-add_library(utilities OBJECT
+add_library(utilities STATIC
         ${PROJECT_SOURCE_DIR}/utilities.cpp
         )
 
-add_library(logentry OBJECT
+add_library(logentry STATIC
         ${PROJECT_SOURCE_DIR}/logentry.cpp
         )
 
-add_library(network OBJECT
+add_library(network STATIC
         ${PROJECT_SOURCE_DIR}/network.cpp
         )
 

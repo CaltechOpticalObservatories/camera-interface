@@ -96,11 +96,11 @@ namespace Archon {
         try {
           port = std::stoi( config.arg[entry] );
         }
-        catch (std::invalid_argument ) {
+        catch (std::invalid_argument &) {
           logwrite(function, "ERROR: invalid port number: unable to convert to integer");
           return(ERROR);
         }
-        catch (std::out_of_range) {
+        catch (std::out_of_range &) {
           logwrite(function, "port number out of integer range");
           return(ERROR);
         }
@@ -754,7 +754,7 @@ namespace Archon {
         const size_t skiplen = tab-orig_ptr;              // location of the first tab
         strncpy((char*)line_ptr, orig_ptr, skiplen);      // copy the original line from the start up to the first tab
         line_ptr += skiplen;
-        strncpy((char*)line_ptr, (const char *)"  ", 2);  // copy the two spaces into the line, in place of the tab
+        memcpy((char*)line_ptr, (const char *)"  ", 2);   // copy the two spaces into the line, in place of the tab
         line_ptr += 2;
       }
       strcpy((char*)line_ptr, orig_ptr);                  // copy the remainder of the line to the end
@@ -849,7 +849,8 @@ namespace Archon {
         else {
           message.str(""); message << "ERROR: unrecognized internal parameter specified: "<< internal_key;
           logwrite(function, message.str());
-          if (line) free(line); fclose(fp);                               // getline() mallocs a buffer for line
+          if (line) { free(line); }                                       // getline() mallocs a buffer for line
+	  fclose(fp);
           return(ERROR);
         }
       } // end if (strncmp(lineptr, "ARCH:", 5)==0)
@@ -868,7 +869,8 @@ namespace Archon {
         Tokenize(lineptr, tokens, "=");
         if (tokens.size() != 2) {                                         // need at least two tokens at this point
           logwrite(function, "ERROR: token mismatch: expected KEYWORD=value//comment (found too many ='s)");
-          if (line) free(line); fclose(fp);                               // getline() mallocs a buffer for line
+          if (line) { free(line); }                                       // getline() mallocs a buffer for line
+          fclose(fp);
           return(ERROR);
         }
         keyword   = tokens[0].substr(0,8);                                // truncate keyword to 8 characters
@@ -957,7 +959,7 @@ namespace Archon {
        * Form the WCONFIG command to Archon and
        * write the config line to the controller memory.
        */
-      if (key!=NULL && value !=NULL) {
+      if ( !key.str().empty() && !value.str().empty() ) {
         sscmd.str("");
         sscmd << "WCONFIG"
               << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
@@ -1283,11 +1285,11 @@ namespace Archon {
         try {
           adnum = std::stoi(adchan) - 1;
         }
-        catch (std::invalid_argument ) {
+        catch (std::invalid_argument &) {
           logwrite(function, "ERROR: invalid AD number: unable to convert to integer");
           return(ERROR);
         }
-        catch (std::out_of_range) {
+        catch (std::out_of_range &) {
           logwrite(function, "AD number out of integer range");
           return(ERROR);
         }
@@ -1302,11 +1304,11 @@ namespace Archon {
           this->gain  [ adnum ] = std::stoi(tokens[1]);    // gain as function of AD channel
           this->offset[ adnum ] = std::stoi(tokens[2]);    // offset as function of AD channel
         }
-        catch (std::invalid_argument ) {
+        catch (std::invalid_argument &) {
           logwrite(function, "ERROR: invalid GAIN and/or OFFSET: unable to convert to integer");
           return(ERROR);
         }
-        catch (std::out_of_range) {
+        catch (std::out_of_range &) {
           logwrite(function, "GAIN and/or OFFSET out of integer range");
           return(ERROR);
         }
@@ -1392,11 +1394,11 @@ namespace Archon {
           else                                                      // everything else is an int
             value  = std::stoi( subtokens[1] );                     // this value will get assigned to the corresponding parameter
         }
-        catch (std::invalid_argument ) {
+        catch (std::invalid_argument &) {
           logwrite(function, "ERROR: invalid buffer or value: unable to convert to integer");
           return(ERROR);
         }
-        catch (std::out_of_range) {
+        catch (std::out_of_range &) {
           logwrite(function, "buffer or value out of integer range");
           return(ERROR);
         }
@@ -2296,7 +2298,7 @@ namespace Archon {
             << this->parammap[paramname].name
             << "="
             << newvalue;
-      message.str(""); message << "sending archon_cmd(" << sscmd << ")";
+      message.str(""); message << "sending archon_cmd(" << sscmd.str() << ")";
       logwrite(function, message.str());
       error=this->archon_cmd((char *)sscmd.str().c_str());   // send the WCONFIG command here
       this->parammap[paramname].value = newvalue;            // save newvalue in the STL map

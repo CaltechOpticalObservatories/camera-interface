@@ -276,8 +276,8 @@ void doit(Network::TcpSocket sock) {
       logwrite(function, message.str());
     }
     catch ( std::runtime_error &e ) {
-      std::stringstream errstr; errstr << e.what();
-      message.str(""); message << "error parsing arguments: " << errstr;
+      std::stringstream errstream; errstream << e.what();
+      message.str(""); message << "error parsing arguments: " << errstream.str();
       logwrite(function, message.str());
       ret = -1;
     }
