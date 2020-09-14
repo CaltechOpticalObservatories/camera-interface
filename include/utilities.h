@@ -24,6 +24,7 @@ int Tokenize(const std::string& str,
              const std::string& delimiters);        //!< break a string into a vector
 
 void chrrep(char *str, char oldchr, char newchr);   //!< replace one character within a string with a new character
+void string_replace_char(std::string &str, const char *oldchar, const char *newchar);
 
 std::tm* get_timenow();                             //!< return tm pointer to current time
 

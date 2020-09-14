@@ -49,8 +49,12 @@
 
     // Skip delimiters at beginning.
     std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
+
     // Find first "non-delimiter".
     std::string::size_type pos     = str.find_first_of(delimiters, lastPos);
+
+    // No delimters, no tokens
+    if (pos == std::string::npos) { return 0; }
 
     std::string quote("\"");
     unsigned int quote_start = str.find(quote); //finds first quote mark
@@ -123,6 +127,24 @@
     }
   }
   /** chrrep ******************************************************************/
+
+
+  /** string_replace_char *****************************************************/
+  /**
+   * @fn     string_replace_char
+   * @brief  replace one character within a std::string with a new character
+   * @param  reference to str
+   * @param  oldchar is the char to replace
+   * @param  newchar is the replacement value
+   * @return none
+   *
+   */
+  void string_replace_char(std::string &str, const char *oldchar, const char *newchar) {
+    while (str.find(oldchar) != std::string::npos) {
+      if ( str.find(oldchar) != std::string::npos ) str.replace(str.find(oldchar), 1, newchar);
+    }
+  }
+  /** string_replace_char *****************************************************/
 
 
   /** get_timenow *************************************************************/
