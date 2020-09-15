@@ -2851,7 +2851,7 @@ namespace Archon {
    * @return ERROR or NO_ERROR
    *
    */
-  long Interface::bias(std::string args) {
+  long Interface::bias(std::string args, std::string &retstring) {
     std::string function = "Archon::Interface::bias";
     std::stringstream message;
     std::vector<std::string> tokens;
@@ -2860,11 +2860,18 @@ namespace Archon {
     int channel;
     float voltage;
     float vmin, vmax;
+    bool readonly=true;
 
     Tokenize(args, tokens, " ");
 
-    if (tokens.size() != 3) {
-      message.str(""); message << "ERROR: incorrect number of arguments: " << args << ": expected module channel voltage";
+    if (tokens.size() == 2) {
+      readonly = true;
+    }
+    else if (tokens.size() == 3) {
+      readonly = false;
+    }
+    else {
+      message.str(""); message << "ERROR: incorrect number of arguments: " << args << ": expected module channel [voltage]";
       logwrite(function, message.str());
       return ERROR;
     }
@@ -2874,7 +2881,7 @@ namespace Archon {
     try {
       module  = std::stoi( tokens[0] );
       channel = std::stoi( tokens[1] );
-      voltage = std::stof( tokens[2] );
+      if (!readonly) voltage = std::stof( tokens[2] );
     }
     catch (std::invalid_argument &) {
       message.str(""); message << "ERROR: unable to convert one or more arguments: " << args;
@@ -2935,6 +2942,7 @@ namespace Archon {
       biasconfig << "LC_V" << channel;
     }
     if ( (channel > 24) && (channel < 31) ) {
+      channel -= 24;
       biasconfig << "HC_V" << channel;
     }
 
@@ -2951,6 +2959,22 @@ namespace Archon {
     std::string value = std::to_string(voltage);
     bool changed      = false;
     long error;
+
+    // If no voltage suppled (readonly) then just read the configuration and exit
+    //
+    if (readonly) {
+      message.str("");
+      error = this->get_configmap_value(key, voltage);
+      if (error != NO_ERROR) {
+        message << "ERROR: reading bias " << key;
+      }
+      else {
+        retstring = std::to_string(voltage);
+        message << "read bias " << key << "=" << voltage;
+      }
+      logwrite(function, message.str());
+      return error;
+    }
 
     // Write the config line to update the bias voltage
     //
@@ -2978,6 +3002,9 @@ namespace Archon {
     }
 
     logwrite(function, message.str());
+
+std::cout << "**** read back ****\n";
+
 
     return error;
   }

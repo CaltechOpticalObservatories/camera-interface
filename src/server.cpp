@@ -386,7 +386,9 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("bias")==0) {
-                    ret = server.bias(args);
+                    std::string retstring;
+                    ret = server.bias(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
     if (cmd.compare("echo")==0) {
