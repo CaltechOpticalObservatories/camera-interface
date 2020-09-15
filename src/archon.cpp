@@ -2987,7 +2987,7 @@ namespace Archon {
              << std::setfill('0')
              << std::setw(2)
              << std::hex
-             << module;
+             << (module-1);
 
     if (error == NO_ERROR) error = this->archon_cmd(applystr.str());
 
