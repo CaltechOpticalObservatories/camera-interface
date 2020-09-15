@@ -177,6 +177,7 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
+      std::string nsequenceparam;            //!< param name to set for sequences of exposures
 
       // Functions
       //
@@ -212,12 +213,13 @@ namespace Archon {
       long write_parameter( const char *paramname, const char *newvalue );
       long write_parameter( const char *paramname, int newvalue );
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
-      long expose();
+      long expose(std::string nseq);
       long wait_for_exposure();
       long wait_for_readout();
       long get_parameter(std::string parameter, std::string &retstring);
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
+      long bias(std::string args);
 
       /**
        * @var     struct geometry_t geometry[]
@@ -268,6 +270,11 @@ namespace Archon {
         std::vector<uint64_t> bufretimestamp; // buf trigger rising edge time stamp
         std::vector<uint64_t> buffetimestamp; // buf trigger falling edge time stamp
       } frame;
+
+      /** @var      vector modtype
+       *  @details  stores the type of each module listed under [SYSTEM] in the acf file
+       */
+      std::vector<int> modtype;
 
       /** @var      int lastframe
        *  @details  the last (I.E. previous) frame number acquired

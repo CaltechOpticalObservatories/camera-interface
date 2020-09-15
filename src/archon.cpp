@@ -33,6 +33,10 @@ namespace Archon {
     this->image_data_allocated = 0;
 //  this->config.filename = CONFIG_FILE;  //!< default config file set in CMakeLists.txt
 
+    // pre-size the modtype vector to hold the max number of modules
+    //
+    this->modtype.resize( nmods );
+
     // TODO I should change these to STL maps instead
     //
     this->frame.bufsample.resize( Archon::nbufs );
@@ -112,6 +116,11 @@ namespace Archon {
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {
         this->exposeparam = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 15, "NSEQUENCE_PARAM")==0) {
+        this->nsequenceparam = config.arg[entry];
         applied++;
       }
 
@@ -655,7 +664,8 @@ namespace Archon {
 
     int      linecount;  // the Archon configuration line number is required for writing back to config memory
     int      error=NO_ERROR;
-    bool     begin_parsing=false;
+    bool     parse_config=false;
+    bool     parse_system=false;
 
     // get the acf filename, either passed here or from loaded default
     //
@@ -705,9 +715,9 @@ namespace Archon {
 
       // don't start parsing until [CONFIG] and stop on a newline or [SYSTEM]
       //
-      if (line == "[CONFIG]") { begin_parsing=true;  continue; }
-      if (line == "\n"      ) { begin_parsing=false; continue; }
-      if (line == "[SYSTEM]") { begin_parsing=false; continue; }
+      if (line == "[CONFIG]") { parse_config=true;  parse_system=false; continue; }
+      if (line == "\n"      ) { parse_config=false; parse_system=false; continue; }
+      if (line == "[SYSTEM]") { parse_config=false; parse_system=true;  continue; }
 
       std::string savedline = line;              // save un-edited line for error reporting
 
@@ -738,7 +748,7 @@ namespace Archon {
             return ERROR;
           }
           else {
-            begin_parsing = true;
+            parse_config = true;
             message.str(""); message << "detected mode: " << mode; logwrite(function, message.str());
             this->modemap[mode].rawenable=-1;    // initialize to -1, require it be set somewhere in the ACF
                                                  // this also ensures something is saved in the modemap for this mode
@@ -752,9 +762,49 @@ namespace Archon {
         }
       }
 
-      // Not one of the above [....] section tags and not parsing, so skip to the next line
+      // This section is for parsing keys under the [SYSTEM] section
       //
-      if (!begin_parsing) continue;
+      if (parse_system) {
+        int module, type;
+        std::vector<std::string> tokens;
+        // Separate into tokens using underscore and = as delimiters.
+        // This will separate into "MODn", key, value
+        //
+        Tokenize(line, tokens, "_=");
+        if (tokens.size() != 3) continue;                                 // need 3 tokens but don't worry about error reporting here
+
+        // get the type of each module from MODn_TYPE
+        //
+        if ( (tokens[0].compare(0,3,"MOD")==0) && (tokens[1] == "TYPE") ) {
+          try {
+            module = std::stoi( tokens[0].substr(3) );
+            type   = std::stoi( tokens[2] );
+          }
+          catch (std::invalid_argument &) {
+            message.str(""); message << "ERROR: unable to convert module or type from [SYSTEM] line: " << line;
+            logwrite(function, message.str());
+            return(ERROR);
+          }
+          catch (std::out_of_range &) {
+            message.str(""); message << "ERROR: module or type value out of integer range on [SYSTEM] line: " << line;
+            logwrite(function, message.str());
+            return(ERROR);
+          }
+          if ( (module > 0) && (module <= nmods) ) {
+            this->modtype[module] = type;                                 // store the type in a vector indexed by module
+          }
+          else {
+            message.str(""); message << "ERROR: module " << module << " outside range {0:" << nmods << "}";
+            logwrite(function, message.str());
+            return(ERROR);
+          }
+        }
+      }
+
+      // Everything else is for parsing configuration lines so if we didn't get [CONFIG] then
+      // skip to the next line.
+      //
+      if (!parse_config) continue;
 
       // Convert the key (everything before first equal sign) to upper case
       //
@@ -2381,7 +2431,7 @@ namespace Archon {
    * read out the detector into the frame buffer after an exposure.
    *
    */
-  long Interface::expose() {
+  long Interface::expose(std::string nseq) {
     std::string function = "Archon::Interface::expose";
     std::stringstream message;
     long error;
@@ -2791,5 +2841,146 @@ namespace Archon {
     return(ret);
   }
   /**************** Archon::Interface::exptime ********************************/
+
+
+  /**************** Archon::Interface::bias ***********************************/
+  /**
+   * @fn     bias
+   * @brief  set a bias
+   * @param  args contains: module, channel, bias
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::bias(std::string args) {
+    std::string function = "Archon::Interface::bias";
+    std::stringstream message;
+    std::vector<std::string> tokens;
+    std::stringstream biasconfig;
+    int module;
+    int channel;
+    float voltage;
+    float vmin, vmax;
+
+    Tokenize(args, tokens, " ");
+
+    if (tokens.size() != 3) {
+      message.str(""); message << "ERROR: incorrect number of arguments: " << args << ": expected module channel voltage";
+      logwrite(function, message.str());
+      return ERROR;
+    }
+
+    std::transform( args.begin(), args.end(), args.begin(), ::toupper );  // make uppercase
+
+    try {
+      module  = std::stoi( tokens[0] );
+      channel = std::stoi( tokens[1] );
+      voltage = std::stof( tokens[2] );
+    }
+    catch (std::invalid_argument &) {
+      message.str(""); message << "ERROR: unable to convert one or more arguments: " << args;
+      logwrite(function, message.str());
+      return(ERROR);
+    }
+    catch (std::out_of_range &) {
+      message.str(""); message << "ERROR: one or more arguments outside range: " << args;
+      logwrite(function, message.str());
+      return(ERROR);
+    }
+
+    // Check that the module number is valid
+    //
+    if ( (module < 0) || (module > nmods) ) {
+      message.str(""); message << "ERROR: module " << module << ": outside range {0:" << nmods << "}";
+      logwrite(function, message.str());
+      return(ERROR);
+    }
+
+    // Use the module type to get LV or HV Bias
+    // and start building the bias configuration string.
+    //
+    switch ( this->modtype[ module ] ) {
+      case 0:
+        message.str(""); message << "ERROR: module " << module << " not installed";
+        logwrite(function, message.str());
+        return(ERROR);
+        break;
+      case 3:  // LVBias
+      case 9:  // LVXBias
+        biasconfig << "MOD" << module << "/LV";
+        vmin = -14.0;
+        vmax = +14.0;
+        break;
+      case 4:  // HVBias
+      case 8:  // HVXBias
+        biasconfig << "MOD" << module << "/HV";
+        vmin =   0.0;
+        vmax = +31.0;
+        break;
+      default:
+        message.str(""); message << "ERROR: module " << module << " not a bias board";
+        logwrite(function, message.str());
+        return(ERROR);
+        break;
+    }
+
+    // Check that the channel number is valid
+    // and add it to the bias configuration string.
+    //
+    if ( (channel < 1) || (channel > 30) ) {
+      message.str(""); message << "ERROR: channel " << module << ": outside range {1:30}";
+      logwrite(function, message.str());
+      return(ERROR);
+    }
+    if ( (channel > 0) && (channel < 25) ) {
+      biasconfig << "LC_V" << channel;
+    }
+    if ( (channel > 24) && (channel < 31) ) {
+      biasconfig << "HC_V" << channel;
+    }
+
+    if ( (voltage < vmin) || (voltage > vmax) ) {
+      message.str(""); message << "ERROR: voltage " << voltage << ": outside range {" << vmin << ":" << vmax << "}";
+      logwrite(function, message.str());
+      return(ERROR);
+    }
+
+    // Locate this line in the configuration so that it can be written to the Archon
+    //
+
+    std::string key   = biasconfig.str();
+    std::string value = std::to_string(voltage);
+    bool changed      = false;
+    long error;
+
+    // Write the config line to update the bias voltage
+    //
+    error = this->write_config_key(key.c_str(), value.c_str(), changed);
+
+    // Now send the APPLYMODx command
+    //
+    std::stringstream applystr;
+    applystr << "APPLYMOD" 
+             << std::setfill('0')
+             << std::setw(2)
+             << std::hex
+             << module;
+
+    if (error == NO_ERROR) error = this->archon_cmd(applystr.str());
+
+    if (error != NO_ERROR) {
+      message << "ERROR: writing bias configuration: " << key << "=" << value;
+    }
+    else if (!changed) {
+      message << "bias configuration: " << key << "=" << value <<" unchanged";
+    }
+    else {
+      message << "updated bias configuration: " << key << "=" << value;
+    }
+
+    logwrite(function, message.str());
+
+    return error;
+  }
+  /**************** Archon::Interface::lvbias *********************************/
 
 }
