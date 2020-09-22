@@ -748,7 +748,7 @@ namespace Archon {
             return ERROR;
           }
           else {
-            parse_config = true;
+            parse_config = true; parse_system = false;
             message.str(""); message << "detected mode: " << mode; logwrite(function, message.str());
             this->modemap[mode].rawenable=-1;    // initialize to -1, require it be set somewhere in the ACF
                                                  // this also ensures something is saved in the modemap for this mode
@@ -799,6 +799,7 @@ namespace Archon {
             return(ERROR);
           }
         }
+        continue;  // nothing else to do until a new [TAG] and parse_system = false
       }
 
       // Everything else is for parsing configuration lines so if we didn't get [CONFIG] then
@@ -901,12 +902,10 @@ namespace Archon {
         else
         if ( tokens[0] == "AMPS_PER_CCD_HORI" ) {
           this->modemap[mode].geometry.amps_per_ccd[0] = std::stoi( tokens[1] );
-          logwrite(function, message.str());
         }
         else
         if ( tokens[0] == "AMPS_PER_CCD_VERT" ) {
           this->modemap[mode].geometry.amps_per_ccd[1] = std::stoi( tokens[1] );
-          logwrite(function, message.str());
         }
         else {
           message.str(""); message << "ERROR: unrecognized internal parameter specified: "<< tokens[0];
@@ -934,16 +933,21 @@ namespace Archon {
         }
         keyword   = tokens[0].substr(0,8);                                // truncate keyword to 8 characters
         keystring = tokens[1];                                            // tokenize the rest in a moment
+        keycomment = "";                                                  // initialize comment, assumed empty unless specified below
 
         // Next, tokenize on the slash "/".
         // The token left of "/" is the value. Anything to the right is a comment.
         Tokenize(keystring, tokens, "/");
-        keyvalue   = tokens[0];
+        if (tokens.size() == 0) {      // no tokens found means no "/" characeter which means no comment
+          keyvalue = keystring;        // therefore the keyvalue is the entire string
+        }
+
+        if (tokens.size() > 0) {       // at least one token
+          keyvalue   = tokens[0];
+        }
 
         if (tokens.size() == 2) {      // If there are two tokens then the second is a comment,
           keycomment = tokens[1];
-        } else {                       // but the comment is optional.
-          keycomment = "";
         }
 
         // Save all of the user keyword information in a map for later
