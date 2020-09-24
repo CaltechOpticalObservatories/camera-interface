@@ -793,6 +793,7 @@ namespace Archon {
             return(ERROR);
           }
         }
+        continue;  // nothing else to do until a new [TAG] and parse_system = false
       }
 
       // Everything else is for parsing configuration lines so if we didn't get [CONFIG] then
@@ -932,8 +933,8 @@ namespace Archon {
           filestream.close();
           return(ERROR);
         }
-        keyword    = tokens[0].substr(0,8);                               // truncate keyword to 8 characters
-        keystring  = tokens[1];                                           // tokenize the rest in a moment
+        keyword   = tokens[0].substr(0,8);                                // truncate keyword to 8 characters
+        keystring = tokens[1];                                            // tokenize the rest in a moment
         keycomment = "";                                                  // initialize comment, assumed empty unless specified below
 
         // Next, tokenize on the slash "/".
