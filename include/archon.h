@@ -18,6 +18,7 @@
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
+#include "fits.h"
 
 #define CCD_READOUT_TIME 10000     //!< time to read out CCD in msec //TODO this is bad to have hard-coded! get from WDL!
 
@@ -55,96 +56,6 @@ namespace Archon {
   const int nmods = 12;            //!< number of modules per controller
   const int nadchan = 4;           //!< number of channels per ADC module
 
-  typedef enum {
-    FRAME_IMAGE,
-    FRAME_RAW,
-    NUM_FRAME_TYPES
-  } frame_type_t;
-
-  const char * const frame_type_str[NUM_FRAME_TYPES] = {
-    "IMAGE",
-    "RAW"
-  };
-
-  class Information {
-    private:
-    public:
-      std::string   hostname;                //!< Archon controller hostname
-      int           port;                    //!< Archon controller TPC/IP port number
-      int           activebufs;              //!< Archon controller number of active frame buffers
-      int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
-      int           datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
-      std::string   configfilename;          //!< Archon controller configuration file
-      frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
-      long          detector_pixels[2];
-      long          image_size;              //!< pixels per image sensor
-      long          image_memory;            //!< bytes per image sensor
-      std::string   current_observing_mode;  //!< the current mode
-      long          naxis;
-      long          axes[2];
-      int           binning[2];
-      long          axis_pixels[2];
-      long          region_of_interest[4];
-      long          image_center[2];
-      bool          data_cube;
-      int           extension;               //!< extension number for data cubes
-      int           exposure_time;           //!< exposure time in msec
-      double        exposure_progress;       //!< exposure progress (fraction)
-      std::string   fits_name;               //!< contatenation of Common's image_dir + image_name + image_num
-      std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
-
-      Common::FitsKeys userkeys;             //!< create a FitsKeys object for FITS keys specified by the user
-      Common::FitsKeys systemkeys;           //!< create a FitsKeys object for FITS keys imposed by the software
-
-      Information() {
-        this->axes[0] = 1;
-        this->axes[1] = 1;
-        this->binning[0] = 1;
-        this->binning[1] = 1;
-        this->region_of_interest[0] = 1;
-        this->region_of_interest[1] = 1;
-        this->region_of_interest[2] = 1;
-        this->region_of_interest[3] = 1;
-        this->image_center[0] = 1;
-        this->image_center[1] = 1;
-        this->data_cube = false;
-      }
-
-      long set_axes(int datatype_in) {
-        this->datatype = datatype_in;
-        long bytes_per_pixel;
-
-        switch (this->datatype) {
-          case SHORT_IMG:
-          case USHORT_IMG:
-            bytes_per_pixel = 2;
-            break;
-          case LONG_IMG:
-          case ULONG_IMG:
-          case FLOAT_IMG:
-            bytes_per_pixel = 4;
-            break;
-          default:
-            return (ERROR);
-        }
-
-        this->naxis = 2;
-
-        this->axis_pixels[0] = this->region_of_interest[1] -
-                               this->region_of_interest[0] + 1;
-        this->axis_pixels[1] = this->region_of_interest[3] -
-                               this->region_of_interest[2] + 1;
-
-        this->axes[0] = this->axis_pixels[0] / this->binning[0];
-        this->axes[1] = this->axis_pixels[1] / this->binning[1];
-
-        this->image_size   = this->axes[0] * this->axes[1];                    // Pixels per CCD
-        this->image_memory = this->axes[0] * this->axes[1] * bytes_per_pixel;  // Bytes per CCD
-
-        return (NO_ERROR);
-      }
-  };
-
   class Interface {
     private:
       unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
@@ -156,11 +67,13 @@ namespace Archon {
       // Class Objects
       //
       Network::TcpSocket archon;
-      Information camera_info;               //!< this is the main camera_info object
-      Information fits_info;                 //!< used to copy the camera_info object to preserve info for FITS writing
+      Common::Information camera_info;       //!< this is the main camera_info object
+      Common::Information fits_info;         //!< used to copy the camera_info object to preserve info for FITS writing
       Common::Common common;                 //!< instantiate a Common object
       Common::FitsKeys userkeys;             //!< instantiate a Common object
       Config config;
+
+      FITS_file fits_file;                   //!< instantiate a FITS container object
 
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       bool abort;
@@ -177,7 +90,6 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
-      std::string nsequenceparam;            //!< param name to set for sequences of exposures
 
       // Functions
       //
@@ -203,7 +115,7 @@ namespace Archon {
       long get_timer(unsigned long int *timer);
       long fetch(uint64_t bufaddr, uint32_t bufblocks);
       long read_frame();                     //!< read Archon frame buffer into host memory
-      long read_frame(frame_type_t frame_type); //!< read Archon frame buffer into host memory
+      long read_frame(Common::frame_type_t frame_type); //!< read Archon frame buffer into host memory
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
       long write_raw();                      //!< write raw 16 bit data to a FITS file
       long write_config_key( const char *key, const char *newvalue, bool &changed );
@@ -213,7 +125,7 @@ namespace Archon {
       long write_parameter( const char *paramname, const char *newvalue );
       long write_parameter( const char *paramname, int newvalue );
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
-      long expose(std::string nseq);
+      long expose(std::string nseq_in);
       long wait_for_exposure();
       long wait_for_readout();
       long get_parameter(std::string parameter, std::string &retstring);

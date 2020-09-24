@@ -22,21 +22,27 @@
 #include "utilities.h"
 #include "logentry.h"
 
-template <class T>
+const int FITS_WRITE_WAIT = 5000;                   //!< approx time (in msec) to wait for a frame to be written
+
 class FITS_file {
   private:
     std::mutex fits_mutex;                          //!< used to block writing_file semaphore in multiple threads
     std::unique_ptr<CCfits::FITS> pFits;            //!< pointer to FITS data container
     std::atomic<bool> writing_file;                 //!< semaphore indicates file is being written
+    std::atomic<bool> error;                        //!< indicates an error occured in a file writing thread
+    std::atomic<bool> file_open;                    //!< semaphore indicates file is open
     std::atomic<int> threadcount;                   //!< keep track of number of write_image_thread threads
     std::atomic<int> framen;                        //!< frame counter for data cubes
     CCfits::ExtHDU* imageExt;                       //!< image extension header unit
+    std::string fits_name;
 
   public:
     FITS_file() {                                   //!< constructor
       this->threadcount = 0;
       this->framen = 0;
       this->writing_file = false;
+      this->error = false;
+      this->file_open = false;
     };
 
     ~FITS_file() {                                  //!< deconstructor
@@ -47,17 +53,28 @@ class FITS_file {
      * @fn     open_file
      * @brief  opens a FITS file
      * @param  Information& info, reference to camera_info class
-     * @return 
+     * @return ERROR or NO_ERROR
      *
      * This uses CCFits to create a FITS container, opens the file and writes
      * primary header data to it.
      *
      */
-    long open_file(Archon::Information & info) {
+    long open_file(Common::Information & info) {
       std::string function = "FITS_file::open_file";
       std::stringstream message;
 
+      long axes[2];          // local variable of image axes size
+      int num_axis;          // local variable for number of axes
+
       const std::lock_guard<std::mutex> lock(this->fits_mutex);
+
+      // This is probably a programming error, if file_open is true here
+      //
+      if (this->file_open) {
+        message.str(""); message << "ERROR: FITS file " << info.fits_name << " already open";
+        logwrite(function, message.str());
+        return (ERROR);
+      }
 
       // Check that we can write the file, because CCFits will crash if it cannot
       //
@@ -67,16 +84,27 @@ class FITS_file {
         std::remove( info.fits_name.c_str() );
       }
       else {
-        message.str(""); message << "error unable to create file " << info.fits_name;
+        message.str(""); message << "ERROR unable to create file " << info.fits_name;
         logwrite(function, message.str());
         return(ERROR);
+      }
+
+      if (info.datacube) {   // special num_axis, axes for data cube
+        num_axis = 0;
+        axes[0] = 0;
+        axes[1] = 0;
+      }
+      else {                 // or regular for flat fits files
+        num_axis = 2;
+        axes[0] = info.axes[0];
+        axes[1] = info.axes[1];
       }
 
       try {
         // Allocate the FITS file container, which holds the information used by CCfits to write a file
         // and write the primary camera header information.
         //
-        this->pFits.reset( new CCfits::FITS(info.fits_name, info.datatype, info.naxis, info.axes) );
+        this->pFits.reset( new CCfits::FITS(info.fits_name, info.datatype, num_axis, axes) );
         this->make_camera_header(info);
 
         // Iterate through the user-defined FITS keyword databases and add them to the primary header.
@@ -87,19 +115,36 @@ class FITS_file {
              keyit++) {
           add_user_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
         }
+
+        // Add the exposure start time keyword to the primary header
+        //
+        this->pFits->pHDU().addKey("DATE", info.start_time, "exposure start time");
       }
       catch (CCfits::FITS::CantCreate){
-        message.str(""); message << "error: unable to open FITS file " << info.fits_name;
+        message.str(""); message << "ERROR: unable to open FITS file " << info.fits_name;
         logwrite(function, message.str());
         return(ERROR);
       }
       catch (...) {
-        logwrite(function, "unknown error");
+        message.str(""); message << "unknown error opening FITS file " << info.fits_name;
+        logwrite(function, message.str());
         return(ERROR);
       }
 
       message.str(""); message << "opened file " << info.fits_name << " for FITS write";
       logwrite(function, message.str());
+
+      // must reset variables as when container was constructed
+      // each time a new file is opened
+      //
+      this->threadcount = 0;
+      this->framen = 0;
+      this->writing_file = false;
+      this->error = false;
+
+      this->file_open = true;      // file is open now
+
+      this->fits_name = info.fits_name;
 
       return (0);
     }
@@ -118,6 +163,8 @@ class FITS_file {
      *
      */
     void close_file() {
+      std::string function = "FITS_file::close_file";
+      std::stringstream message;
 
       // Add a header keyword for the time the file was written (right now!)
       //
@@ -130,82 +177,16 @@ class FITS_file {
       // Deallocate the CCfits object and close the FITS file
       //
       this->pFits->destroy();
+
+      // Let the world know that the file is closed
+      //
+      this->file_open = false;
+
+      message.str(""); message << this->fits_name << " closed";
+      logwrite(function, message.str());
+      this->fits_name="";
     }
     /**************** FITS_file::close_file ***********************************/
-
-
-    /**************** FITS_file::init_cube ************************************/
-    /**
-     * @fn     init_cube
-     * @brief  
-     * @param  
-     * @param  
-     * @return 
-     *
-     */
-    long init_cube(Archon::Information& info) {
-      std::string function = "FITS::init_cube";
-      std::stringstream message;
-
-      message.str("");
-      message << "creating data cube for " << info.fits_name;
-      logwrite(function, message.str());
-
-      // Lock the mutex and set the semaphore for file writing
-      //
-      const std::lock_guard<std::mutex> lock(this->fits_mutex);
-      this->writing_file = true;
-
-      try {
-        long axes[2];        // Local variable of image axes size
-        int num_axis = 0;    // Set the number of axes to 2, even on data cubes
-        axes[0] = 0;
-        axes[1] = 0;
-
-        // Check that we can write the file, because CCFits will crash if it cannot
-        //
-        std::ofstream checkfile ( info.fits_name.c_str() );
-        if ( checkfile.is_open() ) {
-          checkfile.close();
-          std::remove( info.fits_name.c_str() );
-        }
-        else {
-          message << "ERROR: unable to create file " << info.fits_name;
-          logwrite(function, message.str());
-          return(ERROR);
-        }
-
-        // Allocate the FITS file container, which holds all of the information
-        // used by CCfits to write a file
-        //
-        message.str(""); 
-        message << "[DEBUG] init new cube: file=" << info.fits_name << " bitpix=" << info.bitpix 
-                << " axes=" << axes[0] << " " << axes[1] << " extension=" << info.extension;
-        logwrite(function, message.str());
-
-        this->pFits.reset( new CCfits::FITS(info.fits_name, info.bitpix, num_axis, axes) );
-
-        // Iterate through the user-defined FITS keyword databases and add them to the primary header.
-        //
-        Common::FitsKeys::fits_key_t::iterator keyit;
-        for (keyit  = info.userkeys.keydb.begin();
-             keyit != info.userkeys.keydb.end();
-             keyit++) {
-          add_user_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
-        }
-
-        this->pFits->pHDU().addKey("DATE", info.start_time, "exposure start time");
-//      this->pFits->pHDU().writeChecksum();
-//      this->pFits->destroy();
-      }
-      catch (CCfits::FITS::CantCreate){
-        message << "ERROR: unable to open FITS file " << info.fits_name;
-        logwrite(function, message.str());
-        return(ERROR);
-      }
-      return NO_ERROR;
-    }
-    /**************** FITS_file::init_cube ************************************/
 
 
     /**************** FITS_file::write_image **********************************/
@@ -219,13 +200,26 @@ class FITS_file {
      * This function spawns a thread to write the image data to disk
      *
      */
-    long write_image(T* data, Archon::Information& info) {
+    template <class T>
+    long write_image(T* data, Common::Information& info) {
       std::string function = "FITS::write_image";
+      std::stringstream message;
 
+      // The file must have been opened first
+      //
+      if ( !this->file_open ) {
+        message.str(""); message << "ERROR: FITS file " << info.fits_name << " not open";
+        logwrite(function, message.str());
+        return (ERROR);
+      }
+
+      // copy the data into an array of the appropriate type  //TODO use multiple threads for this??
+      //
       std::valarray<T> array(info.image_size);
       for (long i = 0; i < info.image_size; i++) {
         array[i] = data[i];
       }
+
       // Use a lambda expression to properly spawn a thread without having to
       // make it static. Each thread gets a pointer to the current object this->
       // which must continue to exist until all of the threads terminate.
@@ -234,22 +228,51 @@ class FITS_file {
       // until threadcount is zero.
       //
       this->threadcount++;                                   // increment threadcount for each thread spawned
+
       std::thread([&]() {
-        if (info.data_cube) {
-          logwrite(function, "[DEBUG] SPAWNING NEW THREAD -- will try to write a data cube");
-          this->write_cube_thread(std::ref(array), std::ref(info), this);
+        if (info.datacube) {
+          this->write_cube_thread(array, info, this);
         }
         else {
-          this->write_image_thread(std::ref(array), std::ref(info), this);
+          this->write_image_thread(array, info, this);
         }
         std::lock_guard<std::mutex> lock(this->fits_mutex);  // lock and
         this->threadcount--;                                 // decrement threadcount
       }).detach();
-      logwrite(function, "waiting for threads to complete");
-      while (this->threadcount > 0) usleep(1000);            // wait for all threads to complete
+      logwrite(function, "spawned image writing thread");
 
-      logwrite(function, "complete");
-      return(NO_ERROR);
+      // wait for all threads to complete
+      //
+      int last_threadcount = this->threadcount;
+      int wait = FITS_WRITE_WAIT;
+      while (this->threadcount > 0) {
+        usleep(1000);
+        if (this->threadcount >= last_threadcount) {         // threads are not completing
+          wait--;                                            // start decrementing wait timer
+        }
+        else {                                               // a thread was completed so things are still working
+          last_threadcount = this->threadcount;              // reset last threadcount
+          wait = FITS_WRITE_WAIT;                            // reset wait timer
+        }
+        if (wait < 0) {
+          message.str(""); message << "ERROR: timeout waiting for threads."
+                                   << " threadcount=" << threadcount 
+                                   << " extension=" << info.extension 
+                                   << " framen=" << this->framen;
+          logwrite(function, message.str());
+          this->writing_file = false;
+          return (ERROR);
+        }
+      }
+
+      if (this->error) {
+        logwrite(function, "an error occured in one of the FITS writing threads");
+      }
+      else {
+        logwrite(function, "complete");
+      }
+
+      return ( this->error ? ERROR : NO_ERROR );
     }
     /**************** FITS_file::write_image **********************************/
 
@@ -257,36 +280,40 @@ class FITS_file {
     /**************** FITS_file::write_image_thread ***************************/
     /**
      * @fn     write_image_thread
-     * @brief  This is where the data are actually written
-     * @param  
-     * @return 
+     * @brief  This is where the data are actually written for flat fits files
+     * @param  T &data, reference to the data
+     * @param  Common::Information &info, reference to the info structure
+     * @param  FITS_file *self, pointer to this-> object
+     * @return nothing
      *
-     * This is the worker thread, to write the data using CCFits.
+     * This is the worker thread, to write the data using CCFits,
+     * and must be spawned by write_image.
      *
      */
-    void write_image_thread(std::valarray<T> &data, Archon::Information &info, FITS_file<T> *self) {
+    template <class T>
+    void write_image_thread(std::valarray<T> &data, Common::Information &info, FITS_file *self) {
       std::string function = "FITS_file::write_image_thread";
       std::stringstream message;
 
       // This makes the thread wait while another thread is writing images. This
       // function is really for single image writing, it's here just in case.
       //
-      while (self->writing_file == true){
+      int wait = FITS_WRITE_WAIT;
+      while (self->writing_file) {
         usleep(1000);
+        if (--wait < 0) {
+          message.str(""); message << "ERROR: timeout waiting for last frame to complete. "
+                                   << "unable to write " << info.fits_name;
+          logwrite(function, message.str());
+          self->writing_file = false;
+          self->error = true;    // tells the calling function that I had an error
+          return;
+        }
       }
 
       // Set the FITS system to verbose mode so it writes error messages
       //
       CCfits::FITS::setVerboseMode(true);
-
-      // Open the FITS file
-      // (internally mutex-protected)
-      //
-      if (self->open_file(info) != NO_ERROR) {
-        message.str(""); message << "error failed to open FITS file " << info.fits_name;
-        logwrite(function, message.str());
-        return;
-      }
 
       // Lock the mutex and set the semaphore for file writing
       //
@@ -304,14 +331,10 @@ class FITS_file {
         message.str(""); message << "FITS file error thrown: " << error.message();
         logwrite(function, message.str());
         self->writing_file = false;
+        self->error = true;    // tells the calling function that I had an error
         return;
       }
 
-      // Close the FITS file
-      //
-      self->close_file();
-      message.str(""); message << "closed FITS file " << info.fits_name;
-      logwrite(function, message.str());
       self->writing_file = false;
     }
     /**************** FITS_file::write_image_thread ***************************/
@@ -320,52 +343,51 @@ class FITS_file {
     /**************** FITS_file::write_cube_thread ****************************/
     /**
      * @fn     write_cube_thread
-     * @brief  This is where the data are actually written
-     * @param  
-     * @return 
+     * @brief  This is where the data are actually written for datacubes
+     * @param  T &data, reference to the data
+     * @param  Common::Information &info, reference to the info structure
+     * @param  FITS_file *self, pointer to this-> object
+     * @return nothing
      *
-     * This is the worker thread, to write the data using CCFits.
+     * This is the worker thread, to write the data using CCFits,
+     * and must be spawned by write_image.
      *
      */
-    void write_cube_thread(std::valarray<T> &data, Archon::Information &info, FITS_file<T> *self) {
+    template <class T>
+    void write_cube_thread(std::valarray<T> &data, Common::Information &info, FITS_file *self) {
       std::string function = "FITS_file::write_cube_thread";
       std::stringstream message;
-
-      if (info.extension == 0) {
-        self->init_cube(info);
-        logwrite(function, "[DEBUG] cube opened extension == 0");
-      }
-      else
-      if (self->open_file(info) != NO_ERROR) {
-        message.str(""); message << "error failed to open FITS file " << info.fits_name;
-        logwrite(function, message.str());
-        return;
-      }
-
-      message.str(""); message << "[DEBUG] extension=" << info.extension << " framen=" << this->framen; logwrite(function, message.str());
 
       // This makes the thread wait while another thread is writing images. This
       // thread will only start writing once the extension number matches the
       // number of frames already written.
       //
+      int last_threadcount = this->threadcount;
+      int wait = FITS_WRITE_WAIT;
       while (info.extension != this->framen) {
         usleep(1000);
+        if (this->threadcount >= last_threadcount) {  // threads are not completing
+          wait--;                                     // start decrementing wait timer
+        }
+        else {                                        // a thread was completed so things are still working
+          last_threadcount = this->threadcount;       // reset last threadcount
+          wait = FITS_WRITE_WAIT;                     // reset wait timer
+        }
+        if (wait < 0) {
+          message.str(""); message << "ERROR: timeout waiting for frame write."
+                                   << " threadcount=" << threadcount 
+                                   << " extension=" << info.extension 
+                                   << " framen=" << this->framen;
+          logwrite(function, message.str());
+          self->writing_file = false;
+          self->error = true;    // tells the calling function that I had an error
+          return;
+        }
       }
 
       // Set the FITS system to verbose mode so it writes error messages
       //
       CCfits::FITS::setVerboseMode(true);
-
-      // Open the FITS file
-      // (internally mutex-protected)
-      //
-/**
-      if (self->open_file(info) != NO_ERROR) {
-        message.str(""); message << "error failed to open FITS file " << info.fits_name;
-        logwrite(function, message.str());
-        return;
-      }
-**/
 
       // Lock the mutex and set the semaphore for file writing
       //
@@ -376,36 +398,42 @@ class FITS_file {
       //
       try {
         long fpixel(1);              // start with the first pixel always
-        std::vector<long> naxes(2);  // addImage() wants a vector
-        naxes[0]=info.axes[0];
-        naxes[1]=info.axes[1];
-        message.str(""); 
-        message << "[DEBUG] addImage to file=" << info.fits_name << " framen=" << this->framen << " extension=" << info.extension 
-                << " bitpix=" << info.bitpix << " naxes[0]=" << naxes[0] << " naxes[1]=" << naxes[1];
+        std::vector<long> axes(2);   // addImage() wants a vector
+        axes[0]=info.axes[0];
+        axes[1]=info.axes[1];
+
+        // create the extension name
+        // This shows up as keyword EXTNAME and in DS9's "display header"
+        //
+        std::string extname = std::to_string( info.extension+1 );
+
+        message.str(""); message << "adding " << axes[0] << " x " << axes[1] << " frame to extension " << extname << " in file " << info.fits_name;
         logwrite(function, message.str());
-        std::stringstream image_key;
-        image_key << this->framen+1;
-        this->imageExt = self->pFits->addImage(image_key.str(), info.bitpix, naxes);
-        this->imageExt->addKey("FRAME_N", this->framen+1, "framen+1 from write_cube_thread");
+
+        // Add the extension here
+        //
+        this->imageExt = self->pFits->addImage(extname, info.bitpix, axes);
+
+        // Add extension-only keys now
+        //
+        this->imageExt->addKey("JENNY", 8675309, "don't change your number");
+
+        // Write and flush to make sure image is written to disk
+        //
         this->imageExt->write(fpixel, info.image_size, data);
-        self->pFits->flush();        // make sure the image is written to disk
+        self->pFits->flush();
       }
       catch (CCfits::FitsError& error){
         message.str(""); message << "FITS file error thrown: " << error.message();
         logwrite(function, message.str());
         self->writing_file = false;
+        self->error = true;    // tells the calling function that I had an error
         return;
       }
 
-      // Close the FITS file
+      // increment number of frames written
       //
-      self->close_file();
-      message.str(""); message << "closed FITS file " << info.fits_name;
-      logwrite(function, message.str());
-      message.str(""); message << "[DEBUG] threadcount " << this->threadcount << " incrementing framen";
-      logwrite(function, message.str());
       this->framen++;
-      message.str(""); message << "[DEBUG] threadcount " << this->threadcount << " extension=" << info.extension << " framen=" << this->framen; logwrite(function, message.str());
       self->writing_file = false;
     }
     /**************** FITS_file::write_cube_thread ****************************/
@@ -420,7 +448,7 @@ class FITS_file {
      *
      * Uses CCFits
      */
-    void make_camera_header(Archon::Information &info) {
+    void make_camera_header(Common::Information &info) {
       std::string function = "FITS_file::make_camera_header";
       std::stringstream message;
       try {

@@ -6,7 +6,6 @@
  *
  */
 #include "archon.h"
-#include "fits.h"
 
 #include <sstream>   // for std::stringstream
 #include <iomanip>   // for setfil, setw, etc.
@@ -31,7 +30,6 @@ namespace Archon {
     this->image_data = NULL;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
-//  this->config.filename = CONFIG_FILE;  //!< default config file set in CMakeLists.txt
 
     // pre-size the modtype vector to hold the max number of modules
     //
@@ -116,11 +114,6 @@ namespace Archon {
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {
         this->exposeparam = config.arg[entry];
-        applied++;
-      }
-
-      if (config.param[entry].compare(0, 15, "NSEQUENCE_PARAM")==0) {
-        this->nsequenceparam = config.arg[entry];
         applied++;
       }
 
@@ -261,6 +254,7 @@ namespace Archon {
     long error;
     if (!this->archon.isconnected()) {
       logwrite(function, "connection already closed");
+      return (NO_ERROR);
     }
     // close the socket file descriptor to the Archon controller
     //
@@ -748,7 +742,7 @@ namespace Archon {
             return ERROR;
           }
           else {
-            parse_config = true;
+            parse_config = true; parse_system = false;
             message.str(""); message << "detected mode: " << mode; logwrite(function, message.str());
             this->modemap[mode].rawenable=-1;    // initialize to -1, require it be set somewhere in the ACF
                                                  // this also ensures something is saved in the modemap for this mode
@@ -869,14 +863,22 @@ namespace Archon {
         // ...or we have any other CONFIG line of the form KEY=VALUE
         //
         else {
+          std::string key, value;
           Tokenize(line, tokens, "=");                                    // separate into two KEY, VALUE tokens
-          if (tokens.size() != 2) {
+          if (tokens.size() > 0) {                                        // at least one token we have KEY
+            key   = tokens[0];
+            value = "";
+          }
+          if (tokens.size() > 1) {                                        // a second token and we have VALUE
+            value = tokens[1];
+          }
+          if ( (tokens.size() < 1) || (tokens.size() > 2) ) {             // this is bad (zero or too many tokens)
             message.str(""); message << "ERROR: malformed CONFIG line: " << savedline << ": expected KEY=VALUE";
             logwrite(function, message.str());
 	    filestream.close();
             return ERROR;
           }
-          this->modemap[mode].configmap[ tokens[0] ].value = tokens[1];   // save the VALUE, indexed by KEY
+          this->modemap[mode].configmap[ key ].value = value;             // save the VALUE, indexed by KEY
         }
       } // end if (line.compare(0,4,"ACF:")==0)
 
@@ -901,12 +903,10 @@ namespace Archon {
         else
         if ( tokens[0] == "AMPS_PER_CCD_HORI" ) {
           this->modemap[mode].geometry.amps_per_ccd[0] = std::stoi( tokens[1] );
-          logwrite(function, message.str());
         }
         else
         if ( tokens[0] == "AMPS_PER_CCD_VERT" ) {
           this->modemap[mode].geometry.amps_per_ccd[1] = std::stoi( tokens[1] );
-          logwrite(function, message.str());
         }
         else {
           message.str(""); message << "ERROR: unrecognized internal parameter specified: "<< tokens[0];
@@ -916,7 +916,7 @@ namespace Archon {
         }
       } // end if (line.compare(0,5,"ARCH:")==0)
 
-      // the "FITS:" tag is used to write custom keyword entries
+      // the "FITS:" tag is used to write custom keyword entries of the form "FITS:KEYWORD=VALUE/COMMENT"
       //
       else
       if (line.compare(0,5,"FITS:")==0) {
@@ -927,23 +927,39 @@ namespace Archon {
         // The token left of "=" is the keyword. Immediate right is the value
         Tokenize(line, tokens, "=");
         if (tokens.size() != 2) {                                         // need at least two tokens at this point
-          message.str(""); message << "ERROR: malformed FITS command: " << savedline << ": expected KEYWORD=value//comment";
+          message.str(""); message << "ERROR: malformed FITS command: " << savedline << ": expected KEYWORD=value/comment";
           logwrite(function, message.str());
           filestream.close();
           return(ERROR);
         }
-        keyword   = tokens[0].substr(0,8);                                // truncate keyword to 8 characters
-        keystring = tokens[1];                                            // tokenize the rest in a moment
+        keyword    = tokens[0].substr(0,8);                               // truncate keyword to 8 characters
+        keystring  = tokens[1];                                           // tokenize the rest in a moment
+        keycomment = "";                                                  // initialize comment, assumed empty unless specified below
 
         // Next, tokenize on the slash "/".
         // The token left of "/" is the value. Anything to the right is a comment.
+        //
         Tokenize(keystring, tokens, "/");
-        keyvalue   = tokens[0];
 
-        if (tokens.size() == 2) {      // If there are two tokens then the second is a comment,
+        if (tokens.size() == 0) {      // no tokens found means no "/" characeter which means no comment
+          keyvalue = keystring;        // therefore the keyvalue is the entire string
+        }
+
+        if (tokens.size() > 0) {       // at least one token
+          keyvalue = tokens[0];
+        }
+
+        if (tokens.size() == 2) {      // If there are two tokens here then the second is a comment
           keycomment = tokens[1];
-        } else {                       // but the comment is optional.
-          keycomment = "";
+        }
+
+        if (tokens.size() > 2) {       // everything below this has been covered
+          message.str(""); message << "ERROR: malformed FITS command: " << savedline << ": expected KEYWORD=VALUE/COMMENT";
+          logwrite(function, message.str());
+          message.str(""); message << "ERROR: too many \"/\" in comment string? " << keystring;
+          logwrite(function, message.str());
+          filestream.close();
+          return(ERROR);
         }
 
         // Save all of the user keyword information in a map for later
@@ -1123,7 +1139,7 @@ namespace Archon {
       this->camera_info.detector_pixels[1] = this->rawinfo.rawlines; 
       this->camera_info.detector_pixels[1]++;
       // frame_type will determine the bits per pixel and where the detector_axes come from
-      this->camera_info.frame_type = FRAME_RAW;
+      this->camera_info.frame_type = Common::FRAME_RAW;
       this->camera_info.region_of_interest[0] = 1;
       this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
       this->camera_info.region_of_interest[2] = 1;
@@ -1151,7 +1167,7 @@ namespace Archon {
       logwrite(function, message.str());
       this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps_per_ccd[0];
       this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps_per_ccd[1];
-      this->camera_info.frame_type = FRAME_IMAGE;
+      this->camera_info.frame_type = Common::FRAME_IMAGE;
       // ROI is the full detector
       this->camera_info.region_of_interest[0] = 1;
       this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
@@ -1171,7 +1187,7 @@ namespace Archon {
     int samplemode=-1;
     if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode); // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
     if (samplemode < 0) {
-      message.str(""); message << "bad or missing SAMPLEMODE from " << this->camera_info.configfilename;
+      message.str(""); message << "ERROR: bad or missing SAMPLEMODE from " << this->camera_info.configfilename;
       logwrite(function, message.str());
       return (ERROR);
     }
@@ -1194,10 +1210,10 @@ namespace Archon {
     // Image can be 16 or 32 bpp depending on SAMPLEMODE setting in ACF.
     // Call set_axes(datatype) with the FITS data type needed.
     //
-    if (this->camera_info.frame_type == FRAME_RAW) {
+    if (this->camera_info.frame_type == Common::FRAME_RAW) {
       error = this->camera_info.set_axes(USHORT_IMG);
     }
-    if (this->camera_info.frame_type == FRAME_IMAGE) {
+    if (this->camera_info.frame_type == Common::FRAME_IMAGE) {
       if (this->camera_info.bitpix == 16) error = this->camera_info.set_axes(USHORT_IMG);
       else
       if (this->camera_info.bitpix == 32) error = this->camera_info.set_axes(FLOAT_IMG);
@@ -1215,7 +1231,11 @@ namespace Archon {
     // allocate image_data in blocks because the controller outputs data in units of blocks
     //
     this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_ccds) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
-    message.str(""); message << "[DEBUG] image_data_bytes = " << image_data_bytes; logwrite(function, message.str());
+
+    if (this->image_data_bytes == 0) {
+      logwrite(function, "ERROR: image data size is zero! check NUM_CCDS, AMPS_PER_CCD_HORI, AMPS_PER_CCD_VERT in .acf file");
+      error = ERROR;
+    }
 
     this->camera_info.current_observing_mode = mode;       // identify the newly selected mode in the camera_info class object
     this->modeselected = true;                             // a valid mode has been selected
@@ -1223,7 +1243,7 @@ namespace Archon {
     message.str(""); message << "new mode: " << mode << " will use " << this->camera_info.bitpix << " bits per pixel";
     logwrite(function, message.str());
 
-    return(NO_ERROR);
+    return(error);
   }
   /**************** Archon::Interface::set_camera_mode ************************/
 
@@ -1716,7 +1736,7 @@ namespace Archon {
       return(ERROR);
     }
 
-    message.str(""); message << "reading " << (this->camera_info.frame_type==FRAME_RAW?"raw":"image") << " with " << scmd;
+    message.str(""); message << "reading " << (this->camera_info.frame_type==Common::FRAME_RAW?"raw":"image") << " with " << scmd;
     logwrite(function, message.str());
     return(NO_ERROR);
   }
@@ -1750,7 +1770,6 @@ namespace Archon {
     }
 
     int rawenable = this->modemap[this->camera_info.current_observing_mode].rawenable;
-    message.str(""); message << "[DEBUG] rawenable=" << rawenable; logwrite(function, message.str());
 
     if (rawenable == -1) {
       logwrite(function, "ERROR: RAWENABLE is undefined");
@@ -1769,23 +1788,19 @@ namespace Archon {
         return ERROR;
       }
       else {
-        logwrite(function, "[DEBUG] raw-only calling read_frame(FRAME_RAW)");
-        if (error == NO_ERROR) error = this->read_frame(FRAME_RAW);       // read raw frame
+        logwrite(function, "[DEBUG] raw-only calling read_frame(Common::FRAME_RAW)");
+        if (error == NO_ERROR) error = this->read_frame(Common::FRAME_RAW);       // read raw frame
         logwrite(function, "[DEBUG] raw-only calling write_frame()");
         if (error == NO_ERROR) error = this->write_frame();               // write raw frame
       }
     }
 
     // IMAGE, or IMAGE+RAW
+    // datacube was already set = true in the expose function
     //
     else {
-      if (rawenable == 1) {                                               // rawenable can still be set even if mode != RAW
-        this->camera_info.data_cube = true;                               // in which case we should write a data cube
-        this->camera_info.extension = 0;
-      }
-
-      logwrite(function, "[DEBUG] calling read_frame(FRAME_IMAGE)");
-      if (error == NO_ERROR) error = this->read_frame(FRAME_IMAGE);       // read image frame
+      logwrite(function, "[DEBUG] calling read_frame(Common::FRAME_IMAGE)");
+      if (error == NO_ERROR) error = this->read_frame(Common::FRAME_IMAGE);       // read image frame
       logwrite(function, "[DEBUG] calling write_frame()");
       if (error == NO_ERROR) error = this->write_frame();                 // write image frame
 
@@ -1795,15 +1810,17 @@ namespace Archon {
       // to the original mode, for any subsequent exposures..
       //
       if (rawenable == 1) {
-        logwrite(function, "[DEBUG] rawenable is set -- IMAGE+RAW file will be saved (I hope)");
+        logwrite(function, "[DEBUG] rawenable is set -- IMAGE+RAW file will be saved");
         logwrite(function, "[DEBUG] switching to mode=RAW");
         std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode so we can come back to it
         if (error == NO_ERROR) error = this->set_camera_mode("raw");      // switch to raw mode
 
-        message.str(""); message << "[DEBUG] error=" << error << " calling read_frame(FRAME_RAW) if error=0"; logwrite(function, message.str());
-        if (error == NO_ERROR) error = this->read_frame(FRAME_RAW);       // read raw frame
-        message.str(""); message << "[DEBUG] error=" << error << " calling write_raw() if error=0"; logwrite(function, message.str());
-        if (error == NO_ERROR) error = this->write_raw();                 // write raw frame
+        message.str(""); message << "[DEBUG] error=" << error << " calling read_frame(Common::FRAME_RAW) if error=0"; logwrite(function, message.str());
+        if (error == NO_ERROR) error = this->read_frame(Common::FRAME_RAW);       // read raw frame
+/////   message.str(""); message << "[DEBUG] error=" << error << " calling write_raw() if error=0"; logwrite(function, message.str());
+/////   if (error == NO_ERROR) error = this->write_raw();                 // write raw frame
+        message.str(""); message << "[DEBUG] error=" << error << " calling write_frame() for raw data if error=0"; logwrite(function, message.str());
+        if (error == NO_ERROR) error = this->write_frame();                 // write raw frame
         message.str(""); message << "[DEBUG] error=" << error << " switching back to original mode if error=0"; logwrite(function, message.str());
         if (error == NO_ERROR) error = this->set_camera_mode(orig_mode);  // switch back to the original mode
       }
@@ -1826,7 +1843,7 @@ namespace Archon {
    * selected frame type.
    *
    */
-  long Interface::read_frame(frame_type_t frame_type) {
+  long Interface::read_frame(Common::frame_type_t frame_type) {
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
     int retval;
@@ -1883,7 +1900,7 @@ namespace Archon {
       return(ERROR);
     }
 
-    message.str(""); message << "will read " << (frame_type == FRAME_RAW ? "raw" : "image")
+    message.str(""); message << "will read " << (frame_type == Common::FRAME_RAW ? "raw" : "image")
                              << " data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
     logwrite(function, message.str());
 
@@ -1896,7 +1913,7 @@ namespace Archon {
     // has a message header.
     //
     switch (frame_type) {
-      case FRAME_RAW:
+      case Common::FRAME_RAW:
         // Archon buffer base address
         bufaddr   = this->frame.bufbase[this->frame.index] + this->frame.bufrawoffset[this->frame.index];
 
@@ -1904,7 +1921,7 @@ namespace Archon {
         bufblocks = (unsigned int) floor( (this->camera_info.image_memory + BLOCK_LEN - 1 ) / BLOCK_LEN );
         break;
 
-      case FRAME_IMAGE:
+      case Common::FRAME_IMAGE:
         // Archon buffer base address
         bufaddr   = this->frame.bufbase[this->frame.index];
 
@@ -1967,14 +1984,14 @@ namespace Archon {
         break;
       }
       if (header[0] == '?') {  // Archon retured an error
-        message.str(""); message << "ERROR: reading " << (frame_type==FRAME_RAW?"raw ":"image ") << " data";
+        message.str(""); message << "ERROR: reading " << (frame_type==Common::FRAME_RAW?"raw ":"image ") << " data";
         logwrite(function, message.str());
         this->fetchlog();      // check the Archon log for error messages
         error = ERROR;
         break;
       }
       else if (strncmp(header, check, 4) != 0) {
-        message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==FRAME_RAW?"raw ":"image ")
+        message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Common::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
         logwrite(function, message.str());
         error = ERROR;
@@ -2017,7 +2034,7 @@ namespace Archon {
     // On success, write the value to the log and return
     //
     if (error == NO_ERROR) {
-      message.str(""); message << "successfully read " << std::dec << totalbytesread << (frame_type==FRAME_RAW?" raw":" image")
+      message.str(""); message << "successfully read " << std::dec << totalbytesread << (frame_type==Common::FRAME_RAW?" raw":" image")
                                << " bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
       logwrite(function, message.str());
     }
@@ -2071,7 +2088,6 @@ namespace Archon {
       // convert four 8-bit values into a 32-bit value and scale by 2^16
       //
       case 32: {
-        FITS_file <float> fits_file;                            // Instantiate a FITS_file object with the appropriate type
         cbuf32 = (uint32_t *)this->image_data;                  // cast here to 32b
         float *fbuf = NULL;
 //      fbuf = new float[ this->fits_info.image_size ];         // allocate a float buffer of same number of pixels for scaling  //TODO
@@ -2083,7 +2099,7 @@ namespace Archon {
         }
 
 //      error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
-        error = fits_file.write_image(fbuf, this->camera_info); // write the image to disk
+        error = this->fits_file.write_image(fbuf, this->camera_info); // write the image to disk
         if (fbuf != NULL) {
           delete [] fbuf;
         }
@@ -2093,10 +2109,9 @@ namespace Archon {
       // convert four 8-bit values into 16 bit values and no scaling necessary
       //
       case 16: {
-        FITS_file <unsigned short> fits_file;                   // Instantiate a FITS_file object with the appropriate type
         cbuf16 = (uint16_t *)this->image_data;                  // cast to 16b
 //      error = fits_file.write_image(cbuf16, this->fits_info); // write the image to disk //TODO
-        error = fits_file.write_image(cbuf16, this->camera_info); // write the image to disk
+        error = this->fits_file.write_image(cbuf16, this->camera_info); // write the image to disk
         break;
       }
 
@@ -2113,11 +2128,9 @@ namespace Archon {
     // Things to do after successful write
     //
     if ( error == NO_ERROR ) {
-      this->common.increment_imnum();                             // increment image_num when fitsnaming == "number"
-      if (this->camera_info.data_cube) this->camera_info.extension++;  // increment extension for cubes
-      message.str(""); 
-      message << "[DEBUG] this->camera_info.extension = " << this->camera_info.extension; 
-      logwrite(function, message.str());
+      this->common.increment_imnum();                                 // increment image_num when fitsnaming == "number"
+      if (this->camera_info.datacube) this->camera_info.extension++;  // increment extension for cubes
+      logwrite(function, "frame write complete");
     }
     else {
       logwrite(function, "ERROR: writing image");
@@ -2419,7 +2432,7 @@ namespace Archon {
   /**
    * @fn     expose
    * @brief  initiate an exposure
-   * @param  none
+   * @param  nseq_in string, if set becomes the number of sequences
    * @return ERROR or NO_ERROR
    *
    * This function really does three things before returning successful completion:
@@ -2431,10 +2444,14 @@ namespace Archon {
    * read out the detector into the frame buffer after an exposure.
    *
    */
-  long Interface::expose(std::string nseq) {
+  long Interface::expose(std::string nseq_in) {
     std::string function = "Archon::Interface::expose";
     std::stringstream message;
     long error;
+    std::string nseqstr;
+    int nseq;
+
+    std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
     if ( ! this->modeselected ) {
       logwrite(function, "ERROR: no mode selected");
@@ -2450,8 +2467,44 @@ namespace Archon {
       return(ERROR);
     }
 
-    error = this->prep_parameter(this->exposeparam, "1");
-    if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, "1");
+    // If nseq_in is not supplied then set nseq to 1
+    //
+    if ( nseq_in.empty() ) {
+      nseqstr = "1";
+      nseq=1;
+      this->camera_info.datacube = false;
+    }
+    else {                                                          // sequence argument passed in
+      try {
+        nseq = std::stoi( nseq_in );                                // test that nseq_in is an integer
+        nseqstr = nseq_in;                                          // before trying to use it
+        this->camera_info.datacube = (nseq>1) ? true : false;
+        this->camera_info.extension = 0;
+      }
+      catch (std::invalid_argument &) {
+        message.str(""); message << "ERROR: unable to convert sequences: " << nseq_in << " to integer";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+      catch (std::out_of_range &) {
+        message.str(""); message << "ERROR: sequences " << nseq_in << " outside integer range";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+    }
+
+    error = this->get_frame_status();  // TODO is this needed here?
+
+    if (error != NO_ERROR) {
+      logwrite(function, "ERROR: unable to get frame status");
+      return(ERROR);
+    }
+    this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
+
+    // initiate the exposure here
+    //
+    error = this->prep_parameter(this->exposeparam, nseqstr);
+    if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
 
     // get system time and Archon's timer after exposure starts
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
@@ -2464,18 +2517,22 @@ namespace Archon {
 
     if (error == NO_ERROR) logwrite(function, "exposure started");
     message.str(""); 
-    message << "[DEBUG] mode " << this->camera_info.current_observing_mode;
+    message << "[DEBUG] mode " << mode;
     logwrite(function, message.str());
 
-    this->camera_info.fits_name = this->common.get_fitsname();      // assemble the FITS filenmae
+    // Assemble the FITS filename
+    //
+    this->camera_info.fits_name = this->common.get_fitsname();
 
-    this->camera_info.userkeys.keydb = this->userkeys.keydb;        // copy the userkeys database object into camera_info
+    // Copy the userkeys database object into camera_info
+    //
+    this->camera_info.userkeys.keydb = this->userkeys.keydb;
 
     // add any keys from the ACF file (from modemap[mode].acfkeys) into the camera_info.userkeys object
     //
     Common::FitsKeys::fits_key_t::iterator keyit;
-    for (keyit  = this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.begin();
-         keyit != this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.end();
+    for (keyit  = this->modemap[mode].acfkeys.keydb.begin();
+         keyit != this->modemap[mode].acfkeys.keydb.end();
          keyit++) {
       this->camera_info.userkeys.keydb[keyit->second.keyword].keyword    = keyit->second.keyword;
       this->camera_info.userkeys.keydb[keyit->second.keyword].keytype    = keyit->second.keytype;
@@ -2483,9 +2540,9 @@ namespace Archon {
       this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
     }
 
+/***
     // add the internal system keys into the camera_info.userkeys object
     //
-/*
     for (keyit  = this->systemkeys.keydb.begin();
          keyit != this->systemkeys.keydb.end();
          keyit++) {
@@ -2494,49 +2551,58 @@ namespace Archon {
       this->camera_info.userkeys.keydb[keyit->second.keyword].keyvalue   = keyit->second.keyvalue;
       this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
     }
-*/
+***/
 
     // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
-    // one extension each for CDS and RAW data
+    // one extension for the image and a separate extension for raw data.
     //
-    if (this->camera_info.current_observing_mode!="RAW" && this->modemap[this->camera_info.current_observing_mode].rawenable) {
-      this->camera_info.data_cube = true;
-      this->camera_info.extension = 0;
-    }
-    else {
-      this->camera_info.data_cube = false;
+    if ( (error == NO_ERROR) && (mode != "RAW") && (this->modemap[mode].rawenable) ) {
+      this->camera_info.datacube = true;
       this->camera_info.extension = 0;
     }
 
-    message.str(""); message << "[DEBUG] data_cube = " << (this->camera_info.data_cube?"True":"False") << " extension=" << this->camera_info.extension;
-    logwrite(function, message.str());
+    // Open the FITS file
+    //
+    error = this->fits_file.open_file(this->camera_info);
 
 //  //TODO only use camera_info -- don't use fits_info -- is this OK? TO BE CONFIRMED
 //  this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer  //TODO
 
-    this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
+//  this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
 
-    error = this->wait_for_exposure();                              // wait for the exposure delay to complete
-
-    if (error==ERROR) {
-      logwrite(function, "exposure delay error");
-      return(error);
-    }
-    else {
-      logwrite(function, "exposure delay complete");
+    if (nseq > 1) {
+      message.str(""); message << "starting sequence of " << nseq << " frames. lastframe=" << this->lastframe;
+      logwrite(function, message.str());
     }
 
-    if (this->camera_info.current_observing_mode != "RAW") {        // If not raw mode then
-      error = this->wait_for_readout();                             // wait for the readout into frame buffer.
+    // If not RAW mode then wait for Archon frame buffer to be ready,
+    // then read the latest ready frame buffer to the host. If this
+    // is a squence, then loop over all expected frames.
+    //
+    if ( (error == NO_ERROR) && (mode != "RAW") ) {                 // If not raw mode then
+      while (nseq-- > 0) {
+
+        if (this->camera_info.exposure_time != 0) {                 // wait for the exposure delay to complete (if there is one)
+          error = this->wait_for_exposure();
+          if (error==ERROR) {
+            logwrite(function, "exposure delay error");
+            break;
+          }
+          else {
+            logwrite(function, "exposure delay complete");
+          }
+        }
+
+        if (error==NO_ERROR) error = this->wait_for_readout();      // wait for the readout into frame buffer,
+        if (error==NO_ERROR) error = read_frame();                  // and read the frame buffer to host when ready.
+      }
     }
 
-    if (error==ERROR) {
-      logwrite(function, "readout error");
-      return(error);
-    }
-    else {
-      logwrite(function, "readout complete");
-    }
+    logwrite( function, (error==ERROR ? "ERROR" : "complete") );
+
+    // close the FITS file
+    //
+    this->fits_file.close_file();
 
     return (error);
   }
@@ -2740,6 +2806,13 @@ namespace Archon {
       clock_now = get_clock_time()*1000;
     } // end while (done == false && this->abort == false)
 
+    message.str(""); 
+    message << "[DEBUG] *** lastframe=" << this->lastframe 
+            << " currentframe=" << currentframe 
+            << " bufcomplete=" << this->frame.bufcomplete[this->frame.index];
+    logwrite(function, message.str());
+    this->lastframe = currentframe;
+
     // On success, write the value to the log and return
     //
     if (error == NO_ERROR && this->abort == false) {
@@ -2833,7 +2906,21 @@ namespace Archon {
       std::stringstream cmd;
       cmd << "exptime " << exptime_in;
       ret = this->set_parameter( cmd.str() );
-      if (ret != ERROR) this->camera_info.exposure_time = std::stoi( exptime_in );
+      if (ret != ERROR) {
+        try {
+          this->camera_info.exposure_time = std::stoi( exptime_in );
+        }
+        catch (std::invalid_argument &) {
+          message.str(""); message << "ERROR: unable to convert exposure time: " << exptime_in << " to integer";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          message.str(""); message << "ERROR: exposure time " << exptime_in << " outside integer range";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+      }
     }
     retstring = std::to_string( this->camera_info.exposure_time );
     message.str(""); message << "exposure time is " << retstring << " msec";
@@ -2954,7 +3041,6 @@ namespace Archon {
 
     // Locate this line in the configuration so that it can be written to the Archon
     //
-
     std::string key   = biasconfig.str();
     std::string value = std::to_string(voltage);
     bool changed      = false;
@@ -3002,9 +3088,6 @@ namespace Archon {
     }
 
     logwrite(function, message.str());
-
-std::cout << "**** read back ****\n";
-
 
     return error;
   }
