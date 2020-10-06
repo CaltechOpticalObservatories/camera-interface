@@ -22,6 +22,7 @@ namespace Archon {
   Interface::Interface() {
     this->archon_busy = false;
     this->modeselected = false;
+    this->firmwareloaded = false;
     this->msgref = 0;
     this->lastframe = 0;
     this->frame.index = 0;
@@ -701,6 +702,11 @@ namespace Archon {
     //
     if (error == NO_ERROR) error = this->archon_cmd(CLEARCONFIG);
 
+    // Any failure after clearing the configuration memory will mean
+    // no firmware is loaded.
+    //
+    this->firmwareloaded = false;
+
     modemap.clear();                             // file is open, clear all modes
 
     linecount = 0;                               // init Archon configuration line number
@@ -1071,6 +1077,8 @@ namespace Archon {
 
     this->modeselected = false;           // require that a mode be selected after loading new firmware
 
+    this->firmwareloaded = true;
+
     return(error);
   }
   /**************** Archon::Interface::load_firmware **************************/
@@ -1090,6 +1098,13 @@ namespace Archon {
     bool configchanged = false;
     bool paramchanged = false;
     long error;
+
+    // No point in trying anything if no firmware has been loaded yet
+    //
+    if ( ! this->firmwareloaded ) {
+      logwrite(function, "ERROR: no firmware loaded");
+      return(ERROR);
+    }
 
     std::transform( mode.begin(), mode.end(), mode.begin(), ::toupper );    // make uppercase
 
@@ -1209,15 +1224,15 @@ namespace Archon {
     // Set axes, image dimensions, calculate image_memory, etc.
     // Raw will always be 16 bpp (USHORT).
     // Image can be 16 or 32 bpp depending on SAMPLEMODE setting in ACF.
-    // Call set_axes(datatype) with the FITS data type needed.
+    // Call set_axes(datatype) with the FITS data type needed, which will set the info.datatype variable.
     //
     if (this->camera_info.frame_type == Common::FRAME_RAW) {
-      error = this->camera_info.set_axes(USHORT_IMG);
+      error = this->camera_info.set_axes(USHORT_IMG);                                     // 16 bit raw is unsigned short int
     }
     if (this->camera_info.frame_type == Common::FRAME_IMAGE) {
-      if (this->camera_info.bitpix == 16) error = this->camera_info.set_axes(USHORT_IMG);
+      if (this->camera_info.bitpix == 16) error = this->camera_info.set_axes(SHORT_IMG);  // 16 bit image is short int
       else
-      if (this->camera_info.bitpix == 32) error = this->camera_info.set_axes(FLOAT_IMG);
+      if (this->camera_info.bitpix == 32) error = this->camera_info.set_axes(FLOAT_IMG);  // 32 bit image is float
       else {
         message.str(""); message << "ERROR: bad bitpix " << this->camera_info.bitpix;
         logwrite(function, message.str());
@@ -2070,6 +2085,7 @@ namespace Archon {
     std::stringstream message;
     uint32_t   *cbuf32;                  //!< used to cast char buf into 32 bit int
     uint16_t   *cbuf16;                  //!< used to cast char buf into 16 bit int
+    int16_t    *cbuf16s;                 //!< used to cast char buf into 16 bit int
     long        error;
 
     if ( ! this->modeselected ) {
@@ -2107,12 +2123,30 @@ namespace Archon {
         break;
       }
 
-      // convert four 8-bit values into 16 bit values and no scaling necessary
+      // convert four 8-bit values into 16 bit values
       //
       case 16: {
-        cbuf16 = (uint16_t *)this->image_data;                  // cast to 16b
-//      error = fits_file.write_image(cbuf16, this->fits_info); // write the image to disk //TODO
-        error = this->fits_file.write_image(cbuf16, this->camera_info); // write the image to disk
+        if (this->camera_info.datatype == USHORT_IMG) {                   // raw
+          cbuf16 = (uint16_t *)this->image_data;                          // cast to 16b unsigned int
+//        error = fits_file.write_image(cbuf16, this->fits_info);         // write the image to disk //TODO
+          error = this->fits_file.write_image(cbuf16, this->camera_info); // write the image to disk
+        }
+        else
+        if (this->camera_info.datatype == SHORT_IMG) {
+          cbuf16s = (int16_t *)this->image_data;                          // cast to 16b signed int
+          int16_t *ibuf = NULL;
+          ibuf = new int16_t[ this->camera_info.image_size ];
+          for (long pix=0; pix < this->camera_info.image_size; pix++) {
+            ibuf[pix] = cbuf16s[pix] - 32768;                             // subtract 2^15 from every pixel
+          }
+          error = this->fits_file.write_image(ibuf, this->camera_info);   // write the image to disk
+          if (ibuf != NULL) { delete [] ibuf; }
+        }
+        else {
+          message.str(""); message << "ERROR: unsupported 16 bit datatype " << this->camera_info.datatype;
+          logwrite(function, message.str());
+          error = ERROR;
+        }
         break;
       }
 

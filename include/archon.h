@@ -81,6 +81,7 @@ namespace Archon {
       int  gain[MAXADCHANS];                 //!< digital CDS gain (from TAPLINE definition)   //TODO convert to vector
       int  offset[MAXADCHANS];               //!< digital CDS offset (from TAPLINE definition) //TODO convert to vector
       bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
+      bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
 
       char *image_data;                      //!< image data buffer
       uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
