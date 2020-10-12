@@ -96,11 +96,11 @@ namespace Common {
       try {
         num = std::stoi(num_in);
       }
-      catch (std::invalid_argument ) {
+      catch (std::invalid_argument &) {
         logwrite(function, "error invalid number: unable to convert to integer");
         return(ERROR);
       }
-      catch (std::out_of_range) {
+      catch (std::out_of_range &) {
         logwrite(function, "error imnum out of integer range");
         return(ERROR);
       }
