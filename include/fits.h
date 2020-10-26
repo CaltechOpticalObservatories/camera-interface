@@ -416,7 +416,10 @@ class FITS_file {
 
         // Add extension-only keys now
         //
-        this->imageExt->addKey("JENNY", 8675309, "don't change your number");
+        if (info.datatype == SHORT_IMG) {
+          this->imageExt->addKey("BZERO", 32768, "offset for signed short int");
+          this->imageExt->addKey("BSCALE", 1, "scaling factor");
+        }
 
         // Write and flush to make sure image is written to disk
         //
