@@ -53,9 +53,6 @@
     // Find first "non-delimiter".
     std::string::size_type pos     = str.find_first_of(delimiters, lastPos);
 
-    // No delimters, no tokens
-    if (pos == std::string::npos) { return 0; }
-
     std::string quote("\"");
     unsigned int quote_start = str.find(quote); //finds first quote mark
     bool quotes_found = false;

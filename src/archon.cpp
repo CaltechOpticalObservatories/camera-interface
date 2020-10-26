@@ -1021,6 +1021,13 @@ namespace Archon {
       //
       else {
         std::vector<std::string> tokens;
+        // Tokenize will return a size=1 even if there are no delimiters,
+        // so work around this by first checking for delimiters
+        // before calling Tokenize.
+        //
+        if (line.find_first_of("=", 0) == std::string::npos) {
+          continue;
+        }
         Tokenize(line, tokens, "=");                            // separate into KEY, VALUE tokens
         if (tokens.size() == 0) {
           continue;                                             // nothing to do here if no tokens (ie no "=")
