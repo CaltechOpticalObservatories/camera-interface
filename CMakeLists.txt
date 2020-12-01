@@ -2,11 +2,10 @@
 # BEGIN USER DEFINITIONS
 # ----------------------------------------------------------------------------
 # user must define the interface type here
-# valid types are: "ARC-PCIe" | "ARC-PCI" | "STA-Archon"
+# valid types are: "AstroCam" | "Archon"
 
-set(INTERFACE_TYPE "STA-Archon")
-#set(INTERFACE_TYPE "ARC-PCIe")
-#set(INTERFACE_TYPE "ARC-PCI")
+#set(INTERFACE_TYPE "Archon")
+set(INTERFACE_TYPE "AstroCam")
 
 # ----------------------------------------------------------------------------
 # END USER DEFINITIONS
@@ -24,7 +23,8 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 set(CMAKE_C_COMPILER /usr/bin/g++)
 set(CMAKE_CXX_COMPILER /usr/bin/g++)
-add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 )
+add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb )
+set(CMAKE_BUILD_TYPE Debug)
 include_directories(${PROJECT_INCL_DIR})
 
 # ----------------------------------------------------------------------------
@@ -50,75 +50,44 @@ endif()
 #   interface           target for interfacing to appropriate hardware
 # ----------------------------------------------------------------------------
 
-# AstroCam ARC-66 PCIe interface
+# AstroCam ARC-64/66 PCI/e interfaces
 #
-if (${INTERFACE_TYPE} STREQUAL "ARC-PCIe")
-        message(STATUS "compiling for AstroCam ARC-66 PCIe")
-        set(INTERFACE_TARGET arc66)
-        set(ARCAPI_DIR "/opt/ARC_API_35")
+if (${INTERFACE_TYPE} STREQUAL "AstroCam")
+        message(STATUS "compiling for AstroCam GenIII PCI/PCIe")
+        set(INTERFACE_TARGET astrocam)
+        set(ARCAPI_DIR "/opt/ARC_API/3.6")
         add_definitions(-DASTROCAM)
         add_definitions(-DARC66_PCIE)
-        find_path(ARCAPI_FITS ArcFitsFileCAPI.h PATHS ${ARCAPI_DIR}/CArcFitsFile/src)
-        find_path(ARCAPI_CFITS CArcFitsFile.h PATHS ${ARCAPI_DIR}/CArcFitsFile/src)
-        find_path(ARCAPI_DEVICE ArcDeviceCAPI.h PATHS ${ARCAPI_DIR}/CArcDevice/src)
-        find_path(ARCAPI_PCI CArcPCIe.h PATHS ${ARCAPI_DIR}/CArcDevice/src)
-        find_path(ARCAPI_EXPIFACE CExpIFace.h PATHS ${ARCAPI_DIR}/CArcDevice/src)
-        find_path(ARCAPI_DEFS ArcDefs.h PATHS ${ARCAPI_DIR}/CArcDevice/src)
-        find_path(ARC_INTERFACE arc66.h PATHS ${PROJECT_INCL_DIR})
-        list(APPEND INTERFACE_SOURCE
-                "${PROJECT_SOURCE_DIR}/arc66.cpp"
+        find_path(ARCAPI_BASE "CArcBase.h" PATHS ${ARCAPI_DIR}/CArcBase/inc)
+        find_path(ARCAPI_FITS "CArcFitsFile.h" PATHS ${ARCAPI_DIR}/CArcFitsFile/inc)
+        find_path(ARCAPI_CFITS "CArcFitsFile.h" PATHS ${ARCAPI_DIR}/CArcFitsFile/inc)
+        find_path(ARCAPI_DEVICE "CArcDevice.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+        find_path(ARCAPI_PCI "CArcPCI.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+        find_path(ARCAPI_EXPIFACE "CExpIFace.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+        find_path(ARCAPI_CONIFACE "CConIFace.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+        find_path(ARCAPI_DEFS "ArcDefs.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+
+        set(INTERFACE_SOURCE
                 "${PROJECT_SOURCE_DIR}/astrocam.cpp"
                 )
-        list(APPEND INTERFACE_INCLUDES
+        set(INTERFACE_INCLUDES
                 "${ARC_INTERFACE}"
+                "${ARCAPI_BASE}"
                 "${ARCAPI_FITS}"
                 "${ARCAPI_CFITS}"
                 "${ARCAPI_DEVICE}"
                 "${ARCAPI_PCI}"
                 "${ARCAPI_EXPIFACE}"
+                "${ARCAPI_CONIFACE}"
                 "${ARCAPI_DEFS}"
                 )
-	add_library(interface STATIC IMPORTED
-                ${ARCAPI_DIR}/CArcFitsFile/Release_x${BITS}/libCArcFitsFile.so
-                ${ARCAPI_DIR}/CArcDevice/Release_x${BITS}/libCArcDevice.so
-                )
-        set_target_properties(interface PROPERTIES 
-                IMPORTED_LOCATION ${ARCAPI_DIR}/CArcDevice/Release_x${BITS}/libCArcFitsFile.so
-                IMPORTED_LOCATION ${ARCAPI_DIR}/CArcDevice/Release_x${BITS}/libCArcDevice.so
-                )
-
-# AstroCam ARC-64 PCI interface
-#
-elseif(${INTERFACE_TYPE} STREQUAL "ARC-PCI")
-        message(STATUS "compiling for AstroCam ARC-64 PCI")
-        set(INTERFACE_TARGET arc64)
-        set(ARCAPI_DIR "/opt/ARC_API_21")
-        add_definitions(-DASTROCAM)
-        add_definitions(-DARC64_PCI)
-        find_path(ARCAPI_FITS CFitsFile.h PATHS ${ARCAPI_DIR}/CFitsFile)
-        find_path(ARCAPI_DEVICE CController.h PATHS ${ARCAPI_DIR}/CController)
-        find_path(ARC_INTERFACE arc64.h PATHS ${PROJECT_INCL_DIR})
-        list(APPEND INTERFACE_SOURCE
-                "${PROJECT_SOURCE_DIR}/arc64.cpp"
-                "${PROJECT_SOURCE_DIR}/astrocam.cpp"
-                )
-        list(APPEND INTERFACE_INCLUDES
-                "${ARC_INTERFACE}"
-                "${ARCAPI_FITS}"
-                "${ARCAPI_DEVICE}"
-                )
-	add_library(interface STATIC IMPORTED
-                ${ARCAPI_DIR}/CFitsFile/linux/x${BITS}/libCFitsFile.so
-                ${ARCAPI_DIR}/CController/linux/x${BITS}/libCController.so
-                )
-        set_target_properties(interface PROPERTIES 
-                IMPORTED_LOCATION ${ARCAPI_DIR}/CFitsFile/linux/x${BITS}/libCFitsFile.so
-                IMPORTED_LOCATION ${ARCAPI_DIR}/CController/linux/x${BITS}/libCController.so
-                )
+        find_library(CARC_BASE "CArcBase3.6" NAMES "libCArcBase3.6" PATHS ${ARCAPI_DIR}/Release)
+        find_library(CARC_DEVICE "CArcDevice3.6" NAMES "libCArcDevice3.6.so" PATHS ${ARCAPI_DIR}/Release)
+        find_library(CARC_FITS "CArcFitsFile3.6" NAMES "libCArcFitsFile3.6.so" PATHS ${ARCAPI_DIR}/Release)
 
 # STA Archon interface
 #
-elseif(${INTERFACE_TYPE} STREQUAL "STA-Archon")
+elseif(${INTERFACE_TYPE} STREQUAL "Archon")
         message(STATUS "compiling for STA Archon")
         set(INTERFACE_TARGET archon)
         add_definitions(-DSTA_ARCHON)
@@ -177,15 +146,28 @@ add_executable(cameraserver
         ${INTERFACE_INCLUDES}
         )
 
+# ----------------------------------------------------------------------------
+# Everyone gets this:
+# ----------------------------------------------------------------------------
+
 target_link_libraries(cameraserver
         common
         network
         logentry
         utilities
-        interface
         ${INTERFACE_TARGET}
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
         ${CFITS_LIB}
         )
+
+# ----------------------------------------------------------------------------
+# Some targets are interface-dependent:
+# ----------------------------------------------------------------------------
+
+if (${INTERFACE_TYPE} STREQUAL "AstroCam")
+        target_link_libraries(cameraserver ${CARC_BASE})
+        target_link_libraries(cameraserver ${CARC_DEVICE})
+        target_link_libraries(cameraserver ${CARC_FITS})
+endif()
 

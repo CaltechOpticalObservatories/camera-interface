@@ -34,7 +34,7 @@ namespace Arc64 {
       std::vector<arc::CController> controller;  //!< vector of arc::CController objects, one for each PCI device
       std::vector<Callback*> callback;           //!< vector of Callback interface object pointers
 
-      int num_controllers;                   //!< number of installed controllers (detected PCI drivers)
+      int numdev;                                //!< number of detected PCI devices
 
 //    arc::CController  cController;
 //    arc::CController *pController;
@@ -45,6 +45,7 @@ namespace Arc64 {
       long arc_native(int cmd, int arg1, int arg2, int arg3, int arg4);
       long arc_expose(int nframes, int expdelay, int rows, int cols);
       long arc_load_firmware(std::string timlodfile);
+static void dothread(int num) ;
   };
 
 }

@@ -297,7 +297,7 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("open")==0) {
-                    ret = server.connect_controller();
+                    ret = server.connect_controller(args);
                     }
     else
     if (cmd.compare("close")==0) {
@@ -305,7 +305,8 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("load")==0) {
-                    ret = server.load_firmware(args);
+                    if (args.empty()) ret = server.load_firmware();
+                    else              ret = server.load_firmware(args);
                     }
     else
     if (cmd.compare("mode")==0) {
@@ -358,9 +359,20 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
+    if (cmd.compare("geometry")==0) {
+                    std::string retstring;
+                    ret = server.geometry(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
     if (cmd.compare("setp")==0) {
                     ret = server.set_parameter(args);
                     }
+    else
+    if (cmd.compare("buffer")==0) {
+                    ret = server.buffer(args);
+                    }
+#ifdef STA_ARCHON
     else
     if (cmd.compare("printstatus")==0) {
                     ret = server.get_frame_status();
@@ -370,6 +382,7 @@ void doit(Network::TcpSocket sock) {
     if (cmd.compare("readframe")==0) {
                     ret = server.read_frame();
                     }
+#endif
     else
     if (cmd.compare("writeframe")==0) {
                     ret = server.write_frame();

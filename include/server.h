@@ -40,7 +40,7 @@ namespace Camera {
 // Camera::Server class must inherit appropriate interface class
 //
 #ifdef ASTROCAM
-  class Server : public AstroCam::AstroCam {
+  class Server : public AstroCam::Interface {
 #elif STA_ARCHON
   class Server : public Archon::Interface {
 #endif
@@ -83,6 +83,7 @@ namespace Camera {
        */
       void exit_cleanly(void) {
         std::string function = "Camera::Server::exit_cleanly";
+        this->disconnect_controller();
         logwrite(function, "server exiting");
         exit(EXIT_SUCCESS);
       }

@@ -1,4 +1,6 @@
 #include "arc64.h"
+#include <utility>
+#include <thread>
 
 namespace Arc64 {
 
@@ -78,22 +80,26 @@ namespace Arc64 {
     std::stringstream message;
     int lReply;
 
-    if (this->num_controllers < 1) {
+    if (this->numdev < 1) {
       logwrite(function, "error: no connected PCI devices");
       return(1);
     }
-
+int thrnum;
+std::cerr << "[DEBUG] connected to " << this->numdev << " devices\n";
+for (thrnum=0; thrnum < 5; thrnum++) {
+  std::thread(std::ref(Arc64::Interface::dothread), thrnum).detach();
+}
     // send the command here
     //
     try { // TODO for Thur: make lReply a vector and report only one reply if all the same, report diff if one different.
-      for (int dev=0; dev < this->num_controllers; dev++) {
-        lReply = controller[dev].Command( arc::TIM_ID, cmd, arg1, arg2, arg3, arg4 );
-        message.str(""); message << "command: 0x" << std::uppercase << std::hex << cmd << " received: 0x" << lReply;
+      for (int dev=0; dev < this->numdev; dev++) {
+        lReply = this->controller[dev].Command( arc::TIM_ID, cmd, arg1, arg2, arg3, arg4 );
+        message.str(""); message << "dev " << dev << " command: 0x" << std::uppercase << std::hex << cmd << " received: 0x" << lReply;
         logwrite(function, message.str());
       }
     }
     catch ( std::runtime_error &e ) {
-      message.str(""); message << "error: " << e.what() << " sending command: 0x" << std::uppercase << std::hex << cmd;
+      message.str(""); message << "ERROR " << e.what() << " sending command: 0x" << std::uppercase << std::hex << cmd;
       logwrite(function, message.str());
       return(1);
       }
@@ -107,6 +113,9 @@ namespace Arc64 {
   }
   /** Arc64::Interface::arc_native ********************************************/
 
+
+void Interface::dothread(int num) {
+}
 
   /** Arc64::Interface::interface *********************************************/
   /**
@@ -140,23 +149,46 @@ namespace Arc64 {
 
     try {
       logwrite( function, "getting device bindings" );
-      arc::CController cController;
-      this->num_controllers = cController.GetDeviceBindingCount();    // get number of ARC PCI devices
-      message.str("");
-      message << "detected " << this->num_controllers << " ARC-64 device" << (this->num_controllers == 1 ? "":"s");
+      {
+      arc::CController cController(999);                     // create local object just to get device count
+      cController.GetDeviceBindings();                       // search for devices
+      this->numdev = cController.GetDeviceBindingCount();    // the number of ARC PCI devices
+      }
+
+      message.str(""); message << "detected " << this->numdev << " ARC-64 device" << (this->numdev == 1 ? "":"s");
       logwrite( function, message.str() );
 
-      for (dev=0; dev<this->num_controllers; dev++) {
-        arc::CController cc;                                 // Instantiate a CController object,
-        controller.push_back(cc);                            // and put it in the vector of controller objects.
+      this->numdev = 2;
+      logwrite( function, "setting numdev=3");
+
+      logwrite(function, "reserve space for this->controller...");
+      this->controller.reserve( this->numdev );
+
+/***
+      {
+      arc::CController cc(1);
+      this->controller.push_back( cc );
+      }
+***/
+
+      for (dev=0; dev<this->numdev; dev++) {
+        arc::CController cc(dev);                            // Instantiate a temporary CController object,
+        this->controller.push_back( cc );                    // and put it in the vector of controller objects.
+//      this->controller.push_back( std::move( cc ) );       // and put it in the vector of controller objects.
+
 
         Callback *cb = new Callback;                         // Create a pointer to a Callback object,
-        callback.push_back(cb);                              // and put it in the vector of callback objects.
+        callback.push_back( cb );                            // and put it in the vector of callback objects.
                                                              // This will get passed to the arc::Expose function.
+
+        message.str(""); message << "this->controller[" << dev << "].objnum=" << this->controller[dev].objnum; 
+        logwrite(function, message.str());
 
         message.str(""); message << "opening PCI device " << dev;
         logwrite( function, message.str() );
-        controller[dev].OpenDriver( dev );                   // open the device
+std::cerr << "objnum=" << this->controller[dev].objnum << "\n";
+        this->controller[dev].GetDeviceBindings();           // JUST ADDED THIS TUES MORNING
+        this->controller[dev].OpenDriver( dev );             // open the device
       }
     }
     catch ( std::runtime_error &e ) {
@@ -187,15 +219,16 @@ namespace Arc64 {
     std::string function = "Arc64::Interface::disconnect_controller";
     std::stringstream message;
 
-    if (this->num_controllers < 1) {
+    if (this->numdev < 1) {
       logwrite(function, "error: no connected PCI devices");
       return(1);
     }
 
     try {
-      for (int dev=0; dev<this->num_controllers; dev++) {
-        controller[dev].CloseDriver();
-        controller[dev].UnmapDriver();
+//    for (int dev=0; dev<this->numdev; dev++) {
+      for (int dev=0; dev<4; dev++) {
+        this->controller[dev].CloseDriver();
+        this->controller[dev].UnmapDriver();
       }
       logwrite(function, "PCI device closed");
     }
@@ -227,13 +260,13 @@ namespace Arc64 {
     bool abort=false;
     bool config=false;
 
-    if (this->num_controllers < 1) {
+    if (this->numdev < 1) {
       logwrite(function, "error: no connected PCI devices");
       return(1);
     }
 
     try {
-      for (int dev=0; dev<this->num_controllers; dev++) {
+      for (int dev=0; dev<this->numdev; dev++) {
         this->controller[dev].Expose( nframes, expdelay, rows, cols, abort, config, this->callback[dev] );
       }
     }
@@ -264,13 +297,13 @@ namespace Arc64 {
     std::string function = "Arc64::Interface::arc_load_firmware";
     std::stringstream message;
 
-    if (this->num_controllers < 1) {
+    if (this->numdev < 1) {
       logwrite(function, "error: no connected PCI devices");
       return(1);
     }
 
     try {
-      for (int dev=0; dev < this->num_controllers; dev++) {
+      for (int dev=0; dev < this->numdev; dev++) {
         this->controller[dev].LoadControllerFile(timlodfile.c_str());
       }
     }

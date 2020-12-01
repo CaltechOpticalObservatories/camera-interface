@@ -15,94 +15,42 @@
 #include <atomic>
 #include <chrono>
 #include <numeric>
+#include <functional>              //!< pass by reference to threads
+#include <thread>
+#include <iostream>
+#include <vector>
+#include <initializer_list>
 
 #include "utilities.h"
 #include "common.h"
 #include "config.h"
 #include "logentry.h"
-#ifdef ARC66_PCIE
-#include "arc66.h"
-#elif ARC64_PCI
-#include "arc64.h"
-#endif
+#include "CArcBase.h"
+#include "ArcDefs.h"
+#include "CExpIFace.h"
+#include "CConIFace.h"
+#include "CArcPCI.h"
+#include "CArcPCIe.h"
+#include "CArcDevice.h"
+#include "CArcBase.h"
+#include "CExpIFace.h"
+
 
 namespace AstroCam {
 
-  class Information {
-    private:
+  class Callback : public arc::gen3::CExpIFace, arc::gen3::CConIFace {  //!< Callback class inherited from the ARC API
     public:
-      int           datatype;                //!< FITS data type (corresponding to bitpix)
-      std::string   configfilename;          //!< Archon controller configuration file
-      long          detector_pixels[2];
-      long          image_size;              //!< pixels per image sensor
-      long          image_memory;            //!< bytes per image sensor
-      int           current_observing_mode;
-      long          naxis;
-      long          axes[2];
-      int           binning[2];
-      long          axis_pixels[2];
-      long          region_of_interest[4];
-      long          image_center[2];
-      bool          data_cube;
-      std::string   fits_name;               //!< contatenation of Common's image_dir + image_name + image_num
-      std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
-
-      Common::FitsKeys userkeys;             //!< create a FitsKeys object for FITS keys specified by the user
-
-      Information() {
-        this->axes[0] = 1;
-        this->axes[1] = 1;
-        this->binning[0] = 1;
-        this->binning[1] = 1;
-        this->region_of_interest[0] = 1;
-        this->region_of_interest[1] = 1;
-        this->region_of_interest[2] = 1;
-        this->region_of_interest[3] = 1;
-        this->image_center[0] = 1;
-        this->image_center[1] = 1;
-        this->data_cube = false;
-      }
-
-      long set_axes(int datatype_in) {
-        this->datatype = datatype_in;
-        long bytes_per_pixel;
-
-        switch (this->datatype) {
-          case SHORT_IMG:
-          case USHORT_IMG:
-            bytes_per_pixel = 2;
-            break;
-          case LONG_IMG:
-          case ULONG_IMG:
-          case FLOAT_IMG:
-            bytes_per_pixel = 4;
-            break;
-          default:
-            return (ERROR);
-        }
-
-        this->naxis = 2;
-
-        this->axis_pixels[0] = this->region_of_interest[1] -
-                               this->region_of_interest[0] + 1;
-        this->axis_pixels[1] = this->region_of_interest[3] -
-                               this->region_of_interest[2] + 1;
-
-        this->axes[0] = this->axis_pixels[0] / this->binning[0];
-        this->axes[1] = this->axis_pixels[1] / this->binning[1];
-
-        this->image_size   = this->axes[0] * this->axes[1];                    // Pixels per CCD
-        this->image_memory = this->axes[0] * this->axes[1] * bytes_per_pixel;  // Bytes per CCD
-
-        return (NO_ERROR);
-      }
+      Callback(){}
+      void exposeCallback( float fElapsedTime );
+      void readCallback( std::uint32_t uiPixelCount );
+      void frameCallback( std::uint32_t uiFramesPerBuffer,
+                          std::uint32_t uiFrameCount,
+                          std::uint32_t uiRows,
+                          std::uint32_t uiCols,
+                          void* pBuffer );
   };
 
-#ifdef ARC66_PCIE
-  class AstroCam : public Arc66::Interface {
-#elif ARC64_PCI
-  class AstroCam : public Arc64::Interface {
-#endif
+  class Interface {
     private:
       int rows;
       int cols;
@@ -137,26 +85,60 @@ namespace AstroCam {
       void* workbuf;               //!< workspace for performing deinterlacing
       unsigned long workbuf_sz;
       int num_deinter_thr;         //!< number of threads that can de-interlace an image
+      int numdev;                  //!< total number of Arc devices detected in system
+      std::vector<int> devlist;    //!< vector of all opened and connected devices
 
     public:
-      AstroCam();
-      ~AstroCam();
+      Interface();
+      ~Interface();
 
       // Class Objects
       //
       Config config;
-      Common::Common common;       //!< instantiate a Common object
-      Information camera_info;     //!< this is the main camera_info object
-      Information fits_info;       //!< used to copy the camera_info object to preserve info for FITS writing
-      Common::FitsKeys userkeys;   //!< create a FitsKeys object for FITS keys specified by the user
+      Common::Common common;            //!< instantiate a Common object
+      Common::Information camera_info;  //!< this is the main camera_info object
+      Common::Information fits_info;    //!< used to copy the camera_info object to preserve info for FITS writing
+      Common::FitsKeys userkeys;        //!< create a FitsKeys object for FITS keys specified by the user
+
+      // The Controller Info structure hold information for a controller.
+      // This will be put into a vector object so there will be one of these
+      // for each PCI(e) device.
+      //
+      struct controller_info {
+        arc::gen3::CArcDevice* pArcDev;  //!< arc::CController object pointer
+        Callback* callback;              //!< Callback class object must be pointer because the API functions are virtual
+        bool connected;                  //!< true if controller connected (requires successful TDL command)
+        bool firmwareloaded;             //!< true if firmware is loaded, false otherwise
+        int devnum;                      //!< this controller's devnum
+        std::string devname;             //!< comes from arc::gen3::CArcPCI::getDeviceStringList()
+        std::uint32_t retval;            //!< convenient place to hold return values for threaded commands to this controller
+      };
+
+      std::vector<controller_info> controller;
+
+//    std::vector<arc::gen3::CArcDevice*> controller; //!< vector of arc::CController object pointers, one for each PCI device
+
+      // This is used for Archon. May or may not use modes for Astrocam, TBD.
+      //
+      bool modeselected;                //!< true if a valid mode has been selected, false otherwise
 
       // Functions
       //
+      long interface(std::string &iface);
+      long connect_controller(std::string devices_in);
+      long disconnect_controller();
       long configure_controller();
       long get_parameter(std::string parameter, std::string &retstring);
       long set_parameter(std::string parameter);
       long access_nframes(std::string valstring);
       int get_driversize();
+      long write_frame();
+      long load_firmware();
+      long load_firmware(std::string timlodfile);
+      long set_camera_mode(std::string mode);
+      long exptime(std::string exptime_in, std::string &retstring);
+      long geometry(std::string args, std::string &retstring);
+      long bias(std::string args, std::string &retstring);
 
       // Functions fully defined here (no code in astrocam.c)
       //
@@ -180,13 +162,12 @@ namespace AstroCam {
 
       void set_imagesize(int rowsin, int colsin, int* status);
 
-      // The following functions will have representative functions (arc_<function>)
-      // in the appropriate Arc* Interface because they make calls specific to
-      // their respective ARC API.
-      //
-      long expose();
-      long load_firmware(std::string timlodfile);
+      long expose(std::string nseq_in);
       long native(std::string cmdstr);
+      static void dothread_load( controller_info &controller, std::string timlodfile);
+      static void dothread_native( controller_info &controller, std::vector<uint32_t> cmd);
+      static void handle_frame( uint32_t uiFrameCount, void* pBuffer );
+      long buffer(std::string size_in);
   };
 
 }
