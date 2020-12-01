@@ -359,19 +359,21 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
+    if (cmd.compare("setp")==0) {
+                    ret = server.set_parameter(args);
+                    }
+#ifdef ASTROCAM
+    else
     if (cmd.compare("geometry")==0) {
                     std::string retstring;
                     ret = server.geometry(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("setp")==0) {
-                    ret = server.set_parameter(args);
-                    }
-    else
     if (cmd.compare("buffer")==0) {
                     ret = server.buffer(args);
                     }
+#endif
 #ifdef STA_ARCHON
     else
     if (cmd.compare("printstatus")==0) {

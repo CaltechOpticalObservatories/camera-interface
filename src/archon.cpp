@@ -118,8 +118,11 @@ namespace Archon {
         applied++;
       }
 
+      // .firmware is an STL map but (for now) only one Archon per computer
+      // so map always to 0
+      //
       if (config.param[entry].compare(0, 16, "DEFAULT_FIRMWARE")==0) {
-        this->camera_info.configfilename = config.arg[entry];
+        this->camera_info.firmware[0] = config.arg[entry];
         applied++;
       }
 
@@ -204,11 +207,11 @@ namespace Archon {
   /**
    * @fn     connect_controller
    * @brief
-   * @param  none
+   * @param  none (devices_in here for future expansion)
    * @return 
    *
    */
-  long Interface::connect_controller() {
+  long Interface::connect_controller(std::string devices_in="") {
     std::string function = "Archon::Interface::connect_controller";
     std::stringstream message;
     long   error = ERROR;
@@ -639,11 +642,11 @@ namespace Archon {
    * @return 
    *
    * This function is overloaded. If no argument is passed then call the version
-   * requiring an argument, using the default configfilename specified in the .cfg file.
+   * requiring an argument, using the default firmware specified in the .cfg file.
    *
    */
   long Interface::load_firmware() {
-    long ret = this->load_firmware( this->camera_info.configfilename );
+    long ret = this->load_firmware( this->camera_info.firmware[0] );
     if (ret == ERROR) this->fetchlog();
     return(ret);
   }
@@ -665,10 +668,10 @@ namespace Archon {
     // get the acf filename, either passed here or from loaded default
     //
     if ( acffile.empty() ) {
-      acffile = this->camera_info.configfilename;
+      acffile = this->camera_info.firmware[0];
     }
     else {
-      this->camera_info.configfilename = acffile;
+      this->camera_info.firmware[0] = acffile;
     }
 
     // try to open the file
@@ -1119,7 +1122,7 @@ namespace Archon {
     // and put into the modemap...
     //
     if (this->modemap.find(mode) == this->modemap.end()) {
-      message.str(""); message << "ERROR: undefined mode " << mode << " in ACF file " << this->camera_info.configfilename;
+      message.str(""); message << "ERROR: undefined mode " << mode << " in ACF file " << this->camera_info.firmware[0];
       logwrite(function, message.str());
       return(ERROR);
     }
@@ -1210,7 +1213,7 @@ namespace Archon {
     int samplemode=-1;
     if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode); // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
     if (samplemode < 0) {
-      message.str(""); message << "ERROR: bad or missing SAMPLEMODE from " << this->camera_info.configfilename;
+      message.str(""); message << "ERROR: bad or missing SAMPLEMODE from " << this->camera_info.firmware[0];
       logwrite(function, message.str());
       return (ERROR);
     }

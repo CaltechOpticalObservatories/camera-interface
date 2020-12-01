@@ -97,10 +97,10 @@ namespace Archon {
       long interface(std::string &iface);    //!< get interface type
       long configure_controller();           //!< get configuration parameters
       long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
-      long connect_controller();             //!< open connection to archon controller
+      long connect_controller(std::string devices_in);  //!< open connection to archon controller
       long disconnect_controller();          //!< disconnect from archon controller
-      long load_firmware();                  //!< load default configfilename (ACF)
-      long load_firmware(std::string acffile); //!< load specified configfilename (ACF)
+      long load_firmware();                  //!< load default firmware (ACF)
+      long load_firmware(std::string acffile); //!< load specified firmware (ACF)
       long set_camera_mode(std::string mode_in);
       long load_mode_settings(std::string mode);
       long native(std::string cmd);

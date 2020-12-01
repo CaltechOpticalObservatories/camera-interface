@@ -92,7 +92,6 @@ namespace Common {
       int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
       int           datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
       std::map<int, std::string> firmware;   //!< firmware file for given controller device number
-      std::string   configfilename;          //!< Archon controller configuration file
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];
       long          image_size;              //!< pixels per image sensor
