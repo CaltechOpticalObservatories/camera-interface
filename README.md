@@ -1,24 +1,37 @@
 # camera-interface
 Camera Detector Controller Interface Software
 
-Build instructions.
+Requirements:
 
- - Cmake 3.5 and g++ are required.
+ - Cmake 3.5 or higher
+ - cfitsio and CCFits libraries (expected in /usr/local/lib)
+ 
+ For ARC controllers,
+  - g++ 8.3 (and c++17)
+  - ARC API 3.6 and Arc66PCIe driver
+ 
+For Archon
+ - g++ 4.8 or higher (and c++11)
 
- - cfitsio and CCFits are required
+Build instructions:
 
- - ARC API 2.1 and 3.5 are required
+ - edit the CMakeLists.txt file to un-comment ONE of the following three lines
+ according to the controller interface you are using:
+
+#set(INTERFACE_TYPE "STA-Archon")
+#set(INTERFACE_TYPE "ARC-PCIe")
+set(INTERFACE_TYPE "ARC-PCI")
 
  - change to the build directory
 
  - To start with a clean build, delete the contents of the build
    directory, including the subdirectory CMakeFiles/, 
-   but not the .gitignore file:
+   but not the .gitignore file. For example:
 
    % cd build
    % rm -Rf *
 
- - create the Makefile by running cmake,
+ - create the Makefile by running cmake (from the build directory),
 
    % cmake ..
 
@@ -28,7 +41,10 @@ Build instructions.
 
  - run the program,
 
-   % ../bin/archonserver
+   % ../bin/archonserver <file.cfg>
+   
+   where <file.cfg> is an appropriate configuration file. See the example .cfg files
+   in this distribution.
 
 ---
 
