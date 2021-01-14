@@ -810,13 +810,6 @@ namespace Archon {
       //
       if (!parse_config) continue;
 
-      // Convert the key (everything before first equal sign) to upper case
-      //
-      std::locale loc;
-      std::string::size_type c, end;
-      end = ( ( (end=line.find("=")) != std::string::npos ) ? end : 0 );
-      for (c = 0; c < end; c++ ) line[c] = std::toupper(line[c], loc);
-
       // replace any TAB characters with a space
       //
       string_replace_char(line, "\t", " ");
@@ -829,7 +822,10 @@ namespace Archon {
       //
       try { line.erase( std::remove(line.begin(), line.end(), '"'), line.end() ); } catch(...) { }
 
-      // initialize key, value strings used to form WCONFIG KEY=VALUE command
+      // Initialize key, value strings used to form WCONFIG KEY=VALUE command.
+      // As long as key stays empty then the WCONFIG command is not written to the Archon.
+      // This is what keeps TAGS: in the [MODE_xxxx] sections from being written to Archon,
+      // because these do not populate key.
       //
       key="";
       value="";
@@ -844,6 +840,9 @@ namespace Archon {
       // parammap is for, hence the need for this STL map indexed on only the "ParameterName"
       // portion of the value. Conversely, the configmap is indexed by the key.
       // 
+      // parammap stores ONLY the parameters, which are identified as PARAMETERxx="paramname=value"
+      // configmap stores every configuration line sent to Archon (which includes parameters)
+      //
       // In order to modify these keywords in Archon, the entire above phrase
       // (KEY=VALUE pair) must be preserved along with the line number on which it 
       // occurs in the config file.
@@ -857,38 +856,48 @@ namespace Archon {
         std::vector<std::string> tokens;
         line = line.substr(4);                                            // strip off the "ACF:" portion
 
-        // We either hava a PARAMETER of the form: PARAMETERn=PARAMNAME=VALUE
-        //
-        if (line.compare(0,9,"PARAMETER")==0) {                           // line: PARAMETERn=PARAMNAME=VALUE
-          Tokenize(line, tokens, "=");                                    // separate into PARAMETERn, PARAMNAME, VALUE tokens
-          if (tokens.size() != 3) {
-            message.str(""); message << "ERROR: malformed PARAMETER line: " << savedline << ": expected PARAMETERn=PARAMNAME=VALUE";
+        try {
+          Tokenize(line, tokens, "=");                                    // separate into tokens by "="
+
+          if (tokens.size() != 2) {                                       // must have two (KEY=VALUE) tokens
+            message.str(""); message << "ERROR: malformed ACF line: " << savedline << ": expected KEY=VALUE";
             logwrite(function, message.str());
 	    filestream.close();
             return ERROR;
           }
-          this->modemap[mode].parammap[ tokens[1] ].name  =  tokens[1] ;  // save the parameter name
-          this->modemap[mode].parammap[ tokens[1] ].value =  tokens[2] ;  // save the parameter value
+
+          bool keymatch = false;
+
+          // If this key is in the main parammap then store it in the modemap's parammap for this mode
+          //
+          if (this->parammap.find( tokens[0] ) != this->parammap.end()) {
+            this->modemap[mode].parammap[ tokens[0] ].name  = tokens[0];
+            this->modemap[mode].parammap[ tokens[0] ].value = tokens[1];
+            keymatch = true;
+          }
+
+          // If this key is in the main configmap, then store it in the modemap's configmap for this mode
+          //
+          if (this->configmap.find( tokens[0] ) != this->configmap.end()) {
+            this->modemap[mode].configmap[ tokens[0] ].value = tokens[1];
+            keymatch = true;
+          }
+
+          // If this key is neither in the parammap nor in the configmap then return an error
+          //
+          if ( ! keymatch ) {
+            message.str("");
+            message << "[MODE_" << mode << "] ACF directive: " << tokens[0] << "=" << tokens[1] << " is not a valid parameter or configuration key";
+            logwrite(function, message.str());
+            filestream.close();
+            return ERROR;
+          }
         }
-        // ...or we have any other CONFIG line of the form KEY=VALUE
-        //
-        else {
-          std::string key, value;
-          Tokenize(line, tokens, "=");                                    // separate into two KEY, VALUE tokens
-          if (tokens.size() > 0) {                                        // at least one token we have KEY
-            key   = tokens[0];
-            value = "";
-          }
-          if (tokens.size() > 1) {                                        // a second token and we have VALUE
-            value = tokens[1];
-          }
-          if ( (tokens.size() < 1) || (tokens.size() > 2) ) {             // this is bad (zero or too many tokens)
-            message.str(""); message << "ERROR: malformed CONFIG line: " << savedline << ": expected KEY=VALUE";
-            logwrite(function, message.str());
-	    filestream.close();
-            return ERROR;
-          }
-          this->modemap[mode].configmap[ key ].value = value;             // save the VALUE, indexed by KEY
+        catch ( ... ) {
+          message.str(""); message << "ERROR: extracting KEY=VALUE pair from ACF line: " << savedline;
+          logwrite(function, message.str());
+          filestream.close();
+          return ERROR;
         }
       } // end if (line.compare(0,4,"ACF:")==0)
 
@@ -1054,7 +1063,7 @@ namespace Archon {
       } // end else
 
       // Form the WCONFIG command to Archon and
-      // write the config line to the controller memory.
+      // write the config line to the controller memory (if key is not empty).
       //
       if ( !key.empty() ) {                                     // value can be empty but key cannot
         sscmd.str("");
@@ -2641,6 +2650,9 @@ namespace Archon {
         if (error==NO_ERROR) error = this->wait_for_readout();      // wait for the readout into frame buffer,
         if (error==NO_ERROR) error = read_frame();                  // and read the frame buffer to host when ready.
       }
+    }
+    else if ( (error == NO_ERROR) && (mode == "RAW") ) {
+      error = read_frame();                                         // For raw mode just read immediately
     }
 
     logwrite( function, (error==ERROR ? "ERROR" : "complete") );
