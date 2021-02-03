@@ -24,6 +24,7 @@
 #include "utilities.h"
 #include "common.h"
 #include "config.h"
+#include "fits.h"
 #include "logentry.h"
 #include "CArcBase.h"
 #include "ArcDefs.h"
@@ -33,17 +34,18 @@
 #include "CArcPCIe.h"
 #include "CArcDevice.h"
 #include "CArcBase.h"
-#include "CExpIFace.h"
+#include "CooExpIFace.h"
 
 
 namespace AstroCam {
 
-  class Callback : public arc::gen3::CExpIFace, arc::gen3::CConIFace {  //!< Callback class inherited from the ARC API
+  class Callback : public arc::gen3::CooExpIFace {  //!< Callback class inherited from the ARC API
     public:
       Callback(){}
-      void exposeCallback( float fElapsedTime );
-      void readCallback( std::uint32_t uiPixelCount );
-      void frameCallback( std::uint32_t uiFramesPerBuffer,
+      void exposeCallback( int devnum, std::uint32_t uiElapsedTime );
+      void readCallback( int devnum, std::uint32_t uiPixelCount );
+      void frameCallback( int devnum,
+                          std::uint32_t uiFramesPerBuffer,
                           std::uint32_t uiFrameCount,
                           std::uint32_t uiRows,
                           std::uint32_t uiCols,
@@ -55,7 +57,7 @@ namespace AstroCam {
       int rows;
       int cols;
       int bufsize;
-      int framecount;
+      int framecount;              //!< keep track of the number of frames received per expose. reset to 0 with each expose.
       bool isabort_exposure;
       int FITS_STRING_KEY;
       int FITS_DOUBLE_KEY;
@@ -100,21 +102,67 @@ namespace AstroCam {
       Common::Information fits_info;    //!< used to copy the camera_info object to preserve info for FITS writing
       Common::FitsKeys userkeys;        //!< create a FitsKeys object for FITS keys specified by the user
 
+      // The frameinfo structure holds frame information for each frame
+      // received by the callback. This is used to keep track of all the 
+      // threads spawned by handle_frame.
+      //
+      typedef struct {
+        int   tid;                      //!< use fpbcount as the thread ID here
+        int   framenum;                 //!< the current frame from ARC_API's fcount, counts from 1
+        int   rows;                     //!< number of rows in this frame
+        int   cols;                     //!< number of cols in this frame
+        void* buf;                      //!< pointer to the start of memory holding this frame
+        bool  inuse;                    //!< this thread ID is in use, set when thread is spawned, cleared when handle_frame is done
+      } frameinfo_t;
+
+      std::map<int, frameinfo_t> frameinfo;
+
       // The Controller Info structure hold information for a controller.
       // This will be put into a vector object so there will be one of these
       // for each PCI(e) device.
       //
       struct controller_info {
         arc::gen3::CArcDevice* pArcDev;  //!< arc::CController object pointer
-        Callback* callback;              //!< Callback class object must be pointer because the API functions are virtual
+        Callback* pCallback;             //!< Callback class object must be pointer because the API functions are virtual
         bool connected;                  //!< true if controller connected (requires successful TDL command)
         bool firmwareloaded;             //!< true if firmware is loaded, false otherwise
         int devnum;                      //!< this controller's devnum
         std::string devname;             //!< comes from arc::gen3::CArcPCI::getDeviceStringList()
         std::uint32_t retval;            //!< convenient place to hold return values for threaded commands to this controller
+        std::map<int, frameinfo_t>  frameinfo;  //!< STL map of frameinfo structure (see above)
       };
 
+      // Vector of controller structures.
+      // Interface::connect_controller() will create an object for each device
+      // found in the system and store a pointer to each object in this vector.
+      //
       std::vector<controller_info> controller;
+
+      std::mutex frameinfo_mutex;       //!< protects access to frameinfo
+      std::mutex framecount_mutex;      //!< protects access to frame count
+
+      // Ths CameraFits class is a sub-class of Interface and is here to contain
+      // the Common::Information class and FITS_file class objects.
+      // There will be a vector of CameraFits class objects which matches the
+      // vector of controller objects.
+      //
+      class CameraFits {
+        private:
+          int devnum;
+        public:
+          Common::Information info;     //!< this is the main camera info object
+          FITS_file *pFits;             //!< FITS container object has to be a pointer here
+
+          int get_devnum() { return this->devnum; }
+          void set_devnum(int devnum) { this->devnum = devnum; }
+          long write(void* buf);        //!< wrapper for this->pFits->write_image()
+          long open_file();             //!< wrapper for this->pFits->open_file()
+          void close_file();            //!< wrapper for this->pFits->close_file()
+      };
+
+      // Vector of CameraFits objects, created by Interface::connect_controller()
+      //
+      std::vector<CameraFits> camera;
 
 //    std::vector<arc::gen3::CArcDevice*> controller; //!< vector of arc::CController object pointers, one for each PCI device
 
@@ -122,8 +170,13 @@ namespace AstroCam {
       //
       bool modeselected;                //!< true if a valid mode has been selected, false otherwise
 
+      FITS_file fits_file;              //!< instantiate a FITS container object
+
       // Functions
       //
+      void set_framecount( int num );
+      void increment_framecount();
+      int get_framecount();
       long interface(std::string &iface);
       long connect_controller(std::string devices_in);
       long disconnect_controller();
@@ -132,13 +185,24 @@ namespace AstroCam {
       long set_parameter(std::string parameter);
       long access_nframes(std::string valstring);
       int get_driversize();
-      long write_frame();
-      long load_firmware();
-      long load_firmware(std::string timlodfile);
+      long load_firmware(std::string &retstring);
+      long load_firmware(std::string timlodfile, std::string &retstring);
       long set_camera_mode(std::string mode);
       long exptime(std::string exptime_in, std::string &retstring);
       long geometry(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);
+      long buffer(std::string size_in, std::string &retstring);
+
+      void set_imagesize(int rowsin, int colsin, int* status);
+
+      long expose(std::string nseq_in);
+      long native(std::string cmdstr);
+      long native(std::string cmdstr, std::string &retstring);
+      long write_frame(int devnum, int fpbcount);
+      static void dothread_load( controller_info &controller, std::string timlodfile );
+      static void dothread_expose( controller_info &controller, CameraFits &camera );
+      static void dothread_native( controller_info &controller, std::vector<uint32_t> cmd );
+      static void handle_frame( int devnum, uint32_t fpbcount, uint32_t fcount, void* buffer );
 
       // Functions fully defined here (no code in astrocam.c)
       //
@@ -156,18 +220,7 @@ namespace AstroCam {
       int set_cols(int c) { if (c>0) this->cols = c; return c; };
       int get_image_rows() { return this->rows; };
       int get_image_cols() { return this->cols; };
-      void set_framecount( int num ) { this->framecount = num; };
-      void increment_framecount() { this->framecount++; };
-      int get_framecount() { return this->framecount; };
 
-      void set_imagesize(int rowsin, int colsin, int* status);
-
-      long expose(std::string nseq_in);
-      long native(std::string cmdstr);
-      static void dothread_load( controller_info &controller, std::string timlodfile);
-      static void dothread_native( controller_info &controller, std::vector<uint32_t> cmd);
-      static void handle_frame( uint32_t uiFrameCount, void* pBuffer );
-      long buffer(std::string size_in);
   };
 
 }

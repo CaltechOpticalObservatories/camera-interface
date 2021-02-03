@@ -129,7 +129,7 @@ void closelog() {
  */
 void logwrite(std::string function, std::string message) {
   std::stringstream logmsg;
-  std::string timestamp = get_time_string();     // get the current time (defined in utilities.h)
+  std::string timestamp = get_system_time();     // get the current time (defined in utilities.h)
 
   std::lock_guard<std::mutex> lock(newloglock);  // lock mutex to protect from multiple access
 

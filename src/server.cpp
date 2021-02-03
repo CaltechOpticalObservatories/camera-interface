@@ -190,6 +190,7 @@ void thread_main(Network::TcpSocket sock) {
     server.conn_mutex.lock();
     sock.Accept();
     server.conn_mutex.unlock();
+sock.Write("welcome\n");
     doit(sock);                // call function to do the work
     sock.Close();
   }
@@ -305,8 +306,10 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("load")==0) {
-                    if (args.empty()) ret = server.load_firmware();
-                    else              ret = server.load_firmware(args);
+                    std::string retstring;  // string for the return value
+                    if (args.empty()) ret = server.load_firmware(retstring);
+                    else              ret = server.load_firmware(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
     if (cmd.compare("mode")==0) {
@@ -371,7 +374,14 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("buffer")==0) {
-                    ret = server.buffer(args);
+                    std::string retstring;   // string for the return value
+                    ret = server.buffer(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("abort")==0) {
+                    server.abort_exposure();
+                    ret = 0;
                     }
 #endif
 #ifdef STA_ARCHON
@@ -384,11 +394,11 @@ void doit(Network::TcpSocket sock) {
     if (cmd.compare("readframe")==0) {
                     ret = server.read_frame();
                     }
-#endif
     else
     if (cmd.compare("writeframe")==0) {
                     ret = server.write_frame();
                     }
+#endif
     else
     if (cmd.compare("expose")==0) {
                     ret = server.expose(args);
@@ -425,7 +435,9 @@ void doit(Network::TcpSocket sock) {
         logwrite(function, "error converting command to uppercase");
         ret=ERROR;
       }
-      ret = server.native(sbuf);
+      std::string retstring;   // string for the return value
+      ret = server.native(sbuf, retstring);
+      if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
     }
 
     if (ret != NOTHING) {

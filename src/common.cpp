@@ -283,8 +283,13 @@ namespace Common {
    * If the filename already exists then a -number is inserted, incrementing that
    * number until a unique name is achieved.
    *
+   * This function is overloaded, to allow passing a controller id to include in the filename.
+   *
    */
   std::string Common::get_fitsname() {
+    return ( this->get_fitsname("") );
+  }
+  std::string Common::get_fitsname(std::string controllerid) {
     std::string function = "Common::Common::get_fitsname";
     std::stringstream message;
     std::stringstream fn, fitsname;
@@ -294,6 +299,14 @@ namespace Common {
     fitsname.str("");
     fitsname << this->image_dir << "/" << this->base_name << "_";
 
+    // add the controllerid if one is given
+    //
+    if ( ! controllerid.empty() ) {
+      fitsname << controllerid << "_";
+    }
+
+    // add the time or number suffix
+    //
     if (this->fits_naming.compare("time")==0) {
       fitsname << this->fitstime;
     }
@@ -322,8 +335,12 @@ namespace Common {
       dupnumber++;  // keep incrementing until we have a unique filename
     }
 
-    message.str(""); message << "will write to file: " << fn.str();
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "*** [DEBUG] fits_naming=" << this->fits_naming 
+                             << " controllerid=" << controllerid
+                             << " will write to file: " << fn.str();
     logwrite(function, message.str());
+#endif
 
     return fn.str();
   }

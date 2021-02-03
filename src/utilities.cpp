@@ -167,15 +167,15 @@
   /** get_timenow *************************************************************/
 
 
-  /** get_time_string *********************************************************/
+  /** get_system_time *********************************************************/
   /**
-   * @fn     get_time_string
+   * @fn     get_system_time
    * @brief  return current time in formatted string "YYYY-MM-DDTHH:MM:SS.ssssss"
    * @param  none
    * @return string
    *
    */
-  std::string get_time_string() {
+  std::string get_system_time() {
     std::stringstream current_time;  // String to contain the time
     time_t t;                        // Container for system time
     struct timespec data;            // Time of day container
@@ -202,7 +202,7 @@
 
     return(current_time.str());
   }
-  /** get_time_string *********************************************************/
+  /** get_system_time *********************************************************/
 
 
   /** get_file_time ***********************************************************/

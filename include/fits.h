@@ -48,6 +48,7 @@ class FITS_file {
     ~FITS_file() {                                  //!< deconstructor
     };
 
+
     /**************** FITS_file::open_file ************************************/
     /**
      * @fn     open_file
@@ -100,6 +101,10 @@ class FITS_file {
         axes[1] = info.axes[1];
       }
 
+      if (info.datatype < 0) { // This is a programming error, means datatype is uninitialized.
+        logwrite(function, "ERROR: FITS datatype is uninitialized. Call set_axes()");
+      }
+
       try {
         // Allocate the FITS file container, which holds the information used by CCfits to write a file
         // and write the primary camera header information.
@@ -115,10 +120,6 @@ class FITS_file {
              keyit++) {
           add_user_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
         }
-
-        // Add the exposure start time keyword to the primary header
-        //
-        this->pFits->pHDU().addKey("DATE", info.start_time, "exposure start time");
       }
       catch (CCfits::FITS::CantCreate){
         message.str(""); message << "ERROR: unable to open FITS file " << info.fits_name;
@@ -166,9 +167,16 @@ class FITS_file {
       std::string function = "FITS_file::close_file";
       std::stringstream message;
 
+      // Nothing to do if not open
+      //
+      if ( ! this->file_open ) {
+        logwrite(function, "ERROR: no open FITS file to close");
+        return;
+      }
+
       // Add a header keyword for the time the file was written (right now!)
       //
-      this->pFits->pHDU().addKey("DATE", get_time_string(), "FITS file write date");
+      this->pFits->pHDU().addKey("DATE", get_system_time(), "FITS file write time");
 
       // Write the checksum
       //
@@ -239,7 +247,11 @@ class FITS_file {
         std::lock_guard<std::mutex> lock(this->fits_mutex);  // lock and
         this->threadcount--;                                 // decrement threadcount
       }).detach();
-      logwrite(function, "spawned image writing thread");
+#ifdef LOGLEVEL_DEBUG
+      message.str("");
+      message << "*** [DEBUG] spawned image writing thread for frame " << this->framen << " of " << info.fits_name;
+      logwrite(function, message.str());
+#endif
 
       // wait for all threads to complete
       //
@@ -258,7 +270,8 @@ class FITS_file {
           message.str(""); message << "ERROR: timeout waiting for threads."
                                    << " threadcount=" << threadcount 
                                    << " extension=" << info.extension 
-                                   << " framen=" << this->framen;
+                                   << " framen=" << this->framen
+                                   << " file=" << info.fits_name;
           logwrite(function, message.str());
           this->writing_file = false;
           return (ERROR);
@@ -266,11 +279,17 @@ class FITS_file {
       }
 
       if (this->error) {
-        logwrite(function, "an error occured in one of the FITS writing threads");
+        message.str("");
+        message << "an error occured in one of the FITS writing threads for " << info.fits_name;
+        logwrite(function, message.str());
       }
+#ifdef LOGLEVEL_DEBUG
       else {
-        logwrite(function, "complete");
+        message.str("");
+        message << "*** [DEBUG] " << info.fits_name << " complete";
+        logwrite(function, message.str());
       }
+#endif
 
       return ( this->error ? ERROR : NO_ERROR );
     }
@@ -457,6 +476,16 @@ class FITS_file {
       try {
         std::string build(BUILD_DATE); build.append(" "); build.append(BUILD_TIME);
         this->pFits->pHDU().addKey("SERV_VER", build, "server build date");
+
+        // To put just the filename into the header (and not the path), find the last slash
+        // and substring from there to the end.
+        //
+        int loc = info.fits_name.find_last_of("/");
+        std::string filename;
+        filename = info.fits_name.substr(loc+1);
+        this->pFits->pHDU().addKey("FILENAME", filename, "this filename");
+
+        this->pFits->pHDU().addKey("EXP_TIME", info.exposure_time, "exposure time in msec");
       }
       catch (CCfits::FitsError & err) {
         message.str(""); message << "error creating FITS header: " << err.message();

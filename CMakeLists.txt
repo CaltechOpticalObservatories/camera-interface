@@ -7,6 +7,8 @@
 #set(INTERFACE_TYPE "Archon")
 set(INTERFACE_TYPE "AstroCam")
 
+#add_definitions(-DLOGLEVEL_DEBUG)
+
 # ----------------------------------------------------------------------------
 # END USER DEFINITIONS
 # DO NOT EDIT BEYOND THIS LINE

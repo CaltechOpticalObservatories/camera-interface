@@ -61,6 +61,8 @@ namespace Common {
       Common();
       ~Common() {}
 
+      std::map<int, std::string> firmware;   //!< firmware file for given controller device number, read from .cfg file
+
       long imdir(std::string dir_in);
       long imdir(std::string dir_in, std::string& dir_out);
       long basename(std::string name_in);
@@ -70,6 +72,7 @@ namespace Common {
       void increment_imnum() { if (this->fits_naming.compare("number")==0) this->image_num++; };
       void set_fitstime(std::string time_in);
       std::string get_fitsname();
+      std::string get_fitsname(std::string controllerid);
   };
 
   typedef enum {
@@ -91,7 +94,7 @@ namespace Common {
       int           activebufs;              //!< Archon controller number of active frame buffers
       int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
       int           datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
-      std::map<int, std::string> firmware;   //!< firmware file for given controller device number
+      std::string   firmware;                //!< firmware file for given controller device number, copied to here for eventual FITS use
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];
       long          image_size;              //!< pixels per image sensor
@@ -126,13 +129,13 @@ namespace Common {
         this->image_center[0] = 1;
         this->image_center[1] = 1;
         this->datacube = false;
+        this->datatype = -1;  //!< if still -1 then uninitialized by this->set_axes()
       }
 
       long set_axes(int datatype_in) {
-        this->datatype = datatype_in;
         long bytes_per_pixel;
 
-        switch (this->datatype) {
+        switch (datatype_in) {
           case SHORT_IMG:
           case USHORT_IMG:
             bytes_per_pixel = 2;
@@ -145,6 +148,7 @@ namespace Common {
           default:
             return (ERROR);
         }
+        this->datatype = datatype_in;
 
         this->naxis = 2;
 
