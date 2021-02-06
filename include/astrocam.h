@@ -57,8 +57,6 @@ namespace AstroCam {
       int rows;
       int cols;
       int bufsize;
-      int framecount;              //!< keep track of the number of frames received per expose. reset to 0 with each expose.
-      bool isabort_exposure;
       int FITS_STRING_KEY;
       int FITS_DOUBLE_KEY;
       int FITS_INTEGER_KEY;
@@ -81,14 +79,15 @@ namespace AstroCam {
       std::string imdir;
       std::string fitsname;
       std::vector<int> validchans; //!< outputs supported by detector / controller
-      std::string deinterlace;     //!< deinterlacing
+//    std::string deinterlace;     //!< deinterlacing
       unsigned short* pResetbuf;   //!< buffer to hold reset frame (first frame of CDS pair)
       long* pCDSbuf;               //!< buffer to hold CDS subtracted image
       void* workbuf;               //!< workspace for performing deinterlacing
-      unsigned long workbuf_sz;
       int num_deinter_thr;         //!< number of threads that can de-interlace an image
       int numdev;                  //!< total number of Arc devices detected in system
       std::vector<int> devlist;    //!< vector of all opened and connected devices
+
+      void retval_to_string( std::uint32_t check_retval, std::string& retstring );
 
     public:
       Interface();
@@ -141,6 +140,13 @@ namespace AstroCam {
       std::mutex frameinfo_mutex;       //!< protects access to frameinfo
       std::mutex framecount_mutex;      //!< protects access to frame count
 
+      std::atomic<int> framethreadcount;
+      std::mutex framethreadcount_mutex;
+      inline void add_framethread();
+      inline void remove_framethread();
+      inline int get_framethread_count();
+      inline void init_framethread_count();
+
       // Ths CameraFits class is a sub-class of Interface and is here to contain
       // the Common::Information class and FITS_file class objects.
       // There will be a vector of CameraFits class objects which matches the
@@ -149,13 +155,41 @@ namespace AstroCam {
       class CameraFits {
         private:
           int devnum;
+          int framecount;               //!< keep track of the number of frames received per expose
+          void* workbuf;                //!< pointer to workspace for performing deinterlacing
+          long workbuf_size;
+
         public:
+          CameraFits();                 //!< class constructor
+          ~CameraFits() { };            //!< no deconstructor
           Common::Information info;     //!< this is the main camera info object
           FITS_file *pFits;             //!< FITS container object has to be a pointer here
 
+          // Functions
+          //
+          long alloc_workbuf();
           int get_devnum() { return this->devnum; }
           void set_devnum(int devnum) { this->devnum = devnum; }
-          long write(void* buf);        //!< wrapper for this->pFits->write_image()
+
+          inline void init_framecount();
+          inline int get_framecount();
+          inline void increment_framecount();
+
+          template <class T>
+          void deinterlace(T* imbuf);
+
+          template <class T>
+          static void dothread_deinterlace(T &imagebuf, T &workbuf, int section);
+
+          template <class T>
+          void* alloc_workbuf(T* buf);
+
+          template <class T>    
+          void free_workbuf(T* buf);
+
+          template <class T>
+          long write(T* buf);           //!< wrapper for this->pFits->write_image()
+
           long open_file();             //!< wrapper for this->pFits->open_file()
           void close_file();            //!< wrapper for this->pFits->close_file()
       };
@@ -170,19 +204,19 @@ namespace AstroCam {
       //
       bool modeselected;                //!< true if a valid mode has been selected, false otherwise
 
+      bool useframes;                   //!< Not all firmware supports frames.
+
       FITS_file fits_file;              //!< instantiate a FITS container object
 
       // Functions
       //
-      void set_framecount( int num );
-      void increment_framecount();
-      int get_framecount();
       long interface(std::string &iface);
       long connect_controller(std::string devices_in);
       long disconnect_controller();
       long configure_controller();
       long get_parameter(std::string parameter, std::string &retstring);
       long set_parameter(std::string parameter);
+      long access_useframes(std::string& useframes);
       long access_nframes(std::string valstring);
       int get_driversize();
       long load_firmware(std::string &retstring);
@@ -214,8 +248,6 @@ namespace AstroCam {
       int get_rows() { return this->rows; };
       int get_cols() { return this->cols; };
       int get_bufsize() { return this->bufsize; };
-      bool get_abortexposure() { return this->isabort_exposure; };
-      void abort_exposure() { this->isabort_exposure = true; };
       int set_rows(int r) { if (r>0) this->rows = r; return r; };
       int set_cols(int c) { if (c>0) this->cols = c; return c; };
       int get_image_rows() { return this->rows; };

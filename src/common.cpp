@@ -30,8 +30,42 @@ namespace Common {
     this->image_num = 0;
     this->fits_naming = "time";
     this->fitstime = "";
+    this->abortstate = false;
+    this->_abortstate = false;
   }
 
+
+  /** Common::Common::abort ***************************************************/
+  /**
+   * @fn     abort
+   * @brief  abort the current operation (exposure, readout, etc.)
+   * @param  none
+   * @return none
+   *
+   */
+  void Common::abort() {
+    std::string function = "Common::Common::abort";
+    std::stringstream message;
+    this->abortstate = true;
+    logwrite(function, "received abort");
+    return;
+  }
+  /** Common::Common::abort ***************************************************/
+
+void Common::set_abortstate(bool state) {
+  this->abort_mutex.lock();
+  this->abortstate = state;
+  this->_abortstate = state;
+  this->abort_mutex.unlock();
+}
+
+bool Common::get_abortstate() {
+  bool state;
+  this->abort_mutex.lock();
+  state = this->abortstate;
+  this->abort_mutex.unlock();
+  return( state );
+}
 
   /** Common::Common::fitsnaming **********************************************/
   /**

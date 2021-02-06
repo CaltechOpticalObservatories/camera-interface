@@ -32,7 +32,7 @@ class FITS_file {
     std::atomic<bool> error;                        //!< indicates an error occured in a file writing thread
     std::atomic<bool> file_open;                    //!< semaphore indicates file is open
     std::atomic<int> threadcount;                   //!< keep track of number of write_image_thread threads
-    std::atomic<int> framen;                        //!< frame counter for data cubes
+    std::atomic<int> framen;                        //!< internal frame counter for data cubes
     CCfits::ExtHDU* imageExt;                       //!< image extension header unit
     std::string fits_name;
 
@@ -510,6 +510,14 @@ class FITS_file {
     void add_user_key(std::string keyword, std::string type, std::string value, std::string comment) {
       std::string function = "FITS_file::add_user_key";
       std::stringstream message;
+
+      // The file must have been opened first
+      //
+      if ( !this->file_open ) {
+        logwrite(function, "ERROR: no fits file open!");
+        return;
+      }
+
       if (type.compare("INT") == 0) {
         this->pFits->pHDU().addKey(keyword, std::stoi(value), comment);
       }

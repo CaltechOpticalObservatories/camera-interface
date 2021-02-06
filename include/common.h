@@ -12,6 +12,7 @@
 #include <map>
 #include <vector>
 #include <mutex>
+#include <atomic>
 
 #include "logentry.h"
 #include "utilities.h"
@@ -56,10 +57,19 @@ namespace Common {
       std::string fits_naming;
       std::string fitstime;                                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
       int image_num;
+      std::atomic<bool> _abortstate;;
+      std::mutex abort_mutex;
 
     public:
       Common();
       ~Common() {}
+
+      std::string   shutterstate;            //!< one of 4 allowed states: enable, disable, open, close
+      bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
+      bool          abortstate;              //!< set true to abort the current operation (exposure, readout, etc.)
+
+      void set_abortstate(bool state);
+      bool get_abortstate();
 
       std::map<int, std::string> firmware;   //!< firmware file for given controller device number, read from .cfg file
 
@@ -73,6 +83,7 @@ namespace Common {
       void set_fitstime(std::string time_in);
       std::string get_fitsname();
       std::string get_fitsname(std::string controllerid);
+      void abort();
   };
 
   typedef enum {
@@ -106,6 +117,9 @@ namespace Common {
       long          axis_pixels[2];
       long          region_of_interest[4];
       long          image_center[2];
+      std::string   shutterstate;
+      bool          openshutter;
+      bool          abortexposure;
       bool          datacube;
       int           extension;               //!< extension number for data cubes
       int           exposure_time;           //!< exposure time in msec

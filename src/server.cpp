@@ -365,7 +365,18 @@ void doit(Network::TcpSocket sock) {
     if (cmd.compare("setp")==0) {
                     ret = server.set_parameter(args);
                     }
+    else
+    if (cmd.compare("abort")==0) {
+                    server.common.abort();
+                    ret = 0;
+                    }
 #ifdef ASTROCAM
+    else
+    if (cmd.compare("useframes")==0) {
+                    std::string retstring;
+                    ret = server.access_useframes(args);
+                    if (!args.empty()) { sock.Write(args); sock.Write(" "); }
+                    }
     else
     if (cmd.compare("geometry")==0) {
                     std::string retstring;
@@ -377,11 +388,6 @@ void doit(Network::TcpSocket sock) {
                     std::string retstring;   // string for the return value
                     ret = server.buffer(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-                    }
-    else
-    if (cmd.compare("abort")==0) {
-                    server.abort_exposure();
-                    ret = 0;
                     }
 #endif
 #ifdef STA_ARCHON

@@ -94,6 +94,7 @@ namespace AstroCam {
             << " buffer=" << std::setfill('0') << std::hex << buffer;
     logwrite(function, message.str());
 #endif
+    server.add_framethread();  // framethread_count is incremented because a thread has been added
     std::thread( std::ref(AstroCam::Interface::handle_frame), devnum, fpbcount, fcount, buffer ).detach();
   }
   /** AstroCam::Callback::frameCallback ***************************************/
@@ -109,10 +110,11 @@ namespace AstroCam {
    */
   Interface::Interface() {
     this->modeselected = false;
-    this->isabort_exposure = false;
     this->numdev = 0;
     this->nframes = 1;
     this->nfpseq = 1;
+    this->useframes = true;
+    this->framethreadcount = 0;
   }
   /** AstroCam::Interface::Interface ******************************************/
 
@@ -145,63 +147,6 @@ namespace AstroCam {
     return(NO_ERROR);
   }
   /** AstroCam::Interface::interface ******************************************/
-
-
-  /** AstroCam::Interface::set_framecount *************************************/
-  /**
-   * @fn     set_framecount 
-   * @brief  sets this->framecount, protected by mutex
-   * @param  int num
-   * @return none
-   *
-   * This should never happen but if num is negative then framecount is set = 0
-   * and an error is logged.
-   *
-   */
-  void Interface::set_framecount(int num) {
-    this->framecount_mutex.lock();
-    if (num>=0) this->framecount = num; else this->framecount = 0;
-    this->framecount_mutex.unlock();
-    if (num<0) logwrite("AstroCam::Interface::set_framecount", "ERROR: framecount cannot be negative. Set=0.");
-  }
-  /** AstroCam::Interface::set_framecount *************************************/
-
-
-  /** AstroCam::Interface::get_framecount *************************************/
-  /**
-   * @fn     get_framecount 
-   * @brief  returns this->framecount, protected by mutex
-   * @param  none
-   * @return int framecount
-   *
-   */
-  int Interface::get_framecount() {
-    this->framecount_mutex.lock();
-    int num = this->framecount;
-    this->framecount_mutex.unlock();
-    return( num );
-  }
-  /** AstroCam::Interface::get_framecount *************************************/
-
-
-  /** AstroCam::Interface::increment_framecount *******************************/
-  /**
-   * @fn     increment_framecount 
-   * @brief  increments this->framecount, protected by mutex
-   * @param  none
-   * @return none
-   *
-   */
-  void Interface::increment_framecount() {
-#ifdef LOGLEVEL_DEBUG
-    std::string function = "AstroCam::Interface::increment_framecount";
-    logwrite(function, "*** [DEBUG] incrementing framecount");
-#endif
-    this->framecount_mutex.lock();
-    this->framecount++;
-    this->framecount_mutex.unlock();
-  }
-  /** AstroCam::Interface::increment_framecount *******************************/
 
 
   /** AstroCam::Interface::connect_controller *********************************/
@@ -398,7 +343,8 @@ namespace AstroCam {
       catch(...) { logwrite(function, "unknown error updaing device list"); return(ERROR); }
     }
 
-    // Now remove the marked devices (those not connected) from this->devlist
+    // Now remove the marked devices (those not connected) 
+    // by erasing them from the this->devlist STL map.
     //
     this->devlist.erase( std::remove (this->devlist.begin(), this->devlist.end(), -1), this->devlist.end() );
 
@@ -478,8 +424,14 @@ namespace AstroCam {
           continue;
         }
         else {
-          this->common.firmware[ parse_val(tokens.at(0)) ] = tokens.at(1);
-          applied++;
+          try {
+            this->common.firmware[ parse_val(tokens.at(0)) ] = tokens.at(1);
+            applied++;
+          }
+          catch(std::out_of_range &) {  // should be impossible but here for safety
+            logwrite(function, "ERROR configuring DEFAULT_FIRMWARE: requested tokens out of range");
+            error = ERROR;
+          }
         }
       }
 
@@ -524,6 +476,15 @@ namespace AstroCam {
     std::stringstream message;
     std::vector<std::string> tokens;
 
+    // If no connected devices then nothing to do here
+    //
+    if (this->numdev == 0) {
+      logwrite(function, "ERROR: no connected devices");
+      return(ERROR);
+    }
+
+    // If no command passed then nothing to do here
+    //
     if ( cmdstr.empty() ) {
       logwrite(function, "ERROR: missing command");
       return( ERROR );
@@ -631,7 +592,15 @@ namespace AstroCam {
 
     // Check to see if all retvals are the same by comparing them all to the first.
     //
-    std::uint32_t check_retval = this->controller.at(0).retval;    // save the first one in the controller vector
+    std::uint32_t check_retval;
+    try {
+      check_retval = this->controller.at(0).retval;    // save the first one in the controller vector
+    }
+    catch(std::out_of_range &) {
+      logwrite(function, "ERROR: no device found. Is the controller connected?");
+      return(ERROR);
+    }
+
     bool allsame = true;
     for (auto dev : devlist) {
       try {
@@ -651,7 +620,9 @@ namespace AstroCam {
 
     // If all the return values are equal then return only one value...
     //
-    if ( allsame ) retstring = std::to_string( check_retval );
+    if ( allsame ) {
+      this->retval_to_string( check_retval, retstring );        // this sets retstring = to_string( retval )
+    }
 
     // ...but if any retval is different from another then we have to report each one.
     //
@@ -659,7 +630,8 @@ namespace AstroCam {
       std::stringstream rs;
       for (auto dev : devlist) {
         try {
-          rs << std::dec << this->controller.at(dev).devnum << ":" << this->controller.at(dev).retval << " ";
+          this->retval_to_string( this->controller.at(dev).retval, retstring );          // this sets retstring = to_string( retval )
+          rs << std::dec << this->controller.at(dev).devnum << ":" << retstring << " ";  // build up a stringstream of each controller's reply
         }
         catch(std::out_of_range &) {
           message.str(""); message << "ERROR: unable to find device " << dev << " in list: {";
@@ -670,7 +642,7 @@ namespace AstroCam {
         }
         catch(...) { logwrite(function, "unknown error looking for return values"); return(ERROR); }
       }
-      retstring = rs.str();
+      retstring = rs.str();  // re-use retstring to contain all of the replies
     }
 
     // Log the return values
@@ -695,6 +667,48 @@ namespace AstroCam {
   /** AstroCam::Interface::native *********************************************/
 
 
+  /** AstroCam::Interface::retval_to_string ***********************************/
+  /**
+   * @fn     retval_to_string
+   * @brief  private function to convert ARC return values (long) to string
+   * @param  retval, input long int retval
+   * @param  retstring, reference to a string for return value
+   * @return none
+   *
+   * In addition to converting longs to string, if the retval is a particular
+   * commonly used code, then set the ASCII characters for those codes,
+   * such as DON, ERR, etc. instead of returning a string value of their
+   * numeric counterpart.
+   *
+   */
+  void Interface::retval_to_string( std::uint32_t retval, std::string& retstring ) {
+    // replace some common values with their ASCII equivalents
+    //
+    if ( retval == 0x00455252 ) { retstring = "ERR";  }
+    else
+    if ( retval == 0x00444F4E ) { retstring = "DON";  }
+    else
+    if ( retval == 0x544F5554 ) { retstring = "TOUT"; }
+    else
+    if ( retval == 0x524F5554 ) { retstring = "ROUT"; }
+    else
+    if ( retval == 0x48455252 ) { retstring = "HERR"; }
+    else
+    if ( retval == 0x00535952 ) { retstring = "SYR";  }
+    else
+    if ( retval == 0x00525354 ) { retstring = "RST";  }
+    else
+    if ( retval == 0x00434E52 ) { retstring = "CNR";  }
+
+    // otherwise just convert the numerica value to a string
+    //
+    else {
+      retstring = std::to_string( retval );
+    }
+  }
+  /** AstroCam::Interface::retval_to_string ***********************************/
+
+
   /** AstroCam::Interface::dothread_expose ************************************/
   /**
    * @fn     dothread_expose
@@ -707,13 +721,12 @@ namespace AstroCam {
   void Interface::dothread_expose( controller_info &controller, CameraFits &camera ) {
     std::string function = "AstroCam::Interface::dothread_expose";
     std::stringstream message;
-    bool abort=false;
-    bool openshutter=true; // TODO probably needs to come from somewhere else!
 
 #ifdef LOGLEVEL_DEBUG
     message.str("");
     message << "*** [DEBUG] controller.devnum=" << controller.devnum 
-            << " .devname=" << controller.devname << " camera.image_size=" << camera.info.image_size;
+            << " .devname=" << controller.devname << " camera.image_size=" << camera.info.image_size
+            << " shutterenable=" << server.common.shutterenable;
     logwrite(function, message.str());
 #endif
 
@@ -721,36 +734,46 @@ namespace AstroCam {
     // A callback function triggered by the ARC API will perform the writing of frames to disk.
     //
     try {
-      // get system time when exposure starts
+      // get system time just before the actual expose() call
       //
       camera.info.start_time = get_system_time();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-      message.str(""); message << controller.devname << " starting exposure at " << camera.info.start_time;
-      logwrite(function, message.str());
 
-      // send the actual command to start the exposure
+      // Send the actual command to start the exposure.
+      // This API call will send the SEX command to trigger the exposure.
+      // The devnum is passed in so that the Callback functions know which device they belong to.
       //
       controller.pArcDev->expose(controller.devnum, 
                                  camera.info.exposure_time, 
                                  camera.info.detector_pixels[0], 
                                  camera.info.detector_pixels[1], 
-                                 abort, 
+                                 server.common.abortstate, 
                                  controller.pCallback, 
-                                 openshutter);
+                                 server.common.shutterenable);
 
       // write the exposure start time in the header
       //
       camera.pFits->add_user_key("EXPSTART", "STRING", camera.info.start_time, "exposure start time");
     }
     catch (const std::exception &e) {
-      message.str(""); message << "ERROR: " << e.what();
+      // arc::gen3::CArcDevice::expose() will throw an exception for an abort.
+      // Look for the word "abort" in the exception message and log "ABORT"
+      // instead of "ERROR".
+      //
+      std::string estring = e.what();
+      message.str("");
+      if ( estring.find("aborted") != std::string::npos ) {
+        message << "ABORT: " << e.what();
+      }
+      else {
+        message << "ERROR: " << e.what();
+      }
+      server.common.set_abortstate( true );
       logwrite(function, message.str());
-      logwrite(function, "forcing abort due to error");
-      server.abort_exposure();
       return;
     }
     catch(...) {
       logwrite(function, "unknown error calling pArcDev->expose(). forcing abort.");
-      server.abort_exposure();
+      server.common.set_abortstate( true );
       return;
     }
   }
@@ -840,6 +863,73 @@ namespace AstroCam {
   /** AstroCam::Interface::set_parameter **************************************/
 
 
+  /** AstroCam::Interface::access_useframes ***********************************/
+  /**
+   * @fn     access_useframes
+   * @brief  set or get the state of this->useframes
+   * @param  useframes, reference to std::string
+   * @return ERROR or NO_ERROR
+   *
+   * The argument is passed in by reference so that it can be used for the
+   * return value of this->useframes, while the actual return value
+   * indicates an error condition. If the reference contains an empty
+   * string then this is a "get" operation. If the reference is not empty
+   * then this is a "set" operation.
+   *
+   * this->useframes indicates whether or not the firmware supports frames,
+   * true if it does, false if it does not. 
+   *
+   */
+  long Interface::access_useframes(std::string& useframes) {
+    std::string function = "AstroCam::Interface::access_useframes";
+    std::stringstream message;
+    std::vector<std::string> tokens;
+
+    // If an empty string reference is passed in then that means to return
+    // the current value using that reference.
+    //
+    if ( useframes.empty() ) {
+      useframes = ( this->useframes ? "true" : "false" );  // set the return value here on empty
+      message << "useframes is " << useframes;
+      logwrite(function, message.str());
+      return( NO_ERROR );
+    }
+
+    Tokenize(useframes, tokens, " ");
+
+    if (tokens.size() != 1) {
+      message.str(""); message << "error: expected 1 argument but got " << tokens.size();
+      logwrite(function, message.str());
+      useframes = ( this->useframes ? "true" : "false" );  // set the return value here on bad number of args
+      return(ERROR);
+    }
+
+    // Convert to lowercase then compare against "true" and "false"
+    // and set boolean class member and return value string.
+    //
+    std::transform( useframes.begin(), useframes.end(), useframes.begin(), ::tolower );
+
+    if ( useframes.compare("true")  == 0 ) { this->useframes = true;  useframes = "true";  }
+    else
+    if ( useframes.compare("false") == 0 ) { this->useframes = false; useframes = "false"; }
+
+    // If neither true nor false then log the error,
+    // and set the return value to the current value.
+    //
+    else {
+      message << "ERROR: unrecognized argument: " << useframes << ". Expected true or false.";
+      logwrite(function, message.str());
+      useframes = ( this->useframes ? "true" : "false" );  // set the return value here on invalid arg
+      return( ERROR );
+    }
+
+    message << "useframes is " << useframes;
+    logwrite(function, message.str());
+    return( NO_ERROR );
+  }
+  /** AstroCam::Interface::access_useframes ***********************************/
+
+
   /** AstroCam::Interface::nframes ********************************************/
   /**
    * @fn     nframes
@@ -856,7 +946,7 @@ namespace AstroCam {
     Tokenize(valstring, tokens, " ");
 
     if (tokens.size() != 2) {
-      message.str(""); message << "error: nframes expected 1 value but got " << tokens.size()-1;
+      message.str(""); message << "error: expected 1 value but got " << tokens.size()-1;
       logwrite(function, message.str());
       return(ERROR);
     }
@@ -1011,9 +1101,14 @@ namespace AstroCam {
     this->camera_info.bitpix = 16;
     error = this->camera_info.set_axes(SHORT_IMG);  // 16 bit image is short int
 
-    // Initialize the frame counter
+    // Clear the abort flag for a new exposure, in case it was previously set
     //
-    this->set_framecount( 0 );
+    this->common.set_abortstate( false );
+
+    // Initialize framethread count -- this keeps track of threads
+    // spawned by frameCallback, to make sure that all have been completed.
+    //
+    this->init_framethread_count();
 
     // Copy the userkeys database object into camera_info
     //
@@ -1022,15 +1117,25 @@ namespace AstroCam {
     this->camera_info.start_time = get_system_time();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
     this->common.set_fitstime(this->camera_info.start_time);        // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
 
+    message.str(""); message << "starting exposure at " << camera_info.start_time;
+    logwrite(function, message.str());
+
     // prepare the camera info class object for each controller
     //
     for (auto dev : this->devlist) {        // spawn a thread for each device in devlist
       try {
+
+        // Initialize a frame counter for each device. 
+        //
+        this->camera.at(dev).init_framecount();
+
         std::stringstream devstring;
         devstring << dev;
 
         // Copy the camera_info into each dev's info class object
         this->camera.at(dev).info = this->camera_info;
+
+        this->camera.at(dev).alloc_workbuf();
 
         // then set the filename for this specific dev
         // Assemble the FITS filename.
@@ -1087,6 +1192,9 @@ namespace AstroCam {
       catch(...) { logwrite(function, "unknown error creating expose thread for controller"); return(ERROR); }
     }
 
+    // Join the dothread_expose threads to this thread (not to each other)
+    // in order to wait for them to complete.
+    //
     try {
       for (std::thread & thr : threads) {   // loop through the vector of threads
         if ( thr.joinable() ) thr.join();   // if thread object is joinable then join to this function. (not to each other)
@@ -1102,42 +1210,29 @@ namespace AstroCam {
     threads.clear();                        // deconstruct the threads vector
     }  // end local scope
 
-#ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "*** [DEBUG] start waiting for nframes=" << this->nframes << " completion";
-    logwrite(function, message.str());
-#endif
+    // As frames are received, threads are created and a counter keeps track of them,
+    // incrementing on creation and decrementing on destruction. Wait here for that
+    // counter to be zero, indicating all the threads have completed.
+    //
+    while ( this->get_framethread_count() > 0 ) ;
 
-    // Wait for all the frames to be written,
-    // or an abort.
-    //
-    // This could otherwise be an infinite loop except that the user
-    // has the control to send an abort in order to break out.
-    //
-    // this->framecount is incremented by this->write_frame()
-    //
-    double start_time = get_clock_time();
-    do {
-      usleep(10);
-      server.framecount_mutex.lock();
-      if (this->framecount >= this->nframes) {
-        server.framecount_mutex.unlock();
-        break;
-      }
-      server.framecount_mutex.unlock();
-      double time_now = get_clock_time();
-      if (time_now - start_time >= 1.0) {          // update progress every 1 sec so the user knows what's going on
-        start_time = time_now;
-        logwrite(function, "waiting for frames");  //TODO presumably update GUI or set a global that the CLI can access
-      }
-    } while ( ! this->get_abortexposure() );
-
-    if (server.get_abortexposure()) {
-      logwrite(function, "aborted!");
-    }
+    logwrite(function, "all frames written");
 
     // close the FITS file
     //
-    for (auto dev : this->devlist) this->camera.at(dev).close_file();
+    for (auto dev : this->devlist) {
+      try {
+        this->camera.at(dev).close_file();
+      }
+      catch(std::out_of_range &) {
+        message.str(""); message << "ERROR closing FITS file: unable to find device " << dev << " in list: {";
+        for (auto check : this->devlist) message << check << " ";
+        message << "}";
+        logwrite(function, message.str());
+        error = ERROR;
+      }
+      catch(...) { logwrite(function, "unknown error closing FITS file(s)"); }
+    }
 
     logwrite( function, (error==ERROR ? "ERROR" : "complete") );
 
@@ -1320,7 +1415,15 @@ namespace AstroCam {
 
       // Check to see if all retvals are the same by comparing them all to the first.
       //
-      std::uint32_t check_retval = this->controller.at(0).retval;    // save the first one in the controller vector
+      std::uint32_t check_retval;
+      try {
+        check_retval = this->controller.at(0).retval;    // save the first one in the controller vector
+      }
+      catch(std::out_of_range &) {
+        logwrite(function, "ERROR: no device found. Is the controller connected?");
+        return(ERROR);
+      }
+
       bool allsame = true;
       for (auto dev : selectdev) {
         try {
@@ -1534,26 +1637,64 @@ namespace AstroCam {
    *
    * This function is called by the handle_frame thread.
    *
-   * Use the devnum to identify which device has the frame,
-   * and fpbcount to identify which frame on that device is ready.
-   * "fpbcount" is used to index the frameinfo STL map on controller "devnum".
-   *
    */
   long Interface::write_frame(int devnum, int fpbcount) {
     std::string function = "AstroCam::Interface::write_frame";
     std::stringstream message;
-    long error;
+    long error=NO_ERROR;
+
+    // Use devnum to identify which device has the frame,
+    // and fpbcount to index the frameinfo STL map on that devnum,
+    // and assign the pointer to that buffer to a local variable.
+    //
+    void* buf = this->controller.at(devnum).frameinfo[fpbcount].buf;
 
     message << this->controller.at(devnum).devname << " received frame " 
             << this->controller.at(devnum).frameinfo[fpbcount].framenum << " into buffer "
             << std::hex << this->controller.at(devnum).frameinfo[fpbcount].buf;
     logwrite(function, message.str());
 
-    // Write this buffer to disk
+    // Cast that buffer to the appropriate type, then call
+    // the class deinterlace and write functions.
     //
-    error = this->camera.at(devnum).write( this->controller.at(devnum).frameinfo[fpbcount].buf );
+    try {
+      switch (this->camera_info.datatype) {
+        case USHORT_IMG: {
+          this->camera.at(devnum).deinterlace( (uint16_t *)buf );
+          error = this->camera.at(devnum).write( (uint16_t *)buf );
+          break;
+        }
+        case SHORT_IMG: {
+          this->camera.at(devnum).deinterlace( (int16_t *)buf );
+          error = this->camera.at(devnum).write( (int16_t *)buf );
+          break;
+        }
+        case FLOAT_IMG: {
+          this->camera.at(devnum).deinterlace( (uint32_t *)buf );
+          error = this->camera.at(devnum).write( (uint32_t *)buf );
+          break;
+        }
+        default:
+          message.str("");
+          message << "ERROR: unknown datatype: " << this->camera_info.datatype;
+          logwrite(function, message.str());
+          error = ERROR;
+          break;
+      }
+      // A frame has been written for this device,
+      // so increment the framecounter for devnum.
+      //
+      if (error == NO_ERROR) this->camera.at(devnum).increment_framecount();
+    }
+    catch (std::out_of_range &) {
+      message.str(""); message << "ERROR: unable to find device " << devnum << " in list: {";
+      for (auto check : this->devlist) message << check << " ";
+      message << "}";
+      logwrite(function, message.str());
+      error = ERROR;
+    }
 
-    this->increment_framecount();
+//  this->increment_framecount();
 
     return( error );
   }
@@ -1695,7 +1836,7 @@ namespace AstroCam {
   /**************** AstroCam::Interface::handle_frame *************************/
   /**
    * @fn     handle_frame
-   * @brief  process each frame received by frameCallback
+   * @brief  process each frame received by frameCallback for any device
    * @param  fpbcount, frames per buffer count, returned from the ARC API
    * @param  fcount, number of frames read, returned from the ARC API
    * @param  *buffer, pointer to the PCI/e buffer, returned from the ARC API
@@ -1722,13 +1863,24 @@ namespace AstroCam {
     // then for 10 frames, fcount goes from 0,1,2,3,4,5,6,7,8,9
     // and fpbcount goes from 0,1,2,0,1,2,0,1,2,0
     //
-    if ( server.controller.at(devnum).frameinfo.count( fpbcount ) == 0 ) {  // ...no
-      server.controller.at(devnum).frameinfo[ fpbcount ].tid      = fpbcount;
-      server.controller.at(devnum).frameinfo[ fpbcount ].framenum = fcount;
-      server.controller.at(devnum).frameinfo[ fpbcount ].buf      = buffer;
+    try {
+      if ( server.controller.at(devnum).frameinfo.count( fpbcount ) == 0 ) {  // ...no
+        server.controller.at(devnum).frameinfo[ fpbcount ].tid      = fpbcount;
+        server.controller.at(devnum).frameinfo[ fpbcount ].buf      = buffer;
+        // If useframes is false then set framenum=0 because it doesn't mean anything,
+        // otherwise set it to the fcount received from the API.
+        //
+        server.controller.at(devnum).frameinfo[ fpbcount ].framenum = server.useframes ? fcount : 0;
+      }
+      else {                                                                  // ...yes
+        logwrite(function, "ERROR: frame buffer overrun! Try allocating a larger buffer");
+        server.frameinfo_mutex.unlock();
+        return;
+      }
     }
-    else {                                                                  // ...yes
-      logwrite(function, "ERROR: frame buffer overrun! Try allocating a larger buffer");
+    catch (std::out_of_range &) {
+      message.str(""); message << "ERROR indexing controller devnum=" << devnum << " or frame at fpb=" << fpbcount;
+      logwrite(function, message.str());
       server.frameinfo_mutex.unlock();
       return;
     }
@@ -1736,44 +1888,157 @@ namespace AstroCam {
     server.frameinfo_mutex.unlock();               // release access to frameinfo structure
 
 #ifdef LOGLEVEL_DEBUG
-    logwrite(function, "*** [DEBUG] waiting for frame");
+    if ( server.useframes ) {
+      logwrite(function, "*** [DEBUG] waiting for frame");
+    }
+    else {
+      logwrite(function, "*** [DEBUG] firmware doesn't support frames");
+    }
 #endif
 
-    // Process the frames in numerical order.
-    // Don't let one thread get ahead of another.
+    // Write the frames in numerical order.
+    // Don't let one thread get ahead of another when it comes to writing.
     //
+    double start_time = get_clock_time();
     do {
       int this_frame = fcount;                     // the current frame
-      int last_frame = server.get_framecount();    // the last frame that has been written
+      int last_frame = server.camera.at(devnum).get_framecount();    // the last frame that has been written by this device
       int next_frame = last_frame + 1;             // the next frame in line
       if (this_frame != next_frame) {              // if the current frame is NOT the next in line then keep waiting
         usleep(5);
+        double time_now = get_clock_time();
+        if (time_now - start_time >= 1.0) {        // update progress every 1 sec so the user knows what's going on
+          start_time = time_now;
+          logwrite(function, "waiting for frames");//TODO presumably update GUI or set a global that the CLI can access
+#ifdef LOGLEVEL_DEBUG
+          message.str(""); message << "*** [DEBUG] this_frame=" << this_frame << " next_frame=" << next_frame;
+          logwrite(function, message.str());
+#endif
+        }
       }
       else {                                       // otherwise it's time to write this frame to disk
         break;                                     // note that frameinfo_mutex remains locked now until completion
       }
-    } while (!server.get_abortexposure());
 
-#ifdef LOGLEVEL_DEBUG
-    logwrite(function, "*** [DEBUG] received frame");
-#endif
+      if ( server.common.get_abortstate() ) break; // provide the user a way to get out
+
+    } while ( server.useframes );                  // some firmware doesn't support frames so get out after one frame if it doesn't
 
     // If not aborted then write this frame
     //
-    if ( ! server.get_abortexposure()) {
+    if ( ! server.common.get_abortstate() ) {
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "*** [DEBUG] calling server.write_frame for devnum=" << devnum << " fpbcount=" << fpbcount;
+    logwrite(function, message.str());
+#endif
       server.write_frame( devnum, fpbcount );
     }
     else {
       logwrite(function, "aborted!");
     }
 
-    server.controller.at(devnum).frameinfo.erase( fpbcount );
+    // Done with the frame identified by "fpbcount".
+    // Erase it from the STL map so it's not seen again.
+    //
+    try {
+      server.frameinfo_mutex.lock();               // protect access to frameinfo structure
+      server.controller.at(devnum).frameinfo.erase( fpbcount );
+    }
+    catch (std::out_of_range &) {
+      message.str(""); message << "ERROR erasing frameinfo for fpb=" << fpbcount << " at controller devnum=" << devnum;
+      logwrite(function, message.str());
+    }
 
     server.frameinfo_mutex.unlock();
+
+    server.remove_framethread();  // framethread_count is decremented because a thread has completed
 
     return;
   }
   /**************** AstroCam::Interface::handle_frame *************************/
+
+
+  /**************** AstroCam::Interface::add_framethread **********************/
+  /**
+   * @fn     add_framethread
+   * @brief  call on thread creation to increment framethreadcount
+   * @param  none
+   * @return none
+   *
+   */
+  inline void Interface::add_framethread() {
+    this->framethreadcount_mutex.lock();
+    this->framethreadcount++;
+    this->framethreadcount_mutex.unlock();
+  }
+  /**************** AstroCam::Interface::add_framethread **********************/
+
+
+  /**************** AstroCam::Interface::remove_framethread *******************/
+  /**
+   * @fn     remove_framethread
+   * @brief  call on thread destruction to decrement framethreadcount
+   * @param  none
+   * @return none
+   *
+   */
+  inline void Interface::remove_framethread() {
+    this->framethreadcount_mutex.lock();
+    this->framethreadcount--;
+    this->framethreadcount_mutex.unlock();
+  }
+  /**************** AstroCam::Interface::remove_framethread *******************/
+
+
+  /**************** AstroCam::Interface::get_framethread **********************/
+  /**
+   * @fn     get_framethread
+   * @brief  return the number of active threads spawned for handling frames
+   * @param  none
+   * @return int, number of threads
+   *
+   */
+  inline int Interface::get_framethread_count() {
+    int count;
+    this->framethreadcount_mutex.lock();
+    count = this->framethreadcount;
+    this->framethreadcount_mutex.unlock();
+    return( count );
+  }
+  /**************** AstroCam::Interface::get_framethread **********************/
+
+
+  /**************** AstroCam::Interface::init_framethread_count ***************/
+  /**
+   * @fn     init_framethread_count
+   * @brief  initialize framethreadcount = 0
+   * @param  none
+   * @return none
+   *
+   */
+  inline void Interface::init_framethread_count() {
+    this->framethreadcount_mutex.lock();
+    this->framethreadcount = 0;
+    this->framethreadcount_mutex.unlock();
+  }
+  /**************** AstroCam::Interface::init_framethread_count ***************/
+
+
+  /** AstroCam::Interface::CameraFits::CameraFits *****************************/
+  /**
+   * @fn     CameraFits
+   * @brief  class constructor
+   * @param  none
+   * @return none
+   *
+   */
+  Interface::CameraFits::CameraFits() {
+    this->workbuf = NULL;
+    this->workbuf_size = 0;
+    this->devnum = 0;
+    this->framecount = 0;
+  }
+  /** AstroCam::Interface::CameraFits::CameraFits *****************************/
 
 
   /**************** AstroCam::Interface::CameraFits::open_file ****************/
@@ -1808,18 +2073,149 @@ namespace AstroCam {
    *
    */
   void Interface::CameraFits::close_file() {
-#ifdef LOGLEVEL_DEBUG
     std::string function = "AstroCam::Interface::CameraFits::close_file";
+#ifdef LOGLEVEL_DEBUG
     std::stringstream message;
     message << "*** [DEBUG] devnum=" << this->get_devnum() 
             << " fits_name=" << this->info.fits_name 
             << " this->pFits=" << std::hex << this->pFits;
     logwrite(function, message.str());
 #endif
-    this->pFits->close_file();
+    try {
+      this->pFits->close_file();
+    }
+    catch(...) { logwrite(function, "unknown error closing FITS file(s)"); }
     return;
   }
   /**************** AstroCam::Interface::CameraFits::close_file ***************/
+
+
+  /** AstroCam::Interface::CameraFits::init_framecount ************************/
+  /**
+   * @fn     init_framecount 
+   * @brief  initialize this->framecount=0, protected by mutex
+   * @param  none
+   * @return none
+   *
+   */
+  inline void Interface::CameraFits::init_framecount() {
+    server.framecount_mutex.lock();
+    this->framecount = 0;
+    server.framecount_mutex.unlock();
+  }
+  /** AstroCam::Interface::CameraFits::init_framecount ************************/
+
+
+  /** AstroCam::Interface::CameraFits::get_framecount *************************/
+  /**
+   * @fn     get_framecount 
+   * @brief  returns this->framecount, protected by mutex
+   * @param  none
+   * @return int framecount
+   *
+   */
+  inline int Interface::CameraFits::get_framecount() {
+    int count;
+    server.framecount_mutex.lock();
+    count = this->framecount;
+    server.framecount_mutex.unlock();
+    return( count );
+  }
+  /** AstroCam::Interface::CameraFits::get_framecount *************************/
+
+
+  /** AstroCam::Interface::CameraFits::increment_framecount *******************/
+  /**
+   * @fn     increment_framecount 
+   * @brief  increments this->framecount, protected by mutex
+   * @param  none
+   * @return none
+   *
+   */
+  inline void Interface::CameraFits::increment_framecount() {
+    server.framecount_mutex.lock();
+    this->framecount++;
+    server.framecount_mutex.unlock();
+  }
+  /** AstroCam::Interface::CameraFits::increment_framecount *******************/
+
+
+  /**************** AstroCam::Interface::deinterlace **************************/
+  /**
+   * @fn     deinterlace
+   * @brief  
+   * @param  args contains: module, channel, bias
+   * @return none
+   *
+   */
+  template <class T>
+  void Interface::CameraFits::deinterlace(T* imbuf) {
+    std::string function = "AstroCam::Interface::deinterlace";
+    std::stringstream message;
+
+    int nthreads = std::thread::hardware_concurrency();
+
+    T* imagebuf = imbuf;
+    T* workbuf = (T*)this->workbuf;
+
+#ifdef LOGLEVEL_DEBUG
+    message << "*** [DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << imbuf;
+    logwrite(function, message.str());
+#endif
+
+    // spawn threads to handle each sub-section of the image
+    //
+    {  // begin local scope
+    std::vector<std::thread> threads;       // create a local scope vector for the threads
+    for ( int section = 1; section <= nthreads; section++ ) {
+      std::thread thr( &AstroCam::Interface::CameraFits::dothread_deinterlace<T*>, 
+                   std::ref(imagebuf),
+                   std::ref(workbuf),
+                   section );
+      threads.push_back(std::move(thr));  // push the thread into a vector
+    }
+
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "*** [DEBUG] devnum " << this->devnum << " waiting for deinterlacing threads";
+    logwrite(function, message.str());
+#endif
+
+    try {
+      for (std::thread & thr : threads) {   // loop through the vector of threads
+        if ( thr.joinable() ) thr.join();   // if thread object is joinable then join to this function. (not to each other)
+      }
+    }
+    catch(const std::exception &e) {
+      message.str(""); message << "ERROR joining threads: " << e.what();
+      logwrite(function, message.str());
+    }
+    catch(...) { logwrite(function, "unknown error joining threads"); }
+
+    threads.clear();                        // deconstruct the threads vector
+    }
+
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "*** [DEBUG] devnum " << this->devnum << " complete";
+    logwrite(function, message.str());
+#endif
+
+    return;
+  }
+  /**************** AstroCam::Interface::deinterlace **************************/
+
+
+  /**************** AstroCam::Interface::dothread_deinterlace *****************/
+  template <class T>
+  void Interface::CameraFits::dothread_deinterlace(T &imagebuf, T &workbuf, int section) {
+    std::string function = "AstroCam::Interface::CameraFits::dothread_deinterlace";
+    std::stringstream message;
+#ifdef LOGLEVEL_DEBUG
+    message << "*** [DEBUG] imagebuf=" << std::hex << imagebuf << " workbuf=" << workbuf << " section=" << section;
+    logwrite(function, message.str());
+#endif
+    return;
+  }
+  /**************** AstroCam::Interface::dothread_deinterlace *****************/
 
 
   /**************** AstroCam::Interface::CameraFits::write ********************/
@@ -1839,13 +2235,19 @@ namespace AstroCam {
    * be called with a buffer of the appropriate type.
    *
    */
-  long Interface::CameraFits::write(void* buf_in) {
+  template <class T>
+  long Interface::CameraFits::write(T* buf) {
     std::string function = "AstroCam::Interface::CameraFits::write";
     std::stringstream message;
     long retval;
 
+if ( server.common.get_abortstate() ) {
+  logwrite(function, "* * * * * GOT ABORT * * * * * skipping write !");
+  return( NO_ERROR );
+}
+
 #ifdef LOGLEVEL_DEBUG
-    message << "*** [DEBUG] buf_in=" << std::hex << buf_in << " this->pFits=" << this->pFits;
+    message << "*** [DEBUG] buf=" << std::hex << buf << " this->pFits=" << this->pFits;
     logwrite(function, message.str());
 #endif
 
@@ -1853,23 +2255,16 @@ namespace AstroCam {
     // based on the datatype.
     //
     switch (this->info.datatype) {
-
       case USHORT_IMG: {
-        uint16_t *buf;
-        buf = (uint16_t *)buf_in;
-        retval = this->pFits->write_image(buf, this->info);
+        retval = this->pFits->write_image( (uint16_t *)buf, this->info);
         break;
       }
       case SHORT_IMG: {
-        int16_t *buf;
-        buf = (int16_t *)buf_in;
-        retval = this->pFits->write_image(buf, this->info);
+        retval = this->pFits->write_image( (int16_t *)buf, this->info);
         break;
       }
       case FLOAT_IMG: {
-        uint32_t *buf;
-        buf = (uint32_t *)buf_in;
-        retval = this->pFits->write_image(buf, this->info);
+        retval = this->pFits->write_image( (uint32_t *)buf, this->info);
         break;
       }
       default:
@@ -1878,10 +2273,112 @@ namespace AstroCam {
         logwrite(function, message.str());
         retval = ERROR;
         break;
-
     }
     return( retval );
   }
   /**************** AstroCam::Interface::CameraFits::write ********************/
+
+
+  /**************** AstroCam::Interface::CameraFits::alloc_workbuf ************/
+  /**
+   * @fn     alloc_workbuf
+   * @brief  allocate workspace memory for deinterlacing
+   * @param  none
+   * @return ERROR or NO_ERROR
+   *
+   * This function calls an overloaded template class version with 
+   * a generic pointer cast to the correct type.
+   *
+   */
+  long Interface::CameraFits::alloc_workbuf() {
+    std::string function = "AstroCam::Interface::CameraFits::alloc_workbuf";
+    std::stringstream message;
+    long retval = NO_ERROR;
+    void* ptr=NULL;
+
+    switch (this->info.datatype) {
+      case USHORT_IMG: {
+        this->alloc_workbuf( (uint16_t *)ptr );
+        break;
+      }
+      case SHORT_IMG: {
+        this->alloc_workbuf( (int16_t *)ptr );
+        break;
+      }
+      case FLOAT_IMG: {
+        this->alloc_workbuf( (uint32_t *)ptr );
+        break;
+      }
+      default:
+        message.str("");
+        message << "ERROR: unknown datatype: " << this->info.datatype;
+        logwrite(function, message.str());
+        retval = ERROR;
+        break;
+    }
+    return( retval );
+  }
+  /**************** AstroCam::Interface::CameraFits::alloc_workbuf ************/
+
+
+  /**************** AstroCam::Interface::CameraFits::alloc_workbuf ************/
+  /**
+   * @fn     alloc_workbuf
+   * @brief  allocate workspace memory for deinterlacing
+   * @param  buf, pointer to template type T
+   * @return pointer to the allocated space
+   *
+   * The actual allocation occurs in here, based on the template class pointer type.
+   *
+   */
+  template <class T>
+  void* Interface::CameraFits::alloc_workbuf(T* buf) {
+    std::string function = "AstroCam::Interface::CameraFits::alloc_workbuf";
+    std::stringstream message;
+
+    // Maybe the size of the existing buffer is already just right
+    //
+    if ( this->info.image_size == this->workbuf_size ) return( (void*)this->workbuf );
+
+    // But if it's not, then free whatever space is allocated, ...
+    //
+    if ( this->workbuf != NULL ) this->free_workbuf(buf);
+
+    // ...and then allocate new space.
+    //
+    this->workbuf = (T*) new T [ this->info.image_size ];
+    this->workbuf_size = this->info.image_size;
+
+    message << "allocated " << this->workbuf_size << " bytes for device " << this->devnum << " deinterlacing buffer " << std::hex << this->workbuf;
+    logwrite(function, message.str());
+    return( (void*)this->workbuf );
+
+  }
+  /**************** AstroCam::Interface::CameraFits::alloc_workbuf ************/
+
+
+  /**************** AstroCam::Interface::CameraFits::free_workbuf *************/
+  /**
+   * @fn     free_workbuf
+   * @brief  free (delete) memory allocated by alloc_workbuf
+   * @param  buf, pointer to template type T
+   * @return none
+   *
+   * Must pass a pointer of the correct type because delete doesn't work on void.
+   *
+   */
+  template <class T>
+  void Interface::CameraFits::free_workbuf(T* buf) {
+    std::string function = "AstroCam::Interface::CameraFits::free_workbuf";
+    std::stringstream message;
+    if (this->workbuf != NULL) {
+      delete [] (T*)this->workbuf;
+      this->workbuf = NULL;
+      this->workbuf_size = 0;
+      message << "deleted old deinterlacing buffer " << std::hex << this->workbuf;
+      logwrite(function, message.str());
+    }
+  }
+  /**************** AstroCam::Interface::CameraFits::alloc_workbuf ************/
 
 }
