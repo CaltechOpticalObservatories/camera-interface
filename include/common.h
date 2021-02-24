@@ -72,6 +72,7 @@ namespace Common {
       bool get_abortstate();
 
       std::map<int, std::string> firmware;   //!< firmware file for given controller device number, read from .cfg file
+      std::map<int, int> readout_time;       //!< readout time in msec for given controller device number, read from .cfg file
 
       long imdir(std::string dir_in);
       long imdir(std::string dir_in, std::string& dir_out);
@@ -105,7 +106,6 @@ namespace Common {
       int           activebufs;              //!< Archon controller number of active frame buffers
       int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
       int           datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
-      std::string   firmware;                //!< firmware file for given controller device number, copied to here for eventual FITS use
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];
       long          image_size;              //!< pixels per image sensor

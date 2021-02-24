@@ -101,11 +101,11 @@ namespace Archon {
           port = std::stoi( config.arg[entry] );
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: invalid port number: unable to convert to integer");
+          logwrite(function, "ERROR: unable to convert port number to integer");
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          logwrite(function, "port number out of integer range");
+          logwrite(function, "ERROR: port number out of integer range");
           return(ERROR);
         }
         this->camera_info.port = port;
@@ -118,11 +118,28 @@ namespace Archon {
         applied++;
       }
 
-      // .firmware is an STL map but (for now) only one Archon per computer
+      // .firmware and .readout_time are STL maps but (for now) only one Archon per computer
       // so map always to 0
       //
       if (config.param[entry].compare(0, 16, "DEFAULT_FIRMWARE")==0) {
-        this->camera_info.firmware[0] = config.arg[entry];
+        this->common.firmware[0] = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 12, "READOUT_TIME")==0) {
+        int readtime;
+        try {
+          readtime = std::stoi ( config.arg[entry] );
+        }
+        catch (std::invalid_argument &) {
+          logwrite(function, "ERROR: unable to convert readout time to integer");
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          logwrite(function, "ERROR: readout time out of integer range");
+          return(ERROR);
+        }
+        this->common.readout_time[0] = readtime;
         applied++;
       }
 
@@ -641,15 +658,47 @@ namespace Archon {
    * @param  none
    * @return 
    *
-   * This function is overloaded. If no argument is passed then call the version
-   * requiring an argument, using the default firmware specified in the .cfg file.
+   * This function is overloaded.
+   *
+   * This version is when no argument is passed then call the version requiring
+   * an argument, using the default firmware specified in the .cfg file.
    *
    */
   long Interface::load_firmware() {
-    long ret = this->load_firmware( this->camera_info.firmware[0] );
+    long ret = this->load_firmware( this->common.firmware[0] );
     if (ret == ERROR) this->fetchlog();
     return(ret);
   }
+  /**************** Archon::Interface::load_firmware **************************/
+  /**
+   * @fn     load_firmware
+   * @brief
+   * @param  none
+   * @return 
+   *
+   * This function is overloaded.
+   *
+   * This version is for future compatibility.
+   * The multiple-controller version will pass a reference to a return string.
+   *
+   */
+  long Interface::load_firmware(std::string acffile, std::string retstring) {
+    std::string function = "Archon::Interface::load_firmware";
+    logwrite(function, "ERROR: two arguments not yet supported");
+    return(ERROR);
+  }
+  /**************** Archon::Interface::load_firmware **************************/
+  /**
+   * @fn     load_firmware
+   * @brief
+   * @param  none
+   * @return 
+   *
+   * This function is overloaded.
+   *
+   * This version takes a single argument for the acf file to load.
+   *
+   */
   long Interface::load_firmware(std::string acffile) {
     std::string function = "Archon::Interface::load_firmware";
     std::stringstream message;
@@ -668,10 +717,10 @@ namespace Archon {
     // get the acf filename, either passed here or from loaded default
     //
     if ( acffile.empty() ) {
-      acffile = this->camera_info.firmware[0];
+      acffile = this->common.firmware[0];
     }
     else {
-      this->camera_info.firmware[0] = acffile;
+      this->common.firmware[0] = acffile;
     }
 
     // try to open the file
@@ -1131,7 +1180,7 @@ namespace Archon {
     // and put into the modemap...
     //
     if (this->modemap.find(mode) == this->modemap.end()) {
-      message.str(""); message << "ERROR: undefined mode " << mode << " in ACF file " << this->camera_info.firmware[0];
+      message.str(""); message << "ERROR: undefined mode " << mode << " in ACF file " << this->common.firmware[0];
       logwrite(function, message.str());
       return(ERROR);
     }
@@ -1222,7 +1271,7 @@ namespace Archon {
     int samplemode=-1;
     if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode); // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
     if (samplemode < 0) {
-      message.str(""); message << "ERROR: bad or missing SAMPLEMODE from " << this->camera_info.firmware[0];
+      message.str(""); message << "ERROR: bad or missing SAMPLEMODE from " << this->common.firmware[0];
       logwrite(function, message.str());
       return (ERROR);
     }
@@ -1394,7 +1443,7 @@ namespace Archon {
           adnum = std::stoi(adchan) - 1;
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: invalid AD number: unable to convert to integer");
+          logwrite(function, "ERROR: unable to convert AD numer to integer");
           return(ERROR);
         }
         catch (std::out_of_range &) {
@@ -1413,7 +1462,7 @@ namespace Archon {
           this->offset[ adnum ] = std::stoi(tokens[2]);    // offset as function of AD channel
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: invalid GAIN and/or OFFSET: unable to convert to integer");
+          logwrite(function, "ERROR: unable to convert GAIN and/or OFFSET to integer");
           return(ERROR);
         }
         catch (std::out_of_range &) {
@@ -1503,7 +1552,7 @@ namespace Archon {
             value  = std::stoi( subtokens[1] );                     // this value will get assigned to the corresponding parameter
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: invalid buffer or value: unable to convert to integer");
+          logwrite(function, "ERROR: unable to convert buffer or value to integer");
           return(ERROR);
         }
         catch (std::out_of_range &) {
@@ -2828,7 +2877,15 @@ namespace Archon {
     // waittime is an integral number of milliseconds 20% over the readout time
     // and will be used to keep track of elapsed time, for timeout errors
     //
-    int waittime = (int)ceil(CCD_READOUT_TIME * 120 / 100);
+    int waittime;
+    try {
+      waittime = (int)ceil( this->common.readout_time.at(0) * 120 / 100 );
+    }
+    catch(std::out_of_range &) {
+      message.str(""); message << "ERROR: readout time for Archon not found from config file";
+      logwrite(function, message.str());
+      return(ERROR);
+    }
 
     double clock_timeout = get_clock_time()*1000 + waittime;  // get_clock_time returns seconds, and I'm counting msec
     double clock_now = get_clock_time()*1000;

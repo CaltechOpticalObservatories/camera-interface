@@ -441,9 +441,14 @@ void doit(Network::TcpSocket sock) {
         logwrite(function, "error converting command to uppercase");
         ret=ERROR;
       }
+#ifdef ASTROCAM
       std::string retstring;   // string for the return value
       ret = server.native(sbuf, retstring);
       if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+#endif
+#ifdef STA_ARCHON
+      ret = server.native(sbuf);
+#endif
     }
 
     if (ret != NOTHING) {

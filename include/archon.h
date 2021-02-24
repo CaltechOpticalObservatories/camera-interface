@@ -20,8 +20,6 @@
 #include "network.h"
 #include "fits.h"
 
-#define CCD_READOUT_TIME 10000     //!< time to read out CCD in msec //TODO this is bad to have hard-coded! get from WDL!
-
 #define POLLTIMEOUT 5000           //!< poll timeout in msec
 #define MAXADCHANS 16              //!< max number of AD channels per controller
 #define MAXCCDS 4                  //!< max number of CCDs handled by one controller
@@ -101,6 +99,7 @@ namespace Archon {
       long disconnect_controller();          //!< disconnect from archon controller
       long load_firmware();                  //!< load default firmware (ACF)
       long load_firmware(std::string acffile); //!< load specified firmware (ACF)
+      long load_firmware(std::string acffile, std::string retstring);
       long set_camera_mode(std::string mode_in);
       long load_mode_settings(std::string mode);
       long native(std::string cmd);
