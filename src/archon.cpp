@@ -679,13 +679,13 @@ namespace Archon {
    * This function is overloaded.
    *
    * This version is for future compatibility.
-   * The multiple-controller version will pass a reference to a return string.
+   * The multiple-controller version will pass a reference to a return string. //TODO
    *
    */
   long Interface::load_firmware(std::string acffile, std::string retstring) {
-    std::string function = "Archon::Interface::load_firmware";
-    logwrite(function, "ERROR: two arguments not yet supported");
-    return(ERROR);
+    long ret = this->load_firmware( acffile );
+    if (ret == ERROR) this->fetchlog();
+    return(ret);
   }
   /**************** Archon::Interface::load_firmware **************************/
   /**
@@ -904,11 +904,21 @@ namespace Archon {
       if (line.compare(0,4,"ACF:")==0) {
         std::vector<std::string> tokens;
         line = line.substr(4);                                            // strip off the "ACF:" portion
+        std::string key, value;
 
         try {
           Tokenize(line, tokens, "=");                                    // separate into tokens by "="
 
-          if (tokens.size() != 2) {                                       // must have two (KEY=VALUE) tokens
+          if (tokens.size() == 1) {                                       // KEY=, the VALUE is empty
+            key   = tokens[0];
+            value = "";
+          }
+          else
+          if (tokens.size() == 2) {                                       // KEY=VALUE
+            key   = tokens[0];
+            value = tokens[1];
+          }
+          else {
             message.str(""); message << "ERROR: malformed ACF line: " << savedline << ": expected KEY=VALUE";
             logwrite(function, message.str());
 	    filestream.close();
@@ -919,16 +929,16 @@ namespace Archon {
 
           // If this key is in the main parammap then store it in the modemap's parammap for this mode
           //
-          if (this->parammap.find( tokens[0] ) != this->parammap.end()) {
-            this->modemap[mode].parammap[ tokens[0] ].name  = tokens[0];
-            this->modemap[mode].parammap[ tokens[0] ].value = tokens[1];
+          if (this->parammap.find( key ) != this->parammap.end()) {
+            this->modemap[mode].parammap[ key ].name  = key;
+            this->modemap[mode].parammap[ key ].value = value;
             keymatch = true;
           }
 
           // If this key is in the main configmap, then store it in the modemap's configmap for this mode
           //
-          if (this->configmap.find( tokens[0] ) != this->configmap.end()) {
-            this->modemap[mode].configmap[ tokens[0] ].value = tokens[1];
+          if (this->configmap.find( key ) != this->configmap.end()) {
+            this->modemap[mode].configmap[ key ].value = value;
             keymatch = true;
           }
 
@@ -936,7 +946,7 @@ namespace Archon {
           //
           if ( ! keymatch ) {
             message.str("");
-            message << "[MODE_" << mode << "] ACF directive: " << tokens[0] << "=" << tokens[1] << " is not a valid parameter or configuration key";
+            message << "[MODE_" << mode << "] ACF directive: " << key << "=" << value << " is not a valid parameter or configuration key";
             logwrite(function, message.str());
             filestream.close();
             return ERROR;
