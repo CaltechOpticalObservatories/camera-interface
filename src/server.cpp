@@ -404,6 +404,12 @@ void doit(Network::TcpSocket sock) {
     if (cmd.compare("writeframe")==0) {
                     ret = server.write_frame();
                     }
+    else
+    if (cmd.compare("cds")==0) {
+                    std::string retstring;
+                    ret = server.cds(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
 #endif
     else
     if (cmd.compare("expose")==0) {
@@ -432,6 +438,12 @@ void doit(Network::TcpSocket sock) {
                     ret = server.interface(retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
+                    }
+    else
+    if (cmd.compare("test")==0) {
+                    std::string retstring;
+                    ret = server.test(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else {  // if no matching command found then assume it's a native command and send it straight to the controller
       try {

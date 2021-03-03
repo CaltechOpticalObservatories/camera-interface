@@ -2528,7 +2528,8 @@ namespace Archon {
 
     if ( this->configmap.find(key_in) != this->configmap.end() ) {
       std::istringstream( this->configmap[key_in].value  ) >> value_out;
-      message.str(""); message << "[DEBUG] key_in=" << key_in << " value_out=" << value_out; logwrite(function, message.str());
+      message.str(""); message << "[DEBUG] key=" << key_in << " value=" << value_out << " line=" << this->configmap[key_in].line;
+      logwrite(function, message.str());
       return NO_ERROR;
     }
     else {
@@ -3216,5 +3217,296 @@ namespace Archon {
     return error;
   }
   /**************** Archon::Interface::lvbias *********************************/
+
+
+  /**************** Archon::Interface::cds ************************************/
+  /**
+   * @fn     cds
+   * @brief  set / get CDS parameters
+   * @param  
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::cds(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::cds";
+    std::vector<std::string> tokens;
+    std::string key, value;
+    bool changed;
+    long error = ERROR;
+
+    if ( args.empty() ) {
+      logwrite(function, "ERROR: no argument");
+      return( ERROR );
+    }
+
+    try {
+      Tokenize(args, tokens, " ");
+
+      // One token --
+      // get the configuration key value
+      //
+      if ( tokens.size() == 1 ) {
+        key   = tokens.at(0);
+        std::transform( key.begin(), key.end(), key.begin(), ::toupper );          // make uppercase
+        error = this->get_configmap_value(key, retstring);                         // read
+      }
+      else
+
+      // Two tokens --
+      // set the configuration key to value, send APPLYCDS, then read back the config key
+      //
+      if ( tokens.size() == 2 ) {
+        key   = tokens.at(0);
+        std::transform( key.begin(), key.end(), key.begin(), ::toupper );          // make uppercase
+        value = tokens.at(1);
+        error = this->write_config_key( key.c_str(), value.c_str(), changed );     // set
+        if (error == NO_ERROR) error = this->archon_cmd(APPLYCDS);                 // apply
+        if (error == NO_ERROR) error = this->get_configmap_value(key, retstring);  // read back
+      }
+
+      // More than two tokens is an error
+      //
+      else {
+        logwrite(function, "ERROR: Too many arguments. Expected <configkey> [ value ]");
+        return( ERROR );
+      }
+    }
+    catch(std::out_of_range &) {
+      logwrite(function, "ERROR: tokenizing arguments");
+      return( ERROR );
+    }
+    catch(...) {
+      logwrite(function, "ERROR: unknown error processing  arguments");
+      return( ERROR );
+    }
+
+    return( error );
+  }
+  /**************** Archon::Interface::cds ************************************/
+
+
+  /**************** Archon::Interface::test ***********************************/
+  /**
+   * @fn     test
+   * @brief  test routines
+   * @param  string args contains test name and arguments
+   * @param  reference to retstring for any return values
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::test(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::test";
+    std::stringstream message;
+    std::vector<std::string> tokens;
+    long error;
+
+    Tokenize(args, tokens, " ");
+
+    if (tokens.size() < 1) {
+      logwrite(function, "no test name provided");
+      return ERROR;
+    }
+
+    std::string testname = tokens[0];
+
+    // parammap
+    // ----------------------------------------------------
+    // Log all parammap entries found in the ACF file
+    //
+    if (testname == "parammap") {
+
+      // loop through the modes
+      //
+      logwrite(function, "parammap entries by mode section:");
+      for (auto mode_it = this->modemap.begin(); mode_it != this->modemap.end(); ++mode_it) {
+        std::string mode = mode_it->first;
+        message.str(""); message << "found mode section " << mode;
+        logwrite(function, message.str());
+        for (auto param_it = this->modemap[mode].parammap.begin(); param_it != this->modemap[mode].parammap.end(); ++param_it) {
+          message.str(""); message << "MODE_" << mode << ": " << param_it->first << "=" << param_it->second.value;
+          logwrite(function, message.str());
+        }
+      }
+
+      logwrite(function, "ALL parammap entries in ACF:");
+      int keycount=0;
+      for (auto param_it = this->parammap.begin(); param_it != this->parammap.end(); ++param_it) {
+        keycount++;
+        message.str(""); message << param_it->first << "=" << param_it->second.value;
+        logwrite(function, message.str());
+      }
+      message.str(""); message << "found " << keycount << " parammap entries";
+      logwrite(function, message.str());
+      error = NO_ERROR;
+    } // end if (testname == parammap)
+
+    // configmap
+    // ----------------------------------------------------
+    // Log all configmap entries found in the ACF file
+    //
+    else
+    if (testname == "configmap") {
+      error = NO_ERROR;
+      logwrite(function, "configmap entries by mode section:");
+      for (auto mode_it=this->modemap.begin(); mode_it!=this->modemap.end(); ++mode_it) {
+        std::string mode = mode_it->first;
+        message.str(""); message << "found mode section " << mode;
+        logwrite(function, message.str());
+        for (auto config_it = this->modemap[mode].configmap.begin(); config_it != this->modemap[mode].configmap.end(); ++config_it) {
+          message.str(""); message << "MODE_" << mode << ": " << config_it->first << "=" << config_it->second.value;
+          logwrite(function, message.str());
+        }
+      }
+
+      // if a second argument was passed then this is a config key
+      // try to read it
+      //
+      if ( tokens.size() == 2 ) {
+        std::string configkey = tokens[1];
+        error = this->get_configmap_value(configkey, retstring);
+      }
+
+      // if a third argument was passed then set this configkey
+      //
+      if ( tokens.size() == 3 ) {
+        std::string key = tokens[1];
+        std::string value = tokens[2];
+        bool configchanged;
+        error = this->write_config_key( key.c_str(), value.c_str(), configchanged );
+        if (error == NO_ERROR) error = this->archon_cmd(APPLYCDS);
+      }
+
+      int keycount=0;
+      for (auto config_it = this->configmap.begin(); config_it != this->configmap.end(); ++config_it) {
+        keycount++;
+      }
+      message.str(""); message << "found " << keycount << " configmap entries";
+      logwrite(function, message.str());
+    } // end if (testname == configmap)
+
+    // bw
+    // ----------------------------------------------------
+    // bandwidth test
+    //
+    else
+    if (testname == "bw") {
+
+      if ( ! this->modeselected ) {
+        logwrite(function, "ERROR: no mode selected");
+        return ERROR;
+      }
+
+      std::string nseqstr;
+      int nseq;
+      bool noread=false;
+
+      if (tokens.size() > 1) {
+        nseqstr = tokens[1];
+      }
+      else {
+        logwrite(function, "must specify number of sequences for bw test");
+        return ERROR;
+      }
+
+      if (tokens.size() > 2) {
+        if (tokens[2] == "noread") noread=true; else noread=false;
+      }
+
+      try {
+        nseq = std::stoi( nseqstr );                                // test that nseqstr is an integer before trying to use it
+      }
+      catch (std::invalid_argument &) {
+        message.str(""); message << "ERROR: unable to convert sequences: " << nseqstr << " to integer";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+      catch (std::out_of_range &) {
+        message.str(""); message << "ERROR: sequences " << nseqstr << " outside integer range";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+
+      // exposeparam is set by the configuration file
+      // check to make sure it was set, or else expose won't work
+      //
+      if (this->exposeparam.empty()) {
+        message.str(""); message << "ERROR: EXPOSE_PARAM not defined in configuration file " << this->config.filename;
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+      error = this->get_frame_status();  // TODO is this needed here?
+
+      if (error != NO_ERROR) {
+        logwrite(function, "ERROR: unable to get frame status");
+        return(ERROR);
+      }
+      this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
+
+      // initiate the exposure here
+      //
+      error = this->prep_parameter(this->exposeparam, nseqstr);
+      if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
+
+      // get system time and Archon's timer after exposure starts
+      // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
+      //
+      if (error == NO_ERROR) {
+        this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+        error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
+        this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+      }
+
+      if (error == NO_ERROR) logwrite(function, "exposure started");
+
+      long frames_read = 0;
+
+      // Wait for Archon frame buffer to be ready, then read the latest ready frame buffer to the host.
+      // Loop over all expected frames.
+      //
+      while (nseq-- > 0) {
+
+        if (this->camera_info.exposure_time != 0) {                 // wait for the exposure delay to complete (if there is one)
+          error = this->wait_for_exposure();
+          if (error==ERROR) {
+            logwrite(function, "exposure delay error");
+            break;
+          }
+          else {
+            logwrite(function, "exposure delay complete");
+          }
+        }
+
+        if (error==NO_ERROR) error = this->wait_for_readout();               // wait for the readout into frame buffer,
+        if (error==NO_ERROR && !noread) error = this->read_frame(Common::FRAME_IMAGE);  // read image frame directly with no write
+        if (error==NO_ERROR) frames_read++;
+      }
+
+      logwrite( function, (error==ERROR ? "ERROR" : "complete") );
+
+      message.str(""); message << "frames read = " << frames_read;
+      logwrite(function, message.str());
+
+      // disarm the exposure here, to avoid it being accidentally re-triggered
+      //
+      logwrite(function, "disarming expose trigger");
+      std::string disarm = "0";
+      error = this->prep_parameter(this->exposeparam, disarm);
+      if (error==ERROR) logwrite(function, "ERROR disarming expose trigger");
+
+      error = NO_ERROR;
+    } // end if (testname==bw)
+
+    // invalid test name
+    // ----------------------------------------------------
+    //
+    else {
+      message.str(""); message << "ERROR: unknown test: " << testname;
+      logwrite(function, message.str());
+      error = ERROR;
+    }
+
+    return error;
+  }
+  /**************** Archon::Interface::test ***********************************/
 
 }

@@ -106,10 +106,11 @@ class FITS_file {
       }
 
       try {
-        // Allocate the FITS file container, which holds the information used by CCfits to write a file
-        // and write the primary camera header information.
+        // Create a new FITS object, specifying the data type and axes for the primary image.
+        // Simultaneously create the corresponding file.
         //
         this->pFits.reset( new CCfits::FITS(info.fits_name, info.datatype, num_axis, axes) );
+        this->file_open = true;    // file is open now
         this->make_camera_header(info);
 
         // Iterate through the user-defined FITS keyword databases and add them to the primary header.
@@ -142,8 +143,6 @@ class FITS_file {
       this->framen = 0;
       this->writing_file = false;
       this->error = false;
-
-      this->file_open = true;      // file is open now
 
       this->fits_name = info.fits_name;
 
