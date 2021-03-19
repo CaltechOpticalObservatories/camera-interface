@@ -101,7 +101,7 @@ class FITS_file {
         axes[1] = info.axes[1];
       }
 
-      if (info.datatype < 0) { // This is a programming error, means datatype is uninitialized.
+      if (!info.type_set) { // This is a programming error, means datatype is uninitialized.
         logwrite(function, "ERROR: FITS datatype is uninitialized. Call set_axes()");
       }
 

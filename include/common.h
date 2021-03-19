@@ -106,6 +106,7 @@ namespace Common {
       int           activebufs;              //!< Archon controller number of active frame buffers
       int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
       int           datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
+      bool          type_set;                //!< set when FITS data type has been defined
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];
       long          image_size;              //!< pixels per image sensor
@@ -143,7 +144,8 @@ namespace Common {
         this->image_center[0] = 1;
         this->image_center[1] = 1;
         this->datacube = false;
-        this->datatype = -1;  //!< if still -1 then uninitialized by this->set_axes()
+        this->datatype = -1;
+        this->type_set = false;  //!< set true when datatype has been defined
       }
 
       long set_axes(int datatype_in) {
@@ -163,6 +165,7 @@ namespace Common {
             return (ERROR);
         }
         this->datatype = datatype_in;
+        this->type_set = true;         // datatype has been set
 
         this->naxis = 2;
 
