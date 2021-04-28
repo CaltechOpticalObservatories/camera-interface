@@ -24,13 +24,13 @@ void signal_handler(int signo) {
   switch (signo) {
     case SIGINT:
       logwrite(function, "received INT");
-      server.exit_cleanly();
+      server.common.message.enqueue("exit");  // async message thread will shutdown the server
       break;
     case SIGPIPE:
       logwrite(function, "caught SIGPIPE");
       break;
     default:
-      server.exit_cleanly();
+      server.common.message.enqueue("exit");  // async message thread will shutdown the server
       break;
   }
   return;
@@ -231,6 +231,7 @@ void async_main(Network::UdpSocket sock) {
     if (retval < 0) {
       logwrite(function, "ERROR: sending message");
     }
+    if (message=="exit") server.exit_cleanly();             // shut down the server cleanly now
   }
   return;
 }
@@ -332,8 +333,7 @@ void doit(Network::TcpSocket sock) {
     ret = NOTHING;
 
     if (cmd.compare("exit")==0) {
-                    server.common.message.enqueue("camera server shutdown");
-                    server.exit_cleanly();
+                    server.common.message.enqueue("exit");  // async message thread will shutdown the server
                     }
     else
     if (cmd.compare("open")==0) {

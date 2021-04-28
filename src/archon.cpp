@@ -3331,7 +3331,11 @@ namespace Archon {
         logwrite(function, message.str());
         this->common.message.enqueue(tokens[1]);
       }
-      else logwrite(function, "ERROR: must specify a message");
+      else {
+        logwrite(function, "enqueing status message: test");
+        this->common.message.enqueue("test");
+      }
+      error = NO_ERROR;
     } // end if (testname == async)
 
     // parammap
