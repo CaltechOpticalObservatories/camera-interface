@@ -27,6 +27,10 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+// for inet_addr
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #define POLLTIMEOUT 5000               //!< default Poll timeout in msec
 #define LISTENQ 64                     //!< listen(3n) backlog 
 
@@ -75,5 +79,32 @@ namespace Network {
       int Bytes_ready();                 //!< get the number of bytes available on the socket descriptor this->fd
 
   };
+
+  class UdpSocket {
+
+    private:
+      int port;
+      std::string group;
+      int fd;                                        //!< connected socket file descriptor
+      struct sockaddr_in addr;
+      bool connection_open;
+
+    public:
+      UdpSocket();                                   //!< basic class constructor
+      UdpSocket(int port_in, std::string group_in);  //!< useful constructor for a server
+      UdpSocket(const UdpSocket &obj);               //!< copy constructor
+      ~UdpSocket();                                  //!< class destructor
+
+      void setport(int port_in) { this->port = port_in; };  //!< use to set port when default constructor used
+      int getport() { return this->port; };                 //!< use to set group when default constructor used
+
+      void setgroup(std::string group_in) { this->group = group_in; };
+      std::string getgroup() { return this->group; };
+
+      int Create();
+      int Send(std::string message);
+      int Close();
+  };
+
 }
 #endif

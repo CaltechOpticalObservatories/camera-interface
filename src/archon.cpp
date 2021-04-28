@@ -312,18 +312,27 @@ namespace Archon {
    * @param  std::string cmd
    * @return long ret from archon_cmd() call
    *
-   * This function simply calls archon_cmd() and logs the reply
-   * //TODO: communicate with future ASYNC port?
+   * This function simply calls archon_cmd() then breaks the reply into
+   * space-delimited tokens and puts each token into the asynchronous
+   * message queue. The result is that the reply comes out one line at
+   * a time on the async port.
    *
    */
   long Interface::native(std::string cmd) {
     std::string function = "Archon::Interface::native";
     std::stringstream message;
     std::string reply;
+    std::vector<std::string> tokens;
     long ret = archon_cmd(cmd, reply);
     if (!reply.empty()) {
-      message.str(""); message << "native reply: " << reply;
-      logwrite(function, message.str());
+      // Tokenize the reply and put each non-empty token into the asynchronous message queue
+      //
+      Tokenize(reply, tokens, " ");
+      for (long unsigned int tok=0; tok < tokens.size(); tok++) {
+        if ( ! tokens[tok].empty() && tokens[tok] != "\n" ) {
+          this->common.message.enqueue( tokens[tok] );
+        }
+      }
     }
     return( ret );
   }
@@ -348,7 +357,7 @@ namespace Archon {
     std::stringstream message;
     int     retval;
     char    check[4];
-    char    buffer[2048];                       //!< temporary buffer for holding Archon replies
+    char    buffer[4096];                       //!< temporary buffer for holding Archon replies
     int     error = NO_ERROR;
 
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
@@ -3309,10 +3318,27 @@ namespace Archon {
 
     std::string testname = tokens[0];
 
+    // async
+    // ----------------------------------------------------
+    // queue an asynchronous message
+    //
+    if (testname == "async") {
+      if (tokens.size() > 1) {
+        if (tokens.size() > 2) {
+          logwrite(function, "NOTICE: received multiple strings -- only the first will be queued");
+        }
+        message.str(""); message << "enqueing status message: " << tokens[1];
+        logwrite(function, message.str());
+        this->common.message.enqueue(tokens[1]);
+      }
+      else logwrite(function, "ERROR: must specify a message");
+    } // end if (testname == async)
+
     // parammap
     // ----------------------------------------------------
     // Log all parammap entries found in the ACF file
     //
+    else
     if (testname == "parammap") {
 
       // loop through the modes

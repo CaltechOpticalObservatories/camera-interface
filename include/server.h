@@ -49,6 +49,7 @@ namespace Camera {
       Server() {
         this->nbport=-1;
         this->blkport=-1;
+        this->asyncport=-1;
       }
 
       /** Camera::~Server **********************************************************/
@@ -65,6 +66,8 @@ namespace Camera {
 
       int nbport;                        //!< non-blocking port
       int blkport;                       //!< blocking port
+      int asyncport;                     //!< asynchronous message port
+      std::string asyncgroup;            //!< asynchronous multicast group
 
       int nonblocking_socket;
       int blocking_socket;
@@ -107,6 +110,7 @@ namespace Camera {
         //
         for (int entry=0; entry < this->config.n_entries; entry++) {
 
+          // NBPORT
           if (config.param[entry].compare(0, 6, "NBPORT")==0) {
             int port;
             try {
@@ -124,6 +128,7 @@ namespace Camera {
             applied++;
           }
 
+          // BLKPORT
           if (config.param[entry].compare(0, 7, "BLKPORT")==0) {
             int port;
             try {
@@ -140,7 +145,33 @@ namespace Camera {
             this->blkport = port;
             applied++;
           }
-        }
+
+          // ASYNCPORT
+          if (config.param[entry].compare(0, 9, "ASYNCPORT")==0) {
+            int port;
+            try {
+              port = std::stoi( config.arg[entry] );
+            }
+            catch (std::invalid_argument &) {
+              logwrite(function, "ERROR: bad ASYNCPORT: unable to convert to integer");
+              return(ERROR);
+            }
+            catch (std::out_of_range &) {
+              logwrite(function, "ASYNCPORT number out of integer range");
+              return(ERROR);
+            }
+            this->asyncport = port;
+            applied++;
+          }
+
+          // ASYNCGROUP
+          if (config.param[entry].compare(0, 10, "ASYNCGROUP")==0) {
+            this->asyncgroup = config.arg[entry];
+            applied++;
+          }
+
+        } // end loop through the entries in the configuration file
+
         message.str("");
         if (applied==0) {
           message << "ERROR: ";

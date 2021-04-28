@@ -14,6 +14,9 @@
 #include <mutex>
 #include <atomic>
 
+#include <queue>
+#include <condition_variable>
+
 #include "logentry.h"
 #include "utilities.h"
 
@@ -28,6 +31,11 @@ const long TIMEOUT = 3;
 
 namespace Common {
 
+  /**************** Common::FitsKeys ******************************************/
+  //
+  // This class provides a user-defined keyword database,
+  // and the tools to access that database.
+  //
   class FitsKeys {
     private:
     public:
@@ -49,7 +57,48 @@ namespace Common {
 
       fits_key_t keydb;                                      //!< keyword database
   };
+  /**************** Common::FitsKeys ******************************************/
 
+
+  /**************** Common::Queue *********************************************/
+  //
+  // This class provides a thread-safe messaging queue.
+  //
+  class Queue {
+    private:
+      std::queue<std::string> message_queue;
+      mutable std::mutex queue_mutex;
+      std::condition_variable notifier;
+    public:
+      Queue(void) : message_queue() , queue_mutex() , notifier() {}
+
+      ~Queue(void) {}
+
+      // Add an element to the queue.
+      void enqueue(std::string message) {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        message_queue.push(message);
+        notifier.notify_one();
+      }
+
+      // Get the "front"-element.
+      // If the queue is empty, wait untill an element is avaiable.
+      std::string dequeue(void) {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        while(message_queue.empty()) {
+          // release lock as long as the wait and reaquire it afterwards.
+          notifier.wait(lock);
+        }
+        std::string message = message_queue.front();
+        message_queue.pop();
+        return message;
+      }
+  };
+  /**************** Common::Queue *********************************************/
+
+
+  /**************** Common::Common ********************************************/
+  //
   class Common {
     private:
       std::string image_dir;
@@ -67,6 +116,8 @@ namespace Common {
       std::string   shutterstate;            //!< one of 4 allowed states: enable, disable, open, close
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
       bool          abortstate;              //!< set true to abort the current operation (exposure, readout, etc.)
+
+      Queue message;                         //!< message queue object
 
       void set_abortstate(bool state);
       bool get_abortstate();
@@ -86,6 +137,7 @@ namespace Common {
       std::string get_fitsname(std::string controllerid);
       void abort();
   };
+  /**************** Common::Common ********************************************/
 
   typedef enum {
     FRAME_IMAGE,
@@ -98,6 +150,8 @@ namespace Common {
     "RAW"
   };
 
+  /**************** Common::Information ***************************************/
+  //
   class Information {
     private:
     public:
@@ -183,5 +237,7 @@ namespace Common {
         return (NO_ERROR);
       }
   };
+  /**************** Common::Information ***************************************/
+
 }
 #endif

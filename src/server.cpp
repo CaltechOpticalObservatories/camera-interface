@@ -41,6 +41,7 @@ void signal_handler(int signo) {
 int  main(int argc, char **argv);           // main thread (just gets things started)
 void block_main(Network::TcpSocket sock);   // this thread handles requests on blocking port
 void thread_main(Network::TcpSocket sock);  // this thread handles requests on non-blocking port
+void async_main(Network::UdpSocket sock);   // this thread handles the asyncrhonous UDP message port
 void doit(Network::TcpSocket sock);         // the worker thread
 
 
@@ -99,7 +100,7 @@ int main(int argc, char **argv) {
     server.exit_cleanly();
   }
 
-  if (server.nbport == -1 || server.blkport == -1) {
+  if (server.nbport == -1 || server.blkport == -1 || server.asyncport == -1) {
     logwrite(function, "ERROR: server ports not configured");
     server.exit_cleanly();
   }
@@ -126,7 +127,7 @@ int main(int argc, char **argv) {
   //
   for (int i=1; i<N_THREADS; i++) {                  // create N_THREADS-1 non-blocking socket objects
     if (i==1) {                                      // first one only
-      Network::TcpSocket s(server.nbport, false, CONN_TIMEOUT, i);   // instantiate TcpSocket object with non-blocking port
+      Network::TcpSocket s(server.nbport, false, CONN_TIMEOUT, i);   // instantiate TcpSocket object, non-blocking port, CONN_TIMEOUT timeout
       s.Listen();                                    // create a listening socket
       socklist.push_back(s);
     }
@@ -137,6 +138,11 @@ int main(int argc, char **argv) {
     }
     std::thread(thread_main, socklist[i]).detach();  // spawn a thread to handle each non-blocking socket request
   }
+
+  // Instantiate a multicast UDP object and spawn a thread to send asynchronous messages
+  //
+  Network::UdpSocket async(server.asyncport, server.asyncgroup);
+  std::thread(async_main, async).detach();
 
   for (;;) pause();                                  // main thread suspends
   return 0;
@@ -190,13 +196,45 @@ void thread_main(Network::TcpSocket sock) {
     server.conn_mutex.lock();
     sock.Accept();
     server.conn_mutex.unlock();
-sock.Write("welcome\n");
     doit(sock);                // call function to do the work
     sock.Close();
   }
   return;
 }
 /** thread_main **************************************************************/
+
+
+/** async_main ***************************************************************/
+/**
+ * @fn     async_main
+ * @brief  asynchronous message sending thread
+ * @param  Network::UdpSocket sock, socket object
+ * @return nothing
+ *
+ * Loops forever, when a message arrives in the status message queue it is
+ * sent out via multi-cast UDP datagram.
+ *
+ */
+void async_main(Network::UdpSocket sock) {
+  std::string function = "Camera::async_main";
+  int retval;
+
+  retval = sock.Create();                                   // create the UDP socket
+  if (retval < 0) {
+    logwrite(function, "ERROR: creating UDP messaging socket");
+    return;
+  }
+
+  while (1) {
+    std::string message = server.common.message.dequeue();  // get the latest message from the queue (blocks)
+    retval = sock.Send(message);                            // transmit the message
+    if (retval < 0) {
+      logwrite(function, "ERROR: sending message");
+    }
+  }
+  return;
+}
+/** async_main ***************************************************************/
 
 
 /** doit *********************************************************************/
@@ -294,6 +332,7 @@ void doit(Network::TcpSocket sock) {
     ret = NOTHING;
 
     if (cmd.compare("exit")==0) {
+                    server.common.message.enqueue("camera server shutdown");
                     server.exit_cleanly();
                     }
     else

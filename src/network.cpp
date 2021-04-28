@@ -25,6 +25,162 @@
 namespace Network {
 
 
+  /**************** Network::UdpSocket::UdpSocket *****************************/
+  /**
+   * @fn     UdpSocket
+   * @brief  UdpSocket class constructor
+   * @param  port_in, port on which server will multicast datagrams
+   * @param  group_in, 
+   * @return none
+   *
+   * Use this to construct a UDP multi-cast datagram server object
+   *
+   */
+  UdpSocket::UdpSocket(int port_in, std::string group_in) {
+    this->fd = -1;
+    this->port = port_in;
+    this->group = group_in;
+    this->connection_open = false;
+  }
+  /**************** Network::UdpSocket::UdpSocket *****************************/
+
+
+  /**************** Network::UdpSocket::UdpSocket *****************************/
+  /**
+   * @fn     UdpSocket
+   * @brief  default UdpSocket class constructor
+   * @param  none
+   * @return none
+   *
+   */
+  UdpSocket::UdpSocket() {
+    this->fd = -1;
+    this->port = -1;
+    this->group = "";
+    this->connection_open = false;
+  }
+  /**************** Network::UdpSocket::UdpSocket *****************************/
+
+
+  /**************** Network::UdpSocket::UdpSocket *****************************/
+  /**
+   * @fn     UdpSocket
+   * @brief  UdpSocket class copy constructor
+   * @param  obj reference to class object
+   * @return none
+   *
+   */
+  UdpSocket::UdpSocket(const UdpSocket &obj) {
+    fd = obj.fd;
+    port = obj.port;
+    group = obj.group;
+    connection_open = obj.connection_open;
+  }
+  /**************** Network::UdpSocket::UdpSocket *****************************/
+
+
+  /**************** Network::UdpSocket::~UdpSocket ****************************/
+  /**
+   * @fn     ~UdpSocket
+   * @brief  UdpSocket class deconstructor
+   * @param  none
+   * @return none
+   *
+   */
+  UdpSocket::~UdpSocket() {
+    this->Close();
+  };
+  /**************** Network::UdpSocket::~UdpSocket ****************************/
+
+
+  /**************** Network::UdpSocket::Create ********************************/
+  /**
+   * @fn     Create
+   * @brief  create a UDP multi-cast socket
+   * @param  none
+   * @return 0 on success, -1 on error
+   *
+   */
+  int UdpSocket::Create() {
+    std::string function = "Network::UdpSocket::Create";
+
+    // set up the destination address
+    //
+    memset((struct sockaddr *) &this->addr, 0, (socklen_t)sizeof(this->addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(this->group.c_str());
+    addr.sin_port = htons(this->port);
+
+    // create the socket
+    //
+    if ( (this->fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1 ) {
+      std::cerr << "(" << function << ") error creating socket: " << strerror(errno) << "\n";
+      return(-1);
+    }
+
+    this->connection_open = (this->fd >= 0 ? true : false);
+
+    return 0;
+  }
+  /**************** Network::UdpSocket::Create ********************************/
+
+
+  /**************** Network::UdpSocket::Send **********************************/
+  /**
+   * @fn     Send
+   * @brief  transmit the message to the UDP socket
+   * @param  none
+   * @return 0 on success, -1 on error
+   *
+   */
+  int UdpSocket::Send(std::string message) {
+    std::string function = "Network::UdpSocket::Send";
+    int nbytes;
+
+    if ( !this->connection_open ) {
+      std::cerr << "(" << function << ") ERROR: connection not open\n";
+      return -1;
+    }
+
+    if ( (nbytes = sendto( this->fd, message.c_str(), (size_t)message.length(), 0, (struct sockaddr*) &this->addr, (socklen_t)sizeof(this->addr) )) < 0 ) {
+      std::cerr << "(" << function << ") error calling sendto: " << strerror(errno) << "\n";
+      return -1;
+    }
+
+    return 0;
+  }
+  /**************** Network::UdpSocket::Send **********************************/
+
+
+  /**************** Network::UdpSocket::Close *********************************/
+  /**
+   * @fn     Close
+   * @brief  close the UDP socket connection
+   * @param  none
+   * @return 0 on success, -1 on error
+   *
+   */
+  int UdpSocket::Close() {
+    int error = -1;
+    if (this->fd >= 0) {               // if the file descriptor is valid
+      if (close(this->fd) == 0) {      // then close it
+        error = 0;
+        this->fd = -1;
+      }
+      else {
+        error = -1;                    // error closing file descriptor
+     }
+    }
+    else {
+      error = 0;                       // didn't start with a valid file descriptor
+    }
+
+    this->connection_open = false;     // clear the connection_open flag
+    return (error);
+  }
+  /**************** Network::UdpSocket::Close *********************************/
+
+
   /**************** Network::TcpSocket::TcpSocket *****************************/
   /**
    * @fn     TcpSocket
@@ -32,7 +188,8 @@ namespace Network {
    * @param  port_in, port which server will listen on
    * @param  block_in, true|false -- will the connection be blocking?
    * @param  totime_in, timeout time for poll, in msec
-   * @param  id_in, optional ID number (for keeping track of threads)
+   * @param  id_in, ID number (for keeping track of threads)
+   * @param  wo_in, optional write-only flag, will shut down read side of socket if true
    * @return none
    *
    * Use this to construct a server's listening socket object
@@ -91,9 +248,9 @@ namespace Network {
     listenfd = obj.listenfd;
     host = obj.host;
     addrs = obj.addrs;
-    connection_open = &obj.connection_open;
+    connection_open = obj.connection_open;
   };
-  /**************** Network::TcpSocket::~TcpSocket ****************************/
+  /**************** Network::TcpSocket::TcpSocket *****************************/
 
 
   /**************** Network::TcpSocket::~TcpSocket ****************************/
