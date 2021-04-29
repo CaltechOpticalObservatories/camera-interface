@@ -104,19 +104,30 @@ namespace Network {
   int UdpSocket::Create() {
     std::string function = "Network::UdpSocket::Create";
 
-    // set up the destination address
-    //
-    memset((struct sockaddr *) &this->addr, 0, (socklen_t)sizeof(this->addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr(this->group.c_str());
-    addr.sin_port = htons(this->port);
-
     // create the socket
     //
     if ( (this->fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1 ) {
       std::cerr << "(" << function << ") error creating socket: " << strerror(errno) << "\n";
       return(-1);
     }
+
+    // must enable loopback to allow more than one listener
+    //
+    int loopback = 1;
+    setsockopt(this->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loopback, sizeof(loopback));
+
+    // set number of hops to 2
+    //
+    int timetolive = 2;
+    setsockopt(this->fd, IPPROTO_IP, IP_MULTICAST_LOOP, &timetolive, sizeof(timetolive));
+
+    // set up the source address
+    //
+    memset((struct sockaddr *) &this->addr, 0, (socklen_t)sizeof(this->addr));
+    this->addr.sin_family = AF_INET;
+    this->addr.sin_addr.s_addr = inet_addr(this->group.c_str());
+    this->addr.sin_port = htons(this->port);
+    setsockopt (this->fd, IPPROTO_IP, IP_MULTICAST_IF, &this->addr, sizeof(this->addr));
 
     this->connection_open = (this->fd >= 0 ? true : false);
 
