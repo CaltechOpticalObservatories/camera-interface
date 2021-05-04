@@ -216,54 +216,46 @@ bool Common::get_abortstate() {
       return(NO_ERROR);
     }
 
-    struct stat st;
-    if (stat(dir_in.c_str(), &st) == 0) {
-      // Use stat to check that it's a directory
+    std::stringstream dir_test;
+    dir_test << dir_in << "/" << get_system_date() << "/";
+
+    // Make sure the directory exists
+    //
+    DIR *dirp;                                             // pointer to the directory
+    if ( (dirp = opendir(dir_test.str().c_str())) == NULL ) {
+      // If directory doesn't exist then try to create it.
+      // Note that this only creates the bottom-level directory, the added date part.
+      // The base directory has to exist.
       //
-      if (S_ISDIR(st.st_mode)) {
-        try {
-          // and if it is then try writing a test file to make sure we'll be able to write to it
-          //
-          std::string testfile;
-          testfile = dir_in + "/.tmp";
-          FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
-          if (!fp) {
-            message.str(""); message << "error cannot write to requested image directory " << dir_in;
-            logwrite(function, message.str());
-            dir_out = this->image_dir;
-            return(ERROR);
-          }
-          else {                                           // remove the test file
-            std::fclose(fp);
-            if (std::remove(testfile.c_str()) != 0) {
-              message.str(""); message << "error removing temporary file " << testfile;
-              logwrite(function, message.str());
-            }
-          }
-        }
-        catch(...) {
-          message.str(""); message << "error writing to " << dir_in;
-          logwrite(function, message.str());
-          dir_out = this->image_dir;
-          return(ERROR);
-        }
-        this->image_dir = dir_in;                          // passed all tests so set the image_dir
-        dir_out = this->image_dir;
-        return(NO_ERROR);
+      if ( (mkdir(dir_test.str().c_str(), S_IRUSR | S_IWUSR | S_IXUSR)) == 0 ) {
+        message.str(""); message << "created image directory " << dir_test.str();
+        logwrite(function, message.str());
       }
       else {
-        message.str(""); message << "error requested image directory " << dir_in << " is not a directory";
+        message.str("");
+        message << "error " << errno << " creating image directory " << dir_test.str() << ": " << strerror(errno);
         logwrite(function, message.str());
-        dir_out = this->image_dir;
+        // a common error might be that the base directory doesn't exist
+        //
+        if (errno==ENOENT) {
+          message.str("");
+          message << "requested base directory " << dir_in << " does not exist";
+          logwrite(function, message.str());
+        }
+        dir_out = this->image_dir;                         // no changes, return the current image_dir
         return(ERROR);
       }
     }
     else {
-      message.str(""); message << "error requested image directory " << dir_in << " does not exist";
+      message.str(""); message << "image directory set to " << dir_test.str();
       logwrite(function, message.str());
-      dir_out = this->image_dir;
-      return(ERROR);
+      closedir(dirp);                                      // directory already existed so close it
     }
+
+    this->image_dir = dir_test.str();                      // passed all tests so set the image_dir
+    dir_out = this->image_dir;                             // return the new image_dir
+
+    return(NO_ERROR);
   }
   /** Common::Common::imdir ***************************************************/
 
@@ -531,4 +523,44 @@ bool Common::get_abortstate() {
     return(NO_ERROR);
   }
   /** Common::FitsKeys::addkey ************************************************/
+
+
+  /** Common::Queue::enqueue **************************************************/
+  /**
+   * @fn     enqueue
+   * @brief  puts a message into the queue
+   * @param  std::string message
+   * @return none
+   *
+   */
+  void Queue::enqueue(std::string message) {
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    message_queue.push(message);
+    notifier.notify_one();
+  }
+  /** Common::Queue::enqueue **************************************************/
+
+
+  /** Common::Queue::dequeue **************************************************/
+  /**
+   * @fn     dequeue
+   * @brief  pops the first message off the queue
+   * @param  none
+   * @return std::string message
+   *
+   * Get the "front"-element.
+   * If the queue is empty, wait untill an element is avaiable.
+   *
+   */
+  std::string Queue::dequeue(void) {
+    std::unique_lock<std::mutex> lock(queue_mutex);
+    while(message_queue.empty()) {
+      notifier.wait(lock);   // release lock as long as the wait and reaquire it afterwards.
+    }
+    std::string message = message_queue.front();
+    message_queue.pop();
+    return message;
+  }
+  /** Common::Queue::dequeue **************************************************/
+
 }

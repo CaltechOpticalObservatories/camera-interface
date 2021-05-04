@@ -24,13 +24,15 @@ void signal_handler(int signo) {
   switch (signo) {
     case SIGINT:
       logwrite(function, "received INT");
-      server.common.message.enqueue("exit");  // async message thread will shutdown the server
+      server.common.message.enqueue("exit");  // shutdown the async_main thread if running
+      server.exit_cleanly();                  // shutdown the server
       break;
     case SIGPIPE:
       logwrite(function, "caught SIGPIPE");
       break;
     default:
-      server.common.message.enqueue("exit");  // async message thread will shutdown the server
+      server.common.message.enqueue("exit");  // shutdown the async_main thread if running
+      server.exit_cleanly();                  // shutdown the server
       break;
   }
   return;
@@ -100,7 +102,7 @@ int main(int argc, char **argv) {
     server.exit_cleanly();
   }
 
-  if (server.nbport == -1 || server.blkport == -1 || server.asyncport == -1) {
+  if (server.nbport == -1 || server.blkport == -1) {
     logwrite(function, "ERROR: server ports not configured");
     server.exit_cleanly();
   }
@@ -221,17 +223,25 @@ void async_main(Network::UdpSocket sock) {
 
   retval = sock.Create();                                   // create the UDP socket
   if (retval < 0) {
-    logwrite(function, "ERROR: creating UDP messaging socket");
-    return;
+    logwrite(function, "error creating UDP multicast socket for asynchronous messages");
+    server.exit_cleanly();                                  // do not continue on error
+  }
+  if (retval==1) {                                          // exit this thread but continue with server
+    logwrite(function, "asyncrhonous message port disabled by request");
   }
 
   while (1) {
     std::string message = server.common.message.dequeue();  // get the latest message from the queue (blocks)
     retval = sock.Send(message);                            // transmit the message
     if (retval < 0) {
-      logwrite(function, "ERROR: sending message");
+      std::stringstream errstm;
+      errstm << "error sending UDP message: " << message;
+      logwrite(function, errstm.str());
     }
-    if (message=="exit") server.exit_cleanly();             // shut down the server cleanly now
+    if (message=="exit") {                                  // terminate this thread
+      sock.Close();
+      return;
+    }
   }
   return;
 }
@@ -333,7 +343,8 @@ void doit(Network::TcpSocket sock) {
     ret = NOTHING;
 
     if (cmd.compare("exit")==0) {
-                    server.common.message.enqueue("exit");  // async message thread will shutdown the server
+                    server.common.message.enqueue("exit");  // shutdown the async message thread if running
+                    server.exit_cleanly();                  // shutdown the server
                     }
     else
     if (cmd.compare("open")==0) {

@@ -87,7 +87,7 @@ namespace Network {
       std::string group;
       int fd;                                        //!< connected socket file descriptor
       struct sockaddr_in addr;
-      bool connection_open;
+      bool service_running;                          //!< indicates UDP multicast socket created and running
 
     public:
       UdpSocket();                                   //!< basic class constructor
@@ -97,6 +97,7 @@ namespace Network {
 
       void setport(int port_in) { this->port = port_in; };  //!< use to set port when default constructor used
       int getport() { return this->port; };                 //!< use to set group when default constructor used
+      bool is_running() { return this->service_running; };
 
       void setgroup(std::string group_in) { this->group = group_in; };
       std::string getgroup() { return this->group; };

@@ -9,6 +9,7 @@
 #define COMMON_H
 
 #include <CCfits/CCfits>           //!< needed here for types in set_axes()
+#include <dirent.h>                //!< for imdir()
 #include <map>
 #include <vector>
 #include <mutex>
@@ -69,30 +70,16 @@ namespace Common {
       std::queue<std::string> message_queue;
       mutable std::mutex queue_mutex;
       std::condition_variable notifier;
+      bool is_running;
     public:
-      Queue(void) : message_queue() , queue_mutex() , notifier() {}
-
+      Queue(void) : message_queue() , queue_mutex() , notifier() { this->is_running = false; };
       ~Queue(void) {}
 
-      // Add an element to the queue.
-      void enqueue(std::string message) {
-        std::lock_guard<std::mutex> lock(queue_mutex);
-        message_queue.push(message);
-        notifier.notify_one();
-      }
+      void service_running(bool state) { this->is_running = state; };
+      bool service_running() { return this->is_running; };
 
-      // Get the "front"-element.
-      // If the queue is empty, wait untill an element is avaiable.
-      std::string dequeue(void) {
-        std::unique_lock<std::mutex> lock(queue_mutex);
-        while(message_queue.empty()) {
-          // release lock as long as the wait and reaquire it afterwards.
-          notifier.wait(lock);
-        }
-        std::string message = message_queue.front();
-        message_queue.pop();
-        return message;
-      }
+      void enqueue(std::string message);         //!< push an element into the queue.
+      std::string dequeue(void);                 //!< pop an element from the queue
   };
   /**************** Common::Queue *********************************************/
 

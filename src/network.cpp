@@ -21,6 +21,7 @@
  */
 
 #include "network.h"
+#include "logentry.h"  // for logwrite() within the Network namespace
 
 namespace Network {
 
@@ -40,7 +41,7 @@ namespace Network {
     this->fd = -1;
     this->port = port_in;
     this->group = group_in;
-    this->connection_open = false;
+    this->service_running = false;
   }
   /**************** Network::UdpSocket::UdpSocket *****************************/
 
@@ -57,7 +58,7 @@ namespace Network {
     this->fd = -1;
     this->port = -1;
     this->group = "";
-    this->connection_open = false;
+    this->service_running = false;
   }
   /**************** Network::UdpSocket::UdpSocket *****************************/
 
@@ -74,7 +75,7 @@ namespace Network {
     fd = obj.fd;
     port = obj.port;
     group = obj.group;
-    connection_open = obj.connection_open;
+    service_running = obj.service_running;
   }
   /**************** Network::UdpSocket::UdpSocket *****************************/
 
@@ -98,16 +99,57 @@ namespace Network {
    * @fn     Create
    * @brief  create a UDP multi-cast socket
    * @param  none
-   * @return 0 on success, -1 on error
+   * @return 0 on success, -1 on error, 1 to indicate user-requested disable
+   *
+   * If the .cfg file contains ASYNCGROUP=none (any case) then do not create
+   * the socket. Return a 1 so the caller knows that no socket was created
+   * by user request, as opposed to an error.
    *
    */
   int UdpSocket::Create() {
     std::string function = "Network::UdpSocket::Create";
+    std::stringstream errstm;
 
-    // create the socket
+    // don't create more than one UDP multicast socket
+    //
+    if (this->service_running) {
+      logwrite(function, "ERROR: service already running");
+      return -1;
+    }
+
+    // don't do anything if the ASYNCGROUP is not initialized
+    //
+    if (this->group.empty()) {
+      logwrite(function, "ERROR: ASYNCGROUP not initialized. Cannot create socket");
+      return -1;
+    }
+
+    // the user can set ASYNCGROUP=none to disable the async status message port
+    //
+    try {
+      std::transform( this->group.begin(), this->group.end(), this->group.begin(), ::toupper );    // make uppercase
+    }
+    catch (...) {
+      logwrite(function, "error converting ASYNCGROUP to uppercase");
+      return -1;
+    }
+    if (this->group == "NONE") {
+      logwrite(function, "ASYNCGROUP=none. UDP multicast socket disabled.");
+      return 1;
+    }
+
+    // now that there is a group, check that the port is initialized
+    //
+    if (this->port < 0) {
+      logwrite(function, "ERROR: ASYNCPORT not initialized. Cannot create socket");
+      return -1;
+    }
+
+    // now that there is a group and port, create the socket
     //
     if ( (this->fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1 ) {
-      std::cerr << "(" << function << ") error creating socket: " << strerror(errno) << "\n";
+      errstm << "error " << errno << " creating socket: " << strerror(errno);
+      logwrite(function, errstm.str());
       return(-1);
     }
 
@@ -129,7 +171,7 @@ namespace Network {
     this->addr.sin_port = htons(this->port);
     setsockopt (this->fd, IPPROTO_IP, IP_MULTICAST_IF, &this->addr, sizeof(this->addr));
 
-    this->connection_open = (this->fd >= 0 ? true : false);
+    this->service_running = (this->fd >= 0 ? true : false);
 
     return 0;
   }
@@ -146,15 +188,14 @@ namespace Network {
    */
   int UdpSocket::Send(std::string message) {
     std::string function = "Network::UdpSocket::Send";
+    std::stringstream errstm;
     int nbytes;
 
-    if ( !this->connection_open ) {
-      std::cerr << "(" << function << ") ERROR: connection not open\n";
-      return -1;
-    }
+    if ( !this->is_running() ) return 0;  // silently do nothing if the UDP multicast socket isn't running
 
     if ( (nbytes = sendto( this->fd, message.c_str(), (size_t)message.length(), 0, (struct sockaddr*) &this->addr, (socklen_t)sizeof(this->addr) )) < 0 ) {
-      std::cerr << "(" << function << ") error calling sendto: " << strerror(errno) << "\n";
+      errstm << "error " << errno << " calling sendto: " << strerror(errno);
+      logwrite(function, errstm.str());
       return -1;
     }
 
@@ -186,7 +227,7 @@ namespace Network {
       error = 0;                       // didn't start with a valid file descriptor
     }
 
-    this->connection_open = false;     // clear the connection_open flag
+    this->service_running = false;     // clear the service_running flag
     return (error);
   }
   /**************** Network::UdpSocket::Close *********************************/
@@ -311,11 +352,13 @@ namespace Network {
    */
   int  TcpSocket::Listen() {
     std::string function = "Network::TcpSocket::Listen";
+    std::stringstream errstm;
 
     // create the socket
     //
     if ( (this->listenfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1 ) {
-      std::cerr << "(" << function << ") error creating socket: " << strerror(errno) << "\n";
+      errstm << "error " << errno << " creating socket: " << strerror(errno);
+      logwrite(function, errstm.str());
       return(-1);
     }
 
@@ -332,14 +375,16 @@ namespace Network {
     servaddr.sin_port        = htons(this->port);
 
     if ( bind(this->listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0 ) {
-      std::cerr << "(" << function << ") error binding to fd" << this->listenfd << ": " << strerror(errno) << "\n";
+      errstm << "error " << errno << " binding to fd " << this->listenfd << ": " << strerror(errno);
+      logwrite(function, errstm.str());
       return(-1);
     }
 
     // start listening
     //
     if (listen(this->listenfd, LISTENQ)!=0) {
-      std::cerr << "(" << function << ") error listening to fd" << this->listenfd << ": " << strerror(errno) << "\n";
+      errstm << "error " << errno << " listening to fd " << this->listenfd << ": " << strerror(errno);
+      logwrite(function, errstm.str());
       return(-1);
     }
 
@@ -380,6 +425,7 @@ namespace Network {
    */
   int TcpSocket::Connect() {
     std::string function = "Network::TcpSocket::Connect";
+    std::stringstream errstm;
 
     struct addrinfo hints = {0};       //!< destination for getaddrinfo
 
@@ -394,8 +440,9 @@ namespace Network {
     int status = getaddrinfo(this->host.c_str(), std::to_string(this->port).c_str(), &hints, &this->addrs);
 
     if ( status != 0 ) {
-      std::cerr << "(" << function << ") error connecting to " << this->host << "/" << this->port 
-                << " : " << gai_strerror(status) << "\n";
+      errstm << "error " << errno << " connecting to " << this->host << "/" << this->port
+                         << " : " << gai_strerror(status);
+      logwrite(function, errstm.str());
       return(-1);
     }
 
@@ -412,22 +459,25 @@ namespace Network {
       // connect to the socket file descriptor
       //
       if ( connect( this->fd, sa->ai_addr, sa->ai_addrlen ) == -1 ) {
-        std::cerr << "(" << function << ") error connecting to " << this->host << "/" << this->port << " on fd " << this->fd 
-                  << ": " << std::strerror(errno) << "\n";
+        errstm << "error " << errno << " connecting to " << this->host << "/" << this->port 
+                           << " on fd " << this->fd << ": " << std::strerror(errno);
+        logwrite(function, errstm.str());
         return (-1);
       } else break;
     }
 
     int flags;
     if ((flags = fcntl(this->fd, F_GETFL, 0)) < 0) {
-      std::cerr << "(" << function << ") error getting socket file descriptor flags: " << std::strerror(errno) << "\n";
+      errstm << "error " << errno << " getting socket file descriptor flags: " << std::strerror(errno);
+      logwrite(function, errstm.str());
       return(-1);
     }
 
     flags |= O_NONBLOCK;
 
     if (fcntl(this->fd, F_SETFL, flags) < 0) {
-      std::cerr << "(" << function << ") error setting socket file descriptor flags: " << std::strerror(errno) << "\n";
+      errstm << "error " << errno << " setting socket file descriptor flags: " << std::strerror(errno);
+      logwrite(function, errstm.str());
       return(-1);
     }
 

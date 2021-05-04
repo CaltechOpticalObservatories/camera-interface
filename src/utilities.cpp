@@ -205,6 +205,40 @@
   /** get_system_time *********************************************************/
 
 
+  /** get_system_date *********************************************************/
+  /**
+   * @fn     get_system_date
+   * @brief  return current date in formatted string "YYYYMMDD"
+   * @param  none
+   * @return string
+   *
+   */
+  std::string get_system_date() {
+    std::stringstream current_date;  // String to contain the date
+    time_t t;                        // Container for system time
+    struct timespec data;            // Time of day container
+    struct tm gmt;                   // GMT time container
+
+    // Get the system time, return a bad datestamp on error
+    //
+    if (clock_gettime(CLOCK_REALTIME, &data) != 0) return("99999999");
+
+    // Convert the time of day to GMT
+    //
+    t = data.tv_sec;
+    if (gmtime_r(&t, &gmt) == NULL) return("9999-99-99T99:99:99.999999");
+
+    current_date.setf(std::ios_base::right);
+    current_date << std::setfill('0') << std::setprecision(0)
+                 << std::setw(4) << gmt.tm_year + 1900
+                 << std::setw(2) << gmt.tm_mon + 1
+                 << std::setw(2) << gmt.tm_mday;
+
+    return(current_date.str());
+  }
+  /** get_system_date *********************************************************/
+
+
   /** get_file_time ***********************************************************/
   /**
    * @fn     get_file_time

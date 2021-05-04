@@ -29,6 +29,7 @@ void string_replace_char(std::string &str, const char *oldchar, const char *newc
 std::tm* get_timenow();                             //!< return tm pointer to current time
 
 std::string get_system_time();                      //!< return current time in formatted string "YYYY-MM-DDTHH:MM:SS.ssssss"
+std::string get_system_date();                      //!< return current date in formatted string "YYYYMMDD"
 std::string get_file_time();                        //!< return current time in formatted string "YYYYMMDDHHMMSS" used for filenames
 
 double get_clock_time();
