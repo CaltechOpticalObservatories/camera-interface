@@ -90,7 +90,7 @@ class FITS_file {
         return(ERROR);
       }
 
-      if (info.datacube) {   // special num_axis, axes for data cube
+      if (info.iscube) {     // special num_axis, axes for data cube
         num_axis = 0;
         axes[0] = 0;
         axes[1] = 0;
@@ -237,7 +237,7 @@ class FITS_file {
       this->threadcount++;                                   // increment threadcount for each thread spawned
 
       std::thread([&]() {
-        if (info.datacube) {
+        if (info.iscube) {
           this->write_cube_thread(array, info, this);
         }
         else {

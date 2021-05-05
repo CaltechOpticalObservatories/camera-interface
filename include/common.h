@@ -93,6 +93,7 @@ namespace Common {
       std::string fits_naming;
       std::string fitstime;                                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
       int image_num;
+      bool is_datacube;
       std::atomic<bool> _abortstate;;
       std::mutex abort_mutex;
 
@@ -123,6 +124,9 @@ namespace Common {
       std::string get_fitsname();
       std::string get_fitsname(std::string controllerid);
       void abort();
+      void datacube(bool state_in);
+      bool datacube();
+      long datacube(std::string state_in, std::string &state_out);
   };
   /**************** Common::Common ********************************************/
 
@@ -162,7 +166,7 @@ namespace Common {
       std::string   shutterstate;
       bool          openshutter;
       bool          abortexposure;
-      bool          datacube;
+      bool          iscube;                  //!< the info object given to the FITS writer will need to know cube status
       int           extension;               //!< extension number for data cubes
       int           exposure_time;           //!< exposure time in msec
       double        exposure_progress;       //!< exposure progress (fraction)
@@ -184,7 +188,7 @@ namespace Common {
         this->region_of_interest[3] = 1;
         this->image_center[0] = 1;
         this->image_center[1] = 1;
-        this->datacube = false;
+        this->iscube = false;
         this->datatype = -1;
         this->type_set = false;  //!< set true when datatype has been defined
       }

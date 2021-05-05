@@ -2251,7 +2251,7 @@ namespace Archon {
     //
     if ( error == NO_ERROR ) {
       this->common.increment_imnum();                                 // increment image_num when fitsnaming == "number"
-      if (this->camera_info.datacube) this->camera_info.extension++;  // increment extension for cubes
+      if (this->common.datacube()) this->camera_info.extension++;     // increment extension for cubes
       logwrite(function, "frame write complete");
     }
     else {
@@ -2558,10 +2558,12 @@ namespace Archon {
    * @param  nseq_in string, if set becomes the number of sequences
    * @return ERROR or NO_ERROR
    *
-   * This function really does three things before returning successful completion:
-   *  1) trigger an Archon exposure by setting the EXPOSE parameter = 1
+   * This function does the following before returning successful completion:
+   *  1) trigger an Archon exposure by setting the EXPOSE parameter = nseq_in
    *  2) wait for exposure delay
    *  3) wait for readout into Archon frame buffer
+   *  4) read frame buffer from Archon to host
+   *  5) write frame to disk
    *
    * Note that this assumes that the Archon ACF has been programmed to automatically
    * read out the detector into the frame buffer after an exposure.
@@ -2595,13 +2597,11 @@ namespace Archon {
     if ( nseq_in.empty() ) {
       nseqstr = "1";
       nseq=1;
-      this->camera_info.datacube = false;
     }
     else {                                                          // sequence argument passed in
       try {
         nseq = std::stoi( nseq_in );                                // test that nseq_in is an integer
         nseqstr = nseq_in;                                          // before trying to use it
-        this->camera_info.datacube = (nseq>1) ? true : false;
         this->camera_info.extension = 0;
       }
       catch (std::invalid_argument &) {
@@ -2636,16 +2636,13 @@ namespace Archon {
       this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
       this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+      this->camera_info.fits_name = this->common.get_fitsname();    // Assemble the FITS filename
     }
 
     if (error == NO_ERROR) logwrite(function, "exposure started");
     message.str(""); 
     message << "[DEBUG] mode " << mode;
     logwrite(function, message.str());
-
-    // Assemble the FITS filename
-    //
-    this->camera_info.fits_name = this->common.get_fitsname();
 
     // Copy the userkeys database object into camera_info
     //
@@ -2680,13 +2677,21 @@ namespace Archon {
     // one extension for the image and a separate extension for raw data.
     //
     if ( (error == NO_ERROR) && (mode != "RAW") && (this->modemap[mode].rawenable) ) {
-      this->camera_info.datacube = true;
+      if ( !this->common.datacube() ) {                   // if datacube not already set then it must be overridden here
+        this->common.message.enqueue( "datacube=TRUE" );  // let everyone know
+        logwrite(function, "NOTICE: override datacube=true");
+        this->common.datacube(true);
+      }
       this->camera_info.extension = 0;
     }
 
-    // Open the FITS file
+    // Save the datacube state in camera_info so that the FITS writer can know about it
     //
-    error = this->fits_file.open_file(this->camera_info);
+    this->camera_info.iscube = this->common.datacube();
+
+    // Open the FITS file now for cubes
+    //
+    if ( this->common.datacube() ) error = this->fits_file.open_file(this->camera_info);
 
 //  //TODO only use camera_info -- don't use fits_info -- is this OK? TO BE CONFIRMED
 //  this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer  //TODO
@@ -2705,7 +2710,17 @@ namespace Archon {
     if ( (error == NO_ERROR) && (mode != "RAW") ) {                 // If not raw mode then
       while (nseq-- > 0) {
 
-        if (this->camera_info.exposure_time != 0) {                 // wait for the exposure delay to complete (if there is one)
+        // Open a new FITS file for each frame when not using datacubes
+        //
+        if ( !this->common.datacube() ) {
+          this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+          this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
+          this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+          this->camera_info.fits_name = this->common.get_fitsname();    // Assemble the FITS filename
+          error = this->fits_file.open_file( this->camera_info );
+        }
+
+        if (error==NO_ERROR && this->camera_info.exposure_time != 0) {  // wait for the exposure delay to complete (if there is one)
           error = this->wait_for_exposure();
           if (error==ERROR) {
             logwrite(function, "exposure delay error");
@@ -2716,8 +2731,11 @@ namespace Archon {
           }
         }
 
-        if (error==NO_ERROR) error = this->wait_for_readout();      // wait for the readout into frame buffer,
-        if (error==NO_ERROR) error = read_frame();                  // and read the frame buffer to host when ready.
+        if (error==NO_ERROR) error = this->wait_for_readout();      // Wait for the readout into frame buffer,
+        if (error==NO_ERROR) error = read_frame();                  // then read the frame buffer to host (and write file) when frame ready.
+        if (error==NO_ERROR && !this->common.datacube()) {
+          this->fits_file.close_file();                             // close the file when not using datacubes
+        }
       }
     }
     else if ( (error == NO_ERROR) && (mode == "RAW") ) {
@@ -2726,9 +2744,9 @@ namespace Archon {
 
     logwrite( function, (error==ERROR ? "ERROR" : "complete") );
 
-    // close the FITS file
+    // for cubes, close the FITS file now that they've all been written
     //
-    this->fits_file.close_file();
+    if ( this->common.datacube()) this->fits_file.close_file();
 
     return (error);
   }
@@ -3302,6 +3320,18 @@ namespace Archon {
    * @param  reference to retstring for any return values
    * @return ERROR or NO_ERROR
    *
+   * This is the place to put various debugging and system testing tools.
+   * It is placed here, rather than in common, to allow for controller-
+   * specific tests. This means some common tests may need to be duplicated
+   * for each controller.
+   *
+   * The server command is "test", the next parameter is the test name,
+   * and any parameters needed for the particular test are extracted as
+   * tokens from the args string passed in.
+   *
+   * The input args string is tokenized and tests are separated by a simple
+   * series of if..else.. conditionals.
+   *
    */
   long Interface::test(std::string args, std::string &retstring) {
     std::string function = "Archon::Interface::test";
@@ -3316,28 +3346,46 @@ namespace Archon {
       return ERROR;
     }
 
-    std::string testname = tokens[0];
+    std::string testname = tokens[0];                                // the first token is the test name
 
-    // async
+    // ----------------------------------------------------
+    // fitsname
+    // ----------------------------------------------------
+    // Show what the fitsname will look like.
+    // This is a "test" rather than a regular command so that it doesn't get mistaken
+    // for returning a real, usable filename. When using fitsnaming=time, the filename
+    // has to be generated at the moment the file is opened.
+    //
+    if (testname == "fitsname") {
+      this->common.set_fitstime( get_system_time() );                // must set common.fitstime first
+      this->common.message.enqueue( this->common.get_fitsname() );   // log and queue the fitsname
+      logwrite(function, this->common.get_fitsname() );
+      error = NO_ERROR;
+    } // end if (testname == fitsname)
+
+    // ----------------------------------------------------
+    // async [message]
     // ----------------------------------------------------
     // queue an asynchronous message
+    // The [message] param is optional. If not provided then "test" is queued.
     //
+    else
     if (testname == "async") {
       if (tokens.size() > 1) {
         if (tokens.size() > 2) {
           logwrite(function, "NOTICE: received multiple strings -- only the first will be queued");
         }
-        message.str(""); message << "enqueing status message: " << tokens[1];
-        logwrite(function, message.str());
-        this->common.message.enqueue(tokens[1]);
+        logwrite( function, tokens[1] );
+        this->common.message.enqueue( tokens[1] );
       }
-      else {
-        logwrite(function, "enqueing status message: test");
+      else {                                // if no string passed then queue a simple test message
+        logwrite(function, "test");
         this->common.message.enqueue("test");
       }
       error = NO_ERROR;
     } // end if (testname == async)
 
+    // ----------------------------------------------------
     // parammap
     // ----------------------------------------------------
     // Log all parammap entries found in the ACF file
@@ -3370,6 +3418,7 @@ namespace Archon {
       error = NO_ERROR;
     } // end if (testname == parammap)
 
+    // ----------------------------------------------------
     // configmap
     // ----------------------------------------------------
     // Log all configmap entries found in the ACF file
@@ -3414,9 +3463,13 @@ namespace Archon {
       logwrite(function, message.str());
     } // end if (testname == configmap)
 
-    // bw
     // ----------------------------------------------------
-    // bandwidth test
+    // bw <nseq>
+    // ----------------------------------------------------
+    // Bandwidth test
+    // This tests the exposure sequence bandwidth by running a sequence
+    // of exposures, including reading the frame buffer -- everything except
+    // for the fits file writing.
     //
     else
     if (testname == "bw") {
@@ -3526,6 +3579,7 @@ namespace Archon {
       error = NO_ERROR;
     } // end if (testname==bw)
 
+    // ----------------------------------------------------
     // invalid test name
     // ----------------------------------------------------
     //

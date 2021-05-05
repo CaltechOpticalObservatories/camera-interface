@@ -25,6 +25,7 @@
 namespace Common {
 
   Common::Common() {
+    this->is_datacube = false;
     this->image_dir = "/tmp";
     this->base_name = "image";
     this->image_num = 0;
@@ -217,7 +218,7 @@ bool Common::get_abortstate() {
     }
 
     std::stringstream dir_test;
-    dir_test << dir_in << "/" << get_system_date() << "/";
+    dir_test << dir_in << "/" << get_system_date();
 
     // Make sure the directory exists
     //
@@ -523,6 +524,64 @@ bool Common::get_abortstate() {
     return(NO_ERROR);
   }
   /** Common::FitsKeys::addkey ************************************************/
+
+
+  /** Common::Common::datacube ************************************************/
+  /**
+   * @fn     datacube
+   * @brief  set or get the datacube state
+   * @param  std::string state_in
+   * @return true or false
+   *
+   * The state_in string should be "True" or "False", case-insensitive.
+   *
+   * This function is overloaded.
+   *
+   */
+  void Common::datacube(bool state_in) {                                  // write-only boolean
+    std::string dontcare;
+    this->datacube( (state_in ? "true" : "false"), dontcare );
+  }
+  bool Common::datacube() {                                               // read-only boolean
+    return ( this->is_datacube );
+  }
+  long Common::datacube(std::string state_in, std::string &state_out) {   // read-write string, called from server
+    std::string function = "Common::Common::datacube";
+    std::stringstream message;
+    int error = NO_ERROR;
+
+    // If something is passed then try to use it to set the datacube state
+    //
+    if ( !state_in.empty() ) {
+      try {
+        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );    // make uppercase
+        if (state_in == "FALSE" ) this->is_datacube = false;
+        else
+        if (state_in == "TRUE"  ) this->is_datacube = true;
+        else {
+          message.str(""); message << "ERROR: " << state_in << " is invalid. Expecting true or false";
+          logwrite(function, message.str());
+          error = ERROR;
+        }
+      }
+      catch (...) {
+        logwrite(function, "error converting state_in to uppercase");
+        error = ERROR;
+      }
+    }
+
+    // error or not, the state reported is whatever was last successfully set
+    //
+    state_out = (this->is_datacube ? "true" : "false");
+    message.str(""); message << "datacube=" << state_out;
+    logwrite(function, message.str());
+    this->message.enqueue( message.str() );
+
+    // and this lets the server know if it was set or not
+    //
+    return( error );
+  }
+  /** Common::Common::datacube ************************************************/
 
 
   /** Common::Queue::enqueue **************************************************/

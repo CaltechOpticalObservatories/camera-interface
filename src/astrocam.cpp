@@ -1061,13 +1061,11 @@ namespace AstroCam {
     if ( nseq_in.empty() ) {
       nseqstr = "1";
       nseq=1;
-      this->camera_info.datacube = false;
     }
     else {                                                          // sequence argument passed in
       try {
         nseq = std::stoi( nseq_in );                                // test that nseq_in is an integer
         nseqstr = nseq_in;                                          // before trying to use it
-        this->camera_info.datacube = (nseq>1) ? true : false;
         this->camera_info.extension = 0;
       }
       catch (std::invalid_argument &) {
