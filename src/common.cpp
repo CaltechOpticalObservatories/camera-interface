@@ -192,12 +192,16 @@ bool Common::get_abortstate() {
   /** Common::Common::imdir ***************************************************/
   /**
    * @fn     imdir
-   * @brief  set or get the image_dir member
+   * @brief  set or get the image_dir base directory
    * @param  std::string dir_in
-   * @param  std::string& dir_out
+   * @param  std::string& dir_out (pass reference for return value)
    * @return ERROR or NO_ERROR
    *
-   * This function is overloaded with a form that doesn't use a return value.
+   * This function is overloaded with a form that doesn't use a return value reference.
+   *
+   * The base directory for images is this->image_dir. It is set (or read) here. It
+   * is not created; it must already exist. The date subdirectory is added later, in
+   * the get_fitsname() function.
    *
    */
   long Common::imdir(std::string dir_in) {
@@ -217,46 +221,53 @@ bool Common::get_abortstate() {
       return(NO_ERROR);
     }
 
-    std::stringstream dir_test;
-    dir_test << dir_in << "/" << get_system_date();
-
-    // Make sure the directory exists
-    //
-    DIR *dirp;                                             // pointer to the directory
-    if ( (dirp = opendir(dir_test.str().c_str())) == NULL ) {
-      // If directory doesn't exist then try to create it.
-      // Note that this only creates the bottom-level directory, the added date part.
-      // The base directory has to exist.
+    struct stat st;
+    if (stat(dir_in.c_str(), &st) == 0) {
+      // Use stat to check that the requested dir_in is a directory
       //
-      if ( (mkdir(dir_test.str().c_str(), S_IRUSR | S_IWUSR | S_IXUSR)) == 0 ) {
-        message.str(""); message << "created image directory " << dir_test.str();
-        logwrite(function, message.str());
+      if (S_ISDIR(st.st_mode)) {
+        try {
+          // and if it is then try writing a test file to make sure we'll be able to write to it
+          //
+          std::string testfile;
+          testfile = dir_in + "/.tmp";
+          FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
+          if (!fp) {
+            message.str(""); message << "error cannot write to requested image directory " << dir_in;
+            logwrite(function, message.str());
+            dir_out = this->image_dir;
+            return(ERROR);
+          }
+          else {                                           // remove the test file
+            std::fclose(fp);
+            if (std::remove(testfile.c_str()) != 0) {
+              message.str(""); message << "error removing temporary file " << testfile;
+              logwrite(function, message.str());
+            }
+          }
+        }
+        catch(...) {
+          message.str(""); message << "error writing to " << dir_in;
+          logwrite(function, message.str());
+          dir_out = this->image_dir;
+          return(ERROR);
+        }
+        this->image_dir = dir_in;                          // passed all tests so set the image_dir
+        dir_out = this->image_dir;                         // and the return var
+        return(NO_ERROR);                                  // return success
       }
       else {
-        message.str("");
-        message << "error " << errno << " creating image directory " << dir_test.str() << ": " << strerror(errno);
+        message.str(""); message << "error requested image directory " << dir_in << " is not a directory";
         logwrite(function, message.str());
-        // a common error might be that the base directory doesn't exist
-        //
-        if (errno==ENOENT) {
-          message.str("");
-          message << "requested base directory " << dir_in << " does not exist";
-          logwrite(function, message.str());
-        }
         dir_out = this->image_dir;                         // no changes, return the current image_dir
         return(ERROR);
       }
     }
     else {
-      message.str(""); message << "image directory set to " << dir_test.str();
-      logwrite(function, message.str());
-      closedir(dirp);                                      // directory already existed so close it
+      message.str(""); message << "error requested image directory " << dir_in << " does not exist";
+      dir_out = this->image_dir;
+      return(ERROR);
     }
-
-    this->image_dir = dir_test.str();                      // passed all tests so set the image_dir
-    dir_out = this->image_dir;                             // return the new image_dir
-
-    return(NO_ERROR);
   }
   /** Common::Common::imdir ***************************************************/
 
@@ -302,8 +313,9 @@ bool Common::get_abortstate() {
   /**
    * @fn     get_fitsname
    * @brief  assemble the FITS filename
-   * @param  none
-   * @return std::string
+   * @param  std::string controllerid (optional, due to overloading)
+   * @param  std::string &name_out reference for name
+   * @return ERROR or NO_ERROR
    *
    * This function assembles the fully qualified path to the output FITS filename
    * using the parts (dir, basename, time or number) stored in the Common::Common class.
@@ -313,18 +325,54 @@ bool Common::get_abortstate() {
    * This function is overloaded, to allow passing a controller id to include in the filename.
    *
    */
-  std::string Common::get_fitsname() {
-    return ( this->get_fitsname("") );
+  long Common::get_fitsname(std::string &name_out) {
+    return ( this->get_fitsname("", name_out) );
   }
-  std::string Common::get_fitsname(std::string controllerid) {
+  long Common::get_fitsname(std::string controllerid, std::string &name_out) {
     std::string function = "Common::Common::get_fitsname";
     std::stringstream message;
     std::stringstream fn, fitsname;
 
+    // image_dir is the requested base directory and now add on the date directory
+    //
+    std::stringstream basedir_datedir;
+    basedir_datedir << this->image_dir << "/" << get_system_date();
+
+    // Make sure the directory exists
+    //
+    DIR *dirp;                                             // pointer to the directory
+    if ( (dirp = opendir(basedir_datedir.str().c_str())) == NULL ) {
+      // If directory doesn't exist then try to create it.
+      // Note that this only creates the bottom-level directory, the added date part.
+      // The base directory has to exist.
+      //
+      if ( (mkdir(basedir_datedir.str().c_str(), S_IRUSR | S_IWUSR | S_IXUSR)) == 0 ) {
+        message.str(""); message << "created date subdirectory " << basedir_datedir.str();
+        logwrite(function, message.str());
+      }
+      else {                                               // error creating date subdirectory
+        message.str("");
+        message << "error " << errno << " creating date subdirectory " << basedir_datedir.str() << ": " << strerror(errno);
+        logwrite(function, message.str());
+        // a common error might be that the base directory doesn't exist
+        //
+        if (errno==ENOENT) {
+          message.str("");
+          message << "requested base directory " << basedir_datedir << " does not exist";
+          logwrite(function, message.str());
+        }
+        return(ERROR);
+      }
+    }
+    else {
+      closedir(dirp);                                      // directory already existed so close it
+    }
+
     // start building the filename with directory/basename_
+    // where "basedir_datedir" is "image_dir/date" which was just assembled above
     //
     fitsname.str("");
-    fitsname << this->image_dir << "/" << this->base_name << "_";
+    fitsname << basedir_datedir.str() << "/" << this->base_name << "_";
 
     // add the controllerid if one is given
     //
@@ -363,13 +411,14 @@ bool Common::get_abortstate() {
     }
 
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "*** [DEBUG] fits_naming=" << this->fits_naming 
+    message.str(""); message << "[DEBUG] fits_naming=" << this->fits_naming 
                              << " controllerid=" << controllerid
                              << " will write to file: " << fn.str();
     logwrite(function, message.str());
 #endif
 
-    return fn.str();
+    name_out = fn.str();
+    return(NO_ERROR);
   }
   /** Common::Common:get_fitsname *********************************************/
 

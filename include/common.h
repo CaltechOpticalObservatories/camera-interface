@@ -121,8 +121,8 @@ namespace Common {
       long fitsnaming(std::string naming_in, std::string& naming_out);
       void increment_imnum() { if (this->fits_naming.compare("number")==0) this->image_num++; };
       void set_fitstime(std::string time_in);
-      std::string get_fitsname();
-      std::string get_fitsname(std::string controllerid);
+      long get_fitsname(std::string &name_out);
+      long get_fitsname(std::string controllerid, std::string &name_out);
       void abort();
       void datacube(bool state_in);
       bool datacube();

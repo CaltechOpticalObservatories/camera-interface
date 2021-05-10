@@ -1221,11 +1221,12 @@ namespace Archon {
     if (error==NO_ERROR) error = get_configmap_value("RAWSEL", this->rawinfo.adchan);
     if (error==NO_ERROR) error = get_configmap_value("RAWSAMPLES", this->rawinfo.rawsamples);
     if (error==NO_ERROR) error = get_configmap_value("RAWENDLINE", this->rawinfo.rawlines);
-
+#ifdef LOGLEVEL_DEBUG
     message.str(""); 
     message << "[DEBUG] mode=" << mode << " RAWENABLE=" << this->modemap[mode].rawenable 
             << " RAWSAMPLES=" << this->rawinfo.rawsamples << " RAWLINES=" << this->rawinfo.rawlines;
     logwrite(function, message.str());
+#endif
 
     int num_ccds = this->modemap[mode].geometry.num_ccds;                 // for convenience
 
@@ -1250,10 +1251,12 @@ namespace Archon {
       // Binning factor (no binning)
       this->camera_info.binning[0] = 1;
       this->camera_info.binning[1] = 1;
+#ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (RAWSAMPLES) = " << this->camera_info.detector_pixels[0];
       logwrite(function, message.str());
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (RAWENDLINE) = " << this->camera_info.detector_pixels[1];
       logwrite(function, message.str());
+#endif
     }
 
     // Any other mode falls under here
@@ -1261,6 +1264,7 @@ namespace Archon {
     else {
       if (error==NO_ERROR) error = get_configmap_value("PIXELCOUNT", this->camera_info.detector_pixels[0]);
       if (error==NO_ERROR) error = get_configmap_value("LINECOUNT", this->camera_info.detector_pixels[1]);
+#ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] mode=" << mode; logwrite(function, message.str());
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (PIXELCOUNT) = " << this->camera_info.detector_pixels[0]
                                << " amps_per_ccd[0] = " << this->modemap[mode].geometry.amps_per_ccd[0];
@@ -1268,6 +1272,7 @@ namespace Archon {
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (LINECOUNT) = " << this->camera_info.detector_pixels[1]
                                << " amps_per_ccd[1] = " << this->modemap[mode].geometry.amps_per_ccd[1];
       logwrite(function, message.str());
+#endif
       this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps_per_ccd[0];
       this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps_per_ccd[1];
       this->camera_info.frame_type = Common::FRAME_IMAGE;
@@ -1279,10 +1284,12 @@ namespace Archon {
       // Binning factor (no binning)
       this->camera_info.binning[0] = 1;
       this->camera_info.binning[1] = 1;
+#ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (PIXELCOUNT) = " << this->camera_info.detector_pixels[0];
       logwrite(function, message.str());
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (LINECOUNT) = " << this->camera_info.detector_pixels[1];
       logwrite(function, message.str());
+#endif
     }
 
     // set bitpix based on SAMPLEMODE
@@ -1882,7 +1889,6 @@ namespace Archon {
     // RAW-only
     //
     if (this->camera_info.current_observing_mode == "RAW") {              // "RAW" is the only reserved mode name
-      logwrite(function, "[DEBUG] observing mode is RAW");
 
       // the RAWENABLE parameter must be set in the ACF file, in order to read RAW data
       //
@@ -1891,9 +1897,7 @@ namespace Archon {
         return ERROR;
       }
       else {
-        logwrite(function, "[DEBUG] raw-only calling read_frame(Common::FRAME_RAW)");
         if (error == NO_ERROR) error = this->read_frame(Common::FRAME_RAW);       // read raw frame
-        logwrite(function, "[DEBUG] raw-only calling write_frame()");
         if (error == NO_ERROR) error = this->write_frame();               // write raw frame
       }
     }
@@ -1902,9 +1906,7 @@ namespace Archon {
     // datacube was already set = true in the expose function
     //
     else {
-      logwrite(function, "[DEBUG] calling read_frame(Common::FRAME_IMAGE)");
       if (error == NO_ERROR) error = this->read_frame(Common::FRAME_IMAGE);       // read image frame
-      logwrite(function, "[DEBUG] calling write_frame()");
       if (error == NO_ERROR) error = this->write_frame();                 // write image frame
 
       // If mode is not RAW but RAWENABLE=1, then we will first read an image
@@ -1913,18 +1915,26 @@ namespace Archon {
       // to the original mode, for any subsequent exposures..
       //
       if (rawenable == 1) {
+#ifdef LOGLEVEL_DEBUG
         logwrite(function, "[DEBUG] rawenable is set -- IMAGE+RAW file will be saved");
         logwrite(function, "[DEBUG] switching to mode=RAW");
+#endif
         std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode so we can come back to it
         if (error == NO_ERROR) error = this->set_camera_mode("raw");      // switch to raw mode
 
-        message.str(""); message << "[DEBUG] error=" << error << " calling read_frame(Common::FRAME_RAW) if error=0"; logwrite(function, message.str());
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "error=" << error << "[DEBUG] calling read_frame(Common::FRAME_RAW) if error=0"; logwrite(function, message.str());
+#endif
         if (error == NO_ERROR) error = this->read_frame(Common::FRAME_RAW);       // read raw frame
 /////   message.str(""); message << "[DEBUG] error=" << error << " calling write_raw() if error=0"; logwrite(function, message.str());
 /////   if (error == NO_ERROR) error = this->write_raw();                 // write raw frame
-        message.str(""); message << "[DEBUG] error=" << error << " calling write_frame() for raw data if error=0"; logwrite(function, message.str());
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "error=" << error << "[DEBUG] calling write_frame() for raw data if error=0"; logwrite(function, message.str());
+#endif
         if (error == NO_ERROR) error = this->write_frame();                 // write raw frame
-        message.str(""); message << "[DEBUG] error=" << error << " switching back to original mode if error=0"; logwrite(function, message.str());
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "error=" << error << "[DEBUG] switching back to original mode if error=0"; logwrite(function, message.str());
+#endif
         if (error == NO_ERROR) error = this->set_camera_mode(orig_mode);  // switch back to the original mode
       }
     }
@@ -2298,7 +2308,9 @@ namespace Archon {
     // create fits file
     //
     if (this->camera_info.extension == 0) {
+#ifdef LOGLEVEL_DEBUG
       logwrite(function, "[DEBUG] creating fits file with cfitsio");
+#endif
       if (fits_create_file( &FP, this->camera_info.fits_name.c_str(), &status ) ) {
         message.str("");
         message << "cfitsio error " << status << " creating FITS file " << this->camera_info.fits_name;
@@ -2307,10 +2319,12 @@ namespace Archon {
       }
     }
     else {
+#ifdef LOGLEVEL_DEBUG
       logwrite(function, "[DEBUG] opening fits file with cfitsio");
       message.str(""); message << "[DEBUG] file=" << this->camera_info.fits_name << " extension=" << this->camera_info.extension
                                << " bitpix=" << this->camera_info.bitpix;
       logwrite(function, message.str());
+#endif
       if (fits_open_file( &FP, this->camera_info.fits_name.c_str(), READWRITE, &status ) ) {
         message.str("");
         message << "cfitsio error " << status << " opening FITS file " << this->camera_info.fits_name;
@@ -2537,8 +2551,10 @@ namespace Archon {
 
     if ( this->configmap.find(key_in) != this->configmap.end() ) {
       std::istringstream( this->configmap[key_in].value  ) >> value_out;
+#ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] key=" << key_in << " value=" << value_out << " line=" << this->configmap[key_in].line;
       logwrite(function, message.str());
+#endif
       return NO_ERROR;
     }
     else {
@@ -2636,13 +2652,9 @@ namespace Archon {
       this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
       this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-      this->camera_info.fits_name = this->common.get_fitsname();    // Assemble the FITS filename
     }
 
     if (error == NO_ERROR) logwrite(function, "exposure started");
-    message.str(""); 
-    message << "[DEBUG] mode " << mode;
-    logwrite(function, message.str());
 
     // Copy the userkeys database object into camera_info
     //
@@ -2716,19 +2728,12 @@ namespace Archon {
           this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
           this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
           this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-          this->camera_info.fits_name = this->common.get_fitsname();    // Assemble the FITS filename
+          error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
           error = this->fits_file.open_file( this->camera_info );
         }
 
         if (error==NO_ERROR && this->camera_info.exposure_time != 0) {  // wait for the exposure delay to complete (if there is one)
           error = this->wait_for_exposure();
-          if (error==ERROR) {
-            logwrite(function, "exposure delay error");
-            break;
-          }
-          else {
-            logwrite(function, "exposure delay complete");
-          }
         }
 
         if (error==NO_ERROR) error = this->wait_for_readout();      // Wait for the readout into frame buffer,
@@ -2736,6 +2741,7 @@ namespace Archon {
         if (error==NO_ERROR && !this->common.datacube()) {
           this->fits_file.close_file();                             // close the file when not using datacubes
         }
+        if (error != NO_ERROR) break;                               // don't try additional sequences if there were errors
       }
     }
     else if ( (error == NO_ERROR) && (mode == "RAW") ) {
@@ -2958,11 +2964,13 @@ namespace Archon {
       clock_now = get_clock_time()*1000;
     } // end while (done == false && this->abort == false)
 
+#ifdef LOGLEVEL_DEBUG
     message.str(""); 
-    message << "[DEBUG] *** lastframe=" << this->lastframe 
+    message << "[DEBUG] lastframe=" << this->lastframe 
             << " currentframe=" << currentframe 
             << " bufcomplete=" << this->frame.bufcomplete[this->frame.index];
     logwrite(function, message.str());
+#endif
     this->lastframe = currentframe;
 
     // On success, write the value to the log and return
@@ -3357,10 +3365,11 @@ namespace Archon {
     // has to be generated at the moment the file is opened.
     //
     if (testname == "fitsname") {
+      std::string msg;
       this->common.set_fitstime( get_system_time() );                // must set common.fitstime first
-      this->common.message.enqueue( this->common.get_fitsname() );   // log and queue the fitsname
-      logwrite(function, this->common.get_fitsname() );
-      error = NO_ERROR;
+      error = this->common.get_fitsname(msg);                        // get the fitsname (by reference)
+      this->common.message.enqueue( msg );                           // queue the fitsname
+      logwrite(function, msg);                                       // log the fitsname
     } // end if (testname == fitsname)
 
     // ----------------------------------------------------
