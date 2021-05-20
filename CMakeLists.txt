@@ -4,8 +4,8 @@
 # user must define the interface type here
 # valid types are: "AstroCam" | "Archon"
 
-#set(INTERFACE_TYPE "Archon")
-set(INTERFACE_TYPE "AstroCam")
+set(INTERFACE_TYPE "Archon")
+#set(INTERFACE_TYPE "AstroCam")
 
 #add_definitions(-DLOGLEVEL_DEBUG)
 
@@ -25,7 +25,6 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 set(CMAKE_C_COMPILER /usr/bin/g++)
 set(CMAKE_CXX_COMPILER /usr/bin/g++)
-add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb )
 set(CMAKE_BUILD_TYPE Debug)
 include_directories(${PROJECT_INCL_DIR})
 
@@ -58,6 +57,7 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
         message(STATUS "compiling for AstroCam GenIII PCI/PCIe")
         set(INTERFACE_TARGET astrocam)
         set(ARCAPI_DIR "/opt/ARC_API/3.6")
+        add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb )
         add_definitions(-DASTROCAM)
         add_definitions(-DARC66_PCIE)
         find_path(ARCAPI_BASE "CArcBase.h" PATHS ${ARCAPI_DIR}/CArcBase/inc)
@@ -92,6 +92,7 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 elseif(${INTERFACE_TYPE} STREQUAL "Archon")
         message(STATUS "compiling for STA Archon")
         set(INTERFACE_TARGET archon)
+        add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 -ggdb )
         add_definitions(-DSTA_ARCHON)
         list(APPEND INTERFACE_SOURCE
                 "${PROJECT_SOURCE_DIR}/archon.cpp"
