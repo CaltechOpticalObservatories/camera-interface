@@ -358,7 +358,7 @@ bool Common::get_abortstate() {
         //
         if (errno==ENOENT) {
           message.str("");
-          message << "requested base directory " << basedir_datedir << " does not exist";
+          message << "requested base directory " << basedir_datedir.str() << " does not exist";
           logwrite(function, message.str());
         }
         return(ERROR);
