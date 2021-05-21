@@ -3,7 +3,7 @@ Camera Detector Controller Interface Software
 
 ## Requirements:
 
- - Cmake 3.5 or higher
+ - Cmake 3.12 or higher
  - cfitsio and CCFits libraries (expected in /usr/local/lib)
  
 ### For ARC controllers,
@@ -15,13 +15,12 @@ Camera Detector Controller Interface Software
 
 ## Build instructions:
 
- - edit the CMakeLists.txt file to un-comment ONE of the following three lines
+ - edit the CMakeLists.txt file to un-comment ONE of the following two lines
  according to the controller interface you are using:
 
 ```
-#set(INTERFACE_TYPE "STA-Archon")
-#set(INTERFACE_TYPE "ARC-PCIe")
-set(INTERFACE_TYPE "ARC-PCI")
+set(INTERFACE_TYPE "Archon")
+#set(INTERFACE_TYPE "AstroCam")
 ```
 
  - change to the build directory

@@ -14,7 +14,7 @@ set(INTERFACE_TYPE "Archon")
 # DO NOT EDIT BEYOND THIS LINE
 # ----------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.12)
 
 project(camera-interface VERSION 1.0)
 
@@ -172,5 +172,19 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
         target_link_libraries(cameraserver ${CARC_BASE})
         target_link_libraries(cameraserver ${CARC_DEVICE})
         target_link_libraries(cameraserver ${CARC_FITS})
+endif()
+
+# ----------------------------------------------------------------------------
+# cURL is not used here, so it's not strictly required, but cfitsio can
+# use it. If cfitsio was built with libcurl then it has to be linked here.
+# If it's installed on the system then link it, but don't make it mandatory.
+# ----------------------------------------------------------------------------
+#
+include(FindCURL)
+
+if (CURL_FOUND STREQUAL "FALSE")
+        message(STATUS "cURL was not found but may be needed by some systems if built into cfitsio.\n   If you experience undefined curl references during linking \n   then please your cURL installation.")
+else()
+        target_link_libraries(cameraserver ${CURL_LIBRARIES})
 endif()
 
