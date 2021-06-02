@@ -325,14 +325,23 @@ namespace Archon {
     std::vector<std::string> tokens;
     long ret = archon_cmd(cmd, reply);
     if (!reply.empty()) {
-      // Tokenize the reply and put each non-empty token into the asynchronous message queue
+      // Tokenize the reply and put each non-empty token into the asynchronous message queue.
+      // The reply message begins and ends with "CMD:BEGIN" and "CMD:END" and
+      // each line of the reply is prepended with "CMD:" where CMD is the native command
+      // which generated the message.
       //
+      message << cmd << ":BEGIN";
+      this->common.message.enqueue( message.str() );
+
       Tokenize(reply, tokens, " ");
       for (long unsigned int tok=0; tok < tokens.size(); tok++) {
         if ( ! tokens[tok].empty() && tokens[tok] != "\n" ) {
-          this->common.message.enqueue( tokens[tok] );
+          message.str(""); message << cmd << ":" << tokens[tok];
+          this->common.message.enqueue( message.str() );
         }
       }
+      message.str(""); message << cmd << ":END";
+      this->common.message.enqueue( message.str() );
     }
     return( ret );
   }
