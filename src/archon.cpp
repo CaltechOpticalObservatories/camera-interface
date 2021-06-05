@@ -3099,6 +3099,435 @@ namespace Archon {
   /**************** Archon::Interface::exptime ********************************/
 
 
+  /**************** Archon::Interface::heater *********************************/
+  /**
+   * @fn     heater
+   * @brief  heater control, set/get state, target, PID, ramp
+   * @param  args contains various allowable strings (see full descsription)
+   * @return ERROR or NO_ERROR
+   *
+   * valid args format,
+   * to set or get the enable state and target for heater A or B on the specified module:
+   *   <module> < A | B > [ <on | off> <target> ]
+   *   possible args: 2 (get) or 3 or 4
+   *
+   * to set or get the PID parameters for heater A or B on the specified module:
+   *   <module> < A | B > PID [ <p> <i> <d> ]
+   *   possible args: 3 (get) or 6 (set)
+   *
+   * to set or get the ramp and ramprate for heater A or B on the specified module:
+   *   <module> < A | B > RAMP [ <on | off> [ramprate] ]
+   *   possible args: 3 (get) or 5 (set)
+   *
+   */
+  long Interface::heater(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::heater";
+    std::stringstream message;
+    std::vector<std::string> tokens;
+    int module;
+    std::string heaterid;                   //!< A|B
+    bool readonly=false;
+    float pid_p, pid_i, pid_d;              //!< requested PID values
+    int ramprate;                           //!< requested ramp rate value
+    float target;                           //!< requested heater target value
+    std::vector<std::string> heaterconfig;  //!< vector of configuration lines to read or write
+    std::vector<std::string> heatervalue;   //!< vector of values associated with config lines (for write)
+
+    // must have loaded firmware in order to know the installed modules
+    // TODO -- this is a weakness -- should add something to read the installed modules
+    //         without having to load firmware
+    //
+    if ( ! this->firmwareloaded ) {
+      logwrite( function, "ERROR: firmware not loaded" );
+      return( ERROR );
+    }
+
+    std::transform( args.begin(), args.end(), args.begin(), ::toupper );  // make uppercase
+
+    Tokenize(args, tokens, " ");
+
+    // At minimum there must be two tokens, <module> A|B
+    //
+    if ( tokens.size() < 2 ) {
+      logwrite( function, "ERROR: expected at least two arguments: <module> A|B" );
+      return ERROR;
+    }
+
+    // As long as there are at least two tokens, get the module and heaterid
+    // which will be common to everything.
+    //
+    try {
+      module   = std::stoi( tokens[0] );
+      heaterid = tokens[1];
+      if ( heaterid != "A" && heaterid != "B" ) {
+        message.str(""); message << "ERROR: invalid heater " << heaterid << ": expected <module> A|B";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+    }
+    catch (std::invalid_argument &) {
+      message.str(""); message << "ERROR: first argument must be <module> but unable to convert " << tokens[0] << " to integer";
+      logwrite(function, message.str());
+      return(ERROR);
+    }
+    catch (std::out_of_range &) {
+      message.str(""); message << "ERROR: first argument must be <module> but " << tokens[0] << " is outside integer range";
+      logwrite(function, message.str());
+      return(ERROR);
+    }
+
+    // check that requested module is valid
+    //
+    switch ( this->modtype[ module ] ) {
+      case 0:
+        message.str(""); message << "ERROR: module " << module << " not installed";
+        logwrite(function, message.str());
+        return(ERROR);
+      case 5:  // Heater
+      case 11: // HeaterX
+        break;
+      default:
+        message.str(""); message << "ERROR: module " << module << " not a heater board";
+        logwrite(function, message.str());
+        return(ERROR);
+    }
+
+    heaterconfig.clear();
+    heatervalue.clear();
+    std::stringstream ss;
+
+    // Any one heater command can require reading or writing multiple configuration lines.
+    // The code will look at each case and push each heater configuration line that needs
+    // to be read or written into a vector (heaterconfig). For those that need to be written,
+    // the value to write will be pushed into a separate vector (heatervalue). After these
+    // vectors have been built up, the code will loop through each element of the vectors,
+    // reading and/or writing each.
+
+    // Start looking at the heater arguments passed, which have been tokenized.
+    // There can be only 2, 3, 4, 5, or 6 tokens allowed.
+
+    // If there are exactly two (2) tokens then we have received only:
+    // <module> A|B
+    // which means we're reading the state and target.
+    //
+    if ( tokens.size() == 2 ) {        // no args reads ENABLE, TARGET
+      readonly = true;
+      ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "ENABLE"; heaterconfig.push_back( ss.str() );
+      ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "TARGET"; heaterconfig.push_back( ss.str() );
+    }
+    else
+    // If there are three (3) tokens then the 3rd must be one of the following:
+    // ON | OFF (for ENABLE), <target>, PID, RAMP
+    //
+    if ( tokens.size() == 3 ) {
+      if ( tokens[2] == "ON" ) {       // ON
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "ENABLE"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( "1" );
+      }
+      else
+      if ( tokens[2] == "OFF" ) {      // OFF
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "ENABLE"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( "0" );
+      }
+      else
+      if ( tokens[2] == "RAMP" ) {     // RAMP
+        readonly = true;
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMP";     heaterconfig.push_back( ss.str() );
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMPRATE"; heaterconfig.push_back( ss.str() );
+      }
+      else
+      if ( tokens[2] == "PID" ) {      // PID
+        readonly = true;
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "P"; heaterconfig.push_back( ss.str() );
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "I"; heaterconfig.push_back( ss.str() );
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "D"; heaterconfig.push_back( ss.str() );
+      }
+      else {                           // <target>
+        // first check that the requested target is a valid number and within range...
+        //
+        try {
+          target = std::stof( tokens[2] );
+          float target_min = -150.0; // TODO need to check board rev to apply correct limits
+          float target_max =   50.0; // TODO need to check board rev to apply correct limits
+          if ( target < target_min || target > target_max ) {
+            message.str(""); message << "ERROR: requested target " << target << " outside range {" << target_min << ":" << target_max << "}";
+            logwrite( function, message.str() );
+            return( ERROR );
+          }
+        }
+        catch (std::invalid_argument &) {
+          message.str(""); message << "ERROR: unable to convert <target>=" << tokens[2] << " to float";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          message.str(""); message << "ERROR: <target>=" << tokens[2] << " outside range of float";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        // ...if target is OK then push into the config, value vectors
+        //
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "TARGET"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( tokens[2] );
+      }
+    }
+    else
+    // If there are four (4) tokens then the 4th must be one of the following:
+    // <target> (for enable), <ramprate> | ON | OFF (for RAMP)
+    //
+    if ( tokens.size() == 4 ) {
+
+      if ( tokens[2] == "ON" ) {       // ON <target>
+        // first check that the requested target is a valid number and within range...
+        //
+        try {
+          target = std::stof( tokens[3] );
+          float target_min = -150.0; // TODO need to check board rev to apply correct limits
+          float target_max =   50.0; // TODO need to check board rev to apply correct limits
+          if ( target < target_min || target > target_max ) {
+            message.str(""); message << "ERROR: requested target " << target << " outside range {" << target_min << ":" << target_max << "}";
+            logwrite( function, message.str() );
+            return( ERROR );
+          }
+        }
+        catch (std::invalid_argument &) {
+          message.str(""); message << "ERROR: unable to convert <target>=" << tokens[3] << " to float";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          message.str(""); message << "ERROR: <target>=" << tokens[3] << " outside range of float";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        // ...if target is OK then push into the config, value vectors
+        //
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "ENABLE"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( "1" );
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "TARGET"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( tokens[3] );
+      }
+      else
+      if ( tokens[2] == "RAMP" ) {     // RAMP x
+
+        if ( tokens[3] == "ON" || tokens[3] == "OFF" ) {   // RAMP ON|OFF
+          ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMP";     heaterconfig.push_back( ss.str() );
+          std::string state = ( tokens[3]=="ON" ? "1" : "0" );
+          heatervalue.push_back( state );
+        }
+        else {                                             // RAMP <ramprate>
+          try {
+            ramprate = std::stoi( tokens[3] );
+            if ( ramprate < 1 || ramprate > 32767 ) {
+              message.str(""); message << "ERROR: ramprate " << ramprate << " outside range {1:32767}";
+              return( ERROR );
+            }
+          }
+          catch (std::invalid_argument &) {
+            message.str(""); message << "ERROR: expected RAMP <ramprate> but unable to convert <ramprate>=" << tokens[3] << " to integer";
+            logwrite(function, message.str());
+            return(ERROR);
+          }
+          catch (std::out_of_range &) {
+            message.str(""); message << "ERROR: expected RAMP <ramprate> but <ramprate>=" << tokens[3] << " outside range of integer";
+            logwrite(function, message.str());
+            return(ERROR);
+          }
+          ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMPRATE"; heaterconfig.push_back( ss.str() );
+          heatervalue.push_back( tokens[3] );
+        }
+      }
+      else {
+        message.str(""); message << "ERROR: expected ON | RAMP for 3rd argument but got " << tokens[2];
+        logwrite(function, message.str());
+        return( ERROR );
+      }
+    }
+    else
+    // If there are five (5) tokens then they must be
+    // <module> A|B RAMP ON <ramprate>
+    //
+    if ( tokens.size() == 5 ) {        // RAMP ON <ramprate>
+      if ( tokens[2] != "RAMP" && tokens[3] != "ON" ) {
+        message.str(""); message << "ERROR: expected RAMP ON <ramprate> but got"; for (int i=2; i<5; i++) message << " " << tokens[i];
+        logwrite(function, message.str());
+        return( ERROR );
+      }
+      else {  // got "<module> A|B RAMP ON" now check that the last (5th) token is a number
+        try {
+          ramprate = std::stoi( tokens[4] );
+          if ( ramprate < 1 || ramprate > 32767 ) {
+            message.str(""); message << "ERROR: ramprate " << ramprate << " outside range {1:32767}";
+            return( ERROR );
+          }
+        }
+        catch (std::invalid_argument &) {
+          message.str(""); message << "ERROR: expected RAMP ON <ramprate> but unable to convert <ramprate>=" << tokens[4] << " to integer";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          message.str(""); message << "ERROR: expected RAMP ON <ramprate> but <ramprate>=" << tokens[4] << " outside range of integer";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMP";     heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( "1" );
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMPRATE"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( tokens[4] );
+      }
+    }
+    else
+    // If there are six (6) tokens then they must be
+    // <module> A|B PID <p> <i> <d>
+    //
+    if ( tokens.size() == 6 ) {
+      if ( tokens[2] != "PID" ) {
+        message.str(""); message << "ERROR: expected PID <p> <i> <d> but got"; for (int i=2; i<6; i++) message << " " << tokens[i];
+        logwrite(function, message.str());
+        return( ERROR );
+      }
+      else {  // got "<module> A|B PID <p> <i> <d>" now check that the last 3 tokens are numbers
+        try {
+// TODO need to check for board rev and convert appropriately to float or int
+          pid_p = std::stof( tokens[3] );
+          pid_i = std::stof( tokens[4] );
+          pid_d = std::stof( tokens[5] );
+          if ( pid_p < 0 || pid_p > 10000 || pid_i < 0 || pid_i > 10000 || pid_d < 0 || pid_d > 10000 ) {
+            message.str(""); message << "ERROR: one or more PID values outside range {0:10000}";
+            logwrite( function, message.str() );
+            return( ERROR );
+          }
+        }
+        catch (std::invalid_argument &) {
+// TODO need to check for board rev and convert appropriately to float or int
+          message.str(""); message << "ERROR: expected PID <p> <i> <d> but unable to convert one or more values to numbers:";
+          for (int i=3; i<6; i++) message << " " << tokens[i];
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+// TODO need to check for board rev and convert appropriately to float or int
+          message.str(""); message << "ERROR: expected PID <p> <i> <d> but one or more values outside range:";
+          for (int i=3; i<6; i++) message << " " << tokens[i];
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "P"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( tokens[3] );
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "I"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( tokens[4] );
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "D"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( tokens[5] );
+      }
+    }
+    // Otherwise we have an invalid number of tokens
+    //
+    else {
+      message.str(""); message << "ERROR: received " << tokens.size() << " arguments but expected 2, 3, 4, 5, or 6";
+      logwrite(function, message.str());
+      return( ERROR );
+    }
+
+    long error;
+
+    if ( ! readonly ) {
+
+      // For writing, loop through the heaterconfig and heatervalue vectors.
+      // They MUST be the same size! This should be impossible.
+      //
+      if ( heaterconfig.size() != heatervalue.size() ) {
+        message.str("");
+        message << "BUG DETECTED: heaterconfig (" << heaterconfig.size() 
+                << ") - heatervalue (" << heatervalue.size() << ") vector size mismatch";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+
+      // Write the configuration lines
+      //
+      bool changed = false;
+      size_t error_count = 0;
+      for ( size_t i=0; i < heaterconfig.size(); i++ ) {
+        error = this->write_config_key( heaterconfig[i].c_str(), heatervalue[i].c_str(), changed );
+        message.str("");
+        if ( error != NO_ERROR ) {
+          message << "ERROR; writing configuration " << heaterconfig[i] << "=" << heatervalue[i];
+          error_count++;  // this counter will be checked before the APPLYMOD command
+        }
+        else if ( !changed ) {
+          message << "heater configuration: " << heaterconfig[i] << "=" << heatervalue[i] << " unchanged";
+        }
+        else {
+          message << "updated heater configuration: " << heaterconfig[i] << "=" << heatervalue[i];
+        }
+        logwrite( function, message.str() );
+      }
+
+      // send the APPLMODxx command which parses and applies the configuration for module xx
+      // The APPLYMOD is sent even if an error occured writing the config key(s) because
+      // it's possible that one of the config keys was written.
+      //
+      // If error_count is the same as the number of configuration lines, then they all failed
+      // to write, in which case do not send APPLYMOD. But if even one config key was written
+      // then the APPLYMOD command must be sent.
+      //
+      if ( error_count == heaterconfig.size() ) {
+        return( ERROR );
+      }
+
+      std::stringstream applystr;
+      applystr << "APPLYMOD"
+               << std::setfill('0')
+               << std::setw(2)
+               << std::hex
+               << (module-1);
+
+      error = this->archon_cmd( applystr.str() );
+
+      if ( error != NO_ERROR ) {
+        logwrite( function, "ERROR: applying heater configuration" );
+      }
+    }
+
+    // Now read the configuration line(s).
+    // For multiple lines, concatenate all values into one space-delimited string.
+
+    // loop through the vector of heaterconfig keys,
+    // getting the value for each, and putting them into retss
+    //
+    std::string value;
+    std::stringstream retss;
+    for ( auto key : heaterconfig ) {
+
+      error = this->get_configmap_value( key, value );
+
+      if ( error != NO_ERROR ) {
+        message << "ERROR: reading heater configuration " << key;
+        logwrite( function, message.str() );
+        return( error );
+      }
+      else {
+        // If key ends with "ENABLE" or "RAMP"
+        // then convert the values 0,1 to OFF,ON, respectively
+        //
+        if ( key.substr( key.length()-6 ) == "ENABLE" ||
+             key.substr( key.length()-4 ) == "RAMP" ) {
+          if ( value == "0" ) value = "OFF";
+          if ( value == "1" ) value = "ON";
+        }
+        retss << value << " ";
+        message.str(""); message << key << "=" << value;
+        logwrite( function, message.str() );
+      }
+    }
+    retstring = retss.str();  // return value to calling function, passed by reference
+
+    return ( error );
+  }
+  /**************** Archon::Interface::heater *********************************/
+
+
   /**************** Archon::Interface::bias ***********************************/
   /**
    * @fn     bias
@@ -3117,6 +3546,15 @@ namespace Archon {
     float voltage;
     float vmin, vmax;
     bool readonly=true;
+
+    // must have loaded firmware in order to know the installed modules
+    // TODO -- this is a weakness -- should add something to read the installed modules
+    //         without having to load firmware
+    //
+    if ( ! this->firmwareloaded ) {
+      logwrite( function, "ERROR: firmware not loaded" );
+      return( ERROR );
+    }
 
     Tokenize(args, tokens, " ");
 
@@ -3260,7 +3698,7 @@ namespace Archon {
 
     return error;
   }
-  /**************** Archon::Interface::lvbias *********************************/
+  /**************** Archon::Interface::bias ***********************************/
 
 
   /**************** Archon::Interface::cds ************************************/
