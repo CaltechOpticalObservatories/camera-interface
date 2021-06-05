@@ -131,6 +131,7 @@ namespace Archon {
       long get_parameter(std::string parameter, std::string &retstring);
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
+      long heater(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);
       long cds(std::string args, std::string &retstring);
       long test(std::string args, std::string &retstring);
