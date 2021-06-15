@@ -21,7 +21,8 @@
 #include "fits.h"
 
 #define POLLTIMEOUT 5000           //!< poll timeout in msec
-#define MAXADCHANS 16              //!< max number of AD channels per controller
+#define MAXADCCHANS 16             //!< max number of ADC channels
+#define MAXADMCHANS 72             //!< max number of ADM channels
 #define MAXCCDS 4                  //!< max number of CCDs handled by one controller
 #define BLOCK_LEN 1024             //!< Archon block size
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
@@ -76,8 +77,8 @@ namespace Archon {
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       bool abort;
       int  taplines;
-      int  gain[MAXADCHANS];                 //!< digital CDS gain (from TAPLINE definition)   //TODO convert to vector
-      int  offset[MAXADCHANS];               //!< digital CDS offset (from TAPLINE definition) //TODO convert to vector
+      std::vector<int> gain;                 //!< digital CDS gain (from TAPLINE definition)
+      std::vector<int> offset;               //!< digital CDS offset (from TAPLINE definition)
       bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
       bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
 
@@ -187,9 +188,16 @@ namespace Archon {
       } frame;
 
       /** @var      vector modtype
-       *  @details  stores the type of each module listed under [SYSTEM] in the acf file
+       *  @details  stores the type of each module from the SYSTEM command
        */
       std::vector<int> modtype;
+
+      /** @var      vector modversion
+       *  @details  stores the version of each module from the SYSTEM command
+       */
+      std::vector<std::string> modversion;
+
+      std::string backplaneversion;
 
       /** @var      int lastframe
        *  @details  the last (I.E. previous) frame number acquired

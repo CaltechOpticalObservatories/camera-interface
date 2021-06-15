@@ -32,9 +32,10 @@ namespace Archon {
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
 
-    // pre-size the modtype vector to hold the max number of modules
+    // pre-size the modtype and modversion vectors to hold the max number of modules
     //
     this->modtype.resize( nmods );
+    this->modversion.resize( nmods );
 
     // TODO I should change these to STL maps instead
     //
@@ -231,6 +232,7 @@ namespace Archon {
   long Interface::connect_controller(std::string devices_in="") {
     std::string function = "Archon::Interface::connect_controller";
     std::stringstream message;
+    int adchans=0;
     long   error = ERROR;
 
     if ( this->archon.isconnected() ) {
@@ -252,6 +254,89 @@ namespace Archon {
     message << "socket connection to " << this->camera_info.hostname << ":" << this->camera_info.port << " "
             << "established on fd " << this->archon.getfd();;
     logwrite(function, message.str());
+
+    // Get the current system information for the installed modules
+    //
+    std::string reply;
+    error = this->archon_cmd( SYSTEM, reply );        // first the whole reply in one string
+
+    std::vector<std::string> lines, tokens;
+    Tokenize( reply, lines, " " );                    // then each line in a separate token "lines"
+
+    for ( auto line : lines ) {
+      Tokenize( line, tokens, "_=" );                 // finally break each line into tokens to get module, type and version
+      if ( tokens.size() != 3 ) continue;             // need 3 tokens
+
+      std::string version="";
+      int module=0;
+      int type=0;
+
+      // get the module number
+      //
+      if ( tokens[0].compare( 0, 9, "BACKPLANE" ) == 0 ) {
+        if ( tokens[1] == "VERSION" ) this->backplaneversion = tokens[1];
+        continue;
+      }
+
+      // get the module and type of each module from MODn_TYPE
+      //
+      if ( ( tokens[0].compare( 0, 3, "MOD" ) == 0 ) && ( tokens[1] == "TYPE" ) ) {
+        try {
+          module = std::stoi( tokens[0].substr(3) );
+          type   = std::stoi( tokens[2] );
+        }
+        catch (std::invalid_argument &) {
+          message.str(""); message << "ERROR: unable to convert module or type from " << tokens[0] << "=" << tokens[1] << " to integer";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          message.str(""); message << "ERROR: module " << tokens[0].substr(3) << " or type " << tokens[1] << " out of range";
+          logwrite(function, message.str());
+          return(ERROR);
+        }
+      }
+      else continue;
+
+      // get the module version
+      //
+      if ( tokens[1] == "VERSION" ) version = tokens[1]; else version = "";
+
+      // now store it permanently
+      //
+      if ( (module > 0) && (module <= nmods) ) {
+        try {
+          this->modtype.at(module-1)    = type;       // store the type in a vector indexed by module
+          this->modversion.at(module-1) = version;    // store the type in a vector indexed by module
+        }
+        catch (std::out_of_range &) {
+          message.str(""); message << "ERROR: requested module " << module << " out of range {1:" << nmods;
+          logwrite(function, message.str());
+        }
+      }
+      else {                                          // else should never happen
+        message.str(""); message << "ERROR: module " << module << " outside range {1:" << nmods << "}";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+
+      // Use the module type to resize the gain and offset vectors,
+      // but always use the largest possible value allowed.
+      //
+      if ( type ==  2 ) adchans = ( adchans < MAXADCCHANS ? MAXADCCHANS : adchans );  // ADC module (type=2) found
+      if ( type == 17 ) adchans = ( adchans < MAXADMCHANS ? MAXADMCHANS : adchans );  // ADM module (type=17) found
+      this->gain.resize( adchans );
+      this->offset.resize( adchans );
+
+      // Check that the AD modules are installed in the correct slot
+      //
+      if ( ( type == 2 || type == 17 ) && ( module < 5 || module > 8 ) ) {
+        message.str(""); message << "ERROR: AD module (type=" << type << ") cannot be in slot " << module << ". Use slots 5-8";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+
+    } // end for ( auto line : lines )
 
     // empty the Archon log
     //
@@ -730,7 +815,6 @@ namespace Archon {
     int      linecount;  // the Archon configuration line number is required for writing back to config memory
     int      error=NO_ERROR;
     bool     parse_config=false;
-    bool     parse_system=false;
 
     // get the acf filename, either passed here or from loaded default
     //
@@ -785,9 +869,9 @@ namespace Archon {
 
       // don't start parsing until [CONFIG] and stop on a newline or [SYSTEM]
       //
-      if (line == "[CONFIG]") { parse_config=true;  parse_system=false; continue; }
-      if (line == "\n"      ) { parse_config=false; parse_system=false; continue; }
-      if (line == "[SYSTEM]") { parse_config=false; parse_system=true;  continue; }
+      if (line == "[CONFIG]") { parse_config=true;  continue; }
+      if (line == "\n"      ) { parse_config=false; continue; }
+      if (line == "[SYSTEM]") { parse_config=false; continue; }
 
       std::string savedline = line;              // save un-edited line for error reporting
 
@@ -818,7 +902,7 @@ namespace Archon {
             return ERROR;
           }
           else {
-            parse_config = true; parse_system = false;
+            parse_config = true;
             message.str(""); message << "detected mode: " << mode; logwrite(function, message.str());
             this->modemap[mode].rawenable=-1;    // initialize to -1, require it be set somewhere in the ACF
                                                  // this also ensures something is saved in the modemap for this mode
@@ -830,46 +914,6 @@ namespace Archon {
 	  filestream.close();
           return ERROR;
         }
-      }
-
-      // This section is for parsing keys under the [SYSTEM] section
-      //
-      if (parse_system) {
-        int module, type;
-        std::vector<std::string> tokens;
-        // Separate into tokens using underscore and = as delimiters.
-        // This will separate into "MODn", key, value
-        //
-        Tokenize(line, tokens, "_=");
-        if (tokens.size() != 3) continue;                                 // need 3 tokens but don't worry about error reporting here
-
-        // get the type of each module from MODn_TYPE
-        //
-        if ( (tokens[0].compare(0,3,"MOD")==0) && (tokens[1] == "TYPE") ) {
-          try {
-            module = std::stoi( tokens[0].substr(3) );
-            type   = std::stoi( tokens[2] );
-          }
-          catch (std::invalid_argument &) {
-            message.str(""); message << "ERROR: unable to convert module or type from [SYSTEM] line: " << line;
-            logwrite(function, message.str());
-            return(ERROR);
-          }
-          catch (std::out_of_range &) {
-            message.str(""); message << "ERROR: module or type value out of integer range on [SYSTEM] line: " << line;
-            logwrite(function, message.str());
-            return(ERROR);
-          }
-          if ( (module > 0) && (module <= nmods) ) {
-            this->modtype[module] = type;                                 // store the type in a vector indexed by module
-          }
-          else {
-            message.str(""); message << "ERROR: module " << module << " outside range {0:" << nmods << "}";
-            logwrite(function, message.str());
-            return(ERROR);
-          }
-        }
-        continue;  // nothing else to do until a new [TAG] and parse_system = false
       }
 
       // Everything else is for parsing configuration lines so if we didn't get [CONFIG] then
@@ -1457,51 +1501,66 @@ namespace Archon {
       //
       Tokenize(this->configmap[tap.str().c_str()].value, tokens, ",");
 
-      // If all three tokens present (ADxx,gain,offset) then parse it,
+      // If all three tokens present (A?xx,gain,offset) then parse it,
       // otherwise it's an unused tap and we can skip it.
       //
       if (tokens.size() == 3) { // defined tap has three tokens
         adchan = tokens[0];     // AD channel is the first (0th) token
-        char chars[] = "ADLR";  // characters to remove in order to get just the AD channel number
+        char chars[] = "ADMLR"; // characters to remove in order to get just the AD channel number
 
-        // remove AD, L, R from the adchan string, to get just the AD channel number
+        // Before removing these characters, set the max allowed AD number based on the tapline syntax.
+        // "ADxx,gain,offset" is for ADC module
+        // "AMxx,gain,offset" is for ADM module
+        //
+        int admax = 0;
+        if ( adchan.find("AD") != std::string::npos ) admax = MAXADCCHANS;
+        else
+        if ( adchan.find("AM") != std::string::npos ) admax = MAXADMCHANS;
+        else {
+          message.str(""); message << "ERROR: bad tapline syntax. Expected ADn or AMn but got " << adchan;
+          return( ERROR );
+        }
+
+        // remove AD, AM, L, R from the adchan string, to get just the AD channel number
         //
         for (unsigned int j = 0; j < strlen(chars); j++) {
           adchan.erase(std::remove(adchan.begin(), adchan.end(), chars[j]), adchan.end());
         }
 
-        // AD# in TAPLINE is 1-based (numbered 1-16)
-        // but convert here to 0-based (numbered 0-15) and check value before using
+        // AD# in TAPLINE is 1-based (numbered 1,2,3,...)
+        // but convert here to 0-based (numbered 0,1,2,...) and check value before using
         //
         int adnum;
         try {
           adnum = std::stoi(adchan) - 1;
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: unable to convert AD numer to integer");
+          message.str(""); message << "ERROR: unable to convert AD number \'" << adchan << "\' to integer";
+          logwrite(function, message.str());
           return(ERROR);
         }
         catch (std::out_of_range &) {
           logwrite(function, "AD number out of integer range");
           return(ERROR);
         }
-        if ( (adnum < 0) || (adnum > MAXADCHANS) ) {
-          message.str(""); message << "ERROR: ADC channel " << adnum << " outside range {0:" << MAXADCHANS << "}";
+        if ( (adnum < 0) || (adnum > admax) ) {
+          message.str(""); message << "ERROR: ADC channel " << adnum << " outside range {0:" << admax << "}";
           logwrite(function, message.str());
           return(ERROR);
         }
         // Now that adnum is OK, convert next two tokens to gain, offset
         //
         try {
-          this->gain  [ adnum ] = std::stoi(tokens[1]);    // gain as function of AD channel
-          this->offset[ adnum ] = std::stoi(tokens[2]);    // offset as function of AD channel
+          this->gain.at(adnum)   = std::stoi(tokens[1]);    // gain as function of AD channel
+          this->offset.at(adnum) = std::stoi(tokens[2]);    // offset as function of AD channel
         }
         catch (std::invalid_argument &) {
           logwrite(function, "ERROR: unable to convert GAIN and/or OFFSET to integer");
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          logwrite(function, "GAIN and/or OFFSET out of integer range");
+          message.str(""); message << "ERROR: GAIN " << tokens[1] << ", OFFSET " << tokens[2] << " or AD# " << adnum << " outside range";
+          logwrite(function, message.str());
           return(ERROR);
         }
       }
@@ -2003,14 +2062,16 @@ namespace Archon {
       return(ERROR);
     }
 
-    // Get the current frame buffer status
-    //
-    error = this->get_frame_status();
-
-    if (error != NO_ERROR) {
-      logwrite(function, "ERROR: unable to get frame status");
-      return(error);
-    }
+// TODO removed 2021-Jun-09
+// This shouldn't be needed since wait_for_readout() was called previously.
+//  // Get the current frame buffer status
+//  //
+//  error = this->get_frame_status();
+//
+//  if (error != NO_ERROR) {
+//    logwrite(function, "ERROR: unable to get frame status");
+//    return(error);
+//  }
 
     // Archon buffer number of the last frame read into memory
     //
@@ -2754,7 +2815,8 @@ namespace Archon {
       }
     }
     else if ( (error == NO_ERROR) && (mode == "RAW") ) {
-      error = read_frame();                                         // For raw mode just read immediately
+      error = this->get_frame_status();                             // Get the current frame buffer status
+      if (error==NO_ERROR) error = read_frame();                    // For raw mode just read immediately
     }
 
     logwrite( function, (error==ERROR ? "ERROR" : "complete") );
@@ -2927,12 +2989,12 @@ namespace Archon {
     message << "waiting for new frame: lastframe=" << this->lastframe << " frame.index=" << this->frame.index;
     logwrite(function, message.str());
 
-    // waittime is an integral number of milliseconds 20% over the readout time
-    // and will be used to keep track of elapsed time, for timeout errors
+    // waittime is 10% over the specified readout time
+    // and will be used to keep track of timeout errors
     //
-    int waittime;
+    double waittime;
     try {
-      waittime = (int)ceil( this->common.readout_time.at(0) * 120 / 100 );
+      waittime = this->common.readout_time.at(0) * 1.1;        // this is in msec
     }
     catch(std::out_of_range &) {
       message.str(""); message << "ERROR: readout time for Archon not found from config file";
@@ -2940,8 +3002,8 @@ namespace Archon {
       return(ERROR);
     }
 
-    double clock_timeout = get_clock_time()*1000 + waittime;  // get_clock_time returns seconds, and I'm counting msec
-    double clock_now = get_clock_time()*1000;
+    double clock_now     = get_clock_time();                   // get_clock_time returns seconds
+    double clock_timeout = clock_now + waittime/1000.;         // must receive frame by this time
 
     // Poll frame status until current frame is not the last frame and the buffer is ready to read.
     // The last frame was recorded before the readout was triggered in get_frame().
@@ -2962,15 +3024,16 @@ namespace Archon {
         break;
       }  // end if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) )
 
-      // Enough time has passed to trigger a timeout error.
+      // If the frame isn't done by the predicted time then
+      // enough time has passed to trigger a timeout error.
       //
       if (clock_now > clock_timeout) {
         done = true;
         error = ERROR;
-        logwrite(function, "ERROR: timeout waiting for readout");
+        message.str(""); message << "ERROR: timeout waiting for new frame. lastframe = " << this->lastframe;
+        logwrite( function, message.str() );
       }
-      timeout( 0.001);
-      clock_now = get_clock_time()*1000;
+      clock_now = get_clock_time();
     } // end while (done == false && this->abort == false)
 
 #ifdef LOGLEVEL_DEBUG
@@ -3133,9 +3196,8 @@ namespace Archon {
     std::vector<std::string> heaterconfig;  //!< vector of configuration lines to read or write
     std::vector<std::string> heatervalue;   //!< vector of values associated with config lines (for write)
 
-    // must have loaded firmware in order to know the installed modules
-    // TODO -- this is a weakness -- should add something to read the installed modules
-    //         without having to load firmware
+    // must have loaded firmware // TODO implement a command to read the configuration 
+    //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->firmwareloaded ) {
       logwrite( function, "ERROR: firmware not loaded" );
@@ -3178,7 +3240,7 @@ namespace Archon {
 
     // check that requested module is valid
     //
-    switch ( this->modtype[ module ] ) {
+    switch ( this->modtype[ module-1 ] ) {
       case 0:
         message.str(""); message << "ERROR: module " << module << " not installed";
         logwrite(function, message.str());
@@ -3547,9 +3609,7 @@ namespace Archon {
     float vmin, vmax;
     bool readonly=true;
 
-    // must have loaded firmware in order to know the installed modules
-    // TODO -- this is a weakness -- should add something to read the installed modules
-    //         without having to load firmware
+    // must have loaded firmware
     //
     if ( ! this->firmwareloaded ) {
       logwrite( function, "ERROR: firmware not loaded" );
@@ -3599,7 +3659,7 @@ namespace Archon {
     // Use the module type to get LV or HV Bias
     // and start building the bias configuration string.
     //
-    switch ( this->modtype[ module ] ) {
+    switch ( this->modtype[ module-1 ] ) {
       case 0:
         message.str(""); message << "ERROR: module " << module << " not installed";
         logwrite(function, message.str());
@@ -3780,12 +3840,25 @@ namespace Archon {
    * specific tests. This means some common tests may need to be duplicated
    * for each controller.
    *
+   * These are kept out of server.cpp so that I don't need a separate,
+   * potentially conflicting command for each test I come up with, and also
+   * reduces the chance of someone accidentally, inadvertently entering one
+   * of these test commands.
+   *
    * The server command is "test", the next parameter is the test name,
    * and any parameters needed for the particular test are extracted as
    * tokens from the args string passed in.
    *
    * The input args string is tokenized and tests are separated by a simple
    * series of if..else.. conditionals.
+   *
+   * current tests are:
+   *   fitsname  - show what the fitsname will look like
+   *   async     - queue an asynchronous status message
+   *   modules   - Log all installed modules and their types
+   *   parammap  - Log all parammap entries found in the ACF file
+   *   configmap - Log all configmap entries found in the ACF file
+   *   bw        - tests the exposure sequence bandwidth by running a sequence of exposures
    *
    */
   long Interface::test(std::string args, std::string &retstring) {
@@ -3840,6 +3913,23 @@ namespace Archon {
       }
       error = NO_ERROR;
     } // end if (testname == async)
+
+    // ----------------------------------------------------
+    // modules
+    // ----------------------------------------------------
+    // Log all installed modules
+    //
+    else
+    if (testname == "modules") {
+      logwrite( function, "installed module types: " );
+      message.str("");
+      for ( auto mod : this->modtype ) {
+        message << mod << " ";
+      }
+      logwrite( function, message.str() );
+      retstring = message.str();
+      error = NO_ERROR;
+    }
 
     // ----------------------------------------------------
     // parammap
@@ -4019,20 +4109,21 @@ namespace Archon {
         if (error==NO_ERROR && !noread) error = this->read_frame(Common::FRAME_IMAGE);  // read image frame directly with no write
         if (error==NO_ERROR) frames_read++;
       }
+      retstring = std::to_string( frames_read );
 
       logwrite( function, (error==ERROR ? "ERROR" : "complete") );
 
       message.str(""); message << "frames read = " << frames_read;
       logwrite(function, message.str());
 
-      // disarm the exposure here, to avoid it being accidentally re-triggered
-      //
-      logwrite(function, "disarming expose trigger");
-      std::string disarm = "0";
-      error = this->prep_parameter(this->exposeparam, disarm);
-      if (error==ERROR) logwrite(function, "ERROR disarming expose trigger");
+// TODO removed 2021-Jun-09
+//    // disarm the exposure here, to avoid it being accidentally re-triggered
+//    //
+//    logwrite(function, "disarming expose trigger");
+//    std::string disarm = "0";
+//    error = this->prep_parameter(this->exposeparam, disarm);
+//    if (error==ERROR) logwrite(function, "ERROR disarming expose trigger");
 
-      error = NO_ERROR;
     } // end if (testname==bw)
 
     // ----------------------------------------------------
