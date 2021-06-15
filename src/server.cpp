@@ -362,6 +362,13 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
+    if (cmd.compare("loadtiming")==0) {
+                    std::string retstring;  // string for the return value
+                    if (args.empty()) ret = server.load_timing(retstring);
+                    else              ret = server.load_timing(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
     if (cmd.compare("mode")==0) {
                     if (args.empty()) {     // no argument means asking for current mode
                       if (server.modeselected) {

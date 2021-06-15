@@ -21,8 +21,8 @@
 #include "fits.h"
 
 #define POLLTIMEOUT 5000           //!< poll timeout in msec
-#define MAXADCCHANS 16             //!< max number of ADC channels
-#define MAXADMCHANS 72             //!< max number of ADM channels
+#define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
+#define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
 #define MAXCCDS 4                  //!< max number of CCDs handled by one controller
 #define BLOCK_LEN 1024             //!< Archon block size
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
@@ -39,6 +39,7 @@
 #define  POWEROFF      std::string("POWEROFF")
 #define  APPLYCDS      std::string("APPLYCDS")
 #define  RESETTIMING   std::string("RESETTIMING")
+#define  LOADTIMING    std::string("LOADTIMING")
 #define  HOLDTIMING    std::string("HOLDTIMING")
 #define  RELEASETIMING std::string("RELEASETIMING")
 #define  LOADPARAMS    std::string("LOADPARAMS")
@@ -98,9 +99,11 @@ namespace Archon {
       long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
       long connect_controller(std::string devices_in);  //!< open connection to archon controller
       long disconnect_controller();          //!< disconnect from archon controller
-      long load_firmware();                  //!< load default firmware (ACF)
-      long load_firmware(std::string acffile); //!< load specified firmware (ACF)
-      long load_firmware(std::string acffile, std::string retstring);
+      long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING
+      long load_timing(std::string acffile, std::string &retstring);
+      long load_firmware(std::string acffile); //!< load specified acf then APPLYALL
+      long load_firmware(std::string acffile, std::string &retstring);
+      long load_acf(std::string acffile);    //!< only load (WCONFIG) the specified ACF file
       long set_camera_mode(std::string mode_in);
       long load_mode_settings(std::string mode);
       long native(std::string cmd);

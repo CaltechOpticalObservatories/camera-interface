@@ -754,23 +754,66 @@ namespace Archon {
   /**************** Archon::Interface::fetchlog *******************************/
 
 
+  /**************** Archon::Interface::load_timing ****************************/
+  /**
+   * @fn     load_timing
+   * @brief  loads the ACF file and applies the timing script and parameters only
+   * @param  acffile, specified ACF to load
+   * @param  retstring, reference to string for return values // TODO not yet implemented
+   * @return 
+   *
+   * This function is overloaded.
+   *
+   * This function loads the ACF file then sends the LOADTIMING command 
+   * which parses and compiles only the timing script and parameters.  
+   *
+   */
+  long Interface::load_timing(std::string acffile, std::string &retstring) {
+    return( this->load_timing( acffile ) );
+  }
+  long Interface::load_timing(std::string acffile) {
+    std::string function = "Archon::Interface::load_timing";
+
+    // load the ACF file into configuration memory
+    //
+    long error = this->load_acf( acffile );
+
+    // parse timing script and parameters and apply them to the system
+    //
+    if (error == NO_ERROR) error = this->archon_cmd(LOADTIMING);
+
+    return( error );
+  }
+  /**************** Archon::Interface::load_timing ****************************/
+
+
   /**************** Archon::Interface::load_firmware **************************/
   /**
    * @fn     load_firmware
-   * @brief
+   * @brief  loads the ACF file and applies the complete system configuration
    * @param  none
    * @return 
    *
    * This function is overloaded.
    *
-   * This version is when no argument is passed then call the version requiring
-   * an argument, using the default firmware specified in the .cfg file.
+   * This version takes a single argument for the acf file to load.
+   *
+   * This function loads the ACF file and then sends an APPLYALL which
+   * parses and applies the complete system configuration from the 
+   * configuration memory just loaded. The detector power will be off.
    *
    */
-  long Interface::load_firmware() {
-    long ret = this->load_firmware( this->common.firmware[0] );
-    if (ret == ERROR) this->fetchlog();
-    return(ret);
+  long Interface::load_firmware(std::string acffile) {
+    // load the ACF file into configuration memory
+    //
+    long error = this->load_acf( acffile );
+
+    // Parse and apply the complete system configuration from configuration memory.
+    // Detector power will be off after this.
+    //
+    if (error == NO_ERROR) error = this->archon_cmd(APPLYALL);
+
+    return( error );
   }
   /**************** Archon::Interface::load_firmware **************************/
   /**
@@ -785,25 +828,34 @@ namespace Archon {
    * The multiple-controller version will pass a reference to a return string. //TODO
    *
    */
-  long Interface::load_firmware(std::string acffile, std::string retstring) {
-    long ret = this->load_firmware( acffile );
-    if (ret == ERROR) this->fetchlog();
-    return(ret);
+  long Interface::load_firmware(std::string acffile, std::string &retstring) {
+logwrite("load_firmware", "two arg");
+    return( this->load_firmware( acffile ) );
   }
   /**************** Archon::Interface::load_firmware **************************/
+
+
+  /**************** Archon::Interface::load_acf *******************************/
   /**
-   * @fn     load_firmware
-   * @brief
-   * @param  none
-   * @return 
+   * @fn     load_acf
+   * @brief  loads the ACF file into configuration memory (no APPLY!)
+   * @param  acffile
+   * @return ERROR or NO_ERROR
    *
-   * This function is overloaded.
+   * This function loads the specfied file into configuration memory.
+   * While the ACF is being read, an internal database (STL map) is being 
+   * created to allow lookup access to the ACF file or parameters.
    *
-   * This version takes a single argument for the acf file to load.
+   * The [MODE_XXX] sections are also parsed and parameters as a function
+   * of mode are saved in their own database.
+   *
+   * This function only loads (WCONFIGxxx) the configuration memory; it does
+   * not apply it to the system. Therefore, this function must be followed
+   * with a LOADTIMING or APPLYALL command, for example.
    *
    */
-  long Interface::load_firmware(std::string acffile) {
-    std::string function = "Archon::Interface::load_firmware";
+  long Interface::load_acf(std::string acffile) {
+    std::string function = "Archon::Interface::load_acf";
     std::stringstream message;
     std::fstream filestream;  // I/O stream class
     std::string line;         // the line read from the acffile
@@ -1202,10 +1254,6 @@ namespace Archon {
     //
     if (error == NO_ERROR) error = this->archon_cmd(POLLON);
 
-    // apply the configuration just loaded into memory, and turn on power
-    //
-    if (error == NO_ERROR) error = this->archon_cmd(APPLYALL);
-
     filestream.close();
     if (error == NO_ERROR) {
       logwrite(function, "loaded Archon config file OK");
@@ -1221,7 +1269,7 @@ namespace Archon {
 
     return(error);
   }
-  /**************** Archon::Interface::load_firmware **************************/
+  /**************** Archon::Interface::load_acf *******************************/
 
 
   /**************** Archon::Interface::set_camera_mode ************************/
@@ -3859,7 +3907,7 @@ namespace Archon {
    *   parammap  - Log all parammap entries found in the ACF file
    *   configmap - Log all configmap entries found in the ACF file
    *   bw        - tests the exposure sequence bandwidth by running a sequence of exposures
-   *
+   *   timer     - test Archon time against system time
    */
   long Interface::test(std::string args, std::string &retstring) {
     std::string function = "Archon::Interface::test";
@@ -4116,15 +4164,61 @@ namespace Archon {
       message.str(""); message << "frames read = " << frames_read;
       logwrite(function, message.str());
 
-// TODO removed 2021-Jun-09
-//    // disarm the exposure here, to avoid it being accidentally re-triggered
-//    //
-//    logwrite(function, "disarming expose trigger");
-//    std::string disarm = "0";
-//    error = this->prep_parameter(this->exposeparam, disarm);
-//    if (error==ERROR) logwrite(function, "ERROR disarming expose trigger");
-
     } // end if (testname==bw)
+
+    // ----------------------------------------------------
+    // timer
+    // ----------------------------------------------------
+    // test Archon time against system time
+    //
+    else
+    if (testname == "timer") {
+
+      int nseq;
+      int sleepus;
+      unsigned long int time;
+
+      if (tokens.size() < 3) {
+        logwrite(function, "ERROR: expected test timer <cycles> <sleepus>");
+        return ERROR;
+      }
+
+      try {
+        nseq    = std::stoi( tokens[1] );
+        sleepus = std::stoi( tokens[2] );
+        message.str(""); message << "sleepus = " << sleepus; logwrite(function, message.str());
+      }
+      catch (std::invalid_argument &) {
+        message.str(""); message << "ERROR: unable to convert " << tokens[1] << " or " << tokens[2] << " to an integer";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+      catch (std::out_of_range &) {
+        message.str(""); message << "ERROR: " << tokens[1] << " or " << tokens[2] << " outside integer range";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+
+      error = NO_ERROR;
+
+      // turn off background polling while doing the timing test
+      //
+      if (error == NO_ERROR) error = this->archon_cmd(POLLOFF);
+
+      // send the Archon TIMER command here, nseq times, with sleepus delay between each
+      //
+      while ( error==NO_ERROR && nseq-- > 0 ) {
+        error = get_timer(&time);
+        message.str(""); message << "Archon time = " << time;
+        logwrite( function, message.str() );
+        usleep( sleepus );
+      }
+
+      // background polling back on
+      //
+      if (error == NO_ERROR) error = this->archon_cmd(POLLON);
+
+    } // end if (testname==timer)
 
     // ----------------------------------------------------
     // invalid test name
