@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <numeric>
+#include <fenv.h>
 
 #include "utilities.h"
 #include "common.h"
@@ -82,6 +83,9 @@ namespace Archon {
       std::vector<int> offset;               //!< digital CDS offset (from TAPLINE definition)
       bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
       bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
+
+      float heater_target_min;               //!< minimum heater target temperature
+      float heater_target_max;               //!< maximum heater target temperature
 
       char *image_data;                      //!< image data buffer
       uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size

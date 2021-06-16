@@ -274,7 +274,7 @@ namespace Archon {
       // get the module number
       //
       if ( tokens[0].compare( 0, 9, "BACKPLANE" ) == 0 ) {
-        if ( tokens[1] == "VERSION" ) this->backplaneversion = tokens[1];
+        if ( tokens[1] == "VERSION" ) this->backplaneversion = tokens[2];
         continue;
       }
 
@@ -300,7 +300,7 @@ namespace Archon {
 
       // get the module version
       //
-      if ( tokens[1] == "VERSION" ) version = tokens[1]; else version = "";
+      if ( tokens[1] == "VERSION" ) version = tokens[2]; else version = "";
 
       // now store it permanently
       //
@@ -3254,6 +3254,15 @@ logwrite("load_firmware", "two arg");
 
     std::transform( args.begin(), args.end(), args.begin(), ::toupper );  // make uppercase
 
+    // RAMP requires backplane version 1.0.548 or newer
+    //
+    if ( (args.find("RAMP") != std::string::npos) && (backplaneversion < "1.0.548") ) {
+      message.str(""); message << "ERROR: RAMP command requires backplane version 1.0.548 or newer. ("
+                               << backplaneversion << " detected)";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
     Tokenize(args, tokens, " ");
 
     // At minimum there must be two tokens, <module> A|B
@@ -3301,6 +3310,21 @@ logwrite("load_firmware", "two arg");
         logwrite(function, message.str());
         return(ERROR);
     }
+
+   // Now that we've passed the basic tests (firmware OK, basic syntax OK, and requested module is a heater)
+   // go ahead and set up some needed variables.
+   //
+
+   // heater target min/max
+   //
+   if ( this->backplaneversion < "1.0.1087" ) {
+     this->heater_target_min = -150.0;
+     this->heater_target_max =   50.0;
+   }
+   else {
+     this->heater_target_min = -250.0;
+     this->heater_target_max =   50.0;
+   }
 
     heaterconfig.clear();
     heatervalue.clear();
@@ -3357,10 +3381,9 @@ logwrite("load_firmware", "two arg");
         //
         try {
           target = std::stof( tokens[2] );
-          float target_min = -150.0; // TODO need to check board rev to apply correct limits
-          float target_max =   50.0; // TODO need to check board rev to apply correct limits
-          if ( target < target_min || target > target_max ) {
-            message.str(""); message << "ERROR: requested target " << target << " outside range {" << target_min << ":" << target_max << "}";
+         if ( target < this->heater_target_min || target > this->heater_target_max ) {
+           message.str(""); message << "ERROR: requested target " << target << " outside range {" 
+                                    << this->heater_target_min << ":" << this->heater_target_max << "}";
             logwrite( function, message.str() );
             return( ERROR );
           }
@@ -3392,10 +3415,9 @@ logwrite("load_firmware", "two arg");
         //
         try {
           target = std::stof( tokens[3] );
-          float target_min = -150.0; // TODO need to check board rev to apply correct limits
-          float target_max =   50.0; // TODO need to check board rev to apply correct limits
-          if ( target < target_min || target > target_max ) {
-            message.str(""); message << "ERROR: requested target " << target << " outside range {" << target_min << ":" << target_max << "}";
+         if ( target < this->heater_target_min || target > this->heater_target_max ) {
+           message.str(""); message << "ERROR: requested target " << target << " outside range {" 
+                                    << this->heater_target_min << ":" << this->heater_target_max << "}";
             logwrite( function, message.str() );
             return( ERROR );
           }
@@ -3499,7 +3521,24 @@ logwrite("load_firmware", "two arg");
       }
       else {  // got "<module> A|B PID <p> <i> <d>" now check that the last 3 tokens are numbers
         try {
-// TODO need to check for board rev and convert appropriately to float or int
+          // For backplane versions before 1.0.1054, fractional PID was not allowed
+          // so check here that there are no decimal points if using older backplanes.
+          //
+          if ( (this->backplaneversion < "1.0.1054") &&
+               ( ( tokens[3].find(".") != std::string::npos ) ||
+                 ( tokens[4].find(".") != std::string::npos ) ||
+                 ( tokens[5].find(".") != std::string::npos ) ) ) {
+            fesetround(FE_TONEAREST);  // round to value nearest X. halfway cases rounded away from zero
+            tokens[3] = std::to_string( std::lrint( std::stof( tokens[3] ) ) ); // replace token with rounded integer
+            tokens[4] = std::to_string( std::lrint( std::stof( tokens[4] ) ) ); // replace token with rounded integer
+            tokens[5] = std::to_string( std::lrint( std::stof( tokens[5] ) ) ); // replace token with rounded integer
+
+            logwrite( function, "NOTICE: fractional PID requires backplane version 1.0.1054 or newer" );
+            message.str(""); message << "NOTICE: backplane version " << backplaneversion << " detected";
+            logwrite( function, message.str() );
+            message.str(""); message << "NOTICE: PIDs converted to: " << tokens[3] << " " << tokens[4] << " " << tokens[5];
+            logwrite( function, message.str() );
+          }
           pid_p = std::stof( tokens[3] );
           pid_i = std::stof( tokens[4] );
           pid_d = std::stof( tokens[5] );
@@ -3510,14 +3549,12 @@ logwrite("load_firmware", "two arg");
           }
         }
         catch (std::invalid_argument &) {
-// TODO need to check for board rev and convert appropriately to float or int
           message.str(""); message << "ERROR: expected PID <p> <i> <d> but unable to convert one or more values to numbers:";
           for (int i=3; i<6; i++) message << " " << tokens[i];
           logwrite(function, message.str());
           return(ERROR);
         }
         catch (std::out_of_range &) {
-// TODO need to check for board rev and convert appropriately to float or int
           message.str(""); message << "ERROR: expected PID <p> <i> <d> but one or more values outside range:";
           for (int i=3; i<6; i++) message << " " << tokens[i];
           logwrite(function, message.str());
