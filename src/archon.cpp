@@ -4176,7 +4176,10 @@ logwrite("load_firmware", "two arg");
 
       int nseq;
       int sleepus;
-      unsigned long int time;
+      double systime1, systime2;
+      unsigned long int archontime1, archontime2;
+      std::vector<int> deltatime;
+      int delta_archon, delta_system;
 
       if (tokens.size() < 3) {
         logwrite(function, "ERROR: expected test timer <cycles> <sleepus>");
@@ -4186,7 +4189,6 @@ logwrite("load_firmware", "two arg");
       try {
         nseq    = std::stoi( tokens[1] );
         sleepus = std::stoi( tokens[2] );
-        message.str(""); message << "sleepus = " << sleepus; logwrite(function, message.str());
       }
       catch (std::invalid_argument &) {
         message.str(""); message << "ERROR: unable to convert " << tokens[1] << " or " << tokens[2] << " to an integer";
@@ -4207,16 +4209,53 @@ logwrite("load_firmware", "two arg");
 
       // send the Archon TIMER command here, nseq times, with sleepus delay between each
       //
+      int nseqsave = nseq;
       while ( error==NO_ERROR && nseq-- > 0 ) {
-        error = get_timer(&time);
-        message.str(""); message << "Archon time = " << time;
-        logwrite( function, message.str() );
+        // get Archon timer [ns] and system time [s], twice
+        //
+        error = get_timer(&archontime1);
+        systime1 = get_clock_time();
+        error = get_timer(&archontime2);
+        systime2 = get_clock_time();
+
+        // difference between two calls, converted to µsec
+        //
+        delta_archon = (int)((archontime2 - archontime1) / 100.);  // archon time was in 10 nsec
+        delta_system = (int)((systime2 - systime1) * 1000000.);    // system time was in sec
+
+        // enque each line to the async message port
+        //
+        message.str(""); message << "TEST_TIMER: " << nseqsave-nseq << ", " << delta_archon << ", " << delta_system;
+        this->common.message.enqueue( message.str() );
+
+        // save the difference between 
+        //
+        deltatime.push_back( abs( delta_archon - delta_system ) );
+
         usleep( sleepus );
       }
 
       // background polling back on
       //
       if (error == NO_ERROR) error = this->archon_cmd(POLLON);
+
+      // calculate the average and standard deviation of the difference
+      // between system and archon
+      //
+      double sum = std::accumulate(std::begin(deltatime), std::end(deltatime), 0.0);
+      double m =  sum / deltatime.size();
+
+      double accum = 0.0;
+      std::for_each (std::begin(deltatime), std::end(deltatime), [&](const double d) {
+          accum += (d - m) * (d - m);
+      });
+
+      double stdev = sqrt(accum / (deltatime.size()-1));
+
+      message.str(""); message << "average delta=" << m << " stddev=" << stdev;
+      logwrite(function, message.str());
+
+      retstring = std::to_string( stdev );
 
     } // end if (testname==timer)
 
