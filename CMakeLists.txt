@@ -103,6 +103,17 @@ elseif(${INTERFACE_TYPE} STREQUAL "Archon")
 	add_library(interface STATIC
                 ${PROJECT_SOURCE_DIR}/archon.cpp
                 )
+
+        set(EMULATOR_TARGET emulator-archon)
+        list(APPEND EMULATOR_SOURCE
+                "${PROJECT_SOURCE_DIR}/emulator-archon.cpp"
+                )
+        list(APPEND EMULATOR_INCLUDES
+                "${ARCHON_INCLUDE}"
+                )
+	add_library(emulator-interface STATIC
+                ${PROJECT_SOURCE_DIR}/emulator-archon.cpp
+                )
 else()
         message(FATAL_ERROR " unknown interface type: " ${INTERFACE_TYPE})
 endif()
@@ -114,6 +125,9 @@ endif()
 #
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
+
+add_library(${EMULATOR_TARGET} ${EMULATOR_SOURCE})
+target_include_directories(${EMULATOR_TARGET} PUBLIC ${EMULATOR_INCLUDES})
 
 # ----------------------------------------------------------------------------
 # External libraries, such as FITS, etc.
@@ -149,6 +163,11 @@ add_executable(cameraserver
         ${INTERFACE_INCLUDES}
         )
 
+add_executable(emulator 
+        ${PROJECT_SOURCE_DIR}/emulator-server.cpp 
+        ${EMULATOR_INCLUDES}
+        )
+
 # ----------------------------------------------------------------------------
 # Everyone gets this:
 # ----------------------------------------------------------------------------
@@ -162,6 +181,14 @@ target_link_libraries(cameraserver
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
         ${CFITS_LIB}
+        )
+
+target_link_libraries(emulator
+        network
+        logentry
+        utilities
+        ${EMULATOR_TARGET}
+        ${CMAKE_THREAD_LIBS_INIT}
         )
 
 # ----------------------------------------------------------------------------
