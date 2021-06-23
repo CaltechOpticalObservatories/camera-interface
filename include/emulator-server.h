@@ -36,15 +36,11 @@
 
 namespace Emulator {
 
-/*
 #ifdef ASTROCAM
   class Server : public AstroCam::Interface {
 #elif STA_ARCHON
   class Server : public Archon::Interface {
 #endif
-*/
-  class Server : public Archon::Interface {
-//class Server {
     private:
     public:
       Server() {
@@ -74,7 +70,6 @@ namespace Emulator {
       int blocking_socket;
 
       Network::TcpSocket nonblocking;
-      Config config;
 
       std::mutex conn_mutex;             //!< mutex to protect against simultaneous access to Accept()
 
@@ -92,6 +87,7 @@ namespace Emulator {
       }
       /** Emulator::Server::exit_cleanly *******************************************/
 
+
       /** Emulator::Server::configure_server ***************************************/
       /**
        * @fn     configure_server
@@ -101,7 +97,7 @@ namespace Emulator {
        *
        */
       long configure_server() {
-        std::string function = "Emulator::Server::configure_server";
+        std::string function = "(Emulator::Server::configure_server) ";
         std::stringstream message;
         int applied=0;
         long error;
@@ -110,18 +106,18 @@ namespace Emulator {
         //
         for (int entry=0; entry < this->config.n_entries; entry++) {
 
-          // EMULATORPORT
-          if (config.param[entry].compare(0, 12, "EMULATORPORT")==0) {
+          // EMULATOR_PORT
+          if (config.param[entry].compare(0, 13, "EMULATOR_PORT")==0) {
             int port;
             try {
               port = std::stoi( config.arg[entry] );
             }
             catch (std::invalid_argument &) {
-              std::cerr << "ERROR: bad EMULATORPORT: unable to convert to integer\n";
+              std::cerr << function << "ERROR: bad EMULATOR_PORT: unable to convert to integer\n";
               return(ERROR);
             }
             catch (std::out_of_range &) {
-              std::cerr << "EMULATORPORT number out of integer range\n";
+              std::cerr << function << "EMULATOR_PORT number out of integer range\n";
               return(ERROR);
             }
             this->emulatorport = port;
@@ -135,11 +131,11 @@ namespace Emulator {
               port = std::stoi( config.arg[entry] );
             }
             catch (std::invalid_argument &) {
-              std::cerr << "ERROR: bad NBPORT: unable to convert to integer\n";
+              std::cerr << function << "ERROR: bad NBPORT: unable to convert to integer\n";
               return(ERROR);
             }
             catch (std::out_of_range &) {
-              std::cerr << "NBPORT number out of integer range\n";
+              std::cerr << function << "NBPORT number out of integer range\n";
               return(ERROR);
             }
             this->nbport = port;
@@ -153,11 +149,11 @@ namespace Emulator {
               port = std::stoi( config.arg[entry] );
             }
             catch (std::invalid_argument &) {
-              std::cerr << "ERROR: bad BLKPORT: unable to convert to integer\n";
+              std::cerr << function << "ERROR: bad BLKPORT: unable to convert to integer\n";
               return(ERROR);
             }
             catch (std::out_of_range &) {
-              std::cerr << "BLKPORT number out of integer range\n";
+              std::cerr << function << "BLKPORT number out of integer range\n";
               return(ERROR);
             }
             this->blkport = port;
@@ -171,11 +167,11 @@ namespace Emulator {
               port = std::stoi( config.arg[entry] );
             }
             catch (std::invalid_argument &) {
-              std::cerr << "ERROR: bad ASYNCPORT: unable to convert to integer\n";
+              std::cerr << function << "ERROR: bad ASYNCPORT: unable to convert to integer\n";
               return(ERROR);
             }
             catch (std::out_of_range &) {
-              std::cerr << "ASYNCPORT number out of integer range\n";
+              std::cerr << function << "ASYNCPORT number out of integer range\n";
               return(ERROR);
             }
             this->asyncport = port;
@@ -199,7 +195,7 @@ namespace Emulator {
           error = NO_ERROR;
         } 
         message << "applied " << applied << " configuration lines to server";
-        std::cerr << message.str() << "\n";
+        std::cerr << function << message.str() << "\n";
         return error;
       }
       /** Emulator::Server::configure_server ***************************************/

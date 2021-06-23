@@ -1,11 +1,66 @@
 #include "emulator-archon.h"
 namespace Archon {
 
+  // Archon::Interface constructor
+  //
   Interface::Interface() {
+    this->modtype.resize( nmods );
+    this->modversion.resize( nmods );
   }
+
+  // Archon::Interface deconstructor
+  //
   Interface::~Interface() {
   }
 
+  /**************** Interface::configure_controller ***************************/
+  /**
+   * @fn     configure_controller
+   * @brief  get configuration parameters from .cfg file
+   * @param  none
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::configure_controller() {
+    std::string function = "(Archon::Interface::configure_controller) ";
+
+    // loop through the entries in the configuration file, stored in config class
+    //
+    for ( int entry=0; entry < this->config.n_entries; entry++ ) {
+
+      try {
+        if ( config.param.at(entry).compare(0, 15, "EMULATOR_SYSTEM")==0 ) {
+          this->systemfile = config.arg.at(entry);
+        }
+      }
+      catch( std::invalid_argument & ) {
+        std::cerr << function << "ERROR: invalid argument\n";
+        return( ERROR );
+      }
+      catch( std::out_of_range & ) {
+        std::cerr << function << "ERROR: value out of range\n";
+        return( ERROR );
+      }
+      catch( ... ) {
+        std::cerr << function << "unknown error\n";
+        return( ERROR );
+      }
+
+    }
+
+    return( NO_ERROR );
+  }
+  /**************** Interface::configure_controller ***************************/
+
+
+  /**************** Interface:wrconfig ****************************************/
+  /**
+   * @fn     wconfig
+   * @brief  handles the incoming WCONFIG command
+   * @param  buf, incoming command string
+   * @return ERROR or NO_ERROR
+   *
+   */
   long Interface::wconfig(std::string buf) {
     std::string function = "(Archon::Interface::wconfig) ";
     std::string line;
@@ -50,12 +105,12 @@ std::cerr << function << "stored configmap[ " << linenumber
           << " .value=" << this->configmap[ linenumber ].value
           << "\n";
 
-        // build an STL map "parammap" indexed on linenumber because that's what Archon uses
+        // build an STL map "parammap" indexed on ParameterName so that FASTPREPPARAM can lookup by the actual name
         //
-        this->parammap[ linenumber ].key   = tokens.at(0); // PARAMETERn
-        this->parammap[ linenumber ].name  = tokens.at(1); // ParameterName
-        this->parammap[ linenumber ].value = tokens.at(2); // value
-        this->parammap[ linenumber ].line  = linenumber;   // line number
+        this->parammap[ tokens.at(1) ].key   = tokens.at(0);         // PARAMETERn
+        this->parammap[ tokens.at(1) ].name  = tokens.at(1);         // ParameterName
+        this->parammap[ tokens.at(1) ].value = tokens.at(2);         // value
+        this->parammap[ tokens.at(1) ].line  = linenumber;           // line number
       }
 
       // ...otherwise, for all other KEY=VALUE pairs, there is only the value and line number
@@ -105,13 +160,23 @@ std::cerr << function << "stored configmap[ " << linenumber
 //  std::cerr << "(Archon::Interface::wconfig) " << buf << "\n";
     return( NO_ERROR );
   }
+  /**************** Interface:wrconfig ****************************************/
 
 
+  /**************** Interface::rconfig ****************************************/
+  /**
+   * @fn     rconfig
+   * @brief  handles the incoming RCONFIG command
+   * @param  buf, incoming command string
+   * @param  &retstring, reference to string for return values
+   * @return ERROR or NO_ERROR
+   *
+   */
   long Interface::rconfig(std::string buf, std::string &retstring) {
     std::string function = "(Archon::Interface::rconfig) ";
     std::string linenumber;
 
-    if ( buf.length() != 11 ) {                       // check for minimum length "RCONFIGxxxx", 11 chars
+    if ( buf.length() != 11 ) {        // check for minimum length "RCONFIGxxxx", 11 chars
       return( ERROR );
     }
 
@@ -144,4 +209,170 @@ std::cerr << function << "retsring=" << retstring << "\n";
     }
     return( NO_ERROR );
   }
+  /**************** Interface::rconfig ****************************************/
+
+
+  /**************** Interface::system *****************************************/
+  /**
+   * @fn     system
+   * @brief  handles the incoming SYSTEM command
+   * @param  buf, incoming command string
+   * @param  &retstring, reference to string for return values
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::system(std::string buf, std::string &retstring) {
+    std::string function = "(Archon::Interface::system) ";
+    std::fstream filestream;
+    std::string line;
+    std::vector<std::string> tokens;
+
+    // need system file
+    //
+    if ( this->systemfile.empty() ) {
+      std::cerr << function << "ERROR: missing EMULATOR_SYSTEM from configuration file\n";
+      return( ERROR );
+    }
+
+    // try to open the file
+    //
+    try {
+      filestream.open( this->systemfile, std::ios_base::in );
+    }
+    catch(...) {
+      std::cerr << function << "ERROR: opening system file: " << this->systemfile << ": " << std::strerror(errno) << "\n";
+      return( ERROR );
+    }
+
+    if ( ! filestream.is_open() || ! filestream.good() ) {
+      std::cerr << function << " ERROR: system file: " << this->systemfile << " not open\n";
+      return( ERROR );
+    }
+
+    while ( getline( filestream, line ) ) {
+
+      if ( line == "[SYSTEM]" ) continue;
+
+      retstring += line + " ";
+
+      Tokenize( line, tokens, "_=" );
+      if ( tokens.size() != 3 ) continue;
+
+      int module=0;
+      std::string version="";
+
+      // get the type of each module from MODn_TYPE
+      //
+      try {
+
+        if ( tokens.at(0).compare( 0, 9, "BACKPLANE" ) == 0 ) {
+          if ( tokens.at(1) == "VERSION" ) this->backplaneversion = tokens.at(2);
+          continue;
+        }
+
+        if ( ( tokens.at(0).compare(0,3,"MOD")==0 ) && ( tokens.at(1)=="TYPE" ) ) {
+          module = std::stoi( tokens.at(0).substr(3) );
+          if ( ( module > 0 ) && ( module <= nmods ) ) {
+            this->modtype.at( module-1 ) = std::stoi( tokens.at(2) );
+          }
+          else {
+            std::cerr << function << "ERROR: module " << module << " outside range {0:" << nmods << "}\n";
+            return( ERROR );
+          }
+        }
+
+        // get the module version
+        //
+        if ( ( tokens.at(0).compare(0,3,"MOD")==0 ) && ( tokens.at(1) == "VERSION" ) ) {
+          module = std::stoi( tokens.at(0).substr(3) );
+          if ( ( module > 0 ) && ( module <= nmods ) ) {
+            this->modversion.at( module-1 ) = tokens.at(2);
+          }
+          else {
+            std::cerr << function << "ERROR: module " << module << " outside range {0:" << nmods << "}\n";
+            return( ERROR );
+          }
+        }
+        else {
+          continue;
+        }
+      }
+      catch( std::invalid_argument & ) {
+        std::cerr << function << "ERROR: invalid argument, unable to convert module or type\n";
+        return( ERROR );
+      }
+      catch( std::out_of_range & ) {
+        std::cerr << function << "ERROR: value out of range, unable to convert module or type\n";
+        return( ERROR );
+      }
+      catch( ... ) {
+        std::cerr << function << "unknown error converting module or type\n";
+        return( ERROR );
+      }
+
+    }
+
+    return( NO_ERROR );
+  }
+  /**************** Interface::system *****************************************/
+
+
+  /**************** Interface::write_parameter ********************************/
+  /**
+   * @fn     write_parameter
+   * @brief  
+   * @param  
+   * @param  
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::write_parameter(std::string buf) {
+    std::string function = "(Archon::Interface::write_parameter) ";
+    std::vector<std::string> tokens;
+    std::string key="";
+    std::string value="";
+    std::string line="";
+
+    Tokenize( buf, tokens, " " );
+
+    if ( tokens.size() != 2 ) {
+      std::cerr << function << "ERROR: expected <Paramname> <value> but received " << buf << "\n";
+      return( ERROR );
+    }
+
+    try {
+      key =   tokens.at(0);
+      value = tokens.at(1);
+    }
+    catch( std::out_of_range & ) {
+      std::cerr << function << "ERROR: token value out of range, unable to extract key, value pair\n";
+      return( ERROR );
+    }
+    catch( ... ) {
+      std::cerr << function << "unknown error extracting key, value pair\n";
+      return( ERROR );
+    }
+
+    if ( key.empty() || value.empty() ) {   // should be impossible
+      std::cerr << function << "ERROR: key or value cannot be empty\n";
+      return( ERROR );
+    }
+
+    else
+
+    if ( this->parammap.find( key ) == this->parammap.end() ) {
+      std::cerr << function << "ERROR: " << key << " not found in parammap\n";
+      return( ERROR );
+    }
+
+    else {
+      line = this->parammap[ key ].line;
+      this->configmap[ line ].value = value;
+      this->parammap[ key ].value = value;       //TODO needed??
+    }
+
+    return( NO_ERROR );
+  }
+  /**************** Interface::write_parameter ********************************/
+
 }

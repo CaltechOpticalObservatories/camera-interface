@@ -7,7 +7,6 @@
  */
 
 #include "emulator-server.h"
-#include "emulator-archon.h"
 
 Emulator::Server server;
 
@@ -73,6 +72,8 @@ int main(int argc, char **argv) {
   std::cerr << server.config.n_entries << " lines read from " << server.config.filename << "\n";
 
   if (ret==NO_ERROR) ret=server.configure_server();      // get needed values out of read-in configuration file for the server
+
+  if (ret==NO_ERROR) ret=server.configure_controller();  // get needed values out of read-in configuration file for the controller
 
   if (ret != NO_ERROR) {
     std::cerr << "ERROR: unable to configure system\n";
@@ -209,7 +210,11 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("SYSTEM")==0) {
-                    retstr = "<" + ref;
+                    std::string retstring;
+                    ret = server.system( cmd, retstring );
+//                  if ( ret == NO_ERROR ) retstr = "<" + ref + retstring;
+                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
+                    std::cerr << function << "retstr=" << retstr << "\n";
                     }
     else
     if (cmd.compare("STATUS")==0) {
@@ -238,7 +243,8 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare(0,7,"WCONFIG")==0) {
                     ret = server.wconfig( cmd );
-                    if ( ret == NO_ERROR ) retstr = "<" + ref;
+                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref;
+//                  if ( ret == NO_ERROR ) retstr = "<" + ref;
 /*
                     if ( ( cmd.length() < 14 ) ||                    // too short
                          ( cmd.find('=') == std::string::npos ) ) {  // or no equal sign
@@ -261,7 +267,7 @@ server.wconfig(cmd);
     if (cmd.compare(0,7,"RCONFIG")==0) {
                     std::string retstring;
                     ret = server.rconfig( cmd, retstring );
-                    if ( ret == NO_ERROR ) retstr = "<" + ref + retstring;
+                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
                     std::cerr << function << "retstr=" << retstr << "\n";
                     }
     else
@@ -289,20 +295,22 @@ server.wconfig(cmd);
                     ;
                     }
     else
-    if (cmd.compare("LOADPARAM")==0) {
+    if (cmd.compare(0,9,"LOADPARAM")==0) {
                     ;
                     }
     else
-    if (cmd.compare("PREPPARAM")==0) {
-                    ;
+    if (cmd.compare(0,9,"PREPPARAM")==0) {
+                    retstr = "<" + ref;
                     }
     else
-    if (cmd.compare("FASTLOADPARAM")==0) {
-                    ;
+    if (cmd.compare(0,13,"FASTLOADPARAM")==0) {
+                    server.write_parameter( cmd.substr(14) );
+                    retstr = "<" + ref;
                     }
     else
-    if (cmd.compare("FASTPREPPARAM")==0) {
-                    ;
+    if (cmd.compare(0,13,"FASTPREPPARAM")==0) {
+                    server.write_parameter( cmd.substr(14) );
+                    retstr = "<" + ref;
                     }
     else
     if (cmd.compare("RESETTIMING")==0) {

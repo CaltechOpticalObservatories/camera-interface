@@ -36,6 +36,12 @@ namespace Archon {
       Interface();
       ~Interface();
 
+      // Class Objects
+      //
+      Config config;
+
+      std::string systemfile;
+
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       bool abort;
       int  taplines;
@@ -58,8 +64,11 @@ namespace Archon {
 
       // Functions
       //
+      long configure_controller();           //!< get configuration parameters from .cfg file
       long wconfig(std::string buf);         //!< 
       long rconfig(std::string buf, std::string &retstring);         
+      long system(std::string buf, std::string &retstring);         
+      long write_parameter(std::string buf);
 
 
       /**
