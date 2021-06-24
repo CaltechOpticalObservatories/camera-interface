@@ -42,9 +42,30 @@ namespace Archon {
 
       std::string systemfile;
 
+      unsigned long long init_time;
+      bool poweron;                //!< is the power on?
+      bool bigbuf;                 //!< is BIGBUF==1 in ACF file?
+      int  activebufs;             //!< number of active frame buffers
+      int  taplines;               //!< from "TAPLINES=" in ACF file
+      int  linecount;              //!< from "LINECOUNT=" in ACF file
+      int  pixelcount;             //!< from "PIXELCOUNT=" in ACF file
+      int  readtime;               //!< from "READOUT_TIME=" in configuration file
+
+      // Functions
+      //
+      long configure_controller();           //!< get configuration parameters from .cfg file
+      long system_report(std::string buf, std::string &retstring);         
+      long status_report(std::string &retstring);
+      long timer_report(std::string &retstring);
+      long frame_report(std::string &retstring);
+      long wconfig(std::string buf);         //!< 
+      long rconfig(std::string buf, std::string &retstring);         
+      long write_parameter(std::string buf);
+
+// TODO ***** below here need to check what's needed **********************************************************
+
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       bool abort;
-      int  taplines;
       std::vector<int> gain;                 //!< digital CDS gain (from TAPLINE definition)
       std::vector<int> offset;               //!< digital CDS offset (from TAPLINE definition)
       bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
@@ -61,15 +82,6 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
-
-      // Functions
-      //
-      long configure_controller();           //!< get configuration parameters from .cfg file
-      long wconfig(std::string buf);         //!< 
-      long rconfig(std::string buf, std::string &retstring);         
-      long system(std::string buf, std::string &retstring);         
-      long write_parameter(std::string buf);
-
 
       /**
        * @var     struct geometry_t geometry[]

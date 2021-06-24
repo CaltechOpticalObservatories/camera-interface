@@ -4,8 +4,43 @@ namespace Archon {
   // Archon::Interface constructor
   //
   Interface::Interface() {
+    struct timespec ts;     // container for the time
+    if ( clock_gettime( CLOCK_REALTIME, &ts ) != 0 ) {
+      this->init_time = 0;
+    }
+    else {
+      this->init_time = 1E8 * ( ts.tv_sec + (ts.tv_nsec / 1E9) );
+    }
+
     this->modtype.resize( nmods );
     this->modversion.resize( nmods );
+    this->poweron = false;
+    this->bigbuf = false;
+    this->activebufs = -1;
+    this->taplines = -1;
+    this->linecount = -1;
+    this->pixelcount = -1;
+    this->readtime = -1;
+
+    this->frame.bufsample.resize( Archon::nbufs );
+    this->frame.bufcomplete.resize( Archon::nbufs );
+    this->frame.bufmode.resize( Archon::nbufs );
+    this->frame.bufbase.resize( Archon::nbufs );
+    this->frame.bufframen.resize( Archon::nbufs );
+    this->frame.bufwidth.resize( Archon::nbufs );
+    this->frame.bufheight.resize( Archon::nbufs );
+    this->frame.bufpixels.resize( Archon::nbufs );
+    this->frame.buflines.resize( Archon::nbufs );
+    this->frame.bufrawblocks.resize( Archon::nbufs );
+    this->frame.bufrawlines.resize( Archon::nbufs );
+    this->frame.bufrawoffset.resize( Archon::nbufs );
+    this->frame.buftimestamp.resize( Archon::nbufs );
+    this->frame.bufretimestamp.resize( Archon::nbufs );
+    this->frame.buffetimestamp.resize( Archon::nbufs );
+//  this->frame.bufreatimestamp.resize( Archon::nbufs );
+//  this->frame.buffeatimestamp.resize( Archon::nbufs );
+//  this->frame.bufrebtimestamp.resize( Archon::nbufs );
+//  this->frame.buffebtimestamp.resize( Archon::nbufs );
   }
 
   // Archon::Interface deconstructor
@@ -20,6 +55,8 @@ namespace Archon {
    * @param  none
    * @return ERROR or NO_ERROR
    *
+   * Called at startup to read the configuration file.
+   *
    */
   long Interface::configure_controller() {
     std::string function = "(Archon::Interface::configure_controller) ";
@@ -32,20 +69,22 @@ namespace Archon {
         if ( config.param.at(entry).compare(0, 15, "EMULATOR_SYSTEM")==0 ) {
           this->systemfile = config.arg.at(entry);
         }
+        if ( config.param.at(entry).compare(0, 12, "READOUT_TIME")==0 ) {
+          this->readtime = std::stoi( config.arg.at(entry) );
+        }
       }
       catch( std::invalid_argument & ) {
-        std::cerr << function << "ERROR: invalid argument\n";
+        std::cerr << function << "ERROR: invalid argument parsing entry " << entry << " of " << this->config.n_entries << "\n";
         return( ERROR );
       }
       catch( std::out_of_range & ) {
-        std::cerr << function << "ERROR: value out of range\n";
+        std::cerr << function << "ERROR: value out of range parsing entry " << entry << " of " << this->config.n_entries << "\n";
         return( ERROR );
       }
       catch( ... ) {
-        std::cerr << function << "unknown error\n";
+        std::cerr << function << "unknown error parsing entry " << entry << " of " << this->config.n_entries << "\n";
         return( ERROR );
       }
-
     }
 
     return( NO_ERROR );
@@ -53,176 +92,20 @@ namespace Archon {
   /**************** Interface::configure_controller ***************************/
 
 
-  /**************** Interface:wrconfig ****************************************/
+  /**************** Interface::system_report **********************************/
   /**
-   * @fn     wconfig
-   * @brief  handles the incoming WCONFIG command
-   * @param  buf, incoming command string
-   * @return ERROR or NO_ERROR
-   *
-   */
-  long Interface::wconfig(std::string buf) {
-    std::string function = "(Archon::Interface::wconfig) ";
-    std::string line;
-    std::string linenumber;
-
-    // check for minimum length or absence of an equal sign
-    //
-    if ( ( buf.length() < 14 ) ||                     // minimum string is "WCONFIGxxxxT=T", 14 chars
-         ( buf.find("=") == std::string::npos ) ) {   // must have equal sign
-      std::cerr << function << "ERROR: expecting form WCONFIGxxxxT=T but got \"" << buf << "\"\n";
-      return( ERROR );
-    }
-
-    try {
-      linenumber = buf.substr(7, 4);   // extract the line number (keep as string)
-      line       = buf.substr(11);     // everything else
-
-      // If this is a PARAMETERn=ParameterName=value KEY=VALUE pair...
-      //
-      if ( ( line.compare(0, 11, "PARAMETERS=" ) != 0 ) && // not the PARAMETERS=xx line
-           ( line.compare(0,  9, "PARAMETER"  ) == 0 ) ) { // but must start with "PARAMETER"
-
-        std::vector<std::string> tokens;
-        Tokenize( line, tokens, "=" );                     // separate into PARAMETERn, ParameterName, value tokens
-
-        if ( tokens.size() != 3 ) {                        // malformed line
-          std::cerr << function << "ERROR: expected 3 tokens but got \"" << line << "\"\n";
-          return( ERROR );
-        }
-
-        std::stringstream paramnamevalue;
-        paramnamevalue << tokens.at(1) << "=" << tokens.at(2);  // reassmeble ParameterName=value string
-
-        // build an STL map "configmap" indexed on linenumber because that's what Archon uses
-        //
-        this->configmap[ linenumber ].line  = linenumber;            // configuration line number
-        this->configmap[ linenumber ].key   = tokens.at(0);          // configuration key
-        this->configmap[ linenumber ].value = paramnamevalue.str();  // configuration value for PARAMETERn
-
-std::cerr << function << "stored configmap[ " << linenumber 
-          << " ].key=" << this->configmap[ linenumber ].key
-          << " .value=" << this->configmap[ linenumber ].value
-          << "\n";
-
-        // build an STL map "parammap" indexed on ParameterName so that FASTPREPPARAM can lookup by the actual name
-        //
-        this->parammap[ tokens.at(1) ].key   = tokens.at(0);         // PARAMETERn
-        this->parammap[ tokens.at(1) ].name  = tokens.at(1);         // ParameterName
-        this->parammap[ tokens.at(1) ].value = tokens.at(2);         // value
-        this->parammap[ tokens.at(1) ].line  = linenumber;           // line number
-      }
-
-      // ...otherwise, for all other KEY=VALUE pairs, there is only the value and line number
-      // to be indexed by the key. Some lines may be equal to blank, e.g. "CONSTANTx=" so that
-      // only one token is made
-      //
-      else {
-        std::vector<std::string> tokens;
-        std::string key, value;
-        // Tokenize will return a size=1 even if there are no delimiters,
-        // so work around this by first checking for delimiters
-        // before calling Tokenize.
-        //
-        if (line.find_first_of("=", 0) == std::string::npos) {
-          return( ERROR );
-        }
-        Tokenize(line, tokens, "=");                            // separate into KEY, VALUE tokens
-        if (tokens.size() == 0) {
-          return( ERROR );                                      // nothing to do here if no tokens (ie no "=")
-        }
-        if (tokens.size() > 0 ) {                               // at least one token is the key
-          key   = tokens.at(0);                                 // KEY
-          value = "";                                           // VALUE can be empty (e.g. labels not required)
-          this->configmap[ linenumber ].line  = linenumber;
-          this->configmap[ linenumber ].key   = key;
-          this->configmap[ linenumber ].value = value;
-        }
-        if (tokens.size() > 1 ) {                               // if a second token then that's the value
-          value = tokens.at(1);                                 // VALUE (there is a second token)
-          this->configmap[ linenumber ].value = tokens.at(1);
-        }
-      } // end else
-    }
-    catch( std::invalid_argument & ) {
-      std::cerr << function << "ERROR: invalid argument\n";
-      return( ERROR );
-    }
-    catch( std::out_of_range & ) {
-      std::cerr << function << "ERROR: value out of range\n";
-      return( ERROR );
-    }
-    catch( ... ) {
-      std::cerr << function << "unknown error\n";
-      return( ERROR );
-    }
-
-//  std::cerr << "(Archon::Interface::wconfig) " << buf << "\n";
-    return( NO_ERROR );
-  }
-  /**************** Interface:wrconfig ****************************************/
-
-
-  /**************** Interface::rconfig ****************************************/
-  /**
-   * @fn     rconfig
-   * @brief  handles the incoming RCONFIG command
-   * @param  buf, incoming command string
-   * @param  &retstring, reference to string for return values
-   * @return ERROR or NO_ERROR
-   *
-   */
-  long Interface::rconfig(std::string buf, std::string &retstring) {
-    std::string function = "(Archon::Interface::rconfig) ";
-    std::string linenumber;
-
-    if ( buf.length() != 11 ) {        // check for minimum length "RCONFIGxxxx", 11 chars
-      return( ERROR );
-    }
-
-    try {
-      std::stringstream retss;
-      linenumber = buf.substr(7, 4);   // extract the line number
-      if ( this->configmap.find( linenumber) != this->configmap.end() ) {
-        retss << this->configmap[ linenumber ].key;
-        retss << "=";
-        retss << this->configmap[ linenumber ].value;
-        retstring = retss.str();
-std::cerr << function << "retsring=" << retstring << "\n";
-      }
-      else {
-        std::cerr << function << "ERROR: line " << linenumber << " not found in configuration memory\n";
-        return( ERROR );
-      }
-    }
-    catch( std::invalid_argument & ) {
-      std::cerr << function << "ERROR: invalid argument\n";
-      return( ERROR );
-    }
-    catch( std::out_of_range & ) {
-      std::cerr << function << "ERROR: value out of range\n";
-      return( ERROR );
-    }
-    catch( ... ) {
-      std::cerr << function << "unknown error\n";
-      return( ERROR );
-    }
-    return( NO_ERROR );
-  }
-  /**************** Interface::rconfig ****************************************/
-
-
-  /**************** Interface::system *****************************************/
-  /**
-   * @fn     system
+   * @fn     system_report
    * @brief  handles the incoming SYSTEM command
    * @param  buf, incoming command string
    * @param  &retstring, reference to string for return values
    * @return ERROR or NO_ERROR
    *
+   * This reads the emulated system information from a file specified in
+   * the configuration file by EMULATOR_SYSTEM.
+   *
    */
-  long Interface::system(std::string buf, std::string &retstring) {
-    std::string function = "(Archon::Interface::system) ";
+  long Interface::system_report(std::string buf, std::string &retstring) {
+    std::string function = "(Archon::Interface::system_report) ";
     std::fstream filestream;
     std::string line;
     std::vector<std::string> tokens;
@@ -314,16 +197,345 @@ std::cerr << function << "retsring=" << retstring << "\n";
 
     return( NO_ERROR );
   }
-  /**************** Interface::system *****************************************/
+  /**************** Interface::system_report **********************************/
+
+
+  /**************** Interface::status_report ****8*****************************/
+  /**
+   * @fn     status_report
+   * @brief  
+   * @param  
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::status_report(std::string &retstring) {
+    std::string function = "(Archon::Interface::status_report) ";
+    std::stringstream statstr;
+
+    statstr << "VALID="          <<  1            << " "
+            << "COUNT="          <<  1            << " "
+            << "LOG="            <<  0            << " "
+            << "POWER="          << this->poweron << " "
+            << "POWERGOOD="      <<  1            << " "
+            << "OVERHEAT="       <<  0            << " "
+            << "BACKPLANE_TEMP=" << 40            << " "
+            << "P2V5_V="         << 2.5           << " "
+            << "P2V5_I="         <<  0            << " "
+            << "P5V_V="          << 5.0           << " "
+            << "P5V_I="          <<  0            << " "
+            << "P6V_V="          << 6.0           << " "
+            << "P6V_I="          <<  0            << " "
+            << "N6V_V="          << -6.0          << " "
+            << "N6V_I="          <<  0            << " "
+            << "P17V_V="         << 17.0          << " "
+            << "P17V_I="         <<  0            << " "
+            << "N17V_V="         << -17.0         << " "
+            << "N17V_I="         <<  0            << " "
+            << "P35V_V="         << 35.0          << " "
+            << "P35V_I="         <<  0            << " "
+            << "N35V_V="         << -35.0         << " "
+            << "N35V_I="         <<  0            << " "
+            << "P100V_V="        << 100.0         << " "
+            << "P100V_I="        <<  0            << " "
+            << "N100V_V="        << -100.0        << " "
+            << "N100V_I="        <<  0            << " "
+            << "USER_V="         <<  0            << " "
+            << "USER_I="         <<  0            << " "
+            << "HEATER_V="       <<  0            << " "
+            << "HEATER_I="       <<  0            << " "
+            << "FANTACH="        <<  0
+            ;
+    retstring = statstr.str();
+    return( NO_ERROR );
+  }
+  /**************** Interface::status_report ****8*****************************/
+
+
+  /**************** Interface::timer_report *****8*****************************/
+  /**
+   * @fn     timer_report
+   * @brief  returns the "Archon TIMER"
+   * @param  &retstring, reference to string for return value
+   * @return ERROR or NO_ERROR
+   *
+   * Returns the Archon TIMER which is a 64 bit hex representation of
+   * the Archon time, counted in 10 nsec ticks.
+   *
+   */
+  long Interface::timer_report(std::string &retstring) {
+    std::string function = "(Archon::Interface::timer_report) ";
+    struct timespec data;     // container for the time
+    unsigned long long tm;    // 64 bit int time in 10 nsec
+    std::stringstream tmstr;  // padded hex representation
+
+    if ( clock_gettime( CLOCK_REALTIME, &data ) != 0 ) return( ERROR );
+    tm = 1E8 * ( data.tv_sec + (data.tv_nsec / 1E9) ) - this->init_time;
+    tmstr << std::uppercase << std::setfill('0') << std::setw(16) << std::hex << tm;
+    retstring = tmstr.str();
+    return( NO_ERROR );
+  }
+  /**************** Interface::timer_report *****8*****************************/
+
+
+  /**************** Interface::frame_report *****8*****************************/
+  /**
+   * @fn     frame_report
+   * @brief  
+   * @param  
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::frame_report(std::string &retstring) {
+    std::string function = "(Archon::Interface::frame_report) ";
+    std::string timenow;
+    std::stringstream framestr;
+
+    if ( this->activebufs == -1 ) {
+      std::cerr << function << "ERROR: activebufs undefined. Check that an ACF was loaded and that it contains BIGBUF=x\n";
+      return( ERROR );
+    }
+
+    this->timer_report( this->frame.timer );
+
+    framestr << "TIMER=" << this->frame.timer << " "
+             << "RBUF="  << this->frame.rbuf  << " "
+             << "WBUF="  << this->frame.wbuf  << " ";
+
+    int bufn;
+    try {
+      for ( bufn = 0; bufn < this->activebufs; bufn++ ) {
+        framestr << "BUF" << bufn+1 << "SAMPLE="       << this->frame.bufsample.at(bufn)      << " "
+                 << "BUF" << bufn+1 << "COMPLETE="     << this->frame.bufcomplete.at(bufn)    << " "
+                 << "BUF" << bufn+1 << "MODE="         << this->frame.bufmode.at(bufn)        << " "
+                 << "BUF" << bufn+1 << "BASE="         << this->frame.bufbase.at(bufn)        << " "
+                 << "BUF" << bufn+1 << "FRAME="        << this->frame.bufframen.at(bufn)      << " "
+                 << "BUF" << bufn+1 << "WIDTH="        << this->frame.bufwidth.at(bufn)       << " "
+                 << "BUF" << bufn+1 << "HEIGHT="       << this->frame.bufheight.at(bufn)      << " "
+                 << "BUF" << bufn+1 << "PIXELS="       << this->frame.bufpixels.at(bufn)      << " "
+                 << "BUF" << bufn+1 << "LINES="        << this->frame.buflines.at(bufn)       << " "
+                 << "BUF" << bufn+1 << "RAWBLOCKS="    << this->frame.bufrawblocks.at(bufn)   << " "
+                 << "BUF" << bufn+1 << "RAWLINES="     << this->frame.bufrawlines.at(bufn)    << " "
+                 << "BUF" << bufn+1 << "RAWOFFSET="    << this->frame.bufrawoffset.at(bufn)   << " "
+                 << "BUF" << bufn+1 << "TIMESTAMP="    << this->frame.buftimestamp.at(bufn)   << " "
+                 << "BUF" << bufn+1 << "RETIMESTAMP="  << this->frame.bufretimestamp.at(bufn) << " "
+                 << "BUF" << bufn+1 << "FETIMESTAMP="  << this->frame.buffetimestamp.at(bufn) << " "
+//               << "BUF" << bufn+1 << "REATIMESTAMP=" << " "
+//               << "BUF" << bufn+1 << "FEATIMESTAMP=" << " "
+//               << "BUF" << bufn+1 << "REBTIMESTAMP=" << " "
+//               << "BUF" << bufn+1 << "FEBTIMESTAMP=" << " "
+                 ;
+      }
+    }
+    catch( std::invalid_argument & ) {
+      std::cerr << function << "ERROR: invalid buffer number " << bufn+1 << "\n";
+      return( ERROR );
+    }
+    catch( std::out_of_range & ) {
+      std::cerr << function << "ERROR: buffer number " << bufn+1 << " out of range {1:" << this->activebufs << "}\n";
+      return( ERROR );
+    }
+    catch( ... ) {
+      std::cerr << function << "unknown error accessing buffer number " << bufn+1 << "\n";
+      return( ERROR );
+    }
+
+    retstring = framestr.str();
+    retstring = retstring.erase(retstring.find_last_not_of(" ")+1); // remove trailing space added because of for loop
+
+    return( NO_ERROR );
+  }
+  /**************** Interface::frame_report *****8*****************************/
+
+
+  /**************** Interface:wconfig *****************************************/
+  /**
+   * @fn     wconfig
+   * @brief  handles the incoming WCONFIG command
+   * @param  buf, incoming command string
+   * @return ERROR or NO_ERROR
+   *
+   * Writes to emulated configuration memory, which is just an STL map
+   * indexed by line number, so that lookups can be performed later.
+   *
+   */
+  long Interface::wconfig(std::string buf) {
+    std::string function = "(Archon::Interface::wconfig) ";
+    std::string line;
+    std::string linenumber;
+
+    // check for minimum length or absence of an equal sign
+    //
+    if ( ( buf.length() < 14 ) ||                     // minimum string is "WCONFIGxxxxT=T", 14 chars
+         ( buf.find("=") == std::string::npos ) ) {   // must have equal sign
+      std::cerr << function << "ERROR: expecting form WCONFIGxxxxT=T but got \"" << buf << "\"\n";
+      return( ERROR );
+    }
+
+    try {
+      linenumber = buf.substr(7, 4);   // extract the line number (keep as string)
+      line       = buf.substr(11);     // everything else
+
+      // If this is a PARAMETERn=ParameterName=value KEY=VALUE pair...
+      //
+      if ( ( line.compare(0, 11, "PARAMETERS=" ) != 0 ) && // not the PARAMETERS=xx line
+           ( line.compare(0,  9, "PARAMETER"  ) == 0 ) ) { // but must start with "PARAMETER"
+
+        std::vector<std::string> tokens;
+        Tokenize( line, tokens, "=" );                     // separate into PARAMETERn, ParameterName, value tokens
+
+        if ( tokens.size() != 3 ) {                        // malformed line
+          std::cerr << function << "ERROR: expected 3 tokens but got \"" << line << "\"\n";
+          return( ERROR );
+        }
+
+        std::stringstream paramnamevalue;
+        paramnamevalue << tokens.at(1) << "=" << tokens.at(2);  // reassmeble ParameterName=value string
+
+        // build an STL map "configmap" indexed on linenumber because that's what Archon uses
+        //
+        this->configmap[ linenumber ].line  = linenumber;            // configuration line number
+        this->configmap[ linenumber ].key   = tokens.at(0);          // configuration key
+        this->configmap[ linenumber ].value = paramnamevalue.str();  // configuration value for PARAMETERn
+
+//      std::cerr << function << buf << " <<< stored parameter in configmap[ " << linenumber 
+//                << " ].key=" << this->configmap[ linenumber ].key
+//                << " .value=" << this->configmap[ linenumber ].value
+//                << "\n";
+
+        // build an STL map "parammap" indexed on ParameterName so that FASTPREPPARAM can lookup by the actual name
+        //
+        this->parammap[ tokens.at(1) ].key   = tokens.at(0);         // PARAMETERn
+        this->parammap[ tokens.at(1) ].name  = tokens.at(1);         // ParameterName
+        this->parammap[ tokens.at(1) ].value = tokens.at(2);         // value
+        this->parammap[ tokens.at(1) ].line  = linenumber;           // line number
+      }
+
+      // ...otherwise, for all other KEY=VALUE pairs, there is only the value and line number
+      // to be indexed by the key. Some lines may be equal to blank, e.g. "CONSTANTx=" so that
+      // only one token is made
+      //
+      else {
+        std::vector<std::string> tokens;
+        std::string key, value;
+        // Tokenize will return a size=1 even if there are no delimiters,
+        // so work around this by first checking for delimiters
+        // before calling Tokenize.
+        //
+        if (line.find_first_of("=", 0) == std::string::npos) {
+          return( ERROR );
+        }
+        Tokenize(line, tokens, "=");                            // separate into KEY, VALUE tokens
+        if (tokens.size() == 0) {
+          return( ERROR );                                      // nothing to do here if no tokens (ie no "=")
+        }
+        if (tokens.size() > 0 ) {                               // at least one token is the key
+          key   = tokens.at(0);                                 // KEY
+          value = "";                                           // VALUE can be empty (e.g. labels not required)
+          this->configmap[ linenumber ].line  = linenumber;
+          this->configmap[ linenumber ].key   = key;
+          this->configmap[ linenumber ].value = value;
+        }
+        if (tokens.size() > 1 ) {                               // if a second token then that's the value
+          value = tokens.at(1);                                 // VALUE (there is a second token)
+          this->configmap[ linenumber ].value = tokens.at(1);
+        }
+
+        // Some keywords in this category are used to assign certain class variables
+        //
+        if ( key == "BIGBUF" ) {
+          this->bigbuf = ( std::stoi(value)==1 ? true : false );
+          this->activebufs = ( this->bigbuf ? 2 : 3 );
+        }
+
+        else if ( key == "TAPLINES" ) {
+          this->taplines = std::stoi(value);
+        }
+
+        else if ( key == "PIXELCOUNT" ) {
+          this->pixelcount = std::stoi(value);
+        }
+
+        else if ( key == "LINECOUNT" ) {
+          this->linecount = std::stoi(value);
+        }
+
+      } // end else
+    }
+    catch( std::invalid_argument & ) {
+      std::cerr << function << "ERROR: invalid argument parsing line: " << line << "\n";
+      return( ERROR );
+    }
+    catch( std::out_of_range & ) {
+      std::cerr << function << "ERROR: value out of range parsing line: " << line << "\n";
+      return( ERROR );
+    }
+    catch( ... ) {
+      std::cerr << function << "unknown error parsing line: " << line << "\n";
+      return( ERROR );
+    }
+
+    return( NO_ERROR );
+  }
+  /**************** Interface:wconfig *****************************************/
+
+
+  /**************** Interface::rconfig ****************************************/
+  /**
+   * @fn     rconfig
+   * @brief  handles the incoming RCONFIG command
+   * @param  buf, incoming command string
+   * @param  &retstring, reference to string for return values
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::rconfig(std::string buf, std::string &retstring) {
+    std::string function = "(Archon::Interface::rconfig) ";
+    std::string linenumber;
+
+    if ( buf.length() != 11 ) {        // check for minimum length "RCONFIGxxxx", 11 chars
+      return( ERROR );
+    }
+
+    try {
+      std::stringstream retss;
+      linenumber = buf.substr(7, 4);   // extract the line number
+      if ( this->configmap.find( linenumber) != this->configmap.end() ) {
+        retss << this->configmap[ linenumber ].key;
+        retss << "=";
+        retss << this->configmap[ linenumber ].value;
+        retstring = retss.str();
+      }
+      else {
+        std::cerr << function << "ERROR: line " << linenumber << " not found in configuration memory\n";
+        return( ERROR );
+      }
+    }
+    catch( std::invalid_argument & ) {
+      std::cerr << function << "ERROR: invalid argument\n";
+      return( ERROR );
+    }
+    catch( std::out_of_range & ) {
+      std::cerr << function << "ERROR: value out of range\n";
+      return( ERROR );
+    }
+    catch( ... ) {
+      std::cerr << function << "unknown error\n";
+      return( ERROR );
+    }
+    return( NO_ERROR );
+  }
+  /**************** Interface::rconfig ****************************************/
 
 
   /**************** Interface::write_parameter ********************************/
   /**
    * @fn     write_parameter
-   * @brief  
-   * @param  
-   * @param  
+   * @brief  writes parameter to emulated configuration memory
+   * @param  buf
    * @return ERROR or NO_ERROR
+   *
+   * "buf" contains the space-delimited string "<Paramname> <value>"
+   * where <value> is to be assigned to the parameter <Paramname>.
    *
    */
   long Interface::write_parameter(std::string buf) {
@@ -335,11 +547,15 @@ std::cerr << function << "retsring=" << retstring << "\n";
 
     Tokenize( buf, tokens, " " );
 
+    // must have two tokens only, <param> <value>
+    //
     if ( tokens.size() != 2 ) {
       std::cerr << function << "ERROR: expected <Paramname> <value> but received " << buf << "\n";
       return( ERROR );
     }
 
+    // assign the key ("paramname") and value ("value") from the two tokens
+    //
     try {
       key =   tokens.at(0);
       value = tokens.at(1);
@@ -360,14 +576,19 @@ std::cerr << function << "retsring=" << retstring << "\n";
 
     else
 
+    // Locate the parameter name ("key") in the parammap
+    // in order to get the line number.
+    //
     if ( this->parammap.find( key ) == this->parammap.end() ) {
       std::cerr << function << "ERROR: " << key << " not found in parammap\n";
       return( ERROR );
     }
 
+    // Assign the new value to the configmap (this is the "configuration memory").
+    //
     else {
-      line = this->parammap[ key ].line;
-      this->configmap[ line ].value = value;
+      line = this->parammap[ key ].line;         // line number is stored in parammap
+      this->configmap[ line ].value = value;     // configmap is indexed by line number
       this->parammap[ key ].value = value;       //TODO needed??
     }
 

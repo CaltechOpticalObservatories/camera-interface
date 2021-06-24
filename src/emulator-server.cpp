@@ -1,5 +1,5 @@
 /**
- * @file    server.cpp
+ * @file    emulator-server.cpp
  * @brief   this is the main server
  * @details spawns threads to handle requests, receives and parses commands
  * @author  David Hale <dhale@astro.caltech.edu>
@@ -19,14 +19,14 @@ Emulator::Server server;
  *
  */
 void signal_handler(int signo) {
-  std::string function = "Emulator::signal_handler";
+  std::string function = "(Emulator::signal_handler) ";
   switch (signo) {
     case SIGINT:
-      std::cerr << "received INT\n";
+      std::cerr << function << "received INT\n";
       server.exit_cleanly();                  // shutdown the server
       break;
     case SIGPIPE:
-      std::cerr << "caught SIGPIPE\n";
+      std::cerr << function << "caught SIGPIPE\n";
       break;
     default:
       server.exit_cleanly();                  // shutdown the server
@@ -51,7 +51,7 @@ void doit(Network::TcpSocket sock);         // the worker thread
  *
  */
 int main(int argc, char **argv) {
-  std::string function = "Emulator::main";
+  std::string function = "(Emulator::main) ";
   std::stringstream message;
 
   signal(SIGINT, signal_handler);
@@ -65,23 +65,23 @@ int main(int argc, char **argv) {
     ret = server.config.read_config(server.config);      // read configuration file specified on command line
   }
   else {
-    std::cerr << "ERROR: no configuration file specified\n";
+    std::cerr << function << "ERROR: no configuration file specified\n";
     server.exit_cleanly();
   }
 
-  std::cerr << server.config.n_entries << " lines read from " << server.config.filename << "\n";
+  std::cerr << function << server.config.n_entries << " lines read from " << server.config.filename << "\n";
 
   if (ret==NO_ERROR) ret=server.configure_server();      // get needed values out of read-in configuration file for the server
 
   if (ret==NO_ERROR) ret=server.configure_controller();  // get needed values out of read-in configuration file for the controller
 
   if (ret != NO_ERROR) {
-    std::cerr << "ERROR: unable to configure system\n";
+    std::cerr << function << "ERROR: unable to configure system\n";
     server.exit_cleanly();
   }
 
   if ( server.emulatorport == -1 ) {
-    std::cerr << "ERROR: emulator server port not configured\n";
+    std::cerr << function << "ERROR: emulator server port not configured\n";
     server.exit_cleanly();
   }
 
@@ -132,9 +132,6 @@ void block_main(Network::TcpSocket sock) {
  *
  * stays open until closed by client
  *
- * commands come in the form: 
- * <device> [all|<app>] [_BLOCK_] <command> [<arg>]
- *
  */
 void doit(Network::TcpSocket sock) {
   std::string function = "(Emulator::doit) ";
@@ -154,10 +151,10 @@ void doit(Network::TcpSocket sock) {
     int pollret;
     if ( ( pollret=sock.Poll() ) <= 0 ) {
       if (pollret==0) {
-        std::cerr << "Poll timeout on thread " << sock.id << "\n";
+        std::cerr << function << "Poll timeout on thread " << sock.id << "\n";
       }
       if (pollret <0) {
-        std::cerr << "Poll error on thread " << sock.id << ": " << strerror(errno) << "\n";
+        std::cerr << function << "Poll error on thread " << sock.id << ": " << strerror(errno) << "\n";
       }
       break;                      // this will close the connection
     }
@@ -166,7 +163,7 @@ void doit(Network::TcpSocket sock) {
     //
     if ( (ret=sock.Read(buf, (size_t)BUFSIZE)) <= 0 ) {
       if (ret<0) {                // could be an actual read error
-        std::cerr << "Read error: " << strerror(errno) << "\n";
+        std::cerr << function << "Read error: " << strerror(errno) << "\n";
       }
       break;                      // Breaking out of the while loop will close the connection.
                                   // This probably means that the client has terminated abruptly, 
@@ -195,38 +192,45 @@ void doit(Network::TcpSocket sock) {
     }
     catch ( std::runtime_error &e ) {
       std::stringstream errstream; errstream << e.what();
-      std::cerr << "error parsing arguments: " << errstream.str() << "\n";
+      std::cerr << function << "error parsing arguments: " << errstream.str() << "\n";
     }
     catch ( ... ) {
-      std::cerr << "unknown error parsing buffer: " << sbuf << "\n";
+      std::cerr << function << "unknown error parsing buffer: " << sbuf << "\n";
     }
 
     /**
      * process commands here
+     * 
+     * Most of these don't have to do anything but they're all listed here for completeness,
+     * in the order that they appear in the Archon manual.
+     *
+     * Archon returns "<" plus the message reference to acknowledge the command,
+     * or "?" plus reference on error, or nothing when it doesn't undertand something.
+     *
      */
 
-    if (cmd.compare("exit")==0) {
-                    server.exit_cleanly();                  // shutdown the server
-                    }
-    else
     if (cmd.compare("SYSTEM")==0) {
                     std::string retstring;
-                    ret = server.system( cmd, retstring );
-//                  if ( ret == NO_ERROR ) retstr = "<" + ref + retstring;
+                    ret = server.system_report( cmd, retstring );
                     retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
-                    std::cerr << function << "retstr=" << retstr << "\n";
                     }
     else
     if (cmd.compare("STATUS")==0) {
-                    ;
+                    std::string retstring;
+                    ret = server.status_report( retstring );
+                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
                     }
     else
     if (cmd.compare("TIMER")==0) {
-                    ;
+                    std::string retstring;
+                    ret = server.timer_report( retstring );
+                    retstr = ( ret==ERROR ? "?" : "<" ) + ref + "TIMER=" + retstring;
                     }
     else
     if (cmd.compare("FRAME")==0) {
-                    ;
+                    std::string retstring;
+                    ret = server.frame_report( retstring );
+                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
                     }
     else
     if (cmd.compare("FETCHLOG")==0) {
@@ -238,37 +242,18 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare(0,5,"FETCH")==0) {
-                    ;
+                    retstr = "?" + ref;  //TODO
                     }
     else
     if (cmd.compare(0,7,"WCONFIG")==0) {
                     ret = server.wconfig( cmd );
                     retstr = ( ret==ERROR ? "?" : "<" ) +  ref;
-//                  if ( ret == NO_ERROR ) retstr = "<" + ref;
-/*
-                    if ( ( cmd.length() < 14 ) ||                    // too short
-                         ( cmd.find('=') == std::string::npos ) ) {  // or no equal sign
-                      retstr = "?" + ref;                            // is an error
-                    }
-                    else {
-                      try {
-                        std::string linecount = cmd.substr(7,4);     // the line number
-                        std::string line      = cmd.substr(11);      // the configuration line
-                        server.configmap["43"].line=867;
-                      }
-                      catch( ... ) {
-                        retstr = "?" + ref;
-                      }
-server.wconfig(cmd);
-                    }
-*/
                     }
     else
     if (cmd.compare(0,7,"RCONFIG")==0) {
                     std::string retstring;
                     ret = server.rconfig( cmd, retstring );
                     retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
-                    std::cerr << function << "retstr=" << retstr << "\n";
                     }
     else
     if (cmd.compare("CLEARCONFIG")==0) {
@@ -280,26 +265,30 @@ server.wconfig(cmd);
                     }
     else
     if (cmd.compare("POWERON")==0) {
+                    server.poweron = true;
                     retstr = "<" + ref;
                     }
     else
     if (cmd.compare("POWEROFF")==0) {
+                    server.poweron = false;
                     retstr = "<" + ref;
                     }
     else
     if (cmd.compare("LOADTIMING")==0) {
-                    ;
+                    retstr = "<" + ref;
                     }
     else
     if (cmd.compare("LOADPARAMS")==0) {
-                    ;
+                    retstr = "<" + ref;
                     }
     else
     if (cmd.compare(0,9,"LOADPARAM")==0) {
-                    ;
+                    server.write_parameter( cmd.substr(14) );
+                    retstr = "<" + ref;
                     }
     else
     if (cmd.compare(0,9,"PREPPARAM")==0) {
+                    server.write_parameter( cmd.substr(14) );
                     retstr = "<" + ref;
                     }
     else
@@ -351,7 +340,6 @@ server.wconfig(cmd);
       retstr += "\n";
       if (sock.Write(retstr)<0) connection_open=false;
     }
-
   }
 
   sock.Close();
