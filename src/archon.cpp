@@ -2770,6 +2770,7 @@ logwrite("load_firmware", "two arg");
       this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
       this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+      error=this->common.get_fitsname(this->camera_info.fits_name); // assemble the FITS filename
     }
 
     if (error == NO_ERROR) logwrite(function, "exposure started");
@@ -2870,8 +2871,9 @@ logwrite("load_firmware", "two arg");
     logwrite( function, (error==ERROR ? "ERROR" : "complete") );
 
     // for cubes, close the FITS file now that they've all been written
+    // (or any time there is an error)
     //
-    if ( this->common.datacube()) this->fits_file.close_file();
+    if ( this->common.datacube() || (error==ERROR) ) this->fits_file.close_file();
 
     return (error);
   }

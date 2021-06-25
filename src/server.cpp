@@ -315,7 +315,7 @@ void doit(Network::TcpSocket sock) {
 
       if (cmd.empty()) continue;                     // If no command then skip over everything.
 
-      if (cmd_sep == string::npos) {                 // If no space was found,
+      if (cmd_sep == std::string::npos) {            // If no space was found,
         args="";                                     // then the arg list is empty,
       }
       else {
