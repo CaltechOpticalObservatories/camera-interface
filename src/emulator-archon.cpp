@@ -16,11 +16,20 @@ namespace Archon {
     this->modversion.resize( nmods );
     this->poweron = false;
     this->bigbuf = false;
-    this->activebufs = -1;
-    this->taplines = -1;
-    this->linecount = -1;
-    this->pixelcount = -1;
-    this->readtime = -1;
+
+    this->image.framen = 0;
+    this->image.activebufs = -1;
+    this->image.taplines = -1;
+    this->image.linecount = -1;
+    this->image.pixelcount = -1;
+    this->image.readtime = -1;
+    this->image.exptime = 0;
+
+    this->frame.index = 0;
+    this->frame.frame = 0;
+    this->frame.rbuf = 0;
+    this->frame.wbuf = 0;
+    this->frame.timer = "";
 
     this->frame.bufsample.resize( Archon::nbufs );
     this->frame.bufcomplete.resize( Archon::nbufs );
@@ -37,7 +46,7 @@ namespace Archon {
     this->frame.buftimestamp.resize( Archon::nbufs );
     this->frame.bufretimestamp.resize( Archon::nbufs );
     this->frame.buffetimestamp.resize( Archon::nbufs );
-//  this->frame.bufreatimestamp.resize( Archon::nbufs );
+//  this->frame.bufreatimestamp.resize( Archon::nbufs );  // TODO future
 //  this->frame.buffeatimestamp.resize( Archon::nbufs );
 //  this->frame.bufrebtimestamp.resize( Archon::nbufs );
 //  this->frame.buffebtimestamp.resize( Archon::nbufs );
@@ -70,7 +79,10 @@ namespace Archon {
           this->systemfile = config.arg.at(entry);
         }
         if ( config.param.at(entry).compare(0, 12, "READOUT_TIME")==0 ) {
-          this->readtime = std::stoi( config.arg.at(entry) );
+          this->image.readtime = std::stoi( config.arg.at(entry) );
+        }
+        if ( config.param.at(entry).compare(0, 12, "EXPOSE_PARAM")==0) {
+          this->exposeparam = config.arg[entry];
         }
       }
       catch( std::invalid_argument & ) {
@@ -274,6 +286,13 @@ namespace Archon {
     retstring = tmstr.str();
     return( NO_ERROR );
   }
+  unsigned long Interface::get_timer() {
+    struct timespec data;     // container for the time
+    unsigned long long tm;    // 64 bit int time in 10 nsec
+    if ( clock_gettime( CLOCK_REALTIME, &data ) != 0 ) return( 0 );
+    tm = 1E8 * ( data.tv_sec + (data.tv_nsec / 1E9) ) - this->init_time;
+    return( tm );
+  }
   /**************** Interface::timer_report *****8*****************************/
 
 
@@ -290,7 +309,7 @@ namespace Archon {
     std::string timenow;
     std::stringstream framestr;
 
-    if ( this->activebufs == -1 ) {
+    if ( this->image.activebufs == -1 ) {
       std::cerr << function << "ERROR: activebufs undefined. Check that an ACF was loaded and that it contains BIGBUF=x\n";
       return( ERROR );
     }
@@ -303,7 +322,7 @@ namespace Archon {
 
     int bufn;
     try {
-      for ( bufn = 0; bufn < this->activebufs; bufn++ ) {
+      for ( bufn = 0; bufn < this->image.activebufs; bufn++ ) {
         framestr << "BUF" << bufn+1 << "SAMPLE="       << this->frame.bufsample.at(bufn)      << " "
                  << "BUF" << bufn+1 << "COMPLETE="     << this->frame.bufcomplete.at(bufn)    << " "
                  << "BUF" << bufn+1 << "MODE="         << this->frame.bufmode.at(bufn)        << " "
@@ -331,7 +350,7 @@ namespace Archon {
       return( ERROR );
     }
     catch( std::out_of_range & ) {
-      std::cerr << function << "ERROR: buffer number " << bufn+1 << " out of range {1:" << this->activebufs << "}\n";
+      std::cerr << function << "ERROR: buffer number " << bufn+1 << " out of range {1:" << this->image.activebufs << "}\n";
       return( ERROR );
     }
     catch( ... ) {
@@ -345,6 +364,82 @@ namespace Archon {
     return( NO_ERROR );
   }
   /**************** Interface::frame_report *****8*****************************/
+
+
+  /**************** Interface:fetch_data **************************************/
+  /**
+   * @fn     fetch_data
+   * @brief  
+   * @param  cmd, incoming command string
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::fetch_data(std::string ref, std::string cmd, Network::TcpSocket &sock) {
+    std::string function = "(Archon::Interface::fetch_data) ";
+    unsigned int reqblocks;  //!< number of requested blocks, from the FETCH command
+    unsigned int block;      //!< block counter
+    size_t byteswritten;     //!< bytes written for this block
+    int totalbyteswritten;   //!< total bytes written for this image
+    size_t towrite=0;        //!< remaining bytes to write for this block
+    char* image_data=NULL;
+
+    if ( cmd.length() != 21 ) {             // must be "FETCHxxxxxxxxyyyyyyyy", 21 chars
+      std::cerr << function << "ERROR: expecting form FETCHxxxxxxxxyyyyyyyy but got \"" << cmd << "\"\n";
+      return( ERROR );
+    }
+
+    try {
+      std::stringstream hexblocks;
+      hexblocks << std::hex << "0x" << cmd.substr(13);
+      hexblocks >> reqblocks;
+    }
+    catch( std::invalid_argument & ) {
+      std::cerr << function << "ERROR: invalid argument parsing " << cmd << "\n";
+      return( ERROR );
+    }
+    catch( std::out_of_range & ) {
+      std::cerr << function << "ERROR: value out of range parsing " << cmd << "\n";
+      return( ERROR );
+    }
+    catch( ... ) {
+      std::cerr << function << "unknown error parsing " << cmd << "\n";
+      return( ERROR );
+    }
+
+    image_data = new char[reqblocks * BLOCK_LEN];
+
+    std::srand( time( NULL ) );
+    for ( unsigned int i=0; i<(reqblocks*BLOCK_LEN)/2; i+=10 ) {
+      image_data[i] = rand() % 40000 + 30000;
+    }
+
+    std::string header = "<" + ref + ":";
+    totalbyteswritten = 0;
+
+    std::cerr << function << "host requested " << std::dec << reqblocks << " (0x" << std::hex << reqblocks << ") blocks \n";
+
+    std::cerr << function << "writing bytes: ";
+
+    for ( block = 0; block < reqblocks; block++ ) {
+      sock.Write(header);
+      byteswritten = 0;
+      do {
+        int retval=0;
+        towrite = BLOCK_LEN - byteswritten;
+        if ( ( retval = sock.Write(image_data, towrite) ) > 0 ) {
+          byteswritten += retval;
+          totalbyteswritten += retval;
+          std::cerr << std::dec << std::setw(10) << totalbyteswritten << "\b\b\b\b\b\b\b\b\b\b";
+        }
+      } while ( byteswritten < BLOCK_LEN );
+    }
+    std::cerr << std::dec << std::setw(10) << totalbyteswritten << " complete\n";
+
+    delete[] image_data;
+
+    return( NO_ERROR );
+  }
+  /**************** Interface:fetch_data **************************************/
 
 
   /**************** Interface:wconfig *****************************************/
@@ -408,6 +503,7 @@ namespace Archon {
         this->parammap[ tokens.at(1) ].name  = tokens.at(1);         // ParameterName
         this->parammap[ tokens.at(1) ].value = tokens.at(2);         // value
         this->parammap[ tokens.at(1) ].line  = linenumber;           // line number
+
       }
 
       // ...otherwise, for all other KEY=VALUE pairs, there is only the value and line number
@@ -444,19 +540,27 @@ namespace Archon {
         //
         if ( key == "BIGBUF" ) {
           this->bigbuf = ( std::stoi(value)==1 ? true : false );
-          this->activebufs = ( this->bigbuf ? 2 : 3 );
+          this->image.activebufs = ( this->bigbuf ? 2 : 3 );
+          this->frame.bufbase.at(0) = 0xA0000000;
+          if ( this->bigbuf ) {
+            this->frame.bufbase.at(1) = 0xD0000000;
+          }
+          else {
+            this->frame.bufbase.at(1) = 0xC0000000;
+            this->frame.bufbase.at(2) = 0xE0000000;
+          }
         }
 
         else if ( key == "TAPLINES" ) {
-          this->taplines = std::stoi(value);
+          this->image.taplines = std::stoi(value);
         }
 
         else if ( key == "PIXELCOUNT" ) {
-          this->pixelcount = std::stoi(value);
+          this->image.pixelcount = std::stoi(value);
         }
 
         else if ( key == "LINECOUNT" ) {
-          this->linecount = std::stoi(value);
+          this->image.linecount = std::stoi(value);
         }
 
       } // end else
@@ -559,6 +663,22 @@ namespace Archon {
     try {
       key =   tokens.at(0);
       value = tokens.at(1);
+
+      // When an exposure is started there will be a command to write
+      // a non-zero number to the exposeparam. Catch that here and
+      // start an exposure thread.
+      //
+      if ( ( key == this->exposeparam ) && ( std::stoi( value ) > 0 ) ) {
+        int numexpose = std::stoi( value );
+        // spawn a thread to mimic readout and create the data
+        std::thread(dothread_expose, std::ref(this->frame), std::ref(this->image), numexpose).detach();
+      }
+
+      // Catch the write to exptime and save the value in a class variable.
+      //
+      if ( key == "exptime" ) {
+        this->image.exptime = std::stoi( value );
+      }
     }
     catch( std::out_of_range & ) {
       std::cerr << function << "ERROR: token value out of range, unable to extract key, value pair\n";
@@ -596,4 +716,100 @@ namespace Archon {
   }
   /**************** Interface::write_parameter ********************************/
 
+
+  /**************** Interface::dothread_expose ********************************/
+  /**
+   * @fn     dothread_expose
+   * @brief  
+   * @param  numexpose
+   * @return none
+   *
+   */
+  void Interface::dothread_expose(frame_data_t &frame, image_t &image, int numexpose) {
+    std::string function = "(Archon::Interface::dothread_expose) ";
+
+    // should be impossible
+    //
+    if ( numexpose == 0 ) {
+      std::cerr << function << "ERROR: need non-zero number of exposures\n";
+      return;
+    }
+
+    for ( int num = 0; num < numexpose; num++ ) {
+
+      // emulate an exposure delay
+      //
+      if ( image.exptime > 0 ) {
+        double time_now   = get_clock_time();
+        double time_start = time_now;
+        double time_end   = time_start + image.exptime/1000.;
+        double progress   = 0;
+        double elapsed    = 0;
+        std::cerr << function << "exposure progress: ";
+        while ( ( time_now - (image.exptime/1000 + time_start) < 0 ) ) {
+          usleep( 1000 );
+          time_now = get_clock_time();
+          elapsed = 1000. * (get_clock_time() - time_start);
+          progress = elapsed / (1000.*(time_end - time_start));
+          if ( progress < 0 || progress > 1 ) progress = 1;
+          std::cerr << std::setw(3) << (int)(100*progress) << "\%\b\b\b\b";
+        }
+        std::cerr << "100\%\n";
+      }
+
+      // frame.frame is the 1-based frame buffer number to write to now
+      // and frame.index is the 0-based index of this frame buffer number
+      // increment each time
+      // cycle back to 1 if greater than the number of active buffers
+      //
+      frame.frame++;
+      if ( frame.frame > image.activebufs ) frame.frame = 1;
+      frame.index = frame.frame - 1;
+
+      // compute line time as 90% of the read time, rounded down to nearest 100 usec
+      //
+      int linetime = (int)std::floor( 10 * image.readtime / image.linecount );  // line time in 10 msec
+      linetime *= 90;                                                           // line time in usec (here's the 90%)
+
+      // initialize random seed for data
+      //
+      std::srand( time( NULL ) );
+
+      try {
+        frame.bufpixels.at( frame.index ) = 0;
+        frame.buflines.at( frame.index ) = 0;
+        frame.bufcomplete.at( frame.index ) = 0;
+
+        int i=0;
+
+        std::cerr << function << "readout line: ";
+        for ( frame.buflines.at(frame.index) = 0; frame.buflines.at(frame.index) < image.linecount; frame.buflines.at(frame.index)++ ) {
+          for ( frame.bufpixels.at(frame.index)= 0; frame.bufpixels.at(frame.index) < image.pixelcount; frame.bufpixels.at(frame.index)++ ) {
+            for ( int tap = 0; tap < image.taplines; tap++ ) {
+//            frame.buffer.at( i ) = rand() % 40000 + 30000;  // random number between {30k:40k}
+              i++;
+            }
+//          frame.bufpixels.at( frame.index )++;
+          }
+//        frame.buflines.at( frame.index )++;
+          std::cerr << std::dec << std::setw(6) << frame.buflines.at(frame.index) << "\b\b\b\b\b\b";
+          usleep( linetime );
+        }
+        std::cerr << std::dec << std::setw(6) << frame.buflines.at(frame.index) << " complete\n";
+        frame.bufcomplete.at( frame.index ) = 1;
+        image.framen++;
+        frame.bufframen.at( frame.index ) = image.framen;
+      }
+      catch( std::out_of_range & ) {
+        std::cerr << function << "ERROR: frame.index=" << frame.index << " out of range\n";
+        return;
+      }
+      catch( ... ) {
+        std::cerr << function << "unknown error using frame index " << frame.index << "\n";
+        return;
+      }
+    }
+
+  }
+  /**************** Interface::dothread_expose ********************************/
 }

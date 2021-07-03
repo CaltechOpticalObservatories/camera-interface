@@ -138,13 +138,16 @@ void doit(Network::TcpSocket sock) {
   char  buf[BUFSIZE+1];
   long  ret;
   std::stringstream message;
-  std::string cmd, ref, retstr;
+  std::stringstream retstream;
+  std::string cmd, ref;
   std::vector<std::string> tokens;
 
   bool connection_open=true;
 
   while (connection_open) {
     memset(buf,  '\0', BUFSIZE);  // init buffers
+
+    retstream.str("");            // empty the return message stream
 
     // Wait (poll) connected socket for incoming data...
     //
@@ -212,135 +215,140 @@ void doit(Network::TcpSocket sock) {
     if (cmd.compare("SYSTEM")==0) {
                     std::string retstring;
                     ret = server.system_report( cmd, retstring );
-                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
+                    retstream << ( ret==ERROR ? "?" : "<" ) << ref << retstring;
                     }
     else
     if (cmd.compare("STATUS")==0) {
                     std::string retstring;
                     ret = server.status_report( retstring );
-                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
+                    retstream << ( ret==ERROR ? "?" : "<" ) << ref << retstring;
                     }
     else
     if (cmd.compare("TIMER")==0) {
                     std::string retstring;
                     ret = server.timer_report( retstring );
-                    retstr = ( ret==ERROR ? "?" : "<" ) + ref + "TIMER=" + retstring;
+                    retstream << ( ret==ERROR ? "?" : "<" ) << ref << "TIMER=" << retstring;
                     }
     else
     if (cmd.compare("FRAME")==0) {
                     std::string retstring;
                     ret = server.frame_report( retstring );
-                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
+                    retstream << ( ret==ERROR ? "?" : "<" ) << ref << retstring;
                     }
     else
     if (cmd.compare("FETCHLOG")==0) {
-                    retstr = "<" + ref + "(null)";
+                    retstream << "<" << ref << "(null)";
                     }
     else
     if (cmd.compare(0,4,"LOCK")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare(0,5,"FETCH")==0) {
-                    retstr = "?" + ref;  //TODO
+                    ret = server.fetch_data( ref, cmd, sock );
+                    retstream.str("");      // FETCH returns no message
                     }
     else
     if (cmd.compare(0,7,"WCONFIG")==0) {
                     ret = server.wconfig( cmd );
-                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref;
+                    retstream << ( ret==ERROR ? "?" : "<" ) << ref;
                     }
     else
     if (cmd.compare(0,7,"RCONFIG")==0) {
                     std::string retstring;
                     ret = server.rconfig( cmd, retstring );
-                    retstr = ( ret==ERROR ? "?" : "<" ) +  ref + retstring;
+                    retstream << ( ret==ERROR ? "?" : "<" ) << ref << retstring;
                     }
     else
     if (cmd.compare("CLEARCONFIG")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("APPLYALL")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("POWERON")==0) {
                     server.poweron = true;
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("POWEROFF")==0) {
                     server.poweron = false;
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("LOADTIMING")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("LOADPARAMS")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare(0,9,"LOADPARAM")==0) {
                     server.write_parameter( cmd.substr(14) );
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare(0,9,"PREPPARAM")==0) {
-                    server.write_parameter( cmd.substr(14) );
-                    retstr = "<" + ref;
+//                  server.write_parameter( cmd.substr(14) );
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare(0,13,"FASTLOADPARAM")==0) {
                     server.write_parameter( cmd.substr(14) );
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare(0,13,"FASTPREPPARAM")==0) {
-                    server.write_parameter( cmd.substr(14) );
-                    retstr = "<" + ref;
+//                  server.write_parameter( cmd.substr(14) );
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("RESETTIMING")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("HOLDTIMING")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("RELEASETIMING")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare(0,8,"APPLYMOD")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare(0,8,"APPLYDIO")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("APPLYCDS")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("POLLOFF")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else
     if (cmd.compare("POLLON")==0) {
-                    retstr = "<" + ref;
+                    retstream << "<" << ref;
                     }
     else {  // Archon simply ignores things it doesn't understand
     }
 
-    if ( ! retstr.empty() ) {
-      retstr += "\n";
-      if (sock.Write(retstr)<0) connection_open=false;
+    if ( ! retstream.str().empty() ) {
+      retstream << "\n";
+      if ( (ret=sock.Write(retstream.str())) < 0 ) {
+        std::cerr << function << "ret=" << ret << " err=" << std::strerror(errno) << "\n"; connection_open=false;
+      }
     }
   }
+
+  std::cerr << function << "socket connection closed\n";
 
   sock.Close();
   return;

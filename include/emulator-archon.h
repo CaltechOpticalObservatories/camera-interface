@@ -11,6 +11,8 @@
 #include <atomic>
 #include <chrono>
 #include <numeric>
+#include <functional>
+#include <thread>
 #include <fenv.h>
 
 #include "utilities.h"
@@ -18,6 +20,8 @@
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
+
+#define BLOCK_LEN 1024             //!< Archon block size in bytes
 
 namespace Archon {
 
@@ -45,66 +49,17 @@ namespace Archon {
       unsigned long long init_time;
       bool poweron;                //!< is the power on?
       bool bigbuf;                 //!< is BIGBUF==1 in ACF file?
-      int  activebufs;             //!< number of active frame buffers
-      int  taplines;               //!< from "TAPLINES=" in ACF file
-      int  linecount;              //!< from "LINECOUNT=" in ACF file
-      int  pixelcount;             //!< from "PIXELCOUNT=" in ACF file
-      int  readtime;               //!< from "READOUT_TIME=" in configuration file
-
-      // Functions
-      //
-      long configure_controller();           //!< get configuration parameters from .cfg file
-      long system_report(std::string buf, std::string &retstring);         
-      long status_report(std::string &retstring);
-      long timer_report(std::string &retstring);
-      long frame_report(std::string &retstring);
-      long wconfig(std::string buf);         //!< 
-      long rconfig(std::string buf, std::string &retstring);         
-      long write_parameter(std::string buf);
-
-// TODO ***** below here need to check what's needed **********************************************************
-
-      int  msgref;                           //!< Archon message reference identifier, matches reply to command
-      bool abort;
-      std::vector<int> gain;                 //!< digital CDS gain (from TAPLINE definition)
-      std::vector<int> offset;               //!< digital CDS offset (from TAPLINE definition)
-      bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
-      bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
-
-      float heater_target_min;               //!< minimum heater target temperature
-      float heater_target_max;               //!< maximum heater target temperature
-
-      char *image_data;                      //!< image data buffer
-      uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
-      uint32_t image_data_allocated;         //!< allocated number of bytes for image_data
-
-      std::atomic<bool> archon_busy;         //!< indicates a thread is accessing Archon
-      std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
-                                             //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
 
-      /**
-       * @var     struct geometry_t geometry[]
-       * @details structure of geometry which is unique to each observing mode
-       */
-      struct geometry_t {
-        int  amps_per_ccd[2];      // number of amplifiers per CCD for each axis, set in set_camera_mode
-        int  num_ccds;             // number of CCDs, set in set_camera_mode
-        int  linecount;            // number of lines per tap
-        int  pixelcount;           // number of pixels per tap
-      };
-
-      /**
-       * @var     struct tapinfo_t tapinfo[]
-       * @details structure of tapinfo which is unique to each observing mode
-       */
-      struct tapinfo_t {
-        int   num_taps;
-        int   tap[16];
-        float gain[16];
-        float offset[16];
-        std::string readoutdir[16];
-      };
+      struct image_t {
+        uint32_t framen;
+        int  activebufs;             //!< number of active frame buffers
+        int  taplines;               //!< from "TAPLINES=" in ACF file
+        int  linecount;              //!< from "LINECOUNT=" in ACF file
+        int  pixelcount;             //!< from "PIXELCOUNT=" in ACF file
+        int  readtime;               //!< from "READOUT_TIME=" in configuration file
+        int  exptime;                //!< requested exposure time in msec from WCONFIG
+      } image;
 
       /**
        * @var     struct frame_data_t frame
@@ -132,6 +87,63 @@ namespace Archon {
         std::vector<uint64_t> bufretimestamp; // buf trigger rising edge time stamp
         std::vector<uint64_t> buffetimestamp; // buf trigger falling edge time stamp
       } frame;
+
+      // Functions
+      //
+      long configure_controller();           //!< get configuration parameters from .cfg file
+      long system_report(std::string buf, std::string &retstring);         
+      long status_report(std::string &retstring);
+      long timer_report(std::string &retstring);
+      unsigned long  get_timer();
+      long frame_report(std::string &retstring);
+      long fetch_data(std::string ref, std::string cmd, Network::TcpSocket &sock);      //!< 
+      long wconfig(std::string buf);         //!< 
+      long rconfig(std::string buf, std::string &retstring);         
+      long write_parameter(std::string buf);
+      static void dothread_expose(frame_data_t &frame, image_t &image, int numexpose);
+
+// TODO ***** below here need to check what's needed **********************************************************
+
+      int  msgref;                           //!< Archon message reference identifier, matches reply to command
+      bool abort;
+      std::vector<int> gain;                 //!< digital CDS gain (from TAPLINE definition)
+      std::vector<int> offset;               //!< digital CDS offset (from TAPLINE definition)
+      bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
+      bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
+
+      float heater_target_min;               //!< minimum heater target temperature
+      float heater_target_max;               //!< maximum heater target temperature
+
+      char *image_data;                      //!< image data buffer
+      uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
+      uint32_t image_data_allocated;         //!< allocated number of bytes for image_data
+
+      std::atomic<bool> archon_busy;         //!< indicates a thread is accessing Archon
+      std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
+                                             //!< use in conjunction with archon_busy flag
+
+      /**
+       * @var     struct geometry_t geometry[]
+       * @details structure of geometry which is unique to each observing mode
+       */
+      struct geometry_t {
+        int  amps_per_ccd[2];      // number of amplifiers per CCD for each axis, set in set_camera_mode
+        int  num_ccds;             // number of CCDs, set in set_camera_mode
+        int  linecount;            // number of lines per tap
+        int  pixelcount;           // number of pixels per tap
+      };
+
+      /**
+       * @var     struct tapinfo_t tapinfo[]
+       * @details structure of tapinfo which is unique to each observing mode
+       */
+      struct tapinfo_t {
+        int   num_taps;
+        int   tap[16];
+        float gain[16];
+        float offset[16];
+        std::string readoutdir[16];
+      };
 
       /** @var      vector modtype
        *  @details  stores the type of each module from the SYSTEM command

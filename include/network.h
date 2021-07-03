@@ -74,10 +74,26 @@ namespace Network {
       int Poll();                        //!< polls a single file descriptor to wait for incoming data to read
       int Connect();                     //!< connect to this->host on this->port
       int Close();                       //!< close a socket connection
-      int Write(std::string msg_in);     //!< write data to a socket
       int Read(void* buf, size_t count); //!< read data from connected socket
       int Bytes_ready();                 //!< get the number of bytes available on the socket descriptor this->fd
 
+      int Write(std::string msg_in);     //!< write data to a socket
+
+      template <class T>
+      int Write(T* buf, size_t count) {  //!< write raw data to a socket
+        size_t bytes_sent=0;
+        int    this_write=0;
+
+        while ( bytes_sent < count ) {
+          do {
+            this_write = write( this->fd, buf, (count-bytes_sent) );
+          } while ( (this_write < 0) && (errno == EINTR) );
+          if (this_write <= 0) return this_write;
+          bytes_sent += this_write;
+          buf += this_write;
+        }
+        return bytes_sent;
+      }
   };
 
   class UdpSocket {

@@ -459,7 +459,11 @@ namespace Archon {
       return(ERROR);
     }
 
-    if (this->archon_busy) return(BUSY);        // only one command at a time
+    if (this->archon_busy) {                    // only one command at a time
+      message.str(""); message << "Archon busy: ignored command " << cmd;
+      logwrite(function, message.str());
+      return(BUSY);
+    }
 
     /**
      * Hold a scoped lock for the duration of this function, 
@@ -470,6 +474,7 @@ namespace Archon {
 
     // build command: ">xxCOMMAND\n" where xx=hex msgref and COMMAND=command
     //
+    this->msgref = (this->msgref + 1) % 256;       // increment msgref for each new command sent
     std::stringstream ssprefix;
     ssprefix << ">"
              << std::setfill('0')
@@ -522,7 +527,7 @@ namespace Archon {
 
     // For all other commands, receive the reply
     //
-    reply="";                                        // zero reply buffer
+    reply.clear();                                   // zero reply buffer
     do {
       if ( (retval=this->archon.Poll()) <= 0) {
         if (retval==0) { logwrite(function, "Poll timeout"); error = TIMEOUT; }
@@ -556,6 +561,8 @@ namespace Archon {
       try { scmd.erase(scmd.find("\n"), 1); } catch(...) { }
       message.str(""); message << "ERROR: command-reply mismatch for command: " << scmd;
       logwrite(function, message.str());
+      message.str(""); message << "ERROR: expected " << check << " but received " << reply;
+      logwrite(function, message.str());
     }
     else {                                           // command and reply are a matched pair
       error = NO_ERROR;
@@ -570,7 +577,6 @@ namespace Archon {
       }
 
       reply.erase(0, 3);                             // strip off the msgref from the reply
-      this->msgref = (this->msgref + 1) % 256;       // increment msgref
     }
 
     // clear the semaphore (still had the mutex this entire function)
@@ -2194,14 +2200,16 @@ logwrite("load_firmware", "two arg");
       // Wait for a block+header Bytes to be available
       // (but don't wait more than 1 second -- this should be tens of microseconds or less)
       //
-      auto start = std::chrono::high_resolution_clock::now();    // start a timer now
+      auto start = std::chrono::steady_clock::now();             // start a timer now
 
       while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) {
-        auto now = std::chrono::high_resolution_clock::now();    // check the time again
+        auto now = std::chrono::steady_clock::now();             // check the time again
         std::chrono::duration<double> diff = now-start;          // calculate the duration
         if (diff.count() > 1) {                                  // break while loop if duration > 1 second
+          std::cerr << "\n";
           logwrite(function, "ERROR: timeout waiting for data from Archon");
-          return(ERROR);
+          error = ERROR;
+          break;
         }
       }
 
