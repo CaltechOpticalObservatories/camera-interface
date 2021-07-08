@@ -3264,11 +3264,17 @@ logwrite("load_firmware", "two arg");
 
     std::transform( args.begin(), args.end(), args.begin(), ::toupper );  // make uppercase
 
-    // RAMP requires backplane version 1.0.548 or newer
+    // RAMP requires a minimum backplane version
     //
-    if ( (args.find("RAMP") != std::string::npos) && (backplaneversion < "1.0.548") ) {
-      message.str(""); message << "ERROR: RAMP command requires backplane version 1.0.548 or newer. ("
-                               << backplaneversion << " detected)";
+    int ret = compare_versions( this->backplaneversion, REV_RAMP );
+    if ( ret < 0 ) {
+      if ( ret == -999 ) {
+        message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_RAMP;
+      }
+      else {
+        message << "ERROR: requires backplane version " << REV_RAMP << " or newer. ("
+                << this->backplaneversion << " detected)";
+      }
       logwrite( function, message.str() );
       return( ERROR );
     }
@@ -3321,20 +3327,26 @@ logwrite("load_firmware", "two arg");
         return(ERROR);
     }
 
-   // Now that we've passed the basic tests (firmware OK, basic syntax OK, and requested module is a heater)
-   // go ahead and set up some needed variables.
-   //
+    // Now that we've passed the basic tests (firmware OK, basic syntax OK, and requested module is a heater)
+    // go ahead and set up some needed variables.
+    //
 
-   // heater target min/max
-   //
-   if ( this->backplaneversion < "1.0.1087" ) {
-     this->heater_target_min = -150.0;
-     this->heater_target_max =   50.0;
-   }
-   else {
-     this->heater_target_min = -250.0;
-     this->heater_target_max =   50.0;
-   }
+    // heater target min/max depends on backplane version
+    //
+    ret = compare_versions( this->backplaneversion, REV_HEATERTARGET );
+    if ( ret == -999 ) {
+      message.str(""); message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_HEATERTARGET;
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+    else if ( ret == -1 ) {
+      this->heater_target_min = -150.0;
+      this->heater_target_max =   50.0;
+    }
+    else {
+      this->heater_target_min = -250.0;
+      this->heater_target_max =   50.0;
+    }
 
     heaterconfig.clear();
     heatervalue.clear();
@@ -3530,11 +3542,21 @@ logwrite("load_firmware", "two arg");
         return( ERROR );
       }
       else {  // got "<module> A|B PID <p> <i> <d>" now check that the last 3 tokens are numbers
+        // Fractional PID requires a minimum backplane version
+        //
+        bool fractionalpid_ok = false;
+        ret = compare_versions( this->backplaneversion, REV_FRACTIONALPID );
+        if ( ret == -999 ) {
+          message.str(""); message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_FRACTIONALPID;
+          logwrite( function, message.str() );
+          return( ERROR );
+        }
+        else if ( ret == -1 ) fractionalpid_ok = false;
+        else fractionalpid_ok = true;
         try {
-          // For backplane versions before 1.0.1054, fractional PID was not allowed
-          // so check here that there are no decimal points if using older backplanes.
+          // If using backplane where fractional PID was not allowed, check for decimal points
           //
-          if ( (this->backplaneversion < "1.0.1054") &&
+          if ( (!fractionalpid_ok) &&
                ( ( tokens[3].find(".") != std::string::npos ) ||
                  ( tokens[4].find(".") != std::string::npos ) ||
                  ( tokens[5].find(".") != std::string::npos ) ) ) {
@@ -3543,8 +3565,9 @@ logwrite("load_firmware", "two arg");
             tokens[4] = std::to_string( std::lrint( std::stof( tokens[4] ) ) ); // replace token with rounded integer
             tokens[5] = std::to_string( std::lrint( std::stof( tokens[5] ) ) ); // replace token with rounded integer
 
-            logwrite( function, "NOTICE: fractional PID requires backplane version 1.0.1054 or newer" );
-            message.str(""); message << "NOTICE: backplane version " << backplaneversion << " detected";
+            message.str(""); message << "NOTICE: fractional PID requires backplane version " << REV_FRACTIONALPID << " or newer";
+            logwrite( function, message.str() );
+            message.str(""); message << "NOTICE: backplane version " << this->backplaneversion << " detected";
             logwrite( function, message.str() );
             message.str(""); message << "NOTICE: PIDs converted to: " << tokens[3] << " " << tokens[4] << " " << tokens[5];
             logwrite( function, message.str() );
@@ -3683,6 +3706,168 @@ logwrite("load_firmware", "two arg");
     return ( error );
   }
   /**************** Archon::Interface::heater *********************************/
+
+
+  /**************** Archon::Interface::sensor *********************************/
+  /**
+   * @fn     sensor
+   * @brief  
+   * @param  args contains various allowable strings (see full descsription)
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::sensor(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::sensor";
+    std::stringstream message;
+    std::vector<std::string> tokens;
+    std::string sensorid;                   //!< A | B | C
+    int module;                             //!< integer module number
+    float current;                          //!< requested current
+    bool readonly=true;                     //!< true is reading, not writing current
+    long error;
+
+    // must have loaded firmware // TODO implement a command to read the configuration 
+    //                           //      memory from Archon, in order to remove this restriction.
+    //
+    if ( ! this->firmwareloaded ) {
+      logwrite( function, "ERROR: firmware not loaded" );
+      return( ERROR );
+    }
+
+    // requires a minimum backplane version
+    //
+    int ret = compare_versions( this->backplaneversion, REV_SENSORCURRENT );
+    if ( ret < 0 ) {
+      if ( ret == -999 ) {
+        message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_SENSORCURRENT;
+      }
+      else {
+        message << "ERROR: requires backplane version " << REV_SENSORCURRENT << " or newer. ("
+                << this->backplaneversion << " detected)";
+      }
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
+    std::transform( args.begin(), args.end(), args.begin(), ::toupper );  // make uppercase
+
+    Tokenize( args, tokens, " " );
+
+    // At minimum there must be two tokens, <module> <sensorid>
+    //
+    if ( tokens.size() == 2 ) {
+      readonly = true;
+    }
+    else if ( tokens.size() == 3 ) {
+      readonly = false;
+    }
+    else {
+      message.str(""); message << "ERROR: incorrect number of arguments: " << args << ": expected <module#> <A|B|C> [current]";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
+    // Get the module and sensorid
+    //
+    try {
+      module   = std::stoi( tokens.at(0) );
+      sensorid = tokens.at(1);
+
+      if ( !readonly ) {
+        current = std::stof( tokens.at(2) );
+        if ( current > 1600000. ) {
+          message.str(""); message << "ERROR: requested current " << current << " exceeds maximum (1600000 nA)";
+          logwrite( function, message.str() );
+          return( ERROR );
+        }
+      }
+
+      if ( sensorid != "A" && sensorid != "B" && sensorid != "C" ) {
+        message.str(""); message << "ERROR: invalid sensor " << sensorid << ": expected <module#> <A|B|C> [ current ]";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+    }
+    catch ( std::invalid_argument & ) {
+      message.str(""); message << "ERROR: invalid argument in " << args << ": expected <module#> <A|B|C> [ current ]";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+    catch ( std::out_of_range & ) {
+      message.str(""); message << "ERROR: outside range in " << args << ": expected <module#> <A|B|C> [ current ]";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
+    // check that the requested module is valid
+    //
+    switch ( this->modtype[ module-1 ] ) {
+      case 0:
+        message.str(""); message << "ERROR: module " << module << " not installed";
+        logwrite( function, message.str() );
+        return( ERROR );
+      case 5:  // Heater
+      case 11: // HeaterX
+        break;
+      default:
+        message.str(""); message << "ERROR: module " << module << " is not a heater board";
+        logwrite( function, message.str() );
+        return( ERROR );
+    }
+
+    std::stringstream sensorconfig;
+    sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "CURRENT";
+
+    std::string key   = sensorconfig.str();
+    std::string value = std::to_string(current);
+    bool changed      = false;
+
+    // If no current was supplied (readonly) then just read the configuration and exit
+    //
+    if ( readonly ) {
+      message.str("");
+      error = this->get_configmap_value( key, current );
+      if ( error != NO_ERROR ) {
+        message << "ERROR: reading current " << key;
+      }
+      else {
+        retstring = std::to_string( current );
+        message << "module " << module << " sensor " << sensorid << " current=" << current;
+      }
+      logwrite( function, message.str() );
+      return ( error );
+    }
+
+    // Write the config line to update the sensor current
+    //
+    error = this->write_config_key( key.c_str(), value.c_str(), changed );
+
+    // Now send the APPLYMODx command
+    //
+    std::stringstream applystr;
+    applystr << "APPLYMOD"
+             << std::setfill('0')
+             << std::setw(2)
+             << std::hex
+             << (module-1);
+
+    if ( error == NO_ERROR ) error = this->archon_cmd( applystr.str() );
+
+    if ( error != NO_ERROR ) {
+      message << "ERROR: writing sensor current configuration: " << key << "=" << value;
+    }
+    else if ( !changed ) {
+      message << "sensor current configuration: " << key << "=" << value << " unchanged";
+    }
+    else {
+      message << "updated sensor current configuration: " << key << "=" << value;
+    }
+
+    logwrite( function, message.str() );
+
+    return ( error );
+  }
+  /**************** Archon::Interface::sensor *********************************/
 
 
   /**************** Archon::Interface::bias ***********************************/

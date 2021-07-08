@@ -29,6 +29,7 @@
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
 
 // Archon commands
+//
 #define  SYSTEM        std::string("SYSTEM")
 #define  STATUS        std::string("STATUS")
 #define  FRAME         std::string("FRAME")
@@ -47,6 +48,13 @@
 #define  TIMER         std::string("TIMER")
 #define  FETCHLOG      std::string("FETCHLOG")
 #define  UNLOCK        std::string("LOCK0")
+
+// Minimum required backplane revisions for certain features
+//
+#define REV_RAMP           std::string("1.0.548")
+#define REV_SENSORCURRENT  std::string("1.0.758")
+#define REV_HEATERTARGET   std::string("1.0.1087")
+#define REV_FRACTIONALPID  std::string("1.0.1054")
 
 namespace Archon {
 
@@ -140,6 +148,7 @@ namespace Archon {
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
       long heater(std::string args, std::string &retstring);
+      long sensor(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);
       long cds(std::string args, std::string &retstring);
       long test(std::string args, std::string &retstring);

@@ -36,4 +36,6 @@ double get_clock_time();
 
 void timeout(float seconds=0, bool next_sec=true);
 
+int compare_versions(std::string v1, std::string v2);
+
 #endif

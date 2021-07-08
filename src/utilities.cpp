@@ -327,3 +327,59 @@
       }
     }
   }
+  /** timeout *****************************************************************/
+
+
+  /** compare_versions ********************************************************/
+  /**
+   * @fn     compare_versions
+   * @brief  compares two version numbers represented as strings
+   * @param  v1
+   * @param  v2
+   * @return 0,1,-1,-999
+   *
+   * This function compares version or revision numbers which are represented
+   * as strings which contain decimals. Each portion of a version number is
+   * compared.
+   *
+   * Returns 1 if v2 is smaller, -1 if v1 is smaller, 0 if equal
+   * Returns -999 on error
+   *
+   * Revision numbers can be like n.n.n etc with any number of numbers n,
+   * but must be numbers.
+   *
+   */
+  int compare_versions(std::string v1, std::string v2) {
+    std::vector<std::string> tokens1;
+    std::vector<std::string> tokens2;
+
+    // Tokenize the version numbers, using the decimal point "." as the separator
+    //
+    Tokenize( v1, tokens1, "." );
+    Tokenize( v2, tokens2, "." );
+
+    // Compare each token.
+    // As soon as one is greater than the other then return.
+    //
+    for (size_t i=0,j=0; ( i < tokens1.size() && j < tokens2.size() ); i++,j++) {
+      try {
+        if ( std::stoi( tokens1.at(i) ) > std::stoi( tokens2.at(j) ) ) return 1;
+        if ( std::stoi( tokens2.at(j) ) > std::stoi( tokens1.at(i) ) ) return -1;
+      }
+      catch (std::invalid_argument &) {
+        return( -999 );
+      }
+      catch ( std::out_of_range & ) {
+        return( -999 );
+      }
+    }
+
+    // If we finished the loop then either they were all equal or
+    // one version had more tokens than the other (E.G., 1.1.123 vs 1.1).
+    // The one with more tokens has to be greater.
+    //
+    if ( tokens1.size() > tokens2.size() ) return 1;
+    if ( tokens2.size() > tokens1.size() ) return -1;
+
+    return 0;      // or they are equal
+  }

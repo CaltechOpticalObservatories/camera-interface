@@ -474,6 +474,18 @@ void doit(Network::TcpSocket sock) {
                     ret = server.cds(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
+    else
+    if (cmd.compare("heater")==0) {
+                    std::string retstring;
+                    ret = server.heater(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("sensor")==0) {
+                    std::string retstring;
+                    ret = server.sensor(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
 #endif
     else
     if (cmd.compare("expose")==0) {
@@ -483,12 +495,6 @@ void doit(Network::TcpSocket sock) {
     if (cmd.compare("exptime")==0) {
                     std::string retstring;
                     ret = server.exptime(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-                    }
-    else
-    if (cmd.compare("heater")==0) {
-                    std::string retstring;
-                    ret = server.heater(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
