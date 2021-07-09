@@ -1990,6 +1990,8 @@ logwrite("load_firmware", "two arg");
    * overloaded version of read_frame(frame_type) is called with the appropriate 
    * frame type of IMAGE or RAW.
    *
+   * This function WILL call write_frame(...) to write data after reading it.
+   *
    */
   long Interface::read_frame() {
     std::string function = "Archon::Interface::read_frame";
@@ -2020,7 +2022,7 @@ logwrite("load_firmware", "two arg");
       }
       else {
         if (error == NO_ERROR) error = this->read_frame(Common::FRAME_RAW);       // read raw frame
-        if (error == NO_ERROR) error = this->write_frame();               // write raw frame
+        if (error == NO_ERROR) error = this->write_frame();                       // write raw frame
       }
     }
 
@@ -2029,7 +2031,7 @@ logwrite("load_firmware", "two arg");
     //
     else {
       if (error == NO_ERROR) error = this->read_frame(Common::FRAME_IMAGE);       // read image frame
-      if (error == NO_ERROR) error = this->write_frame();                 // write image frame
+      if (error == NO_ERROR) error = this->write_frame();                         // write image frame
 
       // If mode is not RAW but RAWENABLE=1, then we will first read an image
       // frame (just done above) and then a raw frame (below). To do that we
@@ -2076,6 +2078,8 @@ logwrite("load_firmware", "two arg");
    * This is the overloaded read_frame function which accepts the frame_type argument.
    * This is called only by this->read_frame() to perform the actual read of the
    * selected frame type.
+   *
+   * No write takes place here!
    *
    */
   long Interface::read_frame(Common::frame_type_t frame_type) {
@@ -2744,7 +2748,6 @@ logwrite("load_firmware", "two arg");
       try {
         nseq = std::stoi( nseq_in );                                // test that nseq_in is an integer
         nseqstr = nseq_in;                                          // before trying to use it
-        this->camera_info.extension = 0;
       }
       catch (std::invalid_argument &) {
         message.str(""); message << "ERROR: unable to convert sequences: " << nseq_in << " to integer";
@@ -2757,6 +2760,11 @@ logwrite("load_firmware", "two arg");
         return(ERROR);
       }
     }
+
+    // Always initialize the extension number because someone could
+    // set datacube true and then send "expose" without a number.
+    //
+    this->camera_info.extension = 0;
 
     error = this->get_frame_status();  // TODO is this needed here?
 
@@ -4307,18 +4315,20 @@ logwrite("load_firmware", "two arg");
 
       std::string nseqstr;
       int nseq;
-      bool noread=false;
+      bool ro=false;  // read only
+      bool rw=false;  // read and write
 
       if (tokens.size() > 1) {
         nseqstr = tokens[1];
       }
       else {
-        logwrite(function, "must specify number of sequences for bw test");
+        logwrite(function, "usage: test bw <nseq> [ rw | ro ]");
         return ERROR;
       }
 
       if (tokens.size() > 2) {
-        if (tokens[2] == "noread") noread=true; else noread=false;
+        if (tokens[2] == "rw") rw=true; else rw=false;
+        if (tokens[2] == "ro") ro=true; else ro=false;
       }
 
       try {
@@ -4363,6 +4373,23 @@ logwrite("load_firmware", "two arg");
         this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
         error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
         this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+        // If read-write selected then need to do some FITS stuff
+        //
+        if ( rw ) {
+          this->camera_info.extension = 0;                            // always initialize extension
+          error = this->common.get_fitsname( this->camera_info.fits_name ); // assemble the FITS filename if rw selected
+          Common::FitsKeys::fits_key_t::iterator keyit;               // add keys from the ACF file 
+          for (keyit  = this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.begin();
+               keyit != this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.end();
+               keyit++) {
+            this->camera_info.userkeys.keydb[keyit->second.keyword].keyword    = keyit->second.keyword;
+            this->camera_info.userkeys.keydb[keyit->second.keyword].keytype    = keyit->second.keytype;
+            this->camera_info.userkeys.keydb[keyit->second.keyword].keyvalue   = keyit->second.keyvalue;
+            this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
+          }
+          this->camera_info.iscube = this->common.datacube();
+          if ( this->common.datacube() ) error = this->fits_file.open_file(this->camera_info);
+        }
       }
 
       if (error == NO_ERROR) logwrite(function, "exposure started");
@@ -4373,6 +4400,17 @@ logwrite("load_firmware", "two arg");
       // Loop over all expected frames.
       //
       while (nseq-- > 0) {
+
+        // If read-write selected,
+        // Open a new FITS file for each frame when not using datacubes
+        //
+        if ( rw && !this->common.datacube() ) {
+          this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+          this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
+          this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+          error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
+          error = this->fits_file.open_file( this->camera_info );
+        }
 
         if (this->camera_info.exposure_time != 0) {                 // wait for the exposure delay to complete (if there is one)
           error = this->wait_for_exposure();
@@ -4385,11 +4423,21 @@ logwrite("load_firmware", "two arg");
           }
         }
 
-        if (error==NO_ERROR) error = this->wait_for_readout();               // wait for the readout into frame buffer,
-        if (error==NO_ERROR && !noread) error = this->read_frame(Common::FRAME_IMAGE);  // read image frame directly with no write
+        if (error==NO_ERROR) error = this->wait_for_readout();                     // wait for the readout into frame buffer,
+        if (error==NO_ERROR && ro) error = this->read_frame(Common::FRAME_IMAGE);  // read image frame directly with no write
+        if (error==NO_ERROR && rw) error = this->read_frame();                     // read image frame directly with no write
+        if (error==NO_ERROR && rw && !this->common.datacube()) {
+          this->fits_file.close_file();
+        }
         if (error==NO_ERROR) frames_read++;
       }
       retstring = std::to_string( frames_read );
+
+      // for cubes, close the FITS file now that they've all been written
+      // (or any time there is an error)
+      //
+      if ( rw && ( this->common.datacube() || (error==ERROR) ) ) this->fits_file.close_file();
+
 
       logwrite( function, (error==ERROR ? "ERROR" : "complete") );
 
