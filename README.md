@@ -23,6 +23,13 @@ set(INTERFACE_TYPE "Archon")
 #set(INTERFACE_TYPE "AstroCam")
 ```
 
+ - if your software is installed in a directory other than ~/Software/camera-interface
+ then change the following line:
+
+```
+set(PROJECT_BASE_DIR $ENV{HOME}/Software/camera-interface)
+```
+
  - change to the build directory
 
  - To start with a clean build, delete the contents of the build
@@ -49,11 +56,14 @@ set(INTERFACE_TYPE "Archon")
  - run the program,
 
 ```
-   % ../bin/archonserver <file.cfg>
+   % ../bin/cameraserver <file.cfg>
 ```   
 
    where <file.cfg> is an appropriate configuration file. See the example .cfg files
    in this distribution.
+
+ - Note that only when INTERFACE_TYPE is set to Archon will the emulator software
+ be compiled.
 
 ---
 

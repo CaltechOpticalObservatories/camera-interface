@@ -52,6 +52,73 @@ namespace AstroCam {
                           void* pBuffer );
   };
 
+  template <typename T>
+  class XeInterlace {
+    private:
+      T* imbuf;
+      T* workbuf;
+
+    public:
+      XeInterlace(T* imbuf_in, T* workbuf_in) {
+        this->imbuf   = imbuf_in;
+        this->workbuf = workbuf_in;
+      }
+
+      void split_parallel();
+      void split_serial();
+      void quad_ccd();
+      std::string test(T* buf) { 
+        std::stringstream ret;
+        ret << " buf=" << buf << " workbuf=" << std::hex << this->workbuf << " imbuf=" << this->imbuf;
+        return (ret.str());
+      };
+  };
+
+
+  /**************** AstroCam::DeInterlace *************************************/
+  /**
+   * This is the DeInterlace class.
+   *
+   * The data it contains are pointers to the PCI image buffer and
+   * the working buffer where the deinterlacing is to take place.
+   *
+   * The functions it contains are the procedures for performing the deinterlacing.
+   *
+   * This is a template class so that the buffers are created of the proper type.
+   *
+   */
+  template <typename T>
+  class DeInterlace {
+    private:
+      T* imbuf;
+      T* workbuf;
+      int devnum;
+
+    public:
+      void split_parallel();
+      void split_serial();
+      void quad_ccd();
+
+      DeInterlace(T* buf1, T* buf2) {
+        this->imbuf = buf1;
+        this->workbuf = buf2;
+      }
+
+      DeInterlace(int devnum, T* buf1, T* buf2) {
+        this->devnum = devnum;
+        this->imbuf = buf1;
+        this->workbuf = buf2;
+      }
+
+      std::string test() {
+        std::stringstream ret;
+        ret << "imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << workbuf << " this->devnum=" << std::dec << this->devnum;
+        return ( ret.str() );
+      }
+  };
+  /**************** AstroCam::DeInterlace *************************************/
+
+
   class Interface {
     private:
       int rows;
@@ -137,6 +204,8 @@ namespace AstroCam {
       //
       std::vector<controller_info> controller;
 
+//    std::vector< XeInterlace<T> > deinter;
+
       std::mutex frameinfo_mutex;       //!< protects access to frameinfo
       std::mutex framecount_mutex;      //!< protects access to frame count
 
@@ -178,8 +247,13 @@ namespace AstroCam {
           template <class T>
           void deinterlace(T* imbuf);
 
+/*
           template <class T>
-          static void dothread_deinterlace(T &imagebuf, T &workbuf, int section);
+          static void dothread_deinterlace(T &imagebuf, T &workbuf, XeInterlace<T> &deinterlace, int section);
+*/
+
+          template <class T>
+          static void dothread_deinterlace(DeInterlace<T> &tc, int section);
 
           template <class T>
           void* alloc_workbuf(T* buf);
@@ -208,8 +282,11 @@ namespace AstroCam {
 
       FITS_file fits_file;              //!< instantiate a FITS container object
 
+template <class T>
+void dosomething(T buf, int section);
       // Functions
       //
+      long test(std::string args, std::string &retstring);
       long interface(std::string &iface);
       long connect_controller(std::string devices_in);
       long disconnect_controller();

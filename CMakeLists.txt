@@ -4,9 +4,13 @@
 # user must define the interface type here
 # valid types are: "AstroCam" | "Archon"
 
-set(INTERFACE_TYPE "Archon")
-#set(INTERFACE_TYPE "AstroCam")
+#set(INTERFACE_TYPE "Archon")
+set(INTERFACE_TYPE "AstroCam")
 
+# If your software is not installed in the indicated directory then change this:
+set(PROJECT_BASE_DIR $ENV{HOME}/Software/camera-interface)
+
+# This prints a large number of debugging messages and may be eliminated in future releases:
 #add_definitions(-DLOGLEVEL_DEBUG)
 
 # ----------------------------------------------------------------------------
@@ -16,9 +20,8 @@ set(INTERFACE_TYPE "Archon")
 
 cmake_minimum_required(VERSION 3.12)
 
-project(camera-interface VERSION 1.0)
+project(camera-interface VERSION 0.1)
 
-set(PROJECT_BASE_DIR $ENV{HOME}/camera-interface)
 set(PROJECT_SOURCE_DIR ${PROJECT_BASE_DIR}/src)
 set(PROJECT_INCL_DIR ${PROJECT_BASE_DIR}/include)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
@@ -40,6 +43,7 @@ elseif (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "x86_64")
 else()
         message(FATAL_ERROR " can't set BITS: unknown architecture: " ${CMAKE_HOST_SYSTEM_PROCESSOR})
 endif()
+
 
 # ----------------------------------------------------------------------------
 # Setup for appropriate hardware interface...
@@ -108,9 +112,6 @@ elseif(${INTERFACE_TYPE} STREQUAL "Archon")
         list(APPEND EMULATOR_SOURCE
                 "${PROJECT_SOURCE_DIR}/emulator-archon.cpp"
                 )
-        list(APPEND EMULATOR_INCLUDES
-                "${ARCHON_INCLUDE}"
-                )
 	add_library(emulator-interface STATIC
                 ${PROJECT_SOURCE_DIR}/emulator-archon.cpp
                 )
@@ -126,8 +127,10 @@ endif()
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
+if (${INTERFACE_TYPE} STREQUAL "Archon")
 add_library(${EMULATOR_TARGET} ${EMULATOR_SOURCE})
-target_include_directories(${EMULATOR_TARGET} PUBLIC ${EMULATOR_INCLUDES})
+target_include_directories(${EMULATOR_TARGET} PUBLIC ${PROJECT_INCL_DIR})
+endif()
 
 # ----------------------------------------------------------------------------
 # External libraries, such as FITS, etc.
@@ -163,10 +166,12 @@ add_executable(cameraserver
         ${INTERFACE_INCLUDES}
         )
 
+if (${INTERFACE_TYPE} STREQUAL "Archon")
 add_executable(emulator 
         ${PROJECT_SOURCE_DIR}/emulator-server.cpp 
-        ${EMULATOR_INCLUDES}
+        ${PROJECT_INCL_DIR}
         )
+endif()
 
 # ----------------------------------------------------------------------------
 # Everyone gets this:
@@ -183,6 +188,7 @@ target_link_libraries(cameraserver
         ${CFITS_LIB}
         )
 
+if (${INTERFACE_TYPE} STREQUAL "Archon")
 target_link_libraries(emulator
         network
         logentry
@@ -190,6 +196,7 @@ target_link_libraries(emulator
         ${EMULATOR_TARGET}
         ${CMAKE_THREAD_LIBS_INIT}
         )
+endif()
 
 # ----------------------------------------------------------------------------
 # Some targets are interface-dependent:

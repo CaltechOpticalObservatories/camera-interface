@@ -1127,9 +1127,6 @@ namespace AstroCam {
         //
         this->camera.at(dev).init_framecount();
 
-        std::stringstream devstring;
-        devstring << dev;
-
         // Copy the camera_info into each dev's info class object
         this->camera.at(dev).info = this->camera_info;
 
@@ -1138,7 +1135,7 @@ namespace AstroCam {
         // then set the filename for this specific dev
         // Assemble the FITS filename.
         // If naming type = "time" then this will use this->fitstime so that must be set first.
-        this->camera.at(dev).info.fits_name = this->common.get_fitsname( devstring.str() );
+        this->camera.at(dev).info.fits_name = this->common.get_fitsname( this->camera.at(dev).info.fits_name );
 
 #ifdef LOGLEVEL_DEBUG
         message.str("");
@@ -1652,8 +1649,8 @@ namespace AstroCam {
             << std::hex << this->controller.at(devnum).frameinfo[fpbcount].buf;
     logwrite(function, message.str());
 
-    // Cast that buffer to the appropriate type, then call
-    // the class deinterlace and write functions.
+    // Call the class' deinterlace and write functions
+    // with the image buffer pointer cast to the appropriate type.
     //
     try {
       switch (this->camera_info.datatype) {
@@ -1841,6 +1838,7 @@ namespace AstroCam {
    * @return none
    *
    * This function is static, spawned in a thread created by frameCallback()
+   * which is the callback fired by the ARC API when a frame has been received.
    *
    */
   void Interface::handle_frame(int devnum, uint32_t fpbcount, uint32_t fcount, void* buffer) {
@@ -2141,9 +2139,14 @@ namespace AstroCam {
   /**************** AstroCam::Interface::deinterlace **************************/
   /**
    * @fn     deinterlace
-   * @brief  
+   * @brief  spawns the deinterlacing threads
    * @param  args contains: module, channel, bias
    * @return none
+   *
+   * This function spawns threads to perform the actual deinterlacing in order
+   * to get it done as quickly as possible.
+   * 
+   * Called by write_frame(), which is called by the handle_frame thread.
    *
    */
   template <class T>
@@ -2153,7 +2156,6 @@ namespace AstroCam {
 
     int nthreads = std::thread::hardware_concurrency();
 
-    T* imagebuf = imbuf;
     T* workbuf = (T*)this->workbuf;
 
 #ifdef LOGLEVEL_DEBUG
@@ -2161,16 +2163,22 @@ namespace AstroCam {
     logwrite(function, message.str());
 #endif
 
+    // Instantiate a DeInterlace class object,
+    // which is constructed with the pointers need for the image and working buffers.
+    // This object contains the functions needed for the deinterlacing,
+    // which will get called by the threads created here.
+    //
+    DeInterlace deinterlace(this->devnum, imbuf, workbuf);
+
     // spawn threads to handle each sub-section of the image
     //
-    {  // begin local scope
+    {                                       // begin local scope
     std::vector<std::thread> threads;       // create a local scope vector for the threads
     for ( int section = 1; section <= nthreads; section++ ) {
-      std::thread thr( &AstroCam::Interface::CameraFits::dothread_deinterlace<T*>, 
-                   std::ref(imagebuf),
-                   std::ref(workbuf),
+      std::thread thr( &AstroCam::Interface::CameraFits::dothread_deinterlace<T>, 
+                   std::ref(deinterlace), 
                    section );
-      threads.push_back(std::move(thr));  // push the thread into a vector
+      threads.push_back(std::move(thr));    // push the thread into a vector
     }
 
 #ifdef LOGLEVEL_DEBUG
@@ -2178,6 +2186,11 @@ namespace AstroCam {
     logwrite(function, message.str());
 #endif
 
+    // By joining all the deinterlace threads to this thread (NOT to each other!) then
+    // this function will not return until all of the deinterlace threads have finished.
+    // This is necessary because the DeInterlace object cannot be allowed to go out of scope
+    // before all threads are done using it.
+    //
     try {
       for (std::thread & thr : threads) {   // loop through the vector of threads
         if ( thr.joinable() ) thr.join();   // if thread object is joinable then join to this function. (not to each other)
@@ -2192,10 +2205,8 @@ namespace AstroCam {
     threads.clear();                        // deconstruct the threads vector
     }
 
-#ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "*** [DEBUG] devnum " << this->devnum << " complete";
+    message.str(""); message << "deinterlacing for dev " << this->devnum << " complete";
     logwrite(function, message.str());
-#endif
 
     return;
   }
@@ -2203,17 +2214,142 @@ namespace AstroCam {
 
 
   /**************** AstroCam::Interface::dothread_deinterlace *****************/
+  /**
+   * @fn     dothread_deinterlace
+   * @brief  run in a thread to perform the actual deinterlacing
+   * @param  T &imagebuf, reference to image buffer
+   * @param  T &workbuf, reference to buffer to write deinterlaced image
+   * @param  int section, the section of the buffer this thread is working on
+   * @return none
+   *
+   */
   template <class T>
-  void Interface::CameraFits::dothread_deinterlace(T &imagebuf, T &workbuf, int section) {
+//void Interface::CameraFits::dothread_deinterlace(T &imagebuf, T &workbuf, XeInterlace<T> &deinterlace, int section) {
+  void Interface::CameraFits::dothread_deinterlace(DeInterlace<T> &deinterlace, int section) {
     std::string function = "AstroCam::Interface::CameraFits::dothread_deinterlace";
     std::stringstream message;
 #ifdef LOGLEVEL_DEBUG
-    message << "*** [DEBUG] imagebuf=" << std::hex << imagebuf << " workbuf=" << workbuf << " section=" << section;
+//  message << "*** [DEBUG] imagebuf=" << std::hex << imagebuf << " workbuf=" << workbuf << " section=" << section;
+    message << "*** [DEBUG] " << deinterlace.test();
     logwrite(function, message.str());
+    usleep(2000000);
 #endif
+//server.dosomething(imagebuf, section);
     return;
   }
   /**************** AstroCam::Interface::dothread_deinterlace *****************/
+
+template <class T>
+void Interface::dosomething(T buf, int section) {
+std::stringstream message;
+message << "section=" << section << " buf=" << std::hex << buf;
+logwrite("AstroCam::Interface::dosomething", message.str());
+usleep(5000000);
+}
+
+
+  /**************** AstroCam::Interface::test *********************************/
+  /**
+   * @fn     test
+   * @brief  test routines
+   * @param  string args contains test name and arguments
+   * @param  reference to retstring for any return values
+   * @return ERROR or NO_ERROR
+   *
+   * This is the place to put various debugging and system testing tools.
+   * It is placed here, rather than in common, to allow for controller-
+   * specific tests. This means some common tests may need to be duplicated
+   * for each controller.
+   *
+   * The server command is "test", the next parameter is the test name,
+   * and any parameters needed for the particular test are extracted as
+   * tokens from the args string passed in.
+   *
+   * The input args string is tokenized and tests are separated by a simple
+   * series of if..else.. conditionals.
+   *
+   */
+  long Interface::test(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::test";
+    std::stringstream message;
+    std::vector<std::string> tokens;
+    long error;
+
+    Tokenize(args, tokens, " ");
+
+    if (tokens.size() < 1) {
+      logwrite(function, "no test name provided");
+      return ERROR;
+    }
+
+    std::string testname = tokens[0];                                // the first token is the test name
+
+    // ----------------------------------------------------
+    // fitsname
+    // ----------------------------------------------------
+    // Show what the fitsname will look like.
+    // This is a "test" rather than a regular command so that it doesn't get mistaken
+    // for returning a real, usable filename. When using fitsnaming=time, the filename
+    // has to be generated at the moment the file is opened.
+    //
+    if (testname == "fitsname") {
+      std::string msg;
+      this->common.set_fitstime( get_system_time() );                // must set common.fitstime first
+      error = this->common.get_fitsname( msg );                      // get the fitsname (by reference)
+      this->common.message.enqueue( msg );                           // queue the fitsname
+      logwrite( function, msg );                                     // log ths fitsname
+    } // end if (testname == fitsname)
+
+    // ----------------------------------------------------
+    // async [message]
+    // ----------------------------------------------------
+    // queue an asynchronous message
+    // The [message] param is optional. If not provided then "test" is queued.
+    //
+    else
+    if (testname == "async") {
+      if (tokens.size() > 1) {
+        if (tokens.size() > 2) {
+          logwrite(function, "NOTICE: received multiple strings -- only the first will be queued");
+        }
+        logwrite( function, tokens[1] );
+        this->common.message.enqueue( tokens[1] );
+      }
+      else {                                // if no string passed then queue a simple test message
+        logwrite(function, "test");
+        this->common.message.enqueue("test");
+      }
+      error = NO_ERROR;
+    } // end if (testname == async)
+
+    // ----------------------------------------------------
+    // bw <nseq>
+    // ----------------------------------------------------
+    // Bandwidth test
+    // This tests the exposure sequence bandwidth by running a sequence
+    // of exposures, including reading the frame buffer -- everything except
+    // for the fits file writing.
+    //
+    else
+    if (testname == "bw") {
+      message.str(""); message << "ERROR: test " << testname << " not implemented";
+      logwrite(function, message.str());
+      error = ERROR;
+    } // end if (testname==bw)
+
+    // ----------------------------------------------------
+    // invalid test name
+    // ----------------------------------------------------
+    //
+    else {
+      message.str(""); message << "ERROR: test " << testname << " unknown";;
+      logwrite(function, message.str());
+      error = ERROR;
+    }
+
+    return error;
+  }
+  /**************** AstroCam::Interface::test *********************************/
 
 
   /**************** AstroCam::Interface::CameraFits::write ********************/
