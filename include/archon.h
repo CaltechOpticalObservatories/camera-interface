@@ -55,6 +55,7 @@
 #define REV_SENSORCURRENT  std::string("1.0.758")
 #define REV_HEATERTARGET   std::string("1.0.1087")
 #define REV_FRACTIONALPID  std::string("1.0.1054")
+#define REV_VCPU           std::string("1.0.784")
 
 namespace Archon {
 
@@ -151,6 +152,7 @@ namespace Archon {
       long sensor(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);
       long cds(std::string args, std::string &retstring);
+      long inreg( std::string args );
       long test(std::string args, std::string &retstring);
 
       /**

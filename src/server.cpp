@@ -361,15 +361,6 @@ void doit(Network::TcpSocket sock) {
                     else              ret = server.load_firmware(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
-#ifdef STA_ARCHON
-    else
-    if (cmd.compare("loadtiming")==0) {
-                    std::string retstring;  // string for the return value
-                    if (args.empty()) ret = server.load_timing(retstring);
-                    else              ret = server.load_timing(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-                    }
-#endif
     else
     if (cmd.compare("mode")==0) {
                     if (args.empty()) {     // no argument means asking for current mode
@@ -457,6 +448,17 @@ void doit(Network::TcpSocket sock) {
                     }
 #endif
 #ifdef STA_ARCHON
+    else
+    if (cmd.compare("loadtiming")==0) {
+                    std::string retstring;  // string for the return value
+                    if (args.empty()) ret = server.load_timing(retstring);
+                    else              ret = server.load_timing(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("inreg")==0) {
+                    ret = server.inreg(args);
+                    }
     else
     if (cmd.compare("printstatus")==0) {
                     ret = server.get_frame_status();

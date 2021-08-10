@@ -4115,6 +4115,130 @@ logwrite("load_firmware", "two arg");
   /**************** Archon::Interface::cds ************************************/
 
 
+  /**************** Archon::Interface::inreg **********************************/
+  /**
+   * @fn     inreg
+   * @brief  write to a VCPU INREGi
+   * @param  args contains: module inreg value
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::inreg( std::string args ) {
+    std::string function = "Archon::Interface::inreg";
+    std::stringstream message;
+    std::vector<std::string> tokens;
+    int module, reg, value;
+
+    // must have loaded firmware // TODO implement a command to read the configuration 
+    //                           //      memory from Archon, in order to remove this restriction.
+    //
+    if ( ! this->firmwareloaded ) {
+      logwrite( function, "ERROR: firmware not loaded" );
+      return( ERROR );
+    }
+
+    // VCPU requires a minimum backplane version
+    //
+    int ret = compare_versions( this->backplaneversion, REV_VCPU );
+    if ( ret < 0 ) {
+      if ( ret == -999 ) {
+        message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_VCPU;
+      }
+      else {
+        message << "ERROR: requires backplane version " << REV_VCPU << " or newer. ("
+                << this->backplaneversion << " detected)";
+      }
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
+    Tokenize(args, tokens, " ");
+
+    // There must be three tokens, <module> <reg> <value>
+    //
+    if ( tokens.size() != 3 ) {
+      logwrite( function, "ERROR: expected three arguments: <module> <reg> <value>" );
+      return ERROR;
+    }
+
+    // Now get the module and 
+    // which will be common to everything.
+    //
+    try {
+      module = std::stoi( tokens[0] );
+      reg    = std::stoi( tokens[1] );
+      value  = std::stoi( tokens[2] );
+    }
+    catch (std::invalid_argument &) {
+      message.str(""); message << "ERROR: unable to convert one of \"" << args << "\" to integer";
+      logwrite(function, message.str());
+      return( ERROR );
+    }
+    catch (std::out_of_range &) {
+      message.str(""); message << "ERROR: one of \"" << args << "\" is outside integer range";
+      logwrite(function, message.str());
+      return( ERROR );
+    }
+
+    // check that requested module is valid
+    //
+    switch ( this->modtype[ module-1 ] ) {
+      case 0:
+        message.str(""); message << "ERROR: requested module " << module << " not installed";
+        logwrite(function, message.str());
+        return(ERROR);
+      case 3:  // LVBias
+      case 5:  // Heater
+      case 7:  // HS
+      case 9:  // LVXBias
+      case 10: // LVDS
+      case 11: // HeaterX
+        break;
+      default:
+        message.str(""); message << "ERROR: requested module " << module << " does not contain a VCPU";
+        logwrite(function, message.str());
+        return( ERROR );
+    }
+
+    // check that register number is valid
+    //
+    if ( reg < 0 || reg > 15 ) {
+      message.str(""); message << "ERROR: requested register " << reg << " outside range {0:15}";
+      logwrite(function, message.str());
+      return( ERROR );
+    }
+
+    // check that value is within range
+    //
+    if ( value < 0 || value > 65535 ) {
+      message.str(""); message << "ERROR: requested value " << value << " outside range {0:65535}";
+      logwrite(function, message.str());
+      return( ERROR );
+    }
+
+    std::stringstream inreg_key;
+    bool changed = false;
+    inreg_key << "MOD" << module << "/VCPU_INREG" << reg;
+    long error = this->write_config_key( inreg_key.str().c_str(), value, changed );
+    if ( error != NO_ERROR ) {
+      message.str(""); message << "ERROR writing configuration " << inreg_key.str() << "=" << value;
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+    else {
+      std::stringstream applystr;
+      applystr << "APPLYDIO"
+               << std::setfill('0')
+               << std::setw(2)
+               << std::hex
+               << (module-1);
+      error = this->archon_cmd( applystr.str() );
+      return( error );
+    }
+  }
+  /**************** Archon::Interface::inreg **********************************/
+
+
   /**************** Archon::Interface::test ***********************************/
   /**
    * @fn     test
