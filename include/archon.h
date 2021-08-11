@@ -24,7 +24,6 @@
 #define POLLTIMEOUT 5000           //!< poll timeout in msec
 #define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 #define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
-#define MAXCCDS 4                  //!< max number of CCDs handled by one controller
 #define BLOCK_LEN 1024             //!< Archon block size
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
 
@@ -160,8 +159,8 @@ namespace Archon {
        * @details structure of geometry which is unique to each observing mode
        */
       struct geometry_t {
-        int  amps_per_ccd[2];      // number of amplifiers per CCD for each axis, set in set_camera_mode
-        int  num_ccds;             // number of CCDs, set in set_camera_mode
+        int  amps[2];              // number of amplifiers per detector for each axis, set in set_camera_mode
+        int  num_detect;           // number of detectors, set in set_camera_mode
         int  linecount;            // number of lines per tap
         int  pixelcount;           // number of pixels per tap
       };

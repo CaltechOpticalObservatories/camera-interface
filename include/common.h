@@ -222,8 +222,8 @@ namespace Common {
         this->axes[0] = this->axis_pixels[0] / this->binning[0];
         this->axes[1] = this->axis_pixels[1] / this->binning[1];
 
-        this->image_size   = this->axes[0] * this->axes[1];                    // Pixels per CCD
-        this->image_memory = this->axes[0] * this->axes[1] * bytes_per_pixel;  // Bytes per CCD
+        this->image_size   = this->axes[0] * this->axes[1];                    // Pixels per detector
+        this->image_memory = this->axes[0] * this->axes[1] * bytes_per_pixel;  // Bytes per detector
 
         return (NO_ERROR);
       }

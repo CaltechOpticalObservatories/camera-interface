@@ -1095,16 +1095,16 @@ logwrite("load_firmware", "two arg");
           return ERROR;
         }
 
-        if ( tokens[0] == "NUM_CCDS" ) {
-          this->modemap[mode].geometry.num_ccds = std::stoi( tokens[1] );
+        if ( tokens[0] == "NUM_DETECT" ) {
+          this->modemap[mode].geometry.num_detect = std::stoi( tokens[1] );
         }
         else
-        if ( tokens[0] == "AMPS_PER_CCD_HORI" ) {
-          this->modemap[mode].geometry.amps_per_ccd[0] = std::stoi( tokens[1] );
+        if ( tokens[0] == "HORI_AMPS" ) {
+          this->modemap[mode].geometry.amps[0] = std::stoi( tokens[1] );
         }
         else
-        if ( tokens[0] == "AMPS_PER_CCD_VERT" ) {
-          this->modemap[mode].geometry.amps_per_ccd[1] = std::stoi( tokens[1] );
+        if ( tokens[0] == "VERT_AMPS" ) {
+          this->modemap[mode].geometry.amps[1] = std::stoi( tokens[1] );
         }
         else {
           message.str(""); message << "ERROR: unrecognized internal parameter specified: "<< tokens[0];
@@ -1263,15 +1263,18 @@ logwrite("load_firmware", "two arg");
     filestream.close();
     if (error == NO_ERROR) {
       logwrite(function, "loaded Archon config file OK");
+      this->firmwareloaded = true;
     }
 
     // If there was an Archon error then read the Archon error log
     //
-    if (error != NO_ERROR) this->fetchlog();
+    if (error != NO_ERROR) error = this->fetchlog();
 
     this->modeselected = false;           // require that a mode be selected after loading new firmware
 
-    this->firmwareloaded = true;
+    // If no errors then automatically set the mode to DEFAULT
+    //
+    if ( error == NO_ERROR ) error = this->set_camera_mode( std::string( "DEFAULT" ) );
 
     return(error);
   }
@@ -1335,7 +1338,7 @@ logwrite("load_firmware", "two arg");
     logwrite(function, message.str());
 #endif
 
-    int num_ccds = this->modemap[mode].geometry.num_ccds;                 // for convenience
+    int num_detect = this->modemap[mode].geometry.num_detect;             // for convenience
 
     // set current number of Archon buffers and resize local memory
     //
@@ -1374,14 +1377,14 @@ logwrite("load_firmware", "two arg");
 #ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] mode=" << mode; logwrite(function, message.str());
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[0] (PIXELCOUNT) = " << this->camera_info.detector_pixels[0]
-                               << " amps_per_ccd[0] = " << this->modemap[mode].geometry.amps_per_ccd[0];
+                               << " amps[0] = " << this->modemap[mode].geometry.amps[0];
       logwrite(function, message.str());
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (LINECOUNT) = " << this->camera_info.detector_pixels[1]
-                               << " amps_per_ccd[1] = " << this->modemap[mode].geometry.amps_per_ccd[1];
+                               << " amps[1] = " << this->modemap[mode].geometry.amps[1];
       logwrite(function, message.str());
 #endif
-      this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps_per_ccd[0];
-      this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps_per_ccd[1];
+      this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps[0];
+      this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps[1];
       this->camera_info.frame_type = Common::FRAME_IMAGE;
       // ROI is the full detector
       this->camera_info.region_of_interest[0] = 1;
@@ -1447,10 +1450,10 @@ logwrite("load_firmware", "two arg");
 
     // allocate image_data in blocks because the controller outputs data in units of blocks
     //
-    this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_ccds) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
+    this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
 
     if (this->image_data_bytes == 0) {
-      logwrite(function, "ERROR: image data size is zero! check NUM_CCDS, AMPS_PER_CCD_HORI, AMPS_PER_CCD_VERT in .acf file");
+      logwrite(function, "ERROR: image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file");
       error = ERROR;
     }
 
@@ -2093,7 +2096,7 @@ logwrite("load_firmware", "two arg");
     uint64_t bufaddr;
     unsigned int block, bufblocks=0;
     long error = ERROR;
-    int num_ccds = this->modemap[this->camera_info.current_observing_mode].geometry.num_ccds;
+    int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
 
     this->camera_info.frame_type = frame_type;
 
@@ -2158,7 +2161,7 @@ logwrite("load_firmware", "two arg");
         // Archon buffer base address
         bufaddr   = this->frame.bufbase[this->frame.index] + this->frame.bufrawoffset[this->frame.index];
 
-        // Calculate the number of blocks expected. image_memory is bytes per CCD
+        // Calculate the number of blocks expected. image_memory is bytes per detector
         bufblocks = (unsigned int) floor( (this->camera_info.image_memory + BLOCK_LEN - 1 ) / BLOCK_LEN );
         break;
 
@@ -2166,9 +2169,9 @@ logwrite("load_firmware", "two arg");
         // Archon buffer base address
         bufaddr   = this->frame.bufbase[this->frame.index];
 
-        // Calculate the number of blocks expected. image_memory is bytes per CCD
+        // Calculate the number of blocks expected. image_memory is bytes per detector
         bufblocks =
-        (unsigned int) floor( ((this->camera_info.image_memory * num_ccds) + BLOCK_LEN - 1 ) / BLOCK_LEN );
+        (unsigned int) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
         break;
 
       default:

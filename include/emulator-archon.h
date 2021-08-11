@@ -127,8 +127,8 @@ namespace Archon {
        * @details structure of geometry which is unique to each observing mode
        */
       struct geometry_t {
-        int  amps_per_ccd[2];      // number of amplifiers per CCD for each axis, set in set_camera_mode
-        int  num_ccds;             // number of CCDs, set in set_camera_mode
+        int  amps[2];              // number of amplifiers per detector for each axis, set in set_camera_mode
+        int  num_detect;           // number of detectors, set in set_camera_mode
         int  linecount;            // number of lines per tap
         int  pixelcount;           // number of pixels per tap
       };
