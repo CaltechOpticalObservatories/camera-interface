@@ -168,7 +168,9 @@ namespace Common {
       bool          abortexposure;
       bool          iscube;                  //!< the info object given to the FITS writer will need to know cube status
       int           extension;               //!< extension number for data cubes
-      int           exposure_time;           //!< exposure time in msec
+      int32_t       exposure_time;           //!< exposure time in exposure_unit
+      std::string   exposure_unit;           //!< exposure time unit
+      int           exposure_factor;         //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
       double        exposure_progress;       //!< exposure progress (fraction)
       std::string   fits_name;               //!< contatenation of Common's image_dir + image_name + image_num
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
@@ -190,7 +192,10 @@ namespace Common {
         this->image_center[1] = 1;
         this->iscube = false;
         this->datatype = -1;
-        this->type_set = false;  //!< set true when datatype has been defined
+        this->type_set = false;              //!< set true when datatype has been defined
+        this->exposure_time = -1;            //!< default exposure time is undefined
+        this->exposure_unit = "";            //!< default exposure unit is undefined
+        this->exposure_factor = -1;          //!< default factor is undefined
       }
 
       long set_axes(int datatype_in) {

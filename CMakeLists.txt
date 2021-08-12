@@ -4,11 +4,11 @@
 # user must define the interface type here
 # valid types are: "AstroCam" | "Archon"
 
-#set(INTERFACE_TYPE "Archon")
-set(INTERFACE_TYPE "AstroCam")
+set(INTERFACE_TYPE "Archon")
+#set(INTERFACE_TYPE "AstroCam")
 
 # If your software is not installed in the indicated directory then change this:
-set(PROJECT_BASE_DIR $ENV{HOME}/Software/camera-interface)
+set(PROJECT_BASE_DIR $ENV{HOME}/camera-interface)
 
 # This prints a large number of debugging messages and may be eliminated in future releases:
 #add_definitions(-DLOGLEVEL_DEBUG)

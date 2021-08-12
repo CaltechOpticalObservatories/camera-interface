@@ -91,6 +91,7 @@ namespace Archon {
       std::vector<int> offset;               //!< digital CDS offset (from TAPLINE definition)
       bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
       bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
+      bool is_longexposure;                  //!< true for long exposure mode (exptime in sec), false for exptime in msec
 
       float heater_target_min;               //!< minimum heater target temperature
       float heater_target_max;               //!< maximum heater target temperature
@@ -147,6 +148,7 @@ namespace Archon {
       long get_parameter(std::string parameter, std::string &retstring);
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
+      long longexposure(std::string state_in, std::string &state_out);
       long heater(std::string args, std::string &retstring);
       long sensor(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);

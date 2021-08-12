@@ -484,7 +484,9 @@ class FITS_file {
         filename = info.fits_name.substr(loc+1);
         this->pFits->pHDU().addKey("FILENAME", filename, "this filename");
 
-        this->pFits->pHDU().addKey("EXP_TIME", info.exposure_time, "exposure time in msec");
+        message.str(""); message << "exposure time in " << info.exposure_unit;
+        this->pFits->pHDU().addKey("EXP_TIME", info.exposure_time, message.str().c_str() );
+//      this->pFits->pHDU().addKey("EXP_TIME", info.exposure_time, "exposure time in msec");
       }
       catch (CCfits::FitsError & err) {
         message.str(""); message << "error creating FITS header: " << err.message();

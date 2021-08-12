@@ -31,6 +31,7 @@ namespace Archon {
     this->image_data = NULL;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
+    this->is_longexposure = false;
 
     // pre-size the modtype and modversion vectors to hold the max number of modules
     //
@@ -1275,6 +1276,14 @@ logwrite("load_firmware", "two arg");
     // If no errors then automatically set the mode to DEFAULT
     //
     if ( error == NO_ERROR ) error = this->set_camera_mode( std::string( "DEFAULT" ) );
+
+    // Even if exptime, longexposure were previously set, a new ACF could have different
+    // default values than the server has, so reset these to "undefined" in order to
+    // force the server to ask for them.
+    //
+    this->camera_info.exposure_time   = -1;
+    this->camera_info.exposure_factor = -1;
+    this->camera_info.exposure_unit.clear();
 
     return(error);
   }
@@ -2721,7 +2730,7 @@ logwrite("load_firmware", "two arg");
   long Interface::expose(std::string nseq_in) {
     std::string function = "Archon::Interface::expose";
     std::stringstream message;
-    long error;
+    long error = NO_ERROR;
     std::string nseqstr;
     int nseq;
 
@@ -2739,6 +2748,34 @@ logwrite("load_firmware", "two arg");
       message.str(""); message << "ERROR: EXPOSE_PARAM not defined in configuration file " << this->config.filename;
       logwrite(function, message.str());
       return(ERROR);
+    }
+
+    // If the exposure time or longexposure mode were never set then read them from the Archon.
+    // This ensures that, if the client doesn't set these values then the server will have the
+    // same default values that the ACF has, rather than hope that the ACF programmer picks
+    // their defaults to match mine.
+    //
+    if ( this->camera_info.exposure_time   == -1 ||
+         this->camera_info.exposure_factor == -1 ||
+         this->camera_info.exposure_unit.empty() ) {
+      logwrite( function, "exptime and/or longexposure have not been set--will read from Archon" );
+
+      // read the Archon configuration memory
+      //
+      std::string etime, lexp;
+      if ( error == NO_ERROR ) { if ( (error=read_parameter( "exptime", etime )) != NO_ERROR ) logwrite( function, "ERROR reading \"exptime\" parameter from Archon" ); }
+      if ( error == NO_ERROR ) { if ( (error=read_parameter( "longexposure", lexp )) != NO_ERROR ) logwrite( function, "ERROR reading \"longexposure\" parameter from Archon" ); }
+
+      // Tell the server these values
+      //
+      std::string retval;
+      if ( error == NO_ERROR ) { if ( (error=this->exptime( etime, retval )) != NO_ERROR ) logwrite( function, "ERROR setting exptime" ); }
+      if ( error == NO_ERROR ) { if ( (error=this->longexposure( lexp, retval )) != NO_ERROR ) logwrite( function, "ERROR setting longexposure" ); }
+
+      if ( error != NO_ERROR ) {
+        logwrite( function, "unable to start exposure" );
+        return( ERROR );
+      }
     }
 
     // If nseq_in is not supplied then set nseq to 1
@@ -2911,7 +2948,7 @@ logwrite("load_firmware", "two arg");
    * allow time for the Archon to complete its exposure delay. This is done by using
    * the exposure time given to the Archon and by using the Archon's internal timer,
    * which is queried here. There is no sense in polling the Archon's timer for the
-   * entire exposure time, so this function waits internally for about 80% of the
+   * entire exposure time, so this function waits internally for about 90% of the
    * exposure time, then only starts polling the Archon for the remaining time.
    *
    * A prediction is made of what the Archon's timer will be at the end, in order
@@ -2926,23 +2963,33 @@ logwrite("load_firmware", "two arg");
     int exposure_timeout_time;  // Time to wait for the exposure delay to time out
     unsigned long int timer, increment=0;
 
-    // waittime is an integral number of msec below 80% of the exposure time
-    // and will be used to keep track of elapsed time, for timeout errors
+    // For long exposures, waittime is 1 second less than the exposure time.
+    // For short exposures, waittime is an integral number of msec below 90% of the exposure time
+    // and will be used to keep track of elapsed time, for timeout errors.
     //
-    int waittime = (int)floor(0.8 * this->camera_info.exposure_time);  // in msec
+    double waittime;
+    if ( this->is_longexposure ) {
+      waittime = this->camera_info.exposure_time - 1;
+    }
+    else {
+      waittime = floor( 0.9 * this->camera_info.exposure_time / this->camera_info.exposure_factor );  // in units of this->camera_info.exposure_unit
+    }
 
-    // Wait, (don't sleep) for approx 80% of the exposure time.
+    // Wait, (don't sleep) for the above waittime.
     // This is a period that could be aborted by setting the this->abort flag. //TODO not yet implemented?
+    // All that is happening here is a wait -- there is no Archon polling going on here.
     //
-    double start_time = get_clock_time();
-    double now = get_clock_time();
+    double start_time = get_clock_time();  // get the current clock time from host (in seconds)
+    double now = start_time;
 
-    // prediction is the predicted finish_timer, used to compute exposure time progress
+    // Prediction is the predicted finish_timer, used to compute exposure time progress,
+    // and is computed as start_time + exposure_time in Archon ticks.
+    // Each Archon tick is 10 nsec (1e8 sec). Divide by exposure_factor (=1 for sec, =1000 for msec).
     //
-    unsigned long int prediction = this->start_timer + this->camera_info.exposure_time*1e5;
+    unsigned long int prediction = this->start_timer + this->camera_info.exposure_time * 1e8 / this->camera_info.exposure_factor;
 
     std::cerr << "exposure progress: ";
-    while ( (now - (waittime/1000. + start_time) < 0) && this->abort == false ) {
+    while ( (now - (waittime + start_time) < 0) && this->abort == false ) {
       timeout(0.010);  // sleep 10 msec = 1e6 Archon ticks
       increment += 1000000;
       now = get_clock_time();
@@ -2961,13 +3008,15 @@ logwrite("load_firmware", "two arg");
     // the timeout to 1 second. Otherwise, set it to the exposure time plus
     // 1 second.
     //
-    if (this->camera_info.exposure_time < 1){
+    if ( this->camera_info.exposure_time / this->camera_info.exposure_factor < 1 ) {
       exposure_timeout_time = 1000; //ms
     }
     else {
       exposure_timeout_time = (this->camera_info.exposure_time) + 1000;
     }
 
+    // Now start polling the Archon for the last remaining portion of the exposure delay
+    //
     bool done = false;
     while (done == false && this->abort == false) {
       // Poll Archon's internal timer
@@ -2985,10 +3034,10 @@ logwrite("load_firmware", "two arg");
 
       std::cerr << std::setw(3) << (int)(this->camera_info.exposure_progress*100) << "\b\b\b";  // send to stderr in case anyone is watching
 
-      // exposure_time in msec (1e-3s), Archon timer ticks are in 10 nsec (1e-8s)
-      // so when comparing timer ticks to exposure time there the difference is a factor of 1e-5
+      // Archon timer ticks are in 10 nsec (1e-8) so when comparing to exposure_time,
+      // multiply exposure_time by 1e8/exposure_factor, where exposure_factor=1 or =1000 for exposure_unit sec or msec.
       //
-      if ( ((timer - this->start_timer)*1e-5) >= this->camera_info.exposure_time ) {
+      if ( (timer - this->start_timer) >= ( this->camera_info.exposure_time * 1e8 / this->camera_info.exposure_factor ) ) {
         this->finish_timer = timer;
         done  = true;
         break;
@@ -3202,33 +3251,113 @@ logwrite("load_firmware", "two arg");
     std::string function = "Archon::Interface::exptime";
     std::stringstream message;
     long ret=NO_ERROR;
+    int32_t exp_time = -1;
 
     if ( !exptime_in.empty() ) {
+      // Convert to integer to check the value
+      //
+      try {
+        exp_time = std::stoi( exptime_in );
+      }
+      catch (std::invalid_argument &) {
+        message.str(""); message << "ERROR: unable to convert exposure time: " << exptime_in << " to integer";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+      catch (std::out_of_range &) {
+        message.str(""); message << "ERROR: exposure time " << exptime_in << " outside integer range";
+        logwrite(function, message.str());
+        return(ERROR);
+      }
+
+      // Archon allows only 20 bit parameters
+      //
+      if ( exp_time < 0 || exp_time > 0xFFFFF ) {
+        message.str(""); message << "ERROR: " << exptime_in << " out of range {0:1048575}";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+
+      // Now that the value is OK set the parameter on the Archon
+      //
       std::stringstream cmd;
       cmd << "exptime " << exptime_in;
       ret = this->set_parameter( cmd.str() );
-      if (ret != ERROR) {
-        try {
-          this->camera_info.exposure_time = std::stoi( exptime_in );
-        }
-        catch (std::invalid_argument &) {
-          message.str(""); message << "ERROR: unable to convert exposure time: " << exptime_in << " to integer";
-          logwrite(function, message.str());
-          return(ERROR);
-        }
-        catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: exposure time " << exptime_in << " outside integer range";
-          logwrite(function, message.str());
-          return(ERROR);
-        }
-      }
+
+      // If parameter was set OK then save the new value
+      //
+      if ( ret==NO_ERROR ) this->camera_info.exposure_time = exp_time;
     }
-    retstring = std::to_string( this->camera_info.exposure_time );
-    message.str(""); message << "exposure time is " << retstring << " msec";
+
+    // prepare the return value
+    //
+    message.str(""); message << this->camera_info.exposure_time << ( this->is_longexposure ? " sec" : " msec" );
+    retstring = message.str();
+
+    message.str(""); message << "exposure time is " << retstring;
     logwrite(function, message.str());
+
     return(ret);
   }
   /**************** Archon::Interface::exptime ********************************/
+
+
+  /**************** Archon::Interface::longexposure ***************************/
+  /**
+   * @fn     longexposure
+   * @brief  set/get longexposure mode
+   * @param  string
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::longexposure(std::string state_in, std::string &state_out) {
+    std::string function = "Archon::Interface::longexposure";
+    std::stringstream message;
+    int error = NO_ERROR;
+
+    // If something is passed then try to use it to set the longexposure state
+    //
+    if ( !state_in.empty() ) {
+      try {
+        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
+        if ( state_in == "FALSE" || state_in == "0" ) this->is_longexposure = false;
+        else
+        if ( state_in == "TRUE" || state_in == "1" ) this->is_longexposure = true;
+        else {
+          message.str(""); message << "ERROR: " << state_in << " is invalid. Expecting {true,false,0,1}";
+          logwrite( function, message.str() );
+          return( ERROR );
+        }
+      }
+      catch (...) {
+        logwrite( function, "error converting state_in to uppercase" );
+        return( ERROR );
+      }
+    }
+
+    // error or not, the state reported now will be whatever was last successfully set
+    //
+    this->camera_info.exposure_unit   = ( this->is_longexposure ? "sec" : "msec" );
+    this->camera_info.exposure_factor = ( this->is_longexposure ? 1 : 1000 );
+    state_out = ( this->is_longexposure ? "true" : "false" );
+
+    // send async message
+    //
+    message.str(""); message << "longexposure=" << state_out;
+    logwrite( function, message.str() );
+    this->common.message.enqueue( message.str() );
+
+    // if no error then set the parameter on the Archon
+    //
+    if ( error==NO_ERROR ) {
+      std::stringstream cmd;
+      cmd << "longexposure " << ( this->is_longexposure ? 1 : 0 );
+      if ( error==NO_ERROR ) error = this->set_parameter( cmd.str() );
+    }
+
+    return( error );
+  }
+  /**************** Archon::Interface::longexposure ***************************/
 
 
   /**************** Archon::Interface::heater *********************************/

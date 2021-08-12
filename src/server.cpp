@@ -490,6 +490,12 @@ void doit(Network::TcpSocket sock) {
                     ret = server.sensor(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
+    else
+    if (cmd.compare("longexposure")==0) {
+                    std::string retstring;
+                    ret = server.longexposure(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
 #endif
     else
     if (cmd.compare("expose")==0) {
@@ -498,7 +504,18 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("exptime")==0) {
                     std::string retstring;
-                    ret = server.exptime(args, retstring);
+                    // Neither controller allows fractional exposure times
+                    // so catch that here.
+                    //
+                    if ( args.find(".") != std::string::npos ) {
+                      ret = ERROR;
+                      logwrite(function, "ERROR: fractional exposure times not allowed");
+                      // empty the args string so that a call to exptime returns the current exptime
+                      //
+                      args="";
+                      server.exptime(args, retstring);
+                    }
+                    else { ret = server.exptime(args, retstring); }
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
