@@ -72,7 +72,7 @@ class FITS_file {
       // This is probably a programming error, if file_open is true here
       //
       if (this->file_open) {
-        message.str(""); message << "ERROR: FITS file " << info.fits_name << " already open";
+        message.str(""); message << "ERROR: FITS file \"" << info.fits_name << "\" already open";
         logwrite(function, message.str());
         return (ERROR);
       }
@@ -85,7 +85,7 @@ class FITS_file {
         std::remove( info.fits_name.c_str() );
       }
       else {
-        message.str(""); message << "ERROR unable to create file " << info.fits_name;
+        message.str(""); message << "ERROR unable to create file \"" << info.fits_name << "\"";
         logwrite(function, message.str());
         return(ERROR);
       }
@@ -123,17 +123,17 @@ class FITS_file {
         }
       }
       catch (CCfits::FITS::CantCreate){
-        message.str(""); message << "ERROR: unable to open FITS file " << info.fits_name;
+        message.str(""); message << "ERROR: unable to open FITS file \"" << info.fits_name << "\"";
         logwrite(function, message.str());
         return(ERROR);
       }
       catch (...) {
-        message.str(""); message << "unknown error opening FITS file " << info.fits_name;
+        message.str(""); message << "unknown error opening FITS file \"" << info.fits_name << "\"";
         logwrite(function, message.str());
         return(ERROR);
       }
 
-      message.str(""); message << "opened file " << info.fits_name << " for FITS write";
+      message.str(""); message << "opened file \"" << info.fits_name << "\" for FITS write";
       logwrite(function, message.str());
 
       // must reset variables as when container was constructed
@@ -215,7 +215,7 @@ class FITS_file {
       // The file must have been opened first
       //
       if ( !this->file_open ) {
-        message.str(""); message << "ERROR: FITS file " << info.fits_name << " not open";
+        message.str(""); message << "ERROR: FITS file \"" << info.fits_name << "\" not open";
         logwrite(function, message.str());
         return (ERROR);
       }

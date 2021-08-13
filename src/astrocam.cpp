@@ -30,10 +30,8 @@ namespace AstroCam {
   void Callback::exposeCallback( int devnum, std::uint32_t uiElapsedTime ) {
     std::string function = "AstroCam::Callback::exposeCallback";
     std::stringstream message;
-#ifdef LOGLEVEL_DEBUG
-    message <<"*** [DEBUG] elapsed exposure time [" << devnum << "] = " << uiElapsedTime;
-    logwrite(function, message.str());
-#endif
+    message << "ELAPSEDTIME_" << devnum << ":" << uiElapsedTime;
+    std::thread( std::ref(AstroCam::Interface::handle_queue), message.str() ).detach();
     if (uiElapsedTime==0) {
       message.str(""); message << server.controller.at(devnum).devname << " exposure complete";
       logwrite(function, message.str());
@@ -57,12 +55,9 @@ namespace AstroCam {
    *
    */
   void Callback::readCallback( int devnum, std::uint32_t uiPixelCount ) {
-#ifdef LOGLEVEL_DEBUG
-    std::string function = "AstroCam::Callback::readCallback";
     std::stringstream message;
-    message << "*** [DEBUG] pixel count [" << devnum << "] = " << uiPixelCount;
-    logwrite(function, message.str());
-#endif
+    message << "PIXELCOUNT_" << devnum << ":" << uiPixelCount;
+    std::thread( std::ref(AstroCam::Interface::handle_queue), message.str() ).detach();
   }
   /** AstroCam::Callback::readCallback ****************************************/
 
@@ -87,13 +82,9 @@ namespace AstroCam {
    *
    */
   void Callback::frameCallback( int devnum, std::uint32_t fpbcount, std::uint32_t fcount, std::uint32_t rows, std::uint32_t cols, void* buffer ) {
-#ifdef LOGLEVEL_DEBUG
-    std::string function = "AstroCam::Callback::frameCallback";
     std::stringstream message;
-    message << "*** [DEBUG] spawning handle_frame thread: devnum=" << devnum << " frame=" << fcount 
-            << " buffer=" << std::setfill('0') << std::hex << buffer;
-    logwrite(function, message.str());
-#endif
+    message << "FRAMECOUNT_" << devnum << ":" << fcount;
+    std::thread( std::ref(AstroCam::Interface::handle_queue), message.str() ).detach();
     server.add_framethread();  // framethread_count is incremented because a thread has been added
     std::thread( std::ref(AstroCam::Interface::handle_frame), devnum, fpbcount, fcount, buffer ).detach();
   }
@@ -270,9 +261,9 @@ namespace AstroCam {
 #ifdef LOGLEVEL_DEBUG
         message.str("");
         message << "*** [DEBUG] pointers for dev " << dev << ": "
-                << " pArcDev=" << std::hex << this->controller.at(dev).pArcDev 
-                << " pCB="     << std::hex << this->controller.at(dev).pCallback
-                << " pFits="   << std::hex << this->camera.at(dev).pFits;
+                << " pArcDev=" << std::hex << std::uppercase << this->controller.at(dev).pArcDev 
+                << " pCB="     << std::hex << std::uppercase << this->controller.at(dev).pCallback
+                << " pFits="   << std::hex << std::uppercase << this->camera.at(dev).pFits;
         logwrite(function, message.str());
 #endif
       }
@@ -533,7 +524,7 @@ namespace AstroCam {
       // Log the complete command (with arg list) that will be sent
       //
       message.str("");   message << "sending command:"
-                                 << std::setfill('0') << std::setw(2) << std::uppercase << std::hex;
+                                 << std::setfill('0') << std::setw(2) << std::hex << std::uppercase;
       for (auto arg : cmd) message << " 0x" << arg;
       logwrite(function, message.str());
     }
@@ -700,10 +691,12 @@ namespace AstroCam {
     else
     if ( retval == 0x00434E52 ) { retstring = "CNR";  }
 
-    // otherwise just convert the numerica value to a string
+    // otherwise just convert the numerical value to a string represented in hex
     //
     else {
-      retstring = std::to_string( retval );
+      std::stringstream rs;
+      rs << "0x" << std::hex << std::uppercase << retval;
+      retstring = rs.str();
     }
   }
   /** AstroCam::Interface::retval_to_string ***********************************/
@@ -1135,14 +1128,14 @@ namespace AstroCam {
         // then set the filename for this specific dev
         // Assemble the FITS filename.
         // If naming type = "time" then this will use this->fitstime so that must be set first.
-        this->camera.at(dev).info.fits_name = this->common.get_fitsname( this->camera.at(dev).info.fits_name );
+        if ( ( error = this->common.get_fitsname( this->camera.at(dev).info.fits_name ) ) != NO_ERROR ) return( error );
 
 #ifdef LOGLEVEL_DEBUG
         message.str("");
         message << "*** [DEBUG] pointers for dev " << dev << ": "
-                << " pArcDev="  << std::hex << this->controller.at(dev).pArcDev 
-                << " pCB="      << std::hex << this->controller.at(dev).pCallback
-                << " pFits="    << std::hex << this->camera.at(dev).pFits;
+                << " pArcDev="  << std::hex << std::uppercase << this->controller.at(dev).pArcDev 
+                << " pCB="      << std::hex << std::uppercase << this->controller.at(dev).pCallback
+                << " pFits="    << std::hex << std::uppercase << this->camera.at(dev).pFits;
         logwrite(function, message.str());
 #endif
       }
@@ -1271,12 +1264,16 @@ namespace AstroCam {
     //
     for (auto fw = this->common.firmware.begin(); fw != this->common.firmware.end(); ++fw) {
       std::stringstream lodfilestream;
-      lodfilestream << fw->first << " " << fw->second;
-
-      // Call load_firmware with the built up string.
-      // If it returns an error then set error flag to return to the caller.
+      // But only use it if the device is open
       //
-      if (this->load_firmware(lodfilestream.str(), retstring) == ERROR) error = ERROR;
+      if ( std::find( this->devlist.begin(), this->devlist.end(), fw->first ) != this->devlist.end() ) {
+        lodfilestream << fw->first << " " << fw->second;
+
+        // Call load_firmware with the built up string.
+        // If it returns an error then set error flag to return to the caller.
+        //
+        if (this->load_firmware(lodfilestream.str(), retstring) == ERROR) error = ERROR;
+      }
     }
     return(error);
   }
@@ -1372,7 +1369,9 @@ namespace AstroCam {
       // Run through the selectdev vector, spawning threads to do the load for each.
       //
       std::vector<std::thread> threads;               // create a local scope vector for the threads
+      int firstdev = -1;                              // first device in the list of connected controllers
       for (auto dev : selectdev) {                    // spawn a thread for each device in the selectdev list
+        if ( firstdev == -1 ) firstdev = dev;         // save the first device from the list of connected controllers
         try {
           if (this->controller.at(dev).connected) {   // but only if connected
             std::thread thr( std::ref(AstroCam::Interface::dothread_load), std::ref(this->controller.at(dev)), timlodfile );
@@ -1412,10 +1411,11 @@ namespace AstroCam {
       //
       std::uint32_t check_retval;
       try {
-        check_retval = this->controller.at(0).retval;    // save the first one in the controller vector
+        check_retval = this->controller.at(firstdev).retval;    // save the first one in the controller vector
       }
       catch(std::out_of_range &) {
-        logwrite(function, "ERROR: no device found. Is the controller connected?");
+        message.str(""); message << "ERROR: device " << firstdev << " invalid";
+        logwrite( function, message.str() );
         return(ERROR);
       }
 
@@ -1448,15 +1448,12 @@ namespace AstroCam {
       // devnum:retval devnum:retval etc., concatenated together.
       //
       else {
-        std::stringstream rs;
+        std::stringstream rss;
+        std::string rs;
         for (auto dev : selectdev) {
           try {
-            rs << this->controller.at(dev).devnum << ":";
-            if (this->controller.at(dev).retval == DON) rs << "DON ";  // Return DON,
-            else
-            if (this->controller.at(dev).retval == ERR) rs << "ERR ";  // or ERR,
-            else
-            rs << "0x" << std::uppercase << std::hex << check_retval;  // or hex value if other.
+            this->retval_to_string( this->controller.at(dev).retval, rs );  // convert the retval to string (DON, ERR, etc.)
+            rss << this->controller.at(dev).devnum << ":" << rs << " ";
           }
           catch(std::out_of_range &) {
             message.str(""); message << "ERROR: unable to find device " << dev << " in list: {";
@@ -1467,7 +1464,7 @@ namespace AstroCam {
           }
           catch(...) { logwrite(function, "unknown error looking for return values"); return(ERROR); }
         }
-        retstring = rs.str();
+        retstring = rss.str();
         error = ERROR;
       }
     }
@@ -1646,7 +1643,7 @@ namespace AstroCam {
 
     message << this->controller.at(devnum).devname << " received frame " 
             << this->controller.at(devnum).frameinfo[fpbcount].framenum << " into buffer "
-            << std::hex << this->controller.at(devnum).frameinfo[fpbcount].buf;
+            << std::hex << std::uppercase << this->controller.at(devnum).frameinfo[fpbcount].buf;
     logwrite(function, message.str());
 
     // Call the class' deinterlace and write functions
@@ -1828,6 +1825,10 @@ namespace AstroCam {
   /**************** AstroCam::Interface::bias *********************************/
 
 
+  void Interface::handle_queue(std::string message) {
+    server.common.message.enqueue( message );
+  }
+
   /**************** AstroCam::Interface::handle_frame *************************/
   /**
    * @fn     handle_frame
@@ -1847,7 +1848,7 @@ namespace AstroCam {
 
 #ifdef LOGLEVEL_DEBUG
     message << "*** [DEBUG] devnum=" << devnum << " " << "fpbcount=" << fpbcount 
-            << " fcount=" << fcount << " PCI buffer=" << std::hex << buffer;
+            << " fcount=" << fcount << " PCI buffer=" << std::hex << std::uppercase << buffer;
     logwrite(function, message.str());
 #endif
 
@@ -2051,7 +2052,7 @@ namespace AstroCam {
     std::stringstream message;
     message << "*** [DEBUG] devnum=" << this->get_devnum() 
             << " fits_name=" << this->info.fits_name 
-            << " this->pFits=" << std::hex << this->pFits;
+            << " this->pFits=" << std::hex << std::uppercase << this->pFits;
     logwrite(function, message.str());
 #endif
     long error = this->pFits->open_file(this->info);
@@ -2074,7 +2075,7 @@ namespace AstroCam {
     std::stringstream message;
     message << "*** [DEBUG] devnum=" << this->get_devnum() 
             << " fits_name=" << this->info.fits_name 
-            << " this->pFits=" << std::hex << this->pFits;
+            << " this->pFits=" << std::hex << std::uppercase << this->pFits;
     logwrite(function, message.str());
 #endif
     try {
@@ -2159,7 +2160,7 @@ namespace AstroCam {
     T* workbuf = (T*)this->workbuf;
 
 #ifdef LOGLEVEL_DEBUG
-    message << "*** [DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << imbuf;
+    message << "*** [DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << std::uppercase << imbuf;
     logwrite(function, message.str());
 #endif
 
@@ -2229,7 +2230,7 @@ namespace AstroCam {
     std::string function = "AstroCam::Interface::CameraFits::dothread_deinterlace";
     std::stringstream message;
 #ifdef LOGLEVEL_DEBUG
-//  message << "*** [DEBUG] imagebuf=" << std::hex << imagebuf << " workbuf=" << workbuf << " section=" << section;
+//  message << "*** [DEBUG] imagebuf=" << std::hex << std::uppercase << imagebuf << " workbuf=" << workbuf << " section=" << section;
     message << "*** [DEBUG] " << deinterlace.test();
     logwrite(function, message.str());
     usleep(2000000);
@@ -2242,7 +2243,7 @@ namespace AstroCam {
 template <class T>
 void Interface::dosomething(T buf, int section) {
 std::stringstream message;
-message << "section=" << section << " buf=" << std::hex << buf;
+message << "section=" << section << " buf=" << std::hex << std::uppercase << buf;
 logwrite("AstroCam::Interface::dosomething", message.str());
 usleep(5000000);
 }
@@ -2381,7 +2382,7 @@ if ( server.common.get_abortstate() ) {
 }
 
 #ifdef LOGLEVEL_DEBUG
-    message << "*** [DEBUG] buf=" << std::hex << buf << " this->pFits=" << this->pFits;
+    message << "*** [DEBUG] buf=" << std::hex << std::uppercase << buf << " this->pFits=" << this->pFits;
     logwrite(function, message.str());
 #endif
 
@@ -2483,7 +2484,8 @@ if ( server.common.get_abortstate() ) {
     this->workbuf = (T*) new T [ this->info.image_size ];
     this->workbuf_size = this->info.image_size;
 
-    message << "allocated " << this->workbuf_size << " bytes for device " << this->devnum << " deinterlacing buffer " << std::hex << this->workbuf;
+    message << "allocated " << this->workbuf_size << " bytes for device " << this->devnum << " deinterlacing buffer " 
+            << std::hex << std::uppercase << this->workbuf;
     logwrite(function, message.str());
     return( (void*)this->workbuf );
 
@@ -2509,7 +2511,7 @@ if ( server.common.get_abortstate() ) {
       delete [] (T*)this->workbuf;
       this->workbuf = NULL;
       this->workbuf_size = 0;
-      message << "deleted old deinterlacing buffer " << std::hex << this->workbuf;
+      message << "deleted old deinterlacing buffer " << std::hex << std::uppercase << this->workbuf;
       logwrite(function, message.str());
     }
   }

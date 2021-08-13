@@ -314,6 +314,7 @@ void dosomething(T buf, int section);
       static void dothread_expose( controller_info &controller, CameraFits &camera );
       static void dothread_native( controller_info &controller, std::vector<uint32_t> cmd );
       static void handle_frame( int devnum, uint32_t fpbcount, uint32_t fcount, void* buffer );
+      static void handle_queue( std::string message );
 
       // Functions fully defined here (no code in astrocam.c)
       //
