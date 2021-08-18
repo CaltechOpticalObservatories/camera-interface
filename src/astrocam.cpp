@@ -82,6 +82,7 @@ namespace AstroCam {
    *
    */
   void Callback::frameCallback( int devnum, std::uint32_t fpbcount, std::uint32_t fcount, std::uint32_t rows, std::uint32_t cols, void* buffer ) {
+    if ( ! server.useframes ) fcount=1;  // when firmware doesn't support frames this prevents fcount from being a wild value
     std::stringstream message;
     message << "FRAMECOUNT_" << devnum << ":" << fcount;
     std::thread( std::ref(AstroCam::Interface::handle_queue), message.str() ).detach();
@@ -641,7 +642,8 @@ namespace AstroCam {
     //
     for (auto dev : devlist) {
       try {
-        message.str(""); message << this->controller.at(dev).devname << " returns " << std::dec << this->controller.at(dev).retval;
+        message.str(""); message << this->controller.at(dev).devname << " returns " << std::dec << this->controller.at(dev).retval
+                                 << " (0x" << std::hex << std::uppercase << this->controller.at(dev).retval << ")";
         logwrite(function, message.str());
       }
       catch(std::out_of_range &) {
@@ -1022,6 +1024,7 @@ namespace AstroCam {
     std::string function = "AstroCam::Interface::expose";
     std::stringstream message;
     std::string nseqstr;
+    std::string devstr;
     long error;
     int nseq;
 
@@ -1128,7 +1131,16 @@ namespace AstroCam {
         // then set the filename for this specific dev
         // Assemble the FITS filename.
         // If naming type = "time" then this will use this->fitstime so that must be set first.
-        if ( ( error = this->common.get_fitsname( this->camera.at(dev).info.fits_name ) ) != NO_ERROR ) return( error );
+        // If there are multiple devices in the devlist then force the fitsname to include the dev number
+        // in order to make it unique for each device.
+        //
+        if ( this->devlist.size() > 1 ) {
+          devstr = std::to_string( dev );  // passing a non-empty devstr will put that in the fitsname
+        }
+        else {
+          devstr = "";
+        }
+        if ( ( error = this->common.get_fitsname( devstr, this->camera.at(dev).info.fits_name ) ) != NO_ERROR ) return( error );
 
 #ifdef LOGLEVEL_DEBUG
         message.str("");
@@ -1158,7 +1170,7 @@ namespace AstroCam {
 
         // Open the fits file, ...
         //
-        error = this->camera.at(dev).open_file();  // TODO error handling on this?
+        error = this->camera.at(dev).open_file();
 
         // ... then spawn the expose thread.
         //
@@ -1204,13 +1216,20 @@ namespace AstroCam {
     //
     while ( this->get_framethread_count() > 0 ) ;
 
-    logwrite(function, "all frames written");
+    if ( error == NO_ERROR ) {
+      this->common.increment_imnum();                                 // increment image_num when fitsnaming == "number"
+      logwrite(function, "all frames written");
+    }
+    else {
+      logwrite(function, "ERROR: writing image");
+    }
 
     // close the FITS file
     //
     for (auto dev : this->devlist) {
       try {
         this->camera.at(dev).close_file();
+        if ( this->camera.at(dev).pFits->is_error() ) error = ERROR;  // allow error to be set (but not cleared)
       }
       catch(std::out_of_range &) {
         message.str(""); message << "ERROR closing FITS file: unable to find device " << dev << " in list: {";
@@ -1510,7 +1529,7 @@ namespace AstroCam {
       controller.firmwareloaded = false;
       return;
     }
-    message.str(""); message << "devnum " << controller.devnum << ": firmware loaded";
+    message.str(""); message << "devnum " << controller.devnum << ": loaded firmware " << timlodfile;
     logwrite(function, message.str());
     controller.retval = DON;
     controller.firmwareloaded = true;
@@ -1688,6 +1707,15 @@ namespace AstroCam {
 
 //  this->increment_framecount();
 
+#ifdef LOGLEVEL_DEBUG
+    message.str("");
+    message << "*** [DEBUG] completed " << (error != NO_ERROR ? "with error. " : "ok. ")
+            << "devnum=" << devnum << " " << "fpbcount=" << fpbcount << " "
+            << this->controller.at(devnum).devname << " received frame " 
+            << this->controller.at(devnum).frameinfo[fpbcount].framenum << " into buffer "
+            << std::hex << std::uppercase << this->controller.at(devnum).frameinfo[fpbcount].buf;
+    logwrite(function, message.str());
+#endif
     return( error );
   }
   /**************** AstroCam::Interface::write_frame **************************/
@@ -1845,6 +1873,7 @@ namespace AstroCam {
   void Interface::handle_frame(int devnum, uint32_t fpbcount, uint32_t fcount, void* buffer) {
     std::string function = "AstroCam::Interface::handle_frame";
     std::stringstream message;
+    int error = NO_ERROR;
 
 #ifdef LOGLEVEL_DEBUG
     message << "*** [DEBUG] devnum=" << devnum << " " << "fpbcount=" << fpbcount 
@@ -1928,10 +1957,15 @@ namespace AstroCam {
     message.str(""); message << "*** [DEBUG] calling server.write_frame for devnum=" << devnum << " fpbcount=" << fpbcount;
     logwrite(function, message.str());
 #endif
-      server.write_frame( devnum, fpbcount );
+      error = server.write_frame( devnum, fpbcount );
     }
     else {
       logwrite(function, "aborted!");
+    }
+
+    if ( error != NO_ERROR ) {
+      message.str(""); message << "ERROR writing frame " << fcount << " for devnum=" << devnum;
+      logwrite( function, message.str() );
     }
 
     // Done with the frame identified by "fpbcount".
@@ -2296,9 +2330,18 @@ usleep(5000000);
     if (testname == "fitsname") {
       std::string msg;
       this->common.set_fitstime( get_system_time() );                // must set common.fitstime first
-      error = this->common.get_fitsname( msg );                      // get the fitsname (by reference)
-      this->common.message.enqueue( msg );                           // queue the fitsname
-      logwrite( function, msg );                                     // log ths fitsname
+      if ( this->devlist.size() > 1 ) {
+        for (auto dev : this->devlist) {
+          this->common.get_fitsname( std::to_string(dev), msg );     // get the fitsname (by reference)
+          this->common.message.enqueue( msg );                       // queue the fitsname
+          logwrite( function, msg );                                 // log ths fitsname
+        }
+      }
+      else {
+        this->common.get_fitsname( msg );                            // get the fitsname (by reference)
+        this->common.message.enqueue( msg );                         // queue the fitsname
+        logwrite( function, msg );                                   // log ths fitsname
+      }
     } // end if (testname == fitsname)
 
     // ----------------------------------------------------
@@ -2359,6 +2402,8 @@ usleep(5000000);
    * @brief  wrapper to write a fits file
    * @param  buf_in, void pointer to buffer containing image
    * @return ERROR or NO_ERROR
+   *
+   * called by Interface::write_frame( ) which is called by the handle_frame thread
    *
    * Since this is part of the CameraFits class and camera_info is a member
    * object, we already know everything from this->info, except which

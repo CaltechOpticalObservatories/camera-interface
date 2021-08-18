@@ -37,6 +37,7 @@ class FITS_file {
     std::string fits_name;
 
   public:
+    bool is_error() { return this->error; };        //!< allows outsiders access to errors that occurred in a fits writing thread
     FITS_file() {                                   //!< constructor
       this->threadcount = 0;
       this->framen = 0;
@@ -236,7 +237,7 @@ class FITS_file {
       //
       this->threadcount++;                                   // increment threadcount for each thread spawned
 
-      std::thread([&]() {
+      std::thread([&]() {                                    // create the detached thread here
         if (info.iscube) {
           this->write_cube_thread(array, info, this);
         }
