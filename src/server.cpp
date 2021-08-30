@@ -406,21 +406,17 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
+    if (cmd.compare("shutter")==0) {
+                    std::string retstring;
+                    ret = server.common.shutter(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
     if (cmd.compare("key")==0) {
                     if (args.compare(0, 4, "list")==0)
                       ret = server.userkeys.listkeys();
                     else
                       ret = server.userkeys.addkey(args);
-                    }
-    else
-    if (cmd.compare("getp")==0) {
-                    std::string retstring;
-                    ret = server.get_parameter(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-                    }
-    else
-    if (cmd.compare("setp")==0) {
-                    ret = server.set_parameter(args);
                     }
     else
     if (cmd.compare("abort")==0) {
@@ -446,8 +442,24 @@ void doit(Network::TcpSocket sock) {
                     ret = server.buffer(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
+    else
+    if (cmd.compare("readout")==0) {
+                    std::string retstring;   // string for the return value
+                    ret = server.readout(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
 #endif
 #ifdef STA_ARCHON
+    else
+    if (cmd.compare("getp")==0) {
+                    std::string retstring;
+                    ret = server.get_parameter(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("setp")==0) {
+                    ret = server.set_parameter(args);
+                    }
     else
     if (cmd.compare("loadtiming")==0) {
                     std::string retstring;  // string for the return value
@@ -494,6 +506,12 @@ void doit(Network::TcpSocket sock) {
     if (cmd.compare("longexposure")==0) {
                     std::string retstring;
                     ret = server.longexposure(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("hdrshift")==0) {
+                    std::string retstring;
+                    ret = server.hdrshift(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
 #endif

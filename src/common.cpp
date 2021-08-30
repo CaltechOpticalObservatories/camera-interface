@@ -31,6 +31,7 @@ namespace Common {
     this->image_num = 0;
     this->fits_naming = "time";
     this->fitstime = "";
+    this->shutterenable = true;
     this->abortstate = false;
     this->_abortstate = false;
   }
@@ -67,6 +68,45 @@ bool Common::get_abortstate() {
   this->abort_mutex.unlock();
   return( state );
 }
+
+
+  /** Common::Common::shutter *************************************************/
+  /**
+   * @fn     shutter
+   * @brief  set or get the shutter enable state
+   * @param  std::string shutter_in
+   * @param  std::string& shutter_out
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Common::shutter(std::string shutter_in, std::string& shutter_out) {
+    std::string function = "Common::Common::shutter";
+    std::stringstream message;
+    long error = NO_ERROR;
+
+    if ( !shutter_in.empty() ) {
+      try {
+        std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::toupper );  // make uppercase
+        if ( shutter_in == "DISABLE" || shutter_in == "0" ) this->shutterenable = false;
+        else
+        if ( shutter_in == "ENABLE"  || shutter_in == "1" ) this->shutterenable = true;
+        else {
+          message.str(""); message << "ERROR: " << shutter_in << " is invalid. Expecting {enable,disable,0,1}";
+          logwrite( function, message.str() );
+          return( ERROR );
+        }
+      }
+      catch (...) {
+        logwrite( function, "error converting shutter_in to uppercase" );
+        return( ERROR );
+      }
+    }
+
+    shutter_out = this->shutterenable ? "ENABLED" : "DISABLED";
+    return error;
+  }
+  /** Common::Common::shutter *************************************************/
+
 
   /** Common::Common::fitsnaming **********************************************/
   /**

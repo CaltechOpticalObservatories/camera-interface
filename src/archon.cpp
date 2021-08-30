@@ -32,6 +32,7 @@ namespace Archon {
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
     this->is_longexposure = false;
+    this->n_hdrshift = 16;
 
     // pre-size the modtype and modversion vectors to hold the max number of modules
     //
@@ -120,11 +121,22 @@ namespace Archon {
         applied++;
       }
 
+      if (config.param[entry].compare(0, 16, "SHUTENABLE_PARAM")==0) {
+        this->shutenableparam = config.arg[entry];
+        applied++;
+      }
+
       // .firmware and .readout_time are STL maps but (for now) only one Archon per computer
       // so map always to 0
       //
       if (config.param[entry].compare(0, 16, "DEFAULT_FIRMWARE")==0) {
         this->common.firmware[0] = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 16, "HDR_SHIFT")==0) {
+        std::string dontcare;
+        this->hdrshift( config.arg[entry], dontcare );
         applied++;
       }
 
@@ -2351,7 +2363,7 @@ logwrite("load_firmware", "two arg");
 
 //      for (long pix=0; pix < this->fits_info.image_size; pix++)   //TODO
         for (long pix=0; pix < this->camera_info.image_size; pix++) {
-          fbuf[pix] = cbuf32[pix] / (float)65535;               // right shift 16 bits
+          fbuf[pix] = (float) ( cbuf32[pix] >> this->n_hdrshift ); // right shift the requested number of bits
         }
 
 //      error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
@@ -3300,6 +3312,70 @@ logwrite("load_firmware", "two arg");
     return(ret);
   }
   /**************** Archon::Interface::exptime ********************************/
+
+
+  /**************** Archon::Interface::hdrshift *******************************/
+  /**
+   * @fn     hdrshift
+   * @brief  set/get number of hdrshift bits
+   * @param  bits_in
+   * @param  &bits_out
+   * @return ERROR or NO_ERROR
+   *
+   * This function sets (or gets) this->n_hdrshift.
+   *
+   * In HDR mode (i.e. SAMPLEMODE=1, 32 bits per pixel) this->write_frame()
+   * will right-shift the Archon data buffer by this->n_hdrshift.
+   *
+   */
+  long Interface::hdrshift(std::string bits_in, std::string &bits_out) {
+    std::string function = "Archon::Interface::hdrshift";
+    std::stringstream message;
+    int hdrshift_req=-1;
+
+    // If something is passed then try to use it to set the number of hdrshifts
+    //
+    if ( !bits_in.empty() ) {
+      try {
+        hdrshift_req = std::stoi( bits_in );
+      }
+      catch ( std::invalid_argument & ) {
+        message.str(""); message << "ERROR: unable to convert \"" << bits_in << "\" to integer";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+      catch ( std::out_of_range & ) {
+        message.str(""); message << "ERROR: \"" << bits_in << "\" is outside integer range";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+    }
+
+    if ( hdrshift_req < 0 || hdrshift_req > 31 ) {
+      logwrite( function, "ERROR: hdrshift outside range {0:31}" );
+      return( ERROR );
+    }
+    else this->n_hdrshift = hdrshift_req;
+
+    // error or not, the number of bits reported now will be whatever was last successfully set
+    //
+    bits_out = std::to_string( this->n_hdrshift );
+
+    // send async message
+    //
+    message.str(""); message << "hdrshift=" << bits_out;
+    logwrite( function, message.str() );
+    this->common.message.enqueue( message.str() );
+
+    // add to user keyword database
+    //
+    std::stringstream hdrshift_key;
+    hdrshift_key << "HDRSHIFT=" << this->n_hdrshift << "// number of HDR right-shift bits";
+    this->userkeys.addkey( hdrshift_key.str() );
+
+    return( NO_ERROR );
+  }
+  /**************** Archon::Interface::hdrshift *******************************/
 
 
   /**************** Archon::Interface::longexposure ***************************/

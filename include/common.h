@@ -101,7 +101,6 @@ namespace Common {
       Common();
       ~Common() {}
 
-      std::string   shutterstate;            //!< one of 4 allowed states: enable, disable, open, close
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
       bool          abortstate;              //!< set true to abort the current operation (exposure, readout, etc.)
 
@@ -118,6 +117,7 @@ namespace Common {
       long basename(std::string name_in);
       long basename(std::string name_in, std::string& name_out);
       long imnum(std::string num_in, std::string& num_out);
+      long shutter(std::string shutter_in, std::string& shutter_out);
       long fitsnaming(std::string naming_in, std::string& naming_out);
       void increment_imnum() { if (this->fits_naming.compare("number")==0) this->image_num++; };
       void set_fitstime(std::string time_in);
@@ -153,7 +153,7 @@ namespace Common {
       int           datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
       bool          type_set;                //!< set when FITS data type has been defined
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
-      long          detector_pixels[2];
+      long          detector_pixels[2];      //!< element 0=cols (pixels), 1=rows (lines)
       long          image_size;              //!< pixels per image sensor
       long          image_memory;            //!< bytes per image sensor
       std::string   current_observing_mode;  //!< the current mode
@@ -163,8 +163,6 @@ namespace Common {
       long          axis_pixels[2];
       long          region_of_interest[4];
       long          image_center[2];
-      std::string   shutterstate;
-      bool          openshutter;
       bool          abortexposure;
       bool          iscube;                  //!< the info object given to the FITS writer will need to know cube status
       int           extension;               //!< extension number for data cubes

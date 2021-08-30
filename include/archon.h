@@ -68,6 +68,7 @@ namespace Archon {
   class Interface {
     private:
       unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
+      int n_hdrshift;                               //!< number of right-shift bits for Archon buffer in HDR mode
 
     public:
       Interface();
@@ -104,6 +105,7 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
+      std::string shutenableparam;           //!< param name to enable shutter open on expose when set =1 (disable when =0)
 
       // Functions
       //
@@ -149,6 +151,7 @@ namespace Archon {
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
       long longexposure(std::string state_in, std::string &state_out);
+      long hdrshift(std::string bits_in, std::string &bits_out);
       long heater(std::string args, std::string &retstring);
       long sensor(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);
