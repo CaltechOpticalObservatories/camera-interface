@@ -8,6 +8,7 @@
 
 #include "utilities.h"
 
+std::string zone="";
 
   /** parse_val ***************************************************************/
   /**
@@ -144,65 +145,112 @@
   /** string_replace_char *****************************************************/
 
 
-  /** get_timenow *************************************************************/
+  /** get_time ****************************************************************/
   /**
-   * @fn     get_timenow
-   * @brief  
-   * @param  
-   * @return 
+   * @fn     get_time
+   * @brief  gets the current time and returns values by reference
+   * @param  string zone, "local" or "utc"
+   * @param  int & year
+   * @param  int & mon
+   * @param  int & mday
+   * @param  int & hour
+   * @param  int & min
+   * @param  int & sec
+   * @param  int & usec
+   * @return 1 on error, 0 if okay
+   *
+   * This function is overloaded, to include a form where the zone may be omitted,
+   * which defaults to "utc".
    *
    */
-  std::tm* get_timenow() {
-    std::tm *timenow; 
-    std::time_t timer = std::time(nullptr);  // current calendar time encoded as a std::time_t object
-
-    timenow = std::gmtime(&timer);           // convert time since epoch as std::time_t value into calendar time
-
-    if (timenow == NULL) {
-      std::perror("(get_timenow) converting time");
-      return NULL;
-    }
-    return timenow;
-  }
-  /** get_timenow *************************************************************/
-
-
-  /** get_system_time *********************************************************/
-  /**
-   * @fn     get_system_time
-   * @brief  return current time in formatted string "YYYY-MM-DDTHH:MM:SS.ssssss"
-   * @param  none
-   * @return string
-   *
-   */
-  std::string get_system_time() {
+  long get_time( int &year, int &mon, int &mday, int &hour, int &min, int &sec, int &usec ) {
     std::stringstream current_time;  // String to contain the time
     time_t t;                        // Container for system time
-    struct timespec data;            // Time of day container
-    struct tm gmt;                   // GMT time container
+    struct timespec timenow;         // Time of day container
+    struct tm mytime;                // GMT time container
+    long error = 0;
 
     // Get the system time, return a bad timestamp on error
     //
-    if (clock_gettime(CLOCK_REALTIME, &data) != 0) return("9999-99-99T99:99:99.999999");
+    if ( clock_gettime( CLOCK_REALTIME, &timenow ) != 0 ) error = 1;
 
-    // Convert the time of day to GMT
+    // Convert the time of day to local or GMT
     //
-    t = data.tv_sec;
-    if (gmtime_r(&t, &gmt) == NULL) return("9999-99-99T99:99:99.999999");
+    if ( !error ) {
+      t = timenow.tv_sec;
+      if ( zone == "local" )  { if ( localtime_r( &t, &mytime ) == NULL ) error = 1; }
+      else {
+        if ( gmtime_r( &t, &mytime ) == NULL ) error = 1;
+      }
+    }
+
+    // prepare the return values
+    //
+    if ( error == 0 ) {
+        year = mytime.tm_year + 1900;
+        mon  = mytime.tm_mon + 1;
+        mday = mytime.tm_mday;
+        hour = mytime.tm_hour;
+        min  = mytime.tm_min;
+        sec  = mytime.tm_sec;
+        usec = (int)(timenow.tv_nsec/1000);
+    }
+    else {
+      year = 9999;
+      mon  = 99;
+      mday = 99;
+      hour = 99;
+      min  = 99;
+      sec  = 99;
+      usec = 999999;
+    }
+
+    return( error );
+  }
+  /** get_time ****************************************************************/
+
+
+  /** get_timestamp ***********************************************************/
+  /**
+   * @fn     get_timestamp
+   * @brief  return a string of the current time "YYYY-MM-DDTHH:MM:SS.ssssss"
+   * @param  none
+   * @return string
+   *
+   * This function is overloaded with a version that takes a time zone
+   * string "local" or "utc" to specify that the time stamp should be
+   * in localtime or UTC, respectively.
+   *
+   */
+  std::string get_timestamp() {
+    std::stringstream current_time;  // String to contain the time
+    time_t t;                        // Container for system time
+    struct timespec timenow;         // Time of day container
+    struct tm mytime;                // GMT time container
+
+    // Get the system time, return a bad timestamp on error
+    //
+    if ( clock_gettime( CLOCK_REALTIME, &timenow ) != 0 ) return("9999-99-99T99:99:99.999999");
+
+    // Convert the time of day to local or GMT
+    //
+    t = timenow.tv_sec;
+    if ( zone == "local" ) { if ( localtime_r( &t, &mytime ) == NULL ) return( "9999-99-99T99:99:99.999999" ); }
+    else                   { if ( gmtime_r( &t, &mytime ) == NULL )    return( "9999-99-99T99:99:99.999999" ); }
 
     current_time.setf(std::ios_base::right);
     current_time << std::setfill('0') << std::setprecision(0)
-                 << std::setw(4) << gmt.tm_year + 1900   << "-"
-                 << std::setw(2) << gmt.tm_mon + 1 << "-"
-                 << std::setw(2) << gmt.tm_mday    << "T"
-                 << std::setw(2) << gmt.tm_hour  << ":"
-                 << std::setw(2) << gmt.tm_min << ":"
-                 << std::setw(2) << gmt.tm_sec
-                 << "." << std::setw(6) << data.tv_nsec/1000;
+                 << std::setw(4) << mytime.tm_year + 1900   << "-"
+                 << std::setw(2) << mytime.tm_mon + 1 << "-"
+                 << std::setw(2) << mytime.tm_mday    << "T"
+                 << std::setw(2) << mytime.tm_hour  << ":"
+                 << std::setw(2) << mytime.tm_min << ":"
+                 << std::setw(2) << mytime.tm_sec
+                 << "." << std::setw(6) << timenow.tv_nsec/1000;
 
     return(current_time.str());
   }
-  /** get_system_time *********************************************************/
+  /** get_timestamp ***********************************************************/
 
 
   /** get_system_date *********************************************************/
@@ -214,27 +262,28 @@
    *
    */
   std::string get_system_date() {
-    std::stringstream current_date;  // String to contain the date
+    std::stringstream current_date;  // String to contain the return value
     time_t t;                        // Container for system time
-    struct timespec data;            // Time of day container
-    struct tm gmt;                   // GMT time container
+    struct timespec timenow;;        // Time of day container
+    struct tm mytime;                // time container
 
     // Get the system time, return a bad datestamp on error
     //
-    if (clock_gettime(CLOCK_REALTIME, &data) != 0) return("99999999");
+    if ( clock_gettime( CLOCK_REALTIME, &timenow ) != 0 ) return( "99999999" );
 
     // Convert the time of day to GMT
     //
-    t = data.tv_sec;
-    if (gmtime_r(&t, &gmt) == NULL) return("9999-99-99T99:99:99.999999");
+    t = timenow.tv_sec;
+    if ( zone == "local" ) { if ( localtime_r( &t, &mytime ) == NULL ) return( "9999-99-99T99:99:99.999999" ); }
+    else                   { if ( gmtime_r( &t, &mytime ) == NULL )    return( "9999-99-99T99:99:99.999999" ); }
 
     current_date.setf(std::ios_base::right);
     current_date << std::setfill('0') << std::setprecision(0)
-                 << std::setw(4) << gmt.tm_year + 1900
-                 << std::setw(2) << gmt.tm_mon + 1
-                 << std::setw(2) << gmt.tm_mday;
+                 << std::setw(4) << mytime.tm_year + 1900
+                 << std::setw(2) << mytime.tm_mon + 1
+                 << std::setw(2) << mytime.tm_mday;
 
-    return(current_date.str());
+    return( current_date.str() );
   }
   /** get_system_date *********************************************************/
 
@@ -252,26 +301,27 @@
   std::string get_file_time() {
     std::stringstream current_time;  // String to contain the time
     time_t t;                        // Container for system time
-    struct timespec data;            // Time of day container
-    struct tm gmt;                   // GMT time container
+    struct timespec timenow;         // Time of day container
+    struct tm mytime;                // time container
 
     // Get the system time, return a bad timestamp on error
     //
-    if (clock_gettime(CLOCK_REALTIME, &data) != 0) return("99999999999999");
+    if ( clock_gettime( CLOCK_REALTIME, &timenow ) != 0 ) return( "99999999999999" );
 
-    // Convert the time of day to GMT
+    // Convert the time of day to local or GMT
     //
-    t = data.tv_sec;
-    if (gmtime_r(&t, &gmt) == NULL) return("99999999999999");
+    t = timenow.tv_sec;
+    if ( zone == "local" ) { if ( localtime_r( &t, &mytime ) == NULL ) return( "99999999999999" ); }
+    else                   { if ( gmtime_r( &t, &mytime ) == NULL )    return( "99999999999999" ); }
 
     current_time.setf(std::ios_base::right);
     current_time << std::setfill('0') << std::setprecision(0)
-                 << std::setw(4) << gmt.tm_year + 1900
-                 << std::setw(2) << gmt.tm_mon + 1
-                 << std::setw(2) << gmt.tm_mday
-                 << std::setw(2) << gmt.tm_hour
-                 << std::setw(2) << gmt.tm_min
-                 << std::setw(2) << gmt.tm_sec;
+                 << std::setw(4) << mytime.tm_year + 1900
+                 << std::setw(2) << mytime.tm_mon + 1
+                 << std::setw(2) << mytime.tm_mday
+                 << std::setw(2) << mytime.tm_hour
+                 << std::setw(2) << mytime.tm_min
+                 << std::setw(2) << mytime.tm_sec;
 
     return(current_time.str());
   }

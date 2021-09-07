@@ -731,7 +731,7 @@ namespace AstroCam {
     try {
       // get system time just before the actual expose() call
       //
-      camera.info.start_time = get_system_time();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+      camera.info.start_time = get_timestamp( );                // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
 
       // Send the actual command to start the exposure.
       // This API call will send the SEX command to trigger the exposure.
@@ -1108,7 +1108,7 @@ namespace AstroCam {
     //
     this->camera_info.userkeys.keydb = this->userkeys.keydb;
 
-    this->camera_info.start_time = get_system_time();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+    this->camera_info.start_time = get_timestamp( );                // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
     this->common.set_fitstime(this->camera_info.start_time);        // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
 
     message.str(""); message << "starting exposure at " << camera_info.start_time;
@@ -2329,7 +2329,7 @@ usleep(5000000);
     //
     if (testname == "fitsname") {
       std::string msg;
-      this->common.set_fitstime( get_system_time() );                // must set common.fitstime first
+      this->common.set_fitstime( get_timestamp( ) );                 // must set common.fitstime first
       if ( this->devlist.size() > 1 ) {
         for (auto dev : this->devlist) {
           this->common.get_fitsname( std::to_string(dev), msg );     // get the fitsname (by reference)

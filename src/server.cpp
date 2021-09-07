@@ -10,6 +10,7 @@
 #include "server.h"
 
 Camera::Server server;
+std::string logpath; 
 
 /** signal_handler ***********************************************************/
 /**
@@ -41,6 +42,7 @@ void signal_handler(int signo) {
 
 
 int  main(int argc, char **argv);           // main thread (just gets things started)
+void new_log_day( );                        // create a new log each day
 void block_main(Network::TcpSocket sock);   // this thread handles requests on blocking port
 void thread_main(Network::TcpSocket sock);  // this thread handles requests on non-blocking port
 void async_main(Network::UdpSocket sock);   // this thread handles the asyncrhonous UDP message port
@@ -74,13 +76,21 @@ int main(int argc, char **argv) {
     server.exit_cleanly();
   }
 
-  std::string logpath;
   for (int entry=0; entry < server.config.n_entries; entry++) {
     if (server.config.param[entry] == "LOGPATH") logpath = server.config.arg[entry];
+    if (server.config.param[entry] == "TM_ZONE") zone = server.config.arg[entry];
   }
   if (logpath.empty()) {
     logwrite(function, "ERROR: LOGPATH not specified in configuration file");
     server.exit_cleanly();
+  }
+  if ( zone == "local" ) {
+    logwrite( function, "using local time zone" );
+    server.userkeys.addkey( "TM_ZONE=local//time zone" );
+  }
+  else {
+    logwrite( function, "using GMT time zone" );
+    server.userkeys.addkey( "TM_ZONE=GMT//time zone" );
   }
 
   if ( (initlog(logpath) != 0) ) {                       // initialize the logging system
@@ -146,10 +156,38 @@ int main(int argc, char **argv) {
   Network::UdpSocket async(server.asyncport, server.asyncgroup);
   std::thread(async_main, async).detach();
 
+  // thread to start a new logbook each day
+  //
+  std::thread( new_log_day ).detach();
+
   for (;;) pause();                                  // main thread suspends
   return 0;
 }
 /** main *********************************************************************/
+
+
+/** new_log_day **************************************************************/
+/**
+ * @fn     new_log_day
+ * @brief  creates a new logbook each day
+ * @return nothing
+ *
+ * This thread is started by main and never terminates.
+ * It sleeps for the number of seconds that logentry determines
+ * are remaining in the day, then closes and re-inits a new log file.
+ *
+ * The number of seconds until the next day "nextday" is a global which
+ * is set by initlog.
+ *
+ */
+void new_log_day( ) { 
+  while (1) {
+    std::this_thread::sleep_for( std::chrono::seconds( nextday ) );
+    closelog();
+    initlog( logpath );
+  }
+}
+/** new_log_day **************************************************************/
 
 
 /** block_main ***************************************************************/
@@ -442,12 +480,12 @@ void doit(Network::TcpSocket sock) {
                     ret = server.buffer(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
-    else
-    if (cmd.compare("readout")==0) {
-                    std::string retstring;   // string for the return value
-                    ret = server.readout(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-                    }
+//  else
+//  if (cmd.compare("readout")==0) {
+//                  std::string retstring;   // string for the return value
+//                  ret = server.readout(args, retstring);
+//                  if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+//                  }
 #endif
 #ifdef STA_ARCHON
     else

@@ -176,7 +176,7 @@ class FITS_file {
 
       // Add a header keyword for the time the file was written (right now!)
       //
-      this->pFits->pHDU().addKey("DATE", get_system_time(), "FITS file write time");
+      this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write time");
 
       // Write the checksum
       //
@@ -485,9 +485,10 @@ class FITS_file {
         filename = info.fits_name.substr(loc+1);
         this->pFits->pHDU().addKey("FILENAME", filename, "this filename");
 
+//      this->pFits->pHDU().addKey("SHUT_ENB", info.shutterenable, "shutter was enabled" );
+
         message.str(""); message << "exposure time in " << info.exposure_unit;
-        this->pFits->pHDU().addKey("EXP_TIME", info.exposure_time, message.str().c_str() );
-//      this->pFits->pHDU().addKey("EXP_TIME", info.exposure_time, "exposure time in msec");
+        this->pFits->pHDU().addKey("EXPTIME", info.exposure_time, message.str().c_str() );
       }
       catch (CCfits::FitsError & err) {
         message.str(""); message << "error creating FITS header: " << err.message();

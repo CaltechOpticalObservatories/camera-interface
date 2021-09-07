@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <unistd.h>
 
+extern std::string zone;
+
 unsigned int parse_val(const std::string& str);     //!< returns an unsigned int from a string
 
 int Tokenize(const std::string& str, 
@@ -26,9 +28,9 @@ int Tokenize(const std::string& str,
 void chrrep(char *str, char oldchr, char newchr);   //!< replace one character within a string with a new character
 void string_replace_char(std::string &str, const char *oldchar, const char *newchar);
 
-std::tm* get_timenow();                             //!< return tm pointer to current time
+long get_time( int &year, int &mon, int &mday, int &hour, int &min, int &sec, int &usec );
 
-std::string get_system_time();                      //!< return current time in formatted string "YYYY-MM-DDTHH:MM:SS.ssssss"
+std::string get_timestamp();                        //!< return current time in formatted string "YYYY-MM-DDTHH:MM:SS.ssssss"
 std::string get_system_date();                      //!< return current date in formatted string "YYYYMMDD"
 std::string get_file_time();                        //!< return current time in formatted string "YYYYMMDDHHMMSS" used for filenames
 

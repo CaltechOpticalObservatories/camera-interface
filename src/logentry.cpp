@@ -12,8 +12,9 @@
 
 #include "logentry.h"
 
-std::mutex newloglock;
+std::mutex loglock;
 std::ofstream filestream;      //!< IO stream class
+unsigned int nextday = 86410;  //!< number of seconds until a new day
 
 
 /** initlog ******************************************************************/
@@ -29,24 +30,23 @@ std::ofstream filestream;      //!< IO stream class
  */
 long initlog(std::string logpath) {
   std::string function = "initlog";
-  std::tm *timenow;
   std::stringstream filename;
   std::stringstream message;
+  int year, mon, mday, hour, min, sec, usec;
+  long error = 0;
 
-//std::lock_guard<std::mutex> lock(newloglock);
-
-  timenow = get_timenow();                 // current calendar time (defined in utilities.h)
-  if (timenow == NULL) return 1;           // error
+  if ( ( error = get_time( year, mon, mday, hour, min, sec, usec ) ) ) return error;
 
   // assemble log file name from #define and current date
   //
   filename << logpath << "/cameraserver_" << std::setfill('0')
-                      << std::setw(4) << timenow->tm_year + 1900
-                      << std::setw(2) << timenow->tm_mon + 1
-                      << std::setw(2) << timenow->tm_mday << ".log";
+                      << std::setw(4) << year
+                      << std::setw(2) << mon
+                      << std::setw(2) << mday << ".log";
+
   // number of seconds until a new day
   //
-  int nextday = (unsigned int)(86410 - timenow->tm_hour*3600 - timenow->tm_min*60 - timenow->tm_sec);
+  nextday = (unsigned int)(86410 - hour*3600 - min*60 - sec);
 
   // open the log file stream for append
   //
@@ -64,33 +64,9 @@ long initlog(std::string logpath) {
     return 1;
   }
 
-  // spawn a thread to create a new logfile each day
-  //
-  std::thread(create_new_log, nextday, logpath).detach();
-
   return 0;
 }
 /** initlog ******************************************************************/
-
-
-/** create_new_log ***********************************************************/
-/**
- * @fn     create_new_log
- * @brief  close current and create new logfile
- * @param  nextday_in
- * @return none
- *
- * This runs in its own detached thread spawned by initlog, sleeps for the 
- * specified number of seconds (seconds until a new day) at which time it
- * closes the logfile and creates a new one.
- *
- */
-void create_new_log(int nextday_in, std::string logpath) {
-  std::this_thread::sleep_for(std::chrono::seconds(nextday_in));
-  closelog();
-  initlog(logpath);
-}
-/** create_new_log ***********************************************************/
 
 
 /** closelog *****************************************************************/
@@ -129,9 +105,9 @@ void closelog() {
  */
 void logwrite(std::string function, std::string message) {
   std::stringstream logmsg;
-  std::string timestamp = get_system_time();     // get the current time (defined in utilities.h)
+  std::string timestamp = get_timestamp();       // get the current time (defined in utilities.h)
 
-  std::lock_guard<std::mutex> lock(newloglock);  // lock mutex to protect from multiple access
+  std::lock_guard<std::mutex> lock(loglock);     // lock mutex to protect from multiple access
 
   logmsg << timestamp << "  (" << function << ") " << message << "\n";
 

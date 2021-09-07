@@ -2835,7 +2835,7 @@ logwrite("load_firmware", "two arg");
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
     //
     if (error == NO_ERROR) {
-      this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+      this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
       this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
       error=this->common.get_fitsname(this->camera_info.fits_name); // assemble the FITS filename
@@ -2912,7 +2912,7 @@ logwrite("load_firmware", "two arg");
         // Open a new FITS file for each frame when not using datacubes
         //
         if ( !this->common.datacube() ) {
-          this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+          this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
           this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
           this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
@@ -4506,7 +4506,7 @@ logwrite("load_firmware", "two arg");
     //
     if (testname == "fitsname") {
       std::string msg;
-      this->common.set_fitstime( get_system_time() );                // must set common.fitstime first
+      this->common.set_fitstime( get_timestamp() );                  // must set common.fitstime first
       error = this->common.get_fitsname(msg);                        // get the fitsname (by reference)
       this->common.message.enqueue( msg );                           // queue the fitsname
       logwrite(function, msg);                                       // log the fitsname
@@ -4702,7 +4702,7 @@ logwrite("load_firmware", "two arg");
       // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
       //
       if (error == NO_ERROR) {
-        this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+        this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
         error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
         this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
         // If read-write selected then need to do some FITS stuff
@@ -4737,7 +4737,7 @@ logwrite("load_firmware", "two arg");
         // Open a new FITS file for each frame when not using datacubes
         //
         if ( rw && !this->common.datacube() ) {
-          this->camera_info.start_time = get_system_time();             // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+          this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
           this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
           this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
