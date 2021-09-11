@@ -2890,7 +2890,7 @@ logwrite("load_firmware", "two arg");
 
     // Open the FITS file now for cubes
     //
-    if ( this->common.datacube() ) error = this->fits_file.open_file(this->camera_info);
+    if ( this->common.datacube() ) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
 
 //  //TODO only use camera_info -- don't use fits_info -- is this OK? TO BE CONFIRMED
 //  this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer  //TODO
@@ -2916,7 +2916,7 @@ logwrite("load_firmware", "two arg");
           this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
           this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
-          error = this->fits_file.open_file( this->camera_info );
+          error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
         }
 
         if (error==NO_ERROR && this->camera_info.exposure_time != 0) {  // wait for the exposure delay to complete (if there is one)
@@ -2926,14 +2926,17 @@ logwrite("load_firmware", "two arg");
         if (error==NO_ERROR) error = this->wait_for_readout();      // Wait for the readout into frame buffer,
         if (error==NO_ERROR) error = read_frame();                  // then read the frame buffer to host (and write file) when frame ready.
         if (error==NO_ERROR && !this->common.datacube()) {
-          this->fits_file.close_file();                             // close the file when not using datacubes
+          this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
         }
         if (error != NO_ERROR) break;                               // don't try additional sequences if there were errors
       }
     }
     else if ( (error == NO_ERROR) && (mode == "RAW") ) {
       error = this->get_frame_status();                             // Get the current frame buffer status
+      if (error==NO_ERROR) error = this->common.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
+      if (error==NO_ERROR) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
       if (error==NO_ERROR) error = read_frame();                    // For raw mode just read immediately
+      if (error==NO_ERROR) this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
     }
 
     logwrite( function, (error==ERROR ? "ERROR" : "complete") );
@@ -2941,7 +2944,7 @@ logwrite("load_firmware", "two arg");
     // for cubes, close the FITS file now that they've all been written
     // (or any time there is an error)
     //
-    if ( this->common.datacube() || (error==ERROR) ) this->fits_file.close_file();
+    if ( this->common.datacube() || (error==ERROR) ) this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
 
     return (error);
   }
@@ -4720,7 +4723,7 @@ logwrite("load_firmware", "two arg");
             this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
           }
           this->camera_info.iscube = this->common.datacube();
-          if ( this->common.datacube() ) error = this->fits_file.open_file(this->camera_info);
+          if ( this->common.datacube() ) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
         }
       }
 
@@ -4741,7 +4744,7 @@ logwrite("load_firmware", "two arg");
           this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
           this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
-          error = this->fits_file.open_file( this->camera_info );
+          error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
         }
 
         if (this->camera_info.exposure_time != 0) {                 // wait for the exposure delay to complete (if there is one)
@@ -4759,7 +4762,7 @@ logwrite("load_firmware", "two arg");
         if (error==NO_ERROR && ro) error = this->read_frame(Common::FRAME_IMAGE);  // read image frame directly with no write
         if (error==NO_ERROR && rw) error = this->read_frame();                     // read image frame directly with no write
         if (error==NO_ERROR && rw && !this->common.datacube()) {
-          this->fits_file.close_file();
+          this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
         }
         if (error==NO_ERROR) frames_read++;
       }
@@ -4768,7 +4771,7 @@ logwrite("load_firmware", "two arg");
       // for cubes, close the FITS file now that they've all been written
       // (or any time there is an error)
       //
-      if ( rw && ( this->common.datacube() || (error==ERROR) ) ) this->fits_file.close_file();
+      if ( rw && ( this->common.datacube() || (error==ERROR) ) ) this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
 
 
       logwrite( function, (error==ERROR ? "ERROR" : "complete") );

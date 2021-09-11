@@ -94,6 +94,69 @@ std::string zone="";
   /** Tokenize ****************************************************************/
 
 
+  /** Tokenize ****************************************************************/
+  /**
+   * @fn     Tokenize
+   * @brief  break a string into device list and arg list vectors
+   * @param  &str, reference to input string
+   * @param  &devlist, reference to vector for device list
+   * @param  &ndev, reference to number of devices
+   * @param  &arglist, reference to vector for arg list
+   * @param  &narg, reference to number of args
+   * @return nothing
+   *
+   * This is a special version of Tokenize.
+   *
+   * The expected format is a comma-delimited device list, followed by a colon,
+   * followed by a space-delimited argument list.
+   *
+   * On error, ndev is set to -1
+   *
+   */
+  void Tokenize( const std::string &str, std::vector<uint32_t> &devlist, int &ndev, std::vector<std::string> &arglist, int &narg ) {
+
+    devlist.clear(); ndev=0;                     // empty the dev and arg list vectors
+    arglist.clear(); narg=0;
+
+    std::size_t devdelim = str.find( ":" );      // position of device delimiter
+
+    // If there is a device delimiter then build a vector of the device numbers
+    //
+    if ( devdelim != std::string::npos ) {
+      std::string dev_str = str.substr( 0, str.find( ":" ) );
+      std::vector<std::string> tokens;
+      Tokenize( dev_str, tokens, "," );          // Tokenize the dev string on the comma ","
+      for ( auto tok : tokens ) {
+        try {
+          devlist.push_back( std::stoi( tok ) );
+        }
+        catch (std::invalid_argument &) {
+          ndev=-1;
+          return;
+        }
+        catch ( std::out_of_range & ) {
+          ndev=-1;
+          return;
+        }
+      }
+      ndev = devlist.size();
+    }
+
+    // Anything left, look for space-delimited tokens for the arg list
+    //
+    std::string arg_str = str.substr( devdelim+1 );
+    std::vector<std::string> tokens;
+    Tokenize( arg_str, tokens, " " );            // Tokenize the arg string on the space " "
+    for ( auto tok : tokens ) {
+      arglist.push_back( tok );
+    }
+    narg = arglist.size();
+
+    return;
+  }
+  /** Tokenize ****************************************************************/
+
+
   /** chrrep ******************************************************************/
   /**
    * @fn     chrrep

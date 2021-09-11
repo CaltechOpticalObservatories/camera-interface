@@ -25,7 +25,6 @@
 #include "common.h"
 #include "config.h"
 #include "fits.h"
-#include "logentry.h"
 #include "CArcBase.h"
 #include "ArcDefs.h"
 #include "CExpIFace.h"
@@ -69,7 +68,7 @@ namespace AstroCam {
       void quad_ccd();
       std::string test(T* buf) { 
         std::stringstream ret;
-        ret << " buf=" << buf << " workbuf=" << std::hex << this->workbuf << " imbuf=" << this->imbuf;
+        ret << " buf=" << buf << " this->workbuf=" << std::hex << this->workbuf << " imbuf=" << this->imbuf;
         return (ret.str());
       };
   };
@@ -92,27 +91,80 @@ namespace AstroCam {
     private:
       T* imbuf;
       T* workbuf;
-      int devnum;
+      long bufsize;
+      int cols;
+      int rows;
+      std::string readout_type;
 
     public:
+      int imcols() { return this->cols; }
+      int imrows() { return this->rows; }
+      std::string imreadout() { return this->readout_type; }
+
       void split_parallel();
       void split_serial();
       void quad_ccd();
 
-      DeInterlace(T* buf1, T* buf2) {
-        this->imbuf = buf1;
-        this->workbuf = buf2;
+      // Flip image buffer left/right
+      //
+      void flip_lr(int row_start, int row_stop, int index) {
+        for ( int r=row_start; r<row_stop; r++ ) {
+          for ( int c=this->cols-1; c>=0; c-- ) {
+            int loc = (r * this->cols) + c ;
+            *( this->workbuf + loc ) = *( this->imbuf + (index++) );
+          }
+        }
       }
 
-      DeInterlace(int devnum, T* buf1, T* buf2) {
-        this->devnum = devnum;
-        this->imbuf = buf1;
-        this->workbuf = buf2;
+      // Flip image buffer up/down and left/right
+      //
+      void flip_udlr(int row_start, int row_stop, int index) {
+        for ( int r=row_start; r<row_stop; r++ ) {
+          for ( int c=0; c<this->cols; c++ ) {
+            int loc = (r * this->cols) + c ;
+            *( this->workbuf + loc ) = *( this->imbuf + (index--) );
+          }
+        }
       }
 
-      std::string test() {
+      // Flip image buffer up/down
+      //
+      void flip_ud(int row_start, int row_stop, int index) {
+        for ( int r=row_start; r<row_stop; r++ ) {
+          for ( int c=this->cols-1; c>=0; c-- ) {
+            int loc = (r * this->cols) + c ;
+            *( this->workbuf + loc ) = *( this->imbuf + (index--) );
+          }
+        }
+      }
+
+      // No Deinterlacing -- copy imbuf to workbuf
+      // memcpy is faster but this is here just to follow the same style
+      // as the other deinterlacing functions.
+      //
+      void none( int row_start, int row_stop, int index ) {
+        for ( int r=row_start; r<row_stop; r++ ) {
+          for ( int c=0; c<this->cols; c++ ) {
+            int loc = (r * this->cols) + c ;
+            *( this->workbuf + loc ) = *( this->imbuf + (index++) );
+          }
+        }
+      }
+
+      DeInterlace(T* buf1, T* buf2, long bufsz, int cols, int rows, std::string readout_type) {
+        this->imbuf = buf1;
+        this->workbuf = buf2;
+        this->bufsize = bufsz;
+        this->cols = cols;
+        this->rows = rows;
+        this->readout_type = readout_type;
+      }
+
+      std::string info() {
         std::stringstream ret;
-        ret << "imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << workbuf << " this->devnum=" << std::dec << this->devnum;
+        ret << " imbuf=" << std::hex << this->imbuf << " this->workbuf=" << std::hex << this->workbuf
+            << " bufsize=" << this->bufsize << " cols=" << this->cols << " rows=" << this->rows
+            << " readout=" << this->readout_type;
         return ( ret.str() );
       }
   };
@@ -121,8 +173,8 @@ namespace AstroCam {
 
   class Interface {
     private:
-      int rows;
-      int cols;
+//    int rows; // REMOVE
+//    int cols; // REMOVE
       int bufsize;
       int FITS_STRING_KEY;
       int FITS_DOUBLE_KEY;
@@ -149,7 +201,7 @@ namespace AstroCam {
 //    std::string deinterlace;     //!< deinterlacing
       unsigned short* pResetbuf;   //!< buffer to hold reset frame (first frame of CDS pair)
       long* pCDSbuf;               //!< buffer to hold CDS subtracted image
-      void* workbuf;               //!< workspace for performing deinterlacing
+//    void* workbuf;               //!< workspace for performing deinterlacing
       int num_deinter_thr;         //!< number of threads that can de-interlace an image
       int numdev;                  //!< total number of Arc devices detected in system
       std::vector<int> devlist;    //!< vector of all opened and connected devices
@@ -164,9 +216,10 @@ namespace AstroCam {
       //
       Config config;
       Common::Common common;            //!< instantiate a Common object
-      Common::Information camera_info;  //!< this is the main camera_info object
+//    Common::Information camera_info;  //!< this is the main camera_info object
       Common::Information fits_info;    //!< used to copy the camera_info object to preserve info for FITS writing
       Common::FitsKeys userkeys;        //!< create a FitsKeys object for FITS keys specified by the user
+      Common::FitsKeys systemkeys;      //!< create a FitsKeys object for FITS keys provided by the server
 
       // The frameinfo structure holds frame information for each frame
       // received by the callback. This is used to keep track of all the 
@@ -183,27 +236,6 @@ namespace AstroCam {
 
       std::map<int, frameinfo_t> frameinfo;
 
-      // The Controller Info structure hold information for a controller.
-      // This will be put into a vector object so there will be one of these
-      // for each PCI(e) device.
-      //
-      struct controller_info {
-        arc::gen3::CArcDevice* pArcDev;  //!< arc::CController object pointer
-        Callback* pCallback;             //!< Callback class object must be pointer because the API functions are virtual
-        bool connected;                  //!< true if controller connected (requires successful TDL command)
-        bool firmwareloaded;             //!< true if firmware is loaded, false otherwise
-        int devnum;                      //!< this controller's devnum
-        std::string devname;             //!< comes from arc::gen3::CArcPCI::getDeviceStringList()
-        std::uint32_t retval;            //!< convenient place to hold return values for threaded commands to this controller
-        std::map<int, frameinfo_t>  frameinfo;  //!< STL map of frameinfo structure (see above)
-      };
-
-      // Vector of controller structures.
-      // Interface::connect_controller() will create an object for each device
-      // found in the system and store a pointer to each object in this vector.
-      //
-      std::vector<controller_info> controller;
-
 //    std::vector< XeInterlace<T> > deinter;
 
       std::mutex frameinfo_mutex;       //!< protects access to frameinfo
@@ -216,36 +248,52 @@ namespace AstroCam {
       inline int get_framethread_count();
       inline void init_framethread_count();
 
-      // Ths CameraFits class is a sub-class of Interface and is here to contain
+
+      // The Controller class is a sub-class of Interface and is here to contain
       // the Common::Information class and FITS_file class objects.
-      // There will be a vector of CameraFits class objects which matches the
+      // There will be a vector of Controller class objects which matches the
       // vector of controller objects.
       //
-      class CameraFits {
+      class Controller {
         private:
-          int devnum;
+          int bufsize;
           int framecount;               //!< keep track of the number of frames received per expose
           void* workbuf;                //!< pointer to workspace for performing deinterlacing
           long workbuf_size;
 
         public:
-          CameraFits();                 //!< class constructor
-          ~CameraFits() { };            //!< no deconstructor
-          Common::Information info;     //!< this is the main camera info object
+          Controller();                 //!< class constructor
+          ~Controller() { };            //!< no deconstructor
+          Common::Information info;     //!< this is the main controller info object
+//        Common::FitsKeys userkeys;    //!< create a FitsKeys object for FITS keys specified by the user
           FITS_file *pFits;             //!< FITS container object has to be a pointer here
+
+          int rows;
+          int cols;
+
+          arc::gen3::CArcDevice* pArcDev;  //!< arc::CController object pointer
+          Callback* pCallback;             //!< Callback class object must be pointer because the API functions are virtual
+          bool connected;                  //!< true if controller connected (requires successful TDL command)
+          bool firmwareloaded;             //!< true if firmware is loaded, false otherwise
+          int devnum;                      //!< this controller's devnum
+          std::string devname;             //!< comes from arc::gen3::CArcPCI::getDeviceStringList()
+          std::uint32_t retval;            //!< convenient place to hold return values for threaded commands to this controller
+          std::map<int, frameinfo_t>  frameinfo;  //!< STL map of frameinfo structure (see above)
+          uint32_t readout_arg;
 
           // Functions
           //
+          int get_bufsize() { return this->bufsize; };
           long alloc_workbuf();
-          int get_devnum() { return this->devnum; }
-          void set_devnum(int devnum) { this->devnum = devnum; }
+//        int get_devnum() { return this->devnum; }
+//        void set_devnum(int devnum) { this->devnum = devnum; }
 
           inline void init_framecount();
           inline int get_framecount();
           inline void increment_framecount();
 
           template <class T>
-          void deinterlace(T* imbuf);
+          T* deinterlace(T* imbuf);
 
 /*
           template <class T>
@@ -253,7 +301,7 @@ namespace AstroCam {
 */
 
           template <class T>
-          static void dothread_deinterlace(DeInterlace<T> &tc, int section);
+          static void dothread_deinterlace( DeInterlace<T> &deinterlace, int section, int nthreads );
 
           template <class T>
           void* alloc_workbuf(T* buf);
@@ -261,16 +309,15 @@ namespace AstroCam {
           template <class T>    
           void free_workbuf(T* buf);
 
-          template <class T>
-          long write(T* buf);           //!< wrapper for this->pFits->write_image()
+          long write();                 //!< wrapper for this->pFits->write_image()
 
-          long open_file();             //!< wrapper for this->pFits->open_file()
-          void close_file();            //!< wrapper for this->pFits->close_file()
+          long open_file( std::string writekeys );    //!< wrapper for this->pFits->open_file()
+          void close_file( std::string writekeys );   //!< wrapper for this->pFits->close_file()
       };
 
-      // Vector of CameraFits objects, created by Interface::connect_controller()
+      // Vector of Controller objects, created by Interface::connect_controller()
       //
-      std::vector<CameraFits> camera;
+      std::vector<Controller> controller;
 
 //    std::vector<arc::gen3::CArcDevice*> controller; //!< vector of arc::CController object pointers, one for each PCI device
 
@@ -282,8 +329,8 @@ namespace AstroCam {
 
       FITS_file fits_file;              //!< instantiate a FITS container object
 
-template <class T>
-void dosomething(T buf, int section);
+      std::map<std::string, uint32_t> readout_amps;  //!< STL map of readout amplifiers indexed by name. Number is Arc command argument.
+
       // Functions
       //
       long test(std::string args, std::string &retstring);
@@ -291,8 +338,6 @@ void dosomething(T buf, int section);
       long connect_controller(std::string devices_in);
       long disconnect_controller();
       long configure_controller();
-      long get_parameter(std::string parameter, std::string &retstring);
-      long set_parameter(std::string parameter);
       long access_useframes(std::string& useframes);
       long access_nframes(std::string valstring);
       int get_driversize();
@@ -303,16 +348,20 @@ void dosomething(T buf, int section);
       long geometry(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);
       long buffer(std::string size_in, std::string &retstring);
+      long readout(std::string readout_in, std::string &readout_out);
 
       void set_imagesize(int rowsin, int colsin, int* status);
 
       long expose(std::string nseq_in);
       long native(std::string cmdstr);
       long native(std::string cmdstr, std::string &retstring);
+      long native(std::vector<uint32_t> selectdev, std::string cmdstr);
+      long native( int dev, std::string cmdstr, std::string &retstring );
+      long native( std::vector<uint32_t> selectdev, std::string cmdstr, std::string &retstring );
       long write_frame(int devnum, int fpbcount);
-      static void dothread_load( controller_info &controller, std::string timlodfile );
-      static void dothread_expose( controller_info &controller, CameraFits &camera );
-      static void dothread_native( controller_info &controller, std::vector<uint32_t> cmd );
+      static void dothread_load( Controller &controller, std::string timlodfile );
+      static void dothread_expose( Controller &controller );
+      static void dothread_native( Controller &controller, std::vector<uint32_t> cmd );
       static void handle_frame( int devnum, uint32_t fpbcount, uint32_t fcount, void* buffer );
       static void handle_queue( std::string message );
 
@@ -323,13 +372,13 @@ void dosomething(T buf, int section);
       int keytype_integer() { return this->FITS_INTEGER_KEY; };
       int fits_bpp16()      { return this->FITS_BPP16;       };
       int fits_bpp32()      { return this->FITS_BPP32;       };
-      int get_rows() { return this->rows; };
-      int get_cols() { return this->cols; };
+//    int get_rows() { return this->rows; }; // REMOVE
+//    int get_cols() { return this->cols; }; // REMOVE
       int get_bufsize() { return this->bufsize; };
-      int set_rows(int r) { if (r>0) this->rows = r; return r; };
-      int set_cols(int c) { if (c>0) this->cols = c; return c; };
-      int get_image_rows() { return this->rows; };
-      int get_image_cols() { return this->cols; };
+//    int set_rows(int r) { if (r>0) this->rows = r; return r; }; // REMOVE
+//    int set_cols(int c) { if (c>0) this->cols = c; return c; }; // REMOVE
+//    int get_image_rows() { return this->rows; };  // REMOVE
+//    int get_image_cols() { return this->cols; }; // REMOVE
 
   };
 

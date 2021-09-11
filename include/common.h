@@ -103,7 +103,7 @@ namespace Common {
 
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
       bool          abortstate;              //!< set true to abort the current operation (exposure, readout, etc.)
-
+      std::string   writekeys_when;          //!< when to write fits keys "before" or "after" exposure
       Queue message;                         //!< message queue object
 
       void set_abortstate(bool state);
@@ -117,6 +117,7 @@ namespace Common {
       long basename(std::string name_in);
       long basename(std::string name_in, std::string& name_out);
       long imnum(std::string num_in, std::string& num_out);
+      long writekeys(std::string writekeys_in, std::string &writekeys_out);
       long shutter(std::string shutter_in, std::string& shutter_out);
       long fitsnaming(std::string naming_in, std::string& naming_out);
       void increment_imnum() { if (this->fits_naming.compare("number")==0) this->image_num++; };
@@ -157,6 +158,7 @@ namespace Common {
       long          image_size;              //!< pixels per image sensor
       long          image_memory;            //!< bytes per image sensor
       std::string   current_observing_mode;  //!< the current mode
+      std::string   readout_type;
       long          naxis;
       long          axes[2];
       int           binning[2];

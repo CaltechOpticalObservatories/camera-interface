@@ -25,6 +25,12 @@ int Tokenize(const std::string& str,
              std::vector<std::string>& tokens, 
              const std::string& delimiters);        //!< break a string into a vector
 
+void Tokenize(const std::string &str, 
+              std::vector<uint32_t> &devlist, 
+              int &ndev, 
+              std::vector<std::string> &arglist, 
+              int &narg );
+
 void chrrep(char *str, char oldchr, char newchr);   //!< replace one character within a string with a new character
 void string_replace_char(std::string &str, const char *oldchar, const char *newchar);
 

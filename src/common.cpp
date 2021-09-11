@@ -34,6 +34,7 @@ namespace Common {
     this->shutterenable = true;
     this->abortstate = false;
     this->_abortstate = false;
+    this->writekeys_when = "before";
   }
 
 
@@ -70,6 +71,42 @@ bool Common::get_abortstate() {
 }
 
 
+  /** Common::Common::writekeys ***********************************************/
+  /**
+   * @fn     writekeys
+   * @brief  set or get the writekeys_when value
+   * @param  std::string writekeys_in
+   * @param  std::string& writekeys_out
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Common::writekeys(std::string writekeys_in, std::string &writekeys_out) {
+    std::string function = "Common::Common::writekeys";
+    std::stringstream message;
+    long error = NO_ERROR;
+
+    if ( !writekeys_in.empty() ) {
+      try {
+        std::transform( writekeys_in.begin(), writekeys_in.end(), writekeys_in.begin(), ::tolower );  // make lowercase
+        if ( writekeys_in == "before" || writekeys_in == "after" ) this->writekeys_when = writekeys_in;
+        else {
+          message.str(""); message << "ERROR: " << writekeys_in << " is invalid. Expecting before or after";
+          logwrite( function, message.str() );
+          error = ERROR;
+        }
+      }
+      catch (...) {
+        logwrite( function, "error converting writekeys_in to lowercase" );
+        return( ERROR );
+      }
+    }
+
+    writekeys_out = this->writekeys_when;
+    return error;
+  }
+  /** Common::Common::writekeys ***********************************************/
+
+
   /** Common::Common::shutter *************************************************/
   /**
    * @fn     shutter
@@ -86,23 +123,23 @@ bool Common::get_abortstate() {
 
     if ( !shutter_in.empty() ) {
       try {
-        std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::toupper );  // make uppercase
-        if ( shutter_in == "DISABLE" || shutter_in == "0" ) this->shutterenable = false;
+        std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::tolower );  // make lowercase
+        if ( shutter_in == "disable" || shutter_in == "0" ) this->shutterenable = false;
         else
-        if ( shutter_in == "ENABLE"  || shutter_in == "1" ) this->shutterenable = true;
+        if ( shutter_in == "enable"  || shutter_in == "1" ) this->shutterenable = true;
         else {
-          message.str(""); message << "ERROR: " << shutter_in << " is invalid. Expecting {enable,disable,0,1}";
+          message.str(""); message << "ERROR: " << shutter_in << " is invalid. Expecting enable or disable";
           logwrite( function, message.str() );
-          return( ERROR );
+          error = ERROR;
         }
       }
       catch (...) {
-        logwrite( function, "error converting shutter_in to uppercase" );
+        logwrite( function, "error converting shutter_in to lowercase" );
         return( ERROR );
       }
     }
 
-    shutter_out = this->shutterenable ? "ENABLED" : "DISABLED";
+    shutter_out = this->shutterenable ? "enabled" : "disabled";
     return error;
   }
   /** Common::Common::shutter *************************************************/
@@ -643,10 +680,10 @@ bool Common::get_abortstate() {
     //
     if ( !state_in.empty() ) {
       try {
-        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );    // make uppercase
-        if (state_in == "FALSE" ) this->is_datacube = false;
+        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::tolower );    // make lowercase
+        if (state_in == "false" ) this->is_datacube = false;
         else
-        if (state_in == "TRUE"  ) this->is_datacube = true;
+        if (state_in == "true"  ) this->is_datacube = true;
         else {
           message.str(""); message << "ERROR: " << state_in << " is invalid. Expecting true or false";
           logwrite(function, message.str());
@@ -654,7 +691,7 @@ bool Common::get_abortstate() {
         }
       }
       catch (...) {
-        logwrite(function, "error converting state_in to uppercase");
+        logwrite(function, "error converting state_in to lowercase");
         error = ERROR;
       }
     }

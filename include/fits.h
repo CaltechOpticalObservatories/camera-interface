@@ -61,7 +61,7 @@ class FITS_file {
      * primary header data to it.
      *
      */
-    long open_file(Common::Information & info) {
+    long open_file( bool writekeys, Common::Information & info ) {
       std::string function = "FITS_file::open_file";
       std::stringstream message;
 
@@ -114,13 +114,24 @@ class FITS_file {
         this->file_open = true;    // file is open now
         this->make_camera_header(info);
 
-        // Iterate through the user-defined FITS keyword databases and add them to the primary header.
+        // Iterate through the system-defined FITS keyword databases and add them to the primary header.
         //
         Common::FitsKeys::fits_key_t::iterator keyit;
-        for (keyit  = info.userkeys.keydb.begin();
-             keyit != info.userkeys.keydb.end();
+        for (keyit  = info.systemkeys.keydb.begin();
+             keyit != info.systemkeys.keydb.end();
              keyit++) {
-          add_user_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
+          this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
+        }
+
+        // If specified, iterate through the user-defined FITS keyword databases and add them to the primary header.
+        //
+        if ( writekeys ) {
+          logwrite( function, "writing user-defined keys before exposure" );
+          for (keyit  = info.userkeys.keydb.begin();
+               keyit != info.userkeys.keydb.end();
+               keyit++) {
+            this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
+          }
         }
       }
       catch (CCfits::FITS::CantCreate){
@@ -163,7 +174,7 @@ class FITS_file {
      * Nothing called returns anything so this doesn't return anything.
      *
      */
-    void close_file() {
+    void close_file( bool writekeys, Common::Information & info ) {
       std::string function = "FITS_file::close_file";
       std::stringstream message;
 
@@ -172,6 +183,18 @@ class FITS_file {
       if ( ! this->file_open ) {
         logwrite(function, "ERROR: no open FITS file to close");
         return;
+      }
+
+      // Write the user keys on close, if specified
+      //
+      if ( writekeys ) {
+        logwrite( function, "writing user-defined keys after exposure" );
+        Common::FitsKeys::fits_key_t::iterator keyit;
+        for (keyit  = info.systemkeys.keydb.begin();
+             keyit != info.systemkeys.keydb.end();
+             keyit++) {
+          this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
+        }
       }
 
       // Add a header keyword for the time the file was written (right now!)
@@ -498,10 +521,10 @@ class FITS_file {
     /**************** FITS_file::make_camera_header ***************************/
 
 
-    /**************** FITS_file::add_user_key *********************************/
+    /**************** FITS_file::add_key **************************************/
     /**
-     * @fn     add_user_key
-     * @brief  this writes user-added keywords to the FITS file header
+     * @fn     add_key
+     * @brief  wrapper to write keywords to the FITS file header
      * @param  std::string keyword
      * @param  std::string type
      * @param  std::string value
@@ -510,8 +533,8 @@ class FITS_file {
      *
      * Uses CCFits
      */
-    void add_user_key(std::string keyword, std::string type, std::string value, std::string comment) {
-      std::string function = "FITS_file::add_user_key";
+    void add_key(std::string keyword, std::string type, std::string value, std::string comment) {
+      std::string function = "FITS_file::add_key";
       std::stringstream message;
 
       // The file must have been opened first
@@ -535,7 +558,7 @@ class FITS_file {
         logwrite(function, message.str());
       }
     }
-    /**************** FITS_file::add_user_key *********************************/
+    /**************** FITS_file::add_key **************************************/
 
 };
 #endif

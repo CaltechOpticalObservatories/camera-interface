@@ -81,6 +81,7 @@ namespace Archon {
       Common::Information fits_info;         //!< used to copy the camera_info object to preserve info for FITS writing
       Common::Common common;                 //!< instantiate a Common object
       Common::FitsKeys userkeys;             //!< instantiate a Common object
+      Common::FitsKeys systemkeys;           //!< instantiate a Common object
       Config config;
 
       FITS_file fits_file;                   //!< instantiate a FITS container object

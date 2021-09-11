@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
   }
   if ( zone == "local" ) {
     logwrite( function, "using local time zone" );
-    server.userkeys.addkey( "TM_ZONE=local//time zone" );
+    server.systemkeys.addkey( "TM_ZONE=local//time zone" );
   }
   else {
     logwrite( function, "using GMT time zone" );
@@ -400,17 +400,6 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("mode")==0) {
-                    if (args.empty()) {     // no argument means asking for current mode
-                      if (server.modeselected) {
-                        ret=NO_ERROR;
-                        sock.Write(server.camera_info.current_observing_mode); sock.Write(" ");
-                      }
-                      else ret=ERROR;       // no mode selected returns an error
-                    }
-                    else ret = server.set_camera_mode(args);
-                    }
-    else
     if (cmd.compare("basename")==0) {
                     std::string retstring;  // string for the return value
                     ret = server.common.basename(args, retstring);
@@ -450,6 +439,12 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
+    if (cmd.compare("writekeys")==0) {
+                    std::string retstring;
+                    ret = server.common.writekeys(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
     if (cmd.compare("key")==0) {
                     if (args.compare(0, 4, "list")==0)
                       ret = server.userkeys.listkeys();
@@ -480,14 +475,25 @@ void doit(Network::TcpSocket sock) {
                     ret = server.buffer(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
-//  else
-//  if (cmd.compare("readout")==0) {
-//                  std::string retstring;   // string for the return value
-//                  ret = server.readout(args, retstring);
-//                  if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-//                  }
+    else
+    if (cmd.compare("readout")==0) {
+                    std::string retstring;   // string for the return value
+                    ret = server.readout(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
 #endif
 #ifdef STA_ARCHON
+    else
+    if (cmd.compare("mode")==0) {
+                    if (args.empty()) {     // no argument means asking for current mode
+                      if (server.modeselected) {
+                        ret=NO_ERROR;
+                        sock.Write(server.camera_info.current_observing_mode); sock.Write(" ");
+                      }
+                      else ret=ERROR;       // no mode selected returns an error
+                    }
+                    else ret = server.set_camera_mode(args);
+                    }
     else
     if (cmd.compare("getp")==0) {
                     std::string retstring;
