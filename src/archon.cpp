@@ -1628,18 +1628,34 @@ logwrite("load_firmware", "two arg");
         }
         // Now that adnum is OK, convert next two tokens to gain, offset
         //
+        int gain_try=0, offset_try=0;
         try {
-          this->gain.at(adnum)   = std::stoi(tokens[1]);    // gain as function of AD channel
-          this->offset.at(adnum) = std::stoi(tokens[2]);    // offset as function of AD channel
+          gain_try   = std::stoi( tokens[1] );      // gain as function of AD channel
+          offset_try = std::stoi( tokens[2] );      // offset as function of AD channel
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: unable to convert GAIN and/or OFFSET to integer");
+          message.str(""); message << "ERROR: unable to convert GAIN \"" << tokens[1] << "\" and/or OFFSET \"" << tokens[2] << "\" to integer";
+          logwrite( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: GAIN " << tokens[1] << ", OFFSET " << tokens[2] << " or AD# " << adnum << " outside range";
+          message.str(""); message << "ERROR: GAIN " << tokens[1] << ", OFFSET " << tokens[2] << " outside integer range";
           logwrite(function, message.str());
           return(ERROR);
+        }
+        // Now assign the gain,offsets to their appropriate position in the vectors
+        //
+        try {
+          this->gain.at( adnum )   = gain_try;      // gain as function of AD channel
+          this->offset.at( adnum ) = offset_try;    // offset as function of AD channel
+        }
+        catch ( std::out_of_range & ) {
+          message.str(""); message << "ERROR: AD# " << adnum << " outside range {0:" << (this->gain.size() & this->offset.size()) << "}";
+          logwrite( function, message.str() );
+          if ( this->gain.size()==0 || this->offset.size()==0 ) {
+            logwrite( function, "ERROR: gain/offset vectors are empty: no ADC or ADM board installed?" );
+          }
+          return( ERROR );
         }
       }
     }
