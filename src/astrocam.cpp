@@ -112,12 +112,12 @@ namespace AstroCam {
     // Indexed by amplifier name.
     // The number is the argument for the Arc command to set this amplifier in the firmware.
     //
-    this->readout_amps.insert( { "lowerleft",  0x2D5531 } );  // "_U1"
-    this->readout_amps.insert( { "lowerright", 0x2D4C31 } );  // "_L1"
-    this->readout_amps.insert( { "upperleft",  0x2D5532 } );  // "_U2"
-    this->readout_amps.insert( { "upperright", 0x2D4C32 } );  // "_L2"
-    this->readout_amps.insert( { "lowerboth",  0x2D2D31 } );  // "__1"
-    this->readout_amps.insert( { "upperboth",  0x2D2D32 } );  // "__2"
+    this->readout_amps.insert( { "lowerleft",  0x5F5531 } );  // "_U1"
+    this->readout_amps.insert( { "lowerright", 0x5F4C31 } );  // "_L1"
+    this->readout_amps.insert( { "upperleft",  0x5F5532 } );  // "_U2"
+    this->readout_amps.insert( { "upperright", 0x5F4C32 } );  // "_L2"
+    this->readout_amps.insert( { "lowerboth",  0x5F5F31 } );  // "__1"
+    this->readout_amps.insert( { "upperboth",  0x5F5F32 } );  // "__2"
     this->readout_amps.insert( { "quad",       0x414C4C } );  // "ALL"
   }
   /** AstroCam::Interface::Interface ******************************************/
@@ -1081,8 +1081,8 @@ namespace AstroCam {
         // For the time being, set a fixed bitpix here. Doesn't seem like a final
         // solution but need to set it someplace for now.
         //
-        this->controller.at(dev).info.detector_pixels[0] = rows;
-        this->controller.at(dev).info.detector_pixels[1] = cols;
+        this->controller.at(dev).info.detector_pixels[0] = cols;
+        this->controller.at(dev).info.detector_pixels[1] = rows;
         // ROI is the full detector
         this->controller.at(dev).info.region_of_interest[0] = 1;
         this->controller.at(dev).info.region_of_interest[1] = this->controller.at(dev).info.detector_pixels[0];
@@ -1146,27 +1146,6 @@ namespace AstroCam {
         }
       }
     }
-
-/***
-    // TODO
-    // Currently, astrocam doesn't use "modes" like Archon does -- do we need that?
-    // For the time being, set a fixed bitpix here. Doesn't seem like a final
-    // solution but need to set it someplace for now.
-    //
-    this->camera_info.detector_pixels[0] = this->get_cols();
-    this->camera_info.detector_pixels[1] = this->get_rows();
-    // ROI is the full detector
-    this->camera_info.region_of_interest[0] = 1;
-    this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
-    this->camera_info.region_of_interest[2] = 1;
-    this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
-    // Binning factor (no binning)
-    this->camera_info.binning[0] = 1;
-    this->camera_info.binning[1] = 1;
-
-    this->camera_info.bitpix = 16;
-    error = this->camera_info.set_axes(USHORT_IMG);
-***/
 
     // Clear the abort flag for a new exposure, in case it was previously set
     //
@@ -1794,12 +1773,18 @@ namespace AstroCam {
             logwrite( function, message.str() );
             return( ERROR );
           }
+          // Send the amplifier selection command to the connected controllers
+          //
+          std::stringstream cmd;
+          std::string retstr;
+          cmd.str(""); cmd << "SOS " << readout_arg;              // TODO should this 3-letter command be generalized, or configurable?
+          error = this->native( selectdev, cmd.str(), retstr );   // send the native command here
+          if ( error != NO_ERROR || retstr == "ERR" ) {
+            message.str(""); message << "ERROR setting output source 0x" << std::hex << std::uppercase << readout_arg << " for device " << dev;
+            logwrite( function, message.str() );
+            return( ERROR );
+          }
         }
-        // Send the amplifier selection command to the connected controllers
-        //
-        std::stringstream cmd;
-        cmd.str(""); cmd << "SOS " << readout_arg;     // TODO should this 3-letter command be generalized?
-        error = this->native( selectdev, cmd.str() );  // send the native command here
       }
     }
 
@@ -2542,7 +2527,7 @@ namespace AstroCam {
 
 #ifdef LOGLEVEL_DEBUG
     message << "*** [DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << this->workbuf;
-    message << " this->info.readout_type=" << this->info.readout_type;
+    message << " this->info.readout_type=" << this->info.readout_type << " cols=" << std::dec << this->cols << " rows=" << std::dec << this->rows;
     logwrite(function, message.str());
 #endif
 
