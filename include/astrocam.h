@@ -38,6 +38,24 @@
 
 namespace AstroCam {
 
+  // ENUM list for each readout type
+  //
+  enum ReadoutType {
+    LOWERLEFT,
+    LOWERRIGHT,
+    UPPERLEFT,
+    UPPERRIGHT,
+    LOWERBOTH,
+    UPPERBOTH,
+    QUAD,
+//  HAWAII_1CH,           // TODO
+//  HAWAII_4CH,           // TODO
+//  HAWAII_16CH,          // TODO
+//  HAWAII_32CH,          // TODO
+//  HAWAII_32CH_LR,       // TODO
+    NUM_READOUT_TYPES
+    };
+
   class Callback : public arc::gen3::CooExpIFace {  //!< Callback class inherited from the ARC API
     public:
       Callback(){}
@@ -94,35 +112,41 @@ namespace AstroCam {
       long bufsize;
       int cols;
       int rows;
-      std::string readout_type;
+      int readout_type;
 
-    public:
-      int imcols() { return this->cols; }
-      int imrows() { return this->rows; }
-      std::string imreadout() { return this->readout_type; }
-
-      void split_parallel();
-      void split_serial();
-      void quad_ccd();
-
-      // Flip image buffer left/right
+      // quad ccd
       //
-      void flip_lr(int row_start, int row_stop, int index) {
-        for ( int r=row_start; r<row_stop; r++ ) {
-          for ( int c=this->cols-1; c>=0; c-- ) {
-            int loc = (r * this->cols) + c ;
-            *( this->workbuf + loc ) = *( this->imbuf + (index++) );
+      void quad_ccd( int row_start, int row_stop, int index ) {
+        std::stringstream message;
+        for ( int r = row_start / 2; r < row_stop / 2; r++ ) {
+          int begin = r * this->cols;
+          int end   = ( this->rows * this->cols ) - ( r * this->cols ) - 1;
+          for ( int c = 0; c < this->cols / 2; c++ ) {
+            message.str(""); message << "row_start=" << row_start << " row_stop=" << row_stop 
+                                     << " r=" << r << " c=" << c
+                                     << " begin=" << begin << " end=" << end 
+                                     << " A=" << (begin + c ) << " B=" << (begin + this->cols - c - 1 ) << " C=" << (end - c ) << " D=" << (end - this->cols + c + 1 ) << " index=" << index;
+//          if ( (c==0) && (r==row_start) && ( row_stop % (this->rows / 8) == 0 ) ) logwrite( "QUAD", message.str() );
+            if (row_start==10) logwrite( "* QUAD *", message.str() );
+//          logwrite( "* QUAD *", message.str() );
+//if (index >= (this->rows*this->cols)) return;
+            *( this->workbuf + begin + c )                  = *( this->imbuf + (index++) ); // index++ % 65535; // *( this->imbuf + (index++) );
+            *( this->workbuf + begin + this->cols - c - 1 ) = *( this->imbuf + (index++) ); // index++ % 65535; // *( this->imbuf + (index++) );
+            *( this->workbuf + end - c )                    = *( this->imbuf + (index++) ); // index++ % 65535; // *( this->imbuf + (index++) );
+            *( this->workbuf + end - this->cols + c + 1 )   = *( this->imbuf + (index++) ); // index++ % 65535; // *( this->imbuf + (index++) );
           }
         }
       }
 
-      // Flip image buffer up/down and left/right
+      // split serial
       //
-      void flip_udlr(int row_start, int row_stop, int index) {
-        for ( int r=row_start; r<row_stop; r++ ) {
-          for ( int c=0; c<this->cols; c++ ) {
-            int loc = (r * this->cols) + c ;
-            *( this->workbuf + loc ) = *( this->imbuf + (index--) );
+      void split_serial( int row_start, int row_stop, int index ) {
+        for ( int r = row_start; r < row_stop; r++ ) {
+          int left  = r * this->cols;
+          int right = r * this->cols + this->cols - 1;
+          for ( int c = 0; c < this->cols; c += 2 ) {
+            *( this->workbuf + left++  ) = *( this->imbuf + (index++) );
+            *( this->workbuf + right-- ) = *( this->imbuf + (index++) );
           }
         }
       }
@@ -151,7 +175,40 @@ namespace AstroCam {
         }
       }
 
-      DeInterlace(T* buf1, T* buf2, long bufsz, int cols, int rows, std::string readout_type) {
+      // Flip image buffer left/right
+      //
+      void flip_lr(int row_start, int row_stop, int index) {
+        for ( int r=row_start; r<row_stop; r++ ) {
+          for ( int c=this->cols-1; c>=0; c-- ) {
+            int loc = (r * this->cols) + c ;
+            *( this->workbuf + loc ) = *( this->imbuf + (index++) );
+          }
+        }
+      }
+
+      /************ AstroCam::DeInterlace::flip_udlr **************************/
+      /**
+       * Flip image buffer up/down and left/right
+       *
+       */
+      void flip_udlr(int row_start, int row_stop, int index) {
+        for ( int r=row_start; r<row_stop; r++ ) {
+          for ( int c=0; c<this->cols; c++ ) {
+            int loc = (r * this->cols) + c ;
+            *( this->workbuf + loc ) = *( this->imbuf + (index--) );
+          }
+        }
+      }
+      /************ AstroCam::DeInterlace::flip_udlr **************************/
+
+    public:
+
+      /************ AstroCam::DeInterlace::DeInterlace ************************/
+      /**
+       * Class Constructor
+       *
+       */
+      DeInterlace(T* buf1, T* buf2, long bufsz, int cols, int rows, int readout_type) {
         this->imbuf = buf1;
         this->workbuf = buf2;
         this->bufsize = bufsz;
@@ -159,14 +216,132 @@ namespace AstroCam {
         this->rows = rows;
         this->readout_type = readout_type;
       }
+      /************ AstroCam::DeInterlace::DeInterlace ************************/
 
+
+      /************ AstroCam::DeInterlace::info *******************************/
+      /**
+       * returns some info, just for debugging
+       *
+       */
       std::string info() {
         std::stringstream ret;
         ret << " imbuf=" << std::hex << this->imbuf << " this->workbuf=" << std::hex << this->workbuf
-            << " bufsize=" << this->bufsize << " cols=" << this->cols << " rows=" << this->rows
-            << " readout=" << this->readout_type;
+            << " bufsize=" << std::dec << this->bufsize << " cols=" << this->cols << " rows=" << this->rows
+            << " readout_type=" << this->readout_type;
         return ( ret.str() );
       }
+      /************ AstroCam::DeInterlace::info *******************************/
+
+
+      /************ AstroCam::DeInterlace::do_deinterlace *********************/
+      /**
+       * This calls the appropriate deinterlacing function based on the readout
+       * type, which is an enum that was given to the class constructor when
+       * this DeInterlace object was constructed.
+       *
+       * The deinterlacing is performed from "row_start" to "row_stop" of the
+       * final image, using the pixel "index" of the raw image buffer.
+       *
+       */
+      void do_deinterlace( int row_start, int row_stop, int index ) {
+        std::string function = "AstroCam::DeInterlace::do_deinterlace";
+        std::stringstream message;
+        int index_ud = ( this->rows * this->cols ) - index;   // index from end of buffer, backwards
+
+        switch( this->readout_type ) {
+          case LOWERLEFT:
+            this->flip_lr( row_start, row_stop, index );
+            break;
+          case LOWERRIGHT:
+            this->none( row_start, row_stop, index );
+            break;
+          case UPPERLEFT:
+            this->flip_udlr( row_start, row_stop, index_ud );
+            break;
+          case UPPERRIGHT:
+            this->flip_ud( row_start, row_stop, index_ud );  // TODO not tested
+            break;
+          case LOWERBOTH:
+            if ( this->cols % 2 != 0 ) {   // should have already been checked, but here for safety
+              logwrite( function, "ERROR: cannot deinterlace: lowerboth requires an even number of columns" );
+              break;
+            }
+            this->split_serial( row_start, row_stop, index );
+            break;
+          case UPPERBOTH:
+            if ( this->cols % 2 != 0 ) {   // should have already been checked, but here for safety
+              logwrite( function, "ERROR: cannot deinterlace: upperboth requires an even number of columns" );
+              break;
+            }
+            this->split_serial( row_start, row_stop, index );
+            break;
+          case QUAD:
+            if ( ( this->cols % 2 != 0 ) || ( this->rows % 2 != 0 ) ) {   // should have already been checked, but here for safety
+              logwrite( function, "ERROR: cannot deinterlace: quad requires an even number of rows and columns" );
+              break;
+            }
+            this->quad_ccd( row_start, row_stop, index );
+            break;
+          default:
+            message.str(""); message << "ERROR: unknown readout type: " << this->readout_type;
+            logwrite( function, message.str() );
+        }
+      }
+      /************ AstroCam::DeInterlace::do_deinterlace *********************/
+
+
+      static void do_bob_deinterlace( int row_start, int row_stop, int index ) {
+        std::string function = "AstroCam::DeInterlace::do_bob_deinterlace";
+        std::stringstream message;
+        message << "row_start=" << row_start << " row_stop=" << row_stop << " index=" << index;
+        logwrite( function, message.str() );
+        sleep( 2 );
+      }
+
+      /************ AstroCam::DeInterlace::bob ********************************/
+      long bob() {
+        std::string function = "AstroCam::DeInterlace::bob";
+        std::stringstream message;
+        int nthreads = cores_available();
+        std::vector<std::thread> threads;       // create a local scope vector for the threads
+
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "*** [DEBUG] spawning deinterlacing threads, from 1 to " << nthreads << "...";
+        logwrite( function, message.str() );
+#endif
+        for ( int section = 1; section <= nthreads; section++ ) {
+          int rows_per_section = (int)( this->rows / nthreads );                         // whole number of rows per thread
+          int index            = rows_per_section * this->cols * ( section - 1);         // index from start of buffer, forward
+          int row_start        = rows_per_section * (section-1);                         // first row this thread will deinterlace
+          int row_stop         = rows_per_section * section;                             // last row this thread will deinterlace
+          int modrows          = this->rows % nthreads;                                  // are the rows evenly divisible by the number of threads?
+          if ( ( modrows != 0 ) && ( section == nthreads ) ) row_stop += modrows;        // add any leftover rows to the last thread if not evenly divisible
+
+          std::thread thr( do_bob_deinterlace,
+                           row_start,
+                           row_stop,
+                           index );
+          threads.push_back(std::move(thr));    // push the thread into a vector
+        }
+
+        try {
+          for (std::thread & thr : threads) {   // loop through the vector of threads
+            if ( thr.joinable() ) thr.join();   // if thread object is joinable then join to this function. (not to each other)
+          }
+        }
+        catch(const std::exception &e) {
+          message.str(""); message << "ERROR joining threads: " << e.what();
+          logwrite(function, message.str());
+        }
+        catch(...) { logwrite(function, "unknown error joining threads"); }
+
+        threads.clear();                        // deconstruct the threads vector
+
+        return NO_ERROR;
+      }
+      /************ AstroCam::DeInterlace::bob ********************************/
+
   };
   /**************** AstroCam::DeInterlace *************************************/
 
@@ -268,6 +443,8 @@ namespace AstroCam {
 //        Common::FitsKeys userkeys;    //!< create a FitsKeys object for FITS keys specified by the user
           FITS_file *pFits;             //!< FITS container object has to be a pointer here
 
+          int error;
+
           int rows;
           int cols;
 
@@ -301,7 +478,7 @@ namespace AstroCam {
 */
 
           template <class T>
-          static void dothread_deinterlace( DeInterlace<T> &deinterlace, int section, int nthreads );
+          static void dothread_deinterlace( DeInterlace<T> &deinterlace, int cols, int rows, int section, int nthreads );
 
           template <class T>
           void* alloc_workbuf(T* buf);
@@ -329,7 +506,12 @@ namespace AstroCam {
 
       FITS_file fits_file;              //!< instantiate a FITS container object
 
-      std::map<std::string, uint32_t> readout_amps;  //!< STL map of readout amplifiers indexed by name. Number is Arc command argument.
+      typedef struct {
+        ReadoutType readout_type;       //!< enum for readout type
+        uint32_t    readout_arg;        //!< argument for Arc firmware command
+      } readout_info_t;
+
+      std::map< std::string, readout_info_t > readout_source;  //!< STL map of readout sources indexed by readout name
 
       // Functions
       //

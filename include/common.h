@@ -158,7 +158,8 @@ namespace Common {
       long          image_size;              //!< pixels per image sensor
       long          image_memory;            //!< bytes per image sensor
       std::string   current_observing_mode;  //!< the current mode
-      std::string   readout_type;
+      std::string   readout_name;            //!< name of the readout source
+      int           readout_type;            //!< type of the readout source is an enum
       long          naxis;
       long          axes[2];
       int           binning[2];

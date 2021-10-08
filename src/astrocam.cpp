@@ -112,13 +112,16 @@ namespace AstroCam {
     // Indexed by amplifier name.
     // The number is the argument for the Arc command to set this amplifier in the firmware.
     //
-    this->readout_amps.insert( { "lowerleft",  0x5F5531 } );  // "_U1"
-    this->readout_amps.insert( { "lowerright", 0x5F4C31 } );  // "_L1"
-    this->readout_amps.insert( { "upperleft",  0x5F5532 } );  // "_U2"
-    this->readout_amps.insert( { "upperright", 0x5F4C32 } );  // "_L2"
-    this->readout_amps.insert( { "lowerboth",  0x5F5F31 } );  // "__1"
-    this->readout_amps.insert( { "upperboth",  0x5F5F32 } );  // "__2"
-    this->readout_amps.insert( { "quad",       0x414C4C } );  // "ALL"
+    this->readout_source.insert( { "lowerleft",   { LOWERLEFT,      0x5f5531 } } );  // "_U1"
+    this->readout_source.insert( { "lowerright",  { LOWERRIGHT,     0x5f4c31 } } );  // "_L1"
+    this->readout_source.insert( { "upperleft",   { UPPERLEFT,      0x5f5532 } } );  // "_U2"
+    this->readout_source.insert( { "upperright",  { UPPERRIGHT,     0x5f4c32 } } );  // "_L2"
+    this->readout_source.insert( { "lowerboth",   { LOWERBOTH,      0x5f5f31 } } );  // "__1"
+    this->readout_source.insert( { "upperboth",   { UPPERBOTH,      0x5f5f32 } } );  // "__2"
+    this->readout_source.insert( { "quad",        { QUAD,           0x414c4c } } );  // "ALL"
+//  this->readout_source.insert( { "hawaii1",     { HAWAII_1CH,     0xffffff } } );  // TODO HxRG  1 channel
+//  this->readout_source.insert( { "hawaii32",    { HAWAII_32CH,    0xffffff } } );  // TODO HxRG 32 channel
+//  this->readout_source.insert( { "hawaii32lr",  { HAWAII_32CH_LR, 0xffffff } } );  // TODO HxRG 32 channel alternate left/right
   }
   /** AstroCam::Interface::Interface ******************************************/
 
@@ -776,7 +779,7 @@ namespace AstroCam {
       // The system writes a few things in the header
       //
       _controller.pFits->add_key("EXPSTART", "STRING", _controller.info.start_time, "exposure start time");
-      _controller.pFits->add_key("READOUT", "STRING",  _controller.info.readout_type, "readout amplifier");
+      _controller.pFits->add_key("READOUT", "STRING",  _controller.info.readout_name, "readout amplifier");
     }
     catch (const std::exception &e) {
       // arc::gen3::CArcDevice::expose() will throw an exception for an abort.
@@ -793,13 +796,16 @@ namespace AstroCam {
       }
       server.common.set_abortstate( true );
       logwrite(function, message.str());
+      _controller.error = ERROR;
       return;
     }
     catch(...) {
       logwrite(function, "unknown error calling pArcDev->expose(). forcing abort.");
       server.common.set_abortstate( true );
+      _controller.error = ERROR;
       return;
     }
+    _controller.error = NO_ERROR;
   }
   /** AstroCam::Interface::dothread_expose ************************************/
 
@@ -1058,8 +1064,8 @@ namespace AstroCam {
 
         // check readout type
         //
-        if ( this->controller.at( dev ).info.readout_type.empty() ) {
-          logwrite( function, "ERROR: readout type undefined" );
+        if ( this->controller.at( dev ).info.readout_name.empty() ) {
+          logwrite( function, "ERROR: readout undefined" );
           return( ERROR );
         }
 
@@ -1270,6 +1276,18 @@ namespace AstroCam {
     // counter to be zero, indicating all the threads have completed.
     //
     while ( this->get_framethread_count() > 0 ) ;
+
+    // Check each Controller object for errors that may have occured in the expose threads.
+    // That error would have been logged, but not returned here, since the thread functions
+    // are necessarily static void.
+    //
+    for (auto dev : this->devlist) {
+      try {
+        if ( ( error = this->controller.at(dev).error ) != NO_ERROR ) break;
+      }
+      catch(std::out_of_range &) {
+      }
+    }
 
     if ( error == NO_ERROR ) {
       this->common.increment_imnum();                                 // increment image_num when fitsnaming == "number"
@@ -1726,15 +1744,16 @@ namespace AstroCam {
       error = ERROR;
     }
 
-    std::string readout_type_req;           // requested readout type
+    std::string readout_name_req;           // requested readout source name
     uint32_t readout_arg;                   // argument associated with requested type
-    bool readout_type_valid = false;
+    ReadoutType readout_type;
+    bool readout_name_valid = false;
 
     // Special case -- if requested a list then return a list of accepted readout amp names
     //
     if ( narg == 1 && arglist.front() == "list" ) {
       std::stringstream rs;
-      for ( auto type : this->readout_amps ) rs << type.first << " ";
+      for ( auto type : this->readout_source ) rs << type.first << " ";
       readout_out = rs.str();
       logwrite( function, rs.str() );
       return( NO_ERROR );
@@ -1744,28 +1763,30 @@ namespace AstroCam {
     // Otherwise, the argument is a requested readout type
     //
     if ( narg == 1 ) {
-      readout_type_req = arglist.front();
+      readout_name_req = arglist.front();
 
       // Check that the requested readout amplifer has a matches in the list of known readout amps.
-      // This list is an STL map. this->readout_amps.first is the amplifier name,
+      // This list is an STL map. this->readout_source.first is the amplifier name,
       // and .second is the argument for the Arc 3-letter command.
       //
-      for ( auto type : this->readout_amps ) {
-        if ( type.first.compare( readout_type_req ) == 0 ) {    // found a match
-          readout_type_valid = true;
-          readout_arg = type.second;                            // get the arg associated with this match
+      for ( auto source : this->readout_source ) {
+        if ( source.first.compare( readout_name_req ) == 0 ) {  // found a match
+          readout_name_valid = true;
+          readout_arg  = source.second.readout_arg;             // get the arg associated with this match
+          readout_type = source.second.readout_type;            // get the type associated with this match
           break;
         }
       }
-      if ( !readout_type_valid ) {
-        message.str(""); message << "ERROR: readout type " << readout_type_req << " not recognized";
+      if ( !readout_name_valid ) {
+        message.str(""); message << "ERROR: readout " << readout_name_req << " not recognized";
         logwrite( function, message.str() );
         error = ERROR;
       }
       else {  // requested readout type is known, so set it for each of the specified devices
         for ( auto dev : selectdev ) {
           try {
-            this->controller.at( dev ).info.readout_type = readout_type_req;
+            this->controller.at( dev ).info.readout_name = readout_name_req;
+            this->controller.at( dev ).info.readout_type = readout_type;
             this->controller.at( dev ).readout_arg = readout_arg;
           }
           catch ( std::out_of_range & ) {
@@ -1793,7 +1814,7 @@ namespace AstroCam {
     for ( auto dev : selectdev ) {
       try {
         std::string mytype;
-        if ( this->controller.at( dev ).connected ) mytype = this->controller.at( dev ).info.readout_type;
+        if ( this->controller.at( dev ).connected ) mytype = this->controller.at( dev ).info.readout_name;
         else {
           error = ERROR;
           mytype = "???";
@@ -1807,7 +1828,7 @@ namespace AstroCam {
       }
     }
 
-    message.str(""); message << "readout type = " << rs.str();
+    message.str(""); message << "readout type " << rs.str();
     logwrite( function, message.str() );
 
     readout_out = rs.str();
@@ -2510,7 +2531,7 @@ namespace AstroCam {
    * @fn     deinterlace
    * @brief  spawns the deinterlacing threads
    * @param  args contains: module, channel, bias
-   * @return none
+   * @return pointer to workbuf
    *
    * This function spawns threads to perform the actual deinterlacing in order
    * to get it done as quickly as possible.
@@ -2523,11 +2544,13 @@ namespace AstroCam {
     std::string function = "AstroCam::Interface::deinterlace";
     std::stringstream message;
 
-    int nthreads = std::thread::hardware_concurrency();
+    int nthreads = cores_available();
+nthreads=2;
 
 #ifdef LOGLEVEL_DEBUG
-    message << "*** [DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << this->workbuf;
-    message << " this->info.readout_type=" << this->info.readout_type << " cols=" << std::dec << this->cols << " rows=" << std::dec << this->rows;
+    message << "*** [DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << this->workbuf
+            << " this->info.readout_name=" << this->info.readout_name << "(" << this->info.readout_type << ")" 
+            << " cols=" << std::dec << this->cols << " rows=" << std::dec << this->rows;
     logwrite(function, message.str());
 #endif
 
@@ -2541,13 +2564,21 @@ namespace AstroCam {
                              this->rows,
                              this->info.readout_type );
 
+//  deinterlace.bob();
+
     // spawn threads to handle each sub-section of the image
     //
     {                                       // begin local scope
     std::vector<std::thread> threads;       // create a local scope vector for the threads
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "*** [DEBUG] spawning deinterlacing threads, from 1 to " << nthreads << "...";
+    logwrite( function, message.str() );
+#endif
     for ( int section = 1; section <= nthreads; section++ ) {
       std::thread thr( &AstroCam::Interface::Controller::dothread_deinterlace<T>, 
                    std::ref(deinterlace), 
+                   this->cols,
+                   this->rows,
                    section,
                    nthreads );
       threads.push_back(std::move(thr));    // push the thread into a vector
@@ -2590,38 +2621,37 @@ namespace AstroCam {
    * @fn     dothread_deinterlace
    * @brief  run in a thread to perform the actual deinterlacing
    * @param  T &deinterlace, reference to DeInterlace class object
+   * @param  int cols
+   * @param  int rows
    * @param  int section, the section of the buffer this thread is working on
    * @param  int nthreads, the number of threads being used for deinterlacing
    * @return none
    *
+   * This thread calls the deinterlacer. The actual deinterlacing is performed
+   * within the DeInterlace object.
+   *
    */
   template <class T>
-  void Interface::Controller::dothread_deinterlace( DeInterlace<T> &deinterlace, int section, int nthreads ) {
+  void Interface::Controller::dothread_deinterlace( DeInterlace<T> &deinterlace, int cols, int rows, int section, int nthreads ) {
     std::string function = "AstroCam::Interface::Controller::dothread_deinterlace";
     std::stringstream message;
 
-    int rows_per_section = (int)(deinterlace.imrows()/nthreads);
-    int index            = (deinterlace.imrows() * deinterlace.imcols() / nthreads) * ( section - 1 );
-    int index_ud         = (deinterlace.imrows() * deinterlace.imcols() / nthreads) * ( nthreads - section + 1 );
-    int row_start        = rows_per_section * (section-1);
-    int row_stop         = rows_per_section * section;
-    int modrows          = deinterlace.imrows() % nthreads;
-    if ( ( modrows != 0 ) && ( section == nthreads ) ) row_stop += modrows;
-
-//  deinterlace.flip_lr( row_start, row_stop, cols, index );
-
-//  deinterlace.none( row_start, row_stop, cols, index );
-
-//  deinterlace.flip_ud( row_start, row_stop, cols, index_ud );
-
-    deinterlace.flip_udlr( row_start, row_stop, index_ud );
+    int rows_per_section = (int)( rows / nthreads );                         // whole number of rows per thread
+    int index            = rows_per_section * cols * ( section - 1);         // index from start of buffer, forward
+    int row_start        = rows_per_section * (section-1);                   // first row this thread will deinterlace
+    int row_stop         = rows_per_section * section;                       // last row this thread will deinterlace
+    int modrows          = rows % nthreads;                                  // are the rows evenly divisible by the number of threads?
+    if ( ( modrows != 0 ) && ( section == nthreads ) ) row_stop += modrows;  // add any leftover rows to the last thread if not evenly divisible
 
 #ifdef LOGLEVEL_DEBUG
     message.str(""); message << "*** [DEBUG] section=" << section << " " << deinterlace.info()
-                             << " row_start=" << row_start << " row_stop=" << row_stop;
+                             << " row_start=" << row_start << " row_stop=" << row_stop
+                             << " modrows=" << modrows << " index=" << index;
     logwrite(function, message.str());
 #endif
-    return;
+
+    deinterlace.do_deinterlace( row_start, row_stop, index );
+
   }
   /**************** AstroCam::Interface::dothread_deinterlace *****************/
 
