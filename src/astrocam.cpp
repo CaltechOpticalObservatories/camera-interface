@@ -112,13 +112,13 @@ namespace AstroCam {
     // Indexed by amplifier name.
     // The number is the argument for the Arc command to set this amplifier in the firmware.
     //
-    this->readout_source.insert( { "lowerleft",   { LOWERLEFT,      0x5f5531 } } );  // "_U1"
-    this->readout_source.insert( { "lowerright",  { LOWERRIGHT,     0x5f4c31 } } );  // "_L1"
-    this->readout_source.insert( { "upperleft",   { UPPERLEFT,      0x5f5532 } } );  // "_U2"
-    this->readout_source.insert( { "upperright",  { UPPERRIGHT,     0x5f4c32 } } );  // "_L2"
-    this->readout_source.insert( { "lowerboth",   { LOWERBOTH,      0x5f5f31 } } );  // "__1"
-    this->readout_source.insert( { "upperboth",   { UPPERBOTH,      0x5f5f32 } } );  // "__2"
-    this->readout_source.insert( { "quad",        { QUAD,           0x414c4c } } );  // "ALL"
+    this->readout_source.insert( { "U1",   { U1,      0x5f5531 } } );  // "_U1"
+    this->readout_source.insert( { "L1",  { L1,     0x5f4c31 } } );  // "_L1"
+    this->readout_source.insert( { "U2",   { U2,      0x5f5532 } } );  // "_U2"
+    this->readout_source.insert( { "L2",  { L2,     0x5f4c32 } } );  // "_L2"
+    this->readout_source.insert( { "SPLIT1",   { SPLIT1,      0x5f5f31 } } );  // "__1"
+    this->readout_source.insert( { "SPLIT2",   { SPLIT2,      0x5f5f32 } } );  // "__2"
+    this->readout_source.insert( { "QUAD",        { QUAD,           0x414c4c } } );  // "ALL"
 //  this->readout_source.insert( { "hawaii1",     { HAWAII_1CH,     0xffffff } } );  // TODO HxRG  1 channel
 //  this->readout_source.insert( { "hawaii32",    { HAWAII_32CH,    0xffffff } } );  // TODO HxRG 32 channel
 //  this->readout_source.insert( { "hawaii32lr",  { HAWAII_32CH_LR, 0xffffff } } );  // TODO HxRG 32 channel alternate left/right
@@ -2638,6 +2638,7 @@ nthreads=2;
 
     int rows_per_section = (int)( rows / nthreads );                         // whole number of rows per thread
     int index            = rows_per_section * cols * ( section - 1);         // index from start of buffer, forward
+    int index_flip       = rows_per_section * cols * ( nthreads - section + 1);         // index from start of buffer, forward
     int row_start        = rows_per_section * (section-1);                   // first row this thread will deinterlace
     int row_stop         = rows_per_section * section;                       // last row this thread will deinterlace
     int modrows          = rows % nthreads;                                  // are the rows evenly divisible by the number of threads?
@@ -2650,7 +2651,7 @@ nthreads=2;
     logwrite(function, message.str());
 #endif
 
-    deinterlace.do_deinterlace( row_start, row_stop, index );
+    deinterlace.do_deinterlace( row_start, row_stop, index, index_flip );
 
   }
   /**************** AstroCam::Interface::dothread_deinterlace *****************/

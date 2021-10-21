@@ -41,12 +41,12 @@ namespace AstroCam {
   // ENUM list for each readout type
   //
   enum ReadoutType {
-    LOWERLEFT,
-    LOWERRIGHT,
-    UPPERLEFT,
-    UPPERRIGHT,
-    LOWERBOTH,
-    UPPERBOTH,
+    U1,
+    L1,
+    U2,
+    L2,
+    SPLIT1,
+    SPLIT2,
     QUAD,
 //  HAWAII_1CH,           // TODO
 //  HAWAII_4CH,           // TODO
@@ -116,6 +116,15 @@ namespace AstroCam {
 
       // quad ccd
       //
+      // L2 +---------+---------+ U2
+      //    | <------ | ------> |
+      //    |    3    |    2    |
+      //    +---------+---------+
+      //    |    0    |    1    |
+      //    | <------ | ------> |
+      // L1 +---------+---------+ U1
+      //
+      //
       void quad_ccd( int row_start, int row_stop, int index ) {
         std::stringstream message;
         for ( int r = row_start / 2; r < row_stop / 2; r++ ) {
@@ -130,15 +139,22 @@ namespace AstroCam {
             if (row_start==10) logwrite( "* QUAD *", message.str() );
 //          logwrite( "* QUAD *", message.str() );
 //if (index >= (this->rows*this->cols)) return;
-            *( this->workbuf + begin + c )                  = *( this->imbuf + (index++) ); // index++ % 65535; // *( this->imbuf + (index++) );
-            *( this->workbuf + begin + this->cols - c - 1 ) = *( this->imbuf + (index++) ); // index++ % 65535; // *( this->imbuf + (index++) );
-            *( this->workbuf + end - c )                    = *( this->imbuf + (index++) ); // index++ % 65535; // *( this->imbuf + (index++) );
-            *( this->workbuf + end - this->cols + c + 1 )   = *( this->imbuf + (index++) ); // index++ % 65535; // *( this->imbuf + (index++) );
+            *( this->workbuf + begin + c )                  = *( this->imbuf + (index++) ); // index++ % 65535; // 0: L1
+            *( this->workbuf + begin + this->cols - c - 1 ) = *( this->imbuf + (index++) ); // index++ % 65535; // 1: U1
+            *( this->workbuf + end - c )                    = *( this->imbuf + (index++) ); // index++ % 65535; // 2: U2
+            *( this->workbuf + end - this->cols + c + 1 )   = *( this->imbuf + (index++) ); // index++ % 65535; // 3: L2
           }
         }
       }
 
       // split serial
+      //
+      //    +---------+---------+
+      //    |         |         |
+      //    |         |         |
+      //    |    0    |    1    |
+      //    | <------ | ------> |
+      // L1 +---------+---------+ U1
       //
       void split_serial( int row_start, int row_stop, int index ) {
         for ( int r = row_start; r < row_stop; r++ ) {
@@ -151,7 +167,34 @@ namespace AstroCam {
         }
       }
 
+      // split serial2
+      //
+      // L2 +---------+---------+ U2
+      //    | <------ | ------> |
+      //    |    0    |    1    |
+      //    |         |         |
+      //    |         |         |
+      //    +---------+---------+ 
+      //
+      void split_serial2( int row_start, int row_stop, int index ) {
+        for ( int r = row_start; r < row_stop; r++ ) {
+          int left  = r * this->cols;
+          int right = r * this->cols + this->cols/2 - 1;
+          for ( int c = 0; c < this->cols; c += 2 ) {
+            *( this->workbuf + left++  ) = *( this->imbuf + (index--) );
+            *( this->workbuf + right++ ) = *( this->imbuf + (index--) );
+          }
+        }
+      }
+
       // Flip image buffer up/down
+      //
+      // L2 +-------------------+
+      //    | <---------------- |
+      //    |         0         |
+      //    |                   |
+      //    |                   |
+      //    +-------------------+
       //
       void flip_ud(int row_start, int row_stop, int index) {
         for ( int r=row_start; r<row_stop; r++ ) {
@@ -162,20 +205,14 @@ namespace AstroCam {
         }
       }
 
-      // No Deinterlacing -- copy imbuf to workbuf
-      // memcpy is faster but this is here just to follow the same style
-      // as the other deinterlacing functions.
-      //
-      void none( int row_start, int row_stop, int index ) {
-        for ( int r=row_start; r<row_stop; r++ ) {
-          for ( int c=0; c<this->cols; c++ ) {
-            int loc = (r * this->cols) + c ;
-            *( this->workbuf + loc ) = *( this->imbuf + (index++) );
-          }
-        }
-      }
-
       // Flip image buffer left/right
+      //
+      //    +-------------------+
+      //    |                   |
+      //    |                   |
+      //    |         0         |
+      //    | ----------------> |
+      //    +-------------------+ U1
       //
       void flip_lr(int row_start, int row_stop, int index) {
         for ( int r=row_start; r<row_stop; r++ ) {
@@ -186,11 +223,15 @@ namespace AstroCam {
         }
       }
 
-      /************ AstroCam::DeInterlace::flip_udlr **************************/
-      /**
-       * Flip image buffer up/down and left/right
-       *
-       */
+      // Flip image buffer up/down and left/right
+      //
+      //    +-------------------+ U2
+      //    | ----------------> |
+      //    |         0         |
+      //    |                   |
+      //    |                   |
+      //    +-------------------+
+      //
       void flip_udlr(int row_start, int row_stop, int index) {
         for ( int r=row_start; r<row_stop; r++ ) {
           for ( int c=0; c<this->cols; c++ ) {
@@ -199,7 +240,26 @@ namespace AstroCam {
           }
         }
       }
-      /************ AstroCam::DeInterlace::flip_udlr **************************/
+
+      // No Deinterlacing -- copy imbuf to workbuf
+      // memcpy is faster but this is here just to follow the same style
+      // as the other deinterlacing functions.
+      //
+      //    +-------------------+
+      //    |                   |
+      //    |                   |
+      //    |         0         |
+      //    | <---------------- |
+      // L1 +-------------------+
+      //
+      void none( int row_start, int row_stop, int index ) {
+        for ( int r=row_start; r<row_stop; r++ ) {
+          for ( int c=0; c<this->cols; c++ ) {
+            int loc = (r * this->cols) + c ;
+            *( this->workbuf + loc ) = *( this->imbuf + (index++) );
+          }
+        }
+      }
 
     public:
 
@@ -244,37 +304,37 @@ namespace AstroCam {
        * final image, using the pixel "index" of the raw image buffer.
        *
        */
-      void do_deinterlace( int row_start, int row_stop, int index ) {
+      void do_deinterlace( int row_start, int row_stop, int index, int index_flip ) {
         std::string function = "AstroCam::DeInterlace::do_deinterlace";
         std::stringstream message;
         int index_ud = ( this->rows * this->cols ) - index;   // index from end of buffer, backwards
 
         switch( this->readout_type ) {
-          case LOWERLEFT:
+          case U1:
             this->flip_lr( row_start, row_stop, index );
             break;
-          case LOWERRIGHT:
+          case L1:
             this->none( row_start, row_stop, index );
             break;
-          case UPPERLEFT:
+          case U2:
             this->flip_udlr( row_start, row_stop, index_ud );
             break;
-          case UPPERRIGHT:
+          case L2:
             this->flip_ud( row_start, row_stop, index_ud );  // TODO not tested
             break;
-          case LOWERBOTH:
+          case SPLIT1:
             if ( this->cols % 2 != 0 ) {   // should have already been checked, but here for safety
               logwrite( function, "ERROR: cannot deinterlace: lowerboth requires an even number of columns" );
               break;
             }
             this->split_serial( row_start, row_stop, index );
             break;
-          case UPPERBOTH:
+          case SPLIT2:
             if ( this->cols % 2 != 0 ) {   // should have already been checked, but here for safety
               logwrite( function, "ERROR: cannot deinterlace: upperboth requires an even number of columns" );
               break;
             }
-            this->split_serial( row_start, row_stop, index );
+            this->split_serial2( row_start, row_stop, index_flip );
             break;
           case QUAD:
             if ( ( this->cols % 2 != 0 ) || ( this->rows % 2 != 0 ) ) {   // should have already been checked, but here for safety
