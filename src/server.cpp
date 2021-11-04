@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
   }
   else {
     logwrite( function, "using GMT time zone" );
-    server.userkeys.addkey( "TM_ZONE=GMT//time zone" );
+    server.systemkeys.addkey( "TM_ZONE=GMT//time zone" );
   }
 
   if ( (initlog(logpath) != 0) ) {                       // initialize the logging system
@@ -420,6 +420,12 @@ void doit(Network::TcpSocket sock) {
                     sock.Write(" ");
                     }
     else
+    if (cmd.compare("autodir")==0) {
+                    std::string retstring;
+                    ret = server.common.autodir(args, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
     if (cmd.compare("datacube")==0) {
                     std::string retstring;   // string for the return value
                     ret = server.common.datacube(args, retstring);
@@ -435,7 +441,7 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("shutter")==0) {
                     std::string retstring;
-                    ret = server.common.shutter(args, retstring);
+                    ret = server.shutter(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else

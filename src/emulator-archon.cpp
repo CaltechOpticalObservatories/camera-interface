@@ -24,6 +24,7 @@ namespace Archon {
     this->image.pixelcount = -1;
     this->image.readtime = -1;
     this->image.exptime = 0;
+    this->image.exposure_factor = 1000;  // default is msec
 
     this->frame.index = 0;
     this->frame.frame = 0;
@@ -678,6 +679,17 @@ namespace Archon {
       //
       if ( key == "exptime" ) {
         this->image.exptime = std::stoi( value );
+        std::cerr << function << "exptime = " << this->image.exptime << ( this->image.exposure_factor == 1 ? " sec" : " msec" ) << "\n";
+      }
+
+      // Catch the write to longexposure which affects the class variable exposure_factor
+      // exposure_factor=1000 when longexposure=0 (msec)
+      // exposure_factor=1    when longexposure=1 (sec)
+      //
+      if ( key == "longexposure" ) {
+        int longexposure = std::stoi( value );
+        this->image.exposure_factor = ( longexposure == 1 ? 1 : 1000 );
+        std::cerr << function << "exptime = " << this->image.exptime << ( this->image.exposure_factor == 1 ? " sec" : " msec" ) << "\n";
       }
     }
     catch( std::out_of_range & ) {
@@ -740,13 +752,13 @@ namespace Archon {
       // emulate an exposure delay
       //
       if ( image.exptime > 0 ) {
-        double time_now   = get_clock_time();
+        double time_now   = get_clock_time();  // in seconds
         double time_start = time_now;
-        double time_end   = time_start + image.exptime/1000.;
+        double time_end   = time_start + image.exptime/image.exposure_factor;
         double progress   = 0;
         double elapsed    = 0;
         std::cerr << function << "exposure progress: ";
-        while ( ( time_now - (image.exptime/1000 + time_start) < 0 ) ) {
+        while ( ( time_now - (image.exptime/image.exposure_factor + time_start) < 0 ) ) {
           usleep( 1000 );
           time_now = get_clock_time();
           elapsed = 1000. * (get_clock_time() - time_start);

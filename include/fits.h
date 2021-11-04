@@ -181,7 +181,9 @@ class FITS_file {
       // Nothing to do if not open
       //
       if ( ! this->file_open ) {
-        logwrite(function, "ERROR: no open FITS file to close");
+#ifdef LOGLEVEL_DEBUG
+        logwrite(function, "no open FITS file to close");
+#endif
         return;
       }
 
@@ -190,8 +192,8 @@ class FITS_file {
       if ( writekeys ) {
         logwrite( function, "writing user-defined keys after exposure" );
         Common::FitsKeys::fits_key_t::iterator keyit;
-        for (keyit  = info.systemkeys.keydb.begin();
-             keyit != info.systemkeys.keydb.end();
+        for (keyit  = info.userkeys.keydb.begin();
+             keyit != info.userkeys.keydb.end();
              keyit++) {
           this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
         }
@@ -508,7 +510,7 @@ class FITS_file {
         filename = info.fits_name.substr(loc+1);
         this->pFits->pHDU().addKey("FILENAME", filename, "this filename");
 
-//      this->pFits->pHDU().addKey("SHUT_ENB", info.shutterenable, "shutter was enabled" );
+        this->pFits->pHDU().addKey("SHUTTEN", info.shutterenable, "shutter was enabled" );
 
         message.str(""); message << "exposure time in " << info.exposure_unit;
         this->pFits->pHDU().addKey("EXPTIME", info.exposure_time, message.str().c_str() );

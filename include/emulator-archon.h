@@ -59,6 +59,7 @@ namespace Archon {
         int  pixelcount;             //!< from "PIXELCOUNT=" in ACF file
         int  readtime;               //!< from "READOUT_TIME=" in configuration file
         int  exptime;                //!< requested exposure time in msec from WCONFIG
+        int  exposure_factor;        //!< multiplier for exptime relative to 1 sec (=1 for sec, =1000 for msec, etc.)
       } image;
 
       /**

@@ -34,6 +34,14 @@ namespace Archon {
     this->is_longexposure = false;
     this->n_hdrshift = 16;
 
+    // Make sure the following systemkeys are added.
+    // They can be changed at any time by a command but since they have defaults
+    // they don't require a command so this ensures they get into the systemkeys db.
+    //
+    std::stringstream keystr;
+    keystr << "HDRSHIFT=" << this->n_hdrshift << "// number of HDR right-shift bits";
+    this->systemkeys.addkey( keystr.str() );
+
     // pre-size the modtype and modversion vectors to hold the max number of modules
     //
     this->modtype.resize( nmods );
@@ -1277,6 +1285,12 @@ logwrite("load_firmware", "two arg");
     if (error == NO_ERROR) {
       logwrite(function, "loaded Archon config file OK");
       this->firmwareloaded = true;
+
+      // add to systemkeys keyword database
+      //
+      std::stringstream fw_key;
+      fw_key << "FIRMWARE=" << acffile << "// controller firmware";
+      this->systemkeys.addkey( fw_key.str() );
     }
 
     // If there was an Archon error then read the Archon error log
@@ -1819,6 +1833,18 @@ logwrite("load_firmware", "two arg");
      */
     this->frame.index = newestbuf;
     this->frame.frame = newestframe;
+
+    // Index of next frame is this->frame.index+1 
+    // except for start-up case (when it is 0) and
+    // wrapping to 0 when it reaches the maximum number of active buffers.
+    //
+    if ( ( num_zero != Archon::nbufs ) &&                            // If not start-up case and
+         ( this->frame.index+1 < this->camera_info.activebufs ) ) {  // less than active bufs
+      this->frame.next_index = this->frame.index + 1;                // then simply add 1 to current index,
+    }
+    else {
+      this->frame.next_index = 0;                                    // otherwise start-up case or wrap-around to 0.
+    }
 
     return(error);
   }
@@ -2431,7 +2457,12 @@ logwrite("load_firmware", "two arg");
     //
     if ( error == NO_ERROR ) {
       this->common.increment_imnum();                                 // increment image_num when fitsnaming == "number"
-      if (this->common.datacube()) this->camera_info.extension++;     // increment extension for cubes
+      if ( this->common.datacube() ) {
+        this->camera_info.extension++;                                // increment extension for cubes
+        message.str(""); message << "DATACUBE:" << this->camera_info.extension << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+        this->common.message.enqueue( message.str() );
+        logwrite( function, message.str() );
+      }
       logwrite(function, "frame write complete");
     }
     else {
@@ -2861,7 +2892,8 @@ logwrite("load_firmware", "two arg");
 
     // Copy the userkeys database object into camera_info
     //
-    this->camera_info.userkeys.keydb = this->userkeys.keydb;
+    this->camera_info.userkeys.keydb   = this->userkeys.keydb;
+    this->camera_info.systemkeys.keydb = this->systemkeys.keydb;
 
     // add any keys from the ACF file (from modemap[mode].acfkeys) into the camera_info.userkeys object
     //
@@ -2892,9 +2924,9 @@ logwrite("load_firmware", "two arg");
     // one extension for the image and a separate extension for raw data.
     //
     if ( (error == NO_ERROR) && (mode != "RAW") && (this->modemap[mode].rawenable) ) {
-      if ( !this->common.datacube() ) {                   // if datacube not already set then it must be overridden here
-        this->common.message.enqueue( "datacube=TRUE" );  // let everyone know
-        logwrite(function, "NOTICE: override datacube=true");
+      if ( !this->common.datacube() ) {                                   // if datacube not already set then it must be overridden here
+        this->common.message.enqueue( "NOTICE:override datacube true" );  // let everyone know
+        logwrite( function, "NOTICE:override datacube true" );
         this->common.datacube(true);
       }
       this->camera_info.extension = 0;
@@ -2941,9 +2973,17 @@ logwrite("load_firmware", "two arg");
 
         if (error==NO_ERROR) error = this->wait_for_readout();      // Wait for the readout into frame buffer,
         if (error==NO_ERROR) error = read_frame();                  // then read the frame buffer to host (and write file) when frame ready.
-        if (error==NO_ERROR && !this->common.datacube()) {
+
+        if ( !this->common.datacube() ) {                           // Error or not, close the file.
           this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+
+          // ASYNC status message on completion of each file
+          //
+          message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+          this->common.message.enqueue( message.str() );
+          logwrite( function, message.str() );
         }
+
         if (error != NO_ERROR) break;                               // don't try additional sequences if there were errors
       }
     }
@@ -2952,15 +2992,20 @@ logwrite("load_firmware", "two arg");
       if (error==NO_ERROR) error = this->common.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
       if (error==NO_ERROR) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
       if (error==NO_ERROR) error = read_frame();                    // For raw mode just read immediately
-      if (error==NO_ERROR) this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+      this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
     }
 
-    logwrite( function, (error==ERROR ? "ERROR" : "complete") );
-
     // for cubes, close the FITS file now that they've all been written
-    // (or any time there is an error)
     //
-    if ( this->common.datacube() || (error==ERROR) ) this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+    if ( this->common.datacube() ) {
+      this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+
+      // ASYNC status message on completion of each file
+      //
+      message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+      this->common.message.enqueue( message.str() );
+      logwrite( function, message.str() );
+    }
 
     return (error);
   }
@@ -3027,6 +3072,11 @@ logwrite("load_firmware", "two arg");
       this->camera_info.exposure_progress = (double)increment / (double)(prediction - this->start_timer);
       if (this->camera_info.exposure_progress < 0 || this->camera_info.exposure_progress > 1) this->camera_info.exposure_progress=1;
       std::cerr << std::setw(3) << (int)(this->camera_info.exposure_progress*100) << "\b\b\b";
+
+      // ASYNC status message reports the elapsed time in the chosen unit
+      //
+      message.str(""); message << "EXPOSURE:" << (int)(this->camera_info.exposure_time - (this->camera_info.exposure_progress * this->camera_info.exposure_time));
+      this->common.message.enqueue( message.str() );
     }
 
     if (this->abort) {
@@ -3062,6 +3112,11 @@ logwrite("load_firmware", "two arg");
       //
       this->camera_info.exposure_progress = (double)(timer - this->start_timer) / (double)(prediction - this->start_timer);
       if (this->camera_info.exposure_progress < 0 || this->camera_info.exposure_progress > 1) this->camera_info.exposure_progress=1;
+
+      // ASYNC status message reports the elapsed time in the chosen unit
+      //
+      message.str(""); message << "EXPOSURE:" << (int)(this->camera_info.exposure_time - (this->camera_info.exposure_progress * this->camera_info.exposure_time));
+      this->common.message.enqueue( message.str() );
 
       std::cerr << std::setw(3) << (int)(this->camera_info.exposure_progress*100) << "\b\b\b";  // send to stderr in case anyone is watching
 
@@ -3159,10 +3214,12 @@ logwrite("load_firmware", "two arg");
     //
     while (done == false && this->abort == false) {
 
+      usleep( 10000 );  // reduces polling frequency
       error = this->get_frame_status();
 
-      if (error != NO_ERROR) {
-        logwrite(function, "unable to get frame status");
+      if (error == ERROR) {
+        done = true;
+        logwrite( function, "ERROR getting frame status" );
         break;
       }
       currentframe = this->frame.bufframen[this->frame.index];
@@ -3181,9 +3238,26 @@ logwrite("load_firmware", "two arg");
         error = ERROR;
         message.str(""); message << "ERROR: timeout waiting for new frame. lastframe = " << this->lastframe;
         logwrite( function, message.str() );
+        break;
       }
       clock_now = get_clock_time();
+
+      // ASYNC status message reports the number of lines read so far,
+      // which is buflines not from this->frame.index but from the NEXT index...
+      //
+      message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.next_index ];
+      this->common.message.enqueue( message.str() );
+
     } // end while (done == false && this->abort == false)
+
+    // After exiting while loop, one update to ensure accurate ASYNC message
+    // reporting of LINECOUNT.
+    //
+    if ( error == NO_ERROR ) {
+      error = this->get_frame_status();
+      message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.index ];
+      this->common.message.enqueue( message.str() );
+    }
 
 #ifdef LOGLEVEL_DEBUG
     message.str(""); 
@@ -3333,6 +3407,67 @@ logwrite("load_firmware", "two arg");
   /**************** Archon::Interface::exptime ********************************/
 
 
+  /** Common::Common::shutter *************************************************/
+  /**
+   * @fn     shutter
+   * @brief  set or get the shutter enable state
+   * @param  std::string shutter_in
+   * @param  std::string& shutter_out
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::shutter(std::string shutter_in, std::string& shutter_out) {
+    std::string function = "Archon::Interface::shutter";
+    std::stringstream message;
+    long error = NO_ERROR;
+
+    if ( this->shutenableparam.empty() ) {
+      logwrite( function, "ERROR: SHUTENABLE_PARAM is not defined in configuration file" );
+      return( ERROR );
+    }
+
+    if ( !shutter_in.empty() ) {
+      try {
+        bool shutten;
+        std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::tolower );  // make lowercase
+        if ( shutter_in == "disable" || shutter_in == "0" ) shutten = false;
+        else
+        if ( shutter_in == "enable"  || shutter_in == "1" ) shutten = true;
+        else {
+          message.str(""); message << "ERROR: " << shutter_in << " is invalid. Expecting enable or disable";
+          logwrite( function, message.str() );
+          error = ERROR;
+        }
+        if ( error == NO_ERROR ) {
+          // Now that the value is OK set the parameter on the Archon
+          //
+          std::stringstream cmd;
+          cmd << this->shutenableparam << " " << ( shutten ? "1" : "0" );
+          error = this->set_parameter( cmd.str() );
+
+          // If parameter was set OK then save the new value
+          //
+          if ( error == NO_ERROR ) this->camera_info.shutterenable = shutten;
+        }
+      }
+      catch (...) {
+        logwrite( function, "error converting shutter_in to lowercase" );
+        return( ERROR );
+      }
+    }
+
+    // set the return value and report the state now, either setting or getting
+    //
+    shutter_out = this->camera_info.shutterenable ? "enabled" : "disabled";
+    message.str("");
+    message << "shutter is " << shutter_out;
+    logwrite( function, message.str() );
+
+    return error;
+  }
+  /** Common::Common::shutter *************************************************/
+
+
   /**************** Archon::Interface::hdrshift *******************************/
   /**
    * @fn     hdrshift
@@ -3380,17 +3515,11 @@ logwrite("load_firmware", "two arg");
     //
     bits_out = std::to_string( this->n_hdrshift );
 
-    // send async message
-    //
-    message.str(""); message << "hdrshift=" << bits_out;
-    logwrite( function, message.str() );
-    this->common.message.enqueue( message.str() );
-
     // add to user keyword database
     //
     std::stringstream hdrshift_key;
     hdrshift_key << "HDRSHIFT=" << this->n_hdrshift << "// number of HDR right-shift bits";
-    this->userkeys.addkey( hdrshift_key.str() );
+    this->systemkeys.addkey( hdrshift_key.str() );
 
     return( NO_ERROR );
   }
@@ -3435,12 +3564,6 @@ logwrite("load_firmware", "two arg");
     this->camera_info.exposure_unit   = ( this->is_longexposure ? "sec" : "msec" );
     this->camera_info.exposure_factor = ( this->is_longexposure ? 1 : 1000 );
     state_out = ( this->is_longexposure ? "true" : "false" );
-
-    // send async message
-    //
-    message.str(""); message << "longexposure=" << state_out;
-    logwrite( function, message.str() );
-    this->common.message.enqueue( message.str() );
 
     // if no error then set the parameter on the Archon
     //
@@ -3800,11 +3923,14 @@ logwrite("load_firmware", "two arg");
             tokens[4] = std::to_string( std::lrint( std::stof( tokens[4] ) ) ); // replace token with rounded integer
             tokens[5] = std::to_string( std::lrint( std::stof( tokens[5] ) ) ); // replace token with rounded integer
 
-            message.str(""); message << "NOTICE: fractional PID requires backplane version " << REV_FRACTIONALPID << " or newer";
+            message.str(""); message << "NOTICE:fractional PID requires backplane version " << REV_FRACTIONALPID << " or newer";
             logwrite( function, message.str() );
-            message.str(""); message << "NOTICE: backplane version " << this->backplaneversion << " detected";
+            this->common.message.enqueue( message.str() );
+            message.str(""); message << "NOTICE:backplane version " << this->backplaneversion << " detected";
             logwrite( function, message.str() );
-            message.str(""); message << "NOTICE: PIDs converted to: " << tokens[3] << " " << tokens[4] << " " << tokens[5];
+            this->common.message.enqueue( message.str() );
+            message.str(""); message << "NOTICE:PIDs converted to: " << tokens[3] << " " << tokens[4] << " " << tokens[5];
+            this->common.message.enqueue( message.str() );
             logwrite( function, message.str() );
           }
           pid_p = std::stof( tokens[3] );
@@ -4513,7 +4639,35 @@ logwrite("load_firmware", "two arg");
       return ERROR;
     }
 
-    std::string testname = tokens[0];                                // the first token is the test name
+    std::string testname;
+    try { testname = tokens.at(0); }                                 // the first token is the test name
+    catch ( std::out_of_range & ) { logwrite( function, "ERROR: testname token out of range" ); return( ERROR ); }
+
+    // ----------------------------------------------------
+    // busy
+    // ----------------------------------------------------
+    // Override the archon_busy flag to test system responsiveness
+    // when the Archon is busy.
+    //
+    if (testname == "busy") {
+      if ( tokens.size() == 1 ) {
+        message.str(""); message << "archon_busy=" << this->archon_busy;
+        logwrite( function, message.str() );
+        error = NO_ERROR;
+      }
+      else if ( tokens.size() == 2 ) {
+        try { this->archon_busy = ( tokens.at(1)=="yes" ? true : false ); }
+        catch ( std::out_of_range & ) { logwrite( function, "ERROR: tokens out of range" ); error=ERROR; }
+        message.str(""); message << "archon_busy=" << this->archon_busy;
+        logwrite( function, message.str() );
+        error = NO_ERROR;
+      }
+      else {
+        message.str(""); message << "ERROR: expected one argument, yes or no";
+        logwrite( function, message.str() );
+        error = ERROR;
+      }
+    }
 
     // ----------------------------------------------------
     // fitsname
@@ -4523,13 +4677,26 @@ logwrite("load_firmware", "two arg");
     // for returning a real, usable filename. When using fitsnaming=time, the filename
     // has to be generated at the moment the file is opened.
     //
+    else
     if (testname == "fitsname") {
       std::string msg;
       this->common.set_fitstime( get_timestamp() );                  // must set common.fitstime first
       error = this->common.get_fitsname(msg);                        // get the fitsname (by reference)
-      this->common.message.enqueue( msg );                           // queue the fitsname
+      message.str(""); message << "NOTICE:" << msg;
+      this->common.message.enqueue( message.str() );                 // queue the fitsname
       logwrite(function, msg);                                       // log the fitsname
     } // end if (testname == fitsname)
+
+    // ----------------------------------------------------
+    // builddate
+    // ----------------------------------------------------
+    // log the build date
+    //
+    else
+    if ( testname == "builddate" ) {
+      std::string build(BUILD_DATE); build.append(" "); build.append(BUILD_TIME);
+      logwrite( function, build );
+    } // end if ( testname == builddate )
 
     // ----------------------------------------------------
     // async [message]
@@ -4541,14 +4708,17 @@ logwrite("load_firmware", "two arg");
     if (testname == "async") {
       if (tokens.size() > 1) {
         if (tokens.size() > 2) {
-          logwrite(function, "NOTICE: received multiple strings -- only the first will be queued");
+          logwrite(function, "NOTICE:received multiple strings -- only the first will be queued");
         }
-        logwrite( function, tokens[1] );
-        this->common.message.enqueue( tokens[1] );
+        try { message.str(""); message << "NOTICE:" << tokens.at(1);
+              logwrite( function, message.str() );
+              this->common.message.enqueue( message.str() );
+        }
+        catch ( std::out_of_range & ) { logwrite( function, "ERROR: tokens out of range" ); error=ERROR; }
       }
       else {                                // if no string passed then queue a simple test message
-        logwrite(function, "test");
-        this->common.message.enqueue("test");
+        logwrite(function, "NOTICE:test");
+        this->common.message.enqueue("NOTICE:test");
       }
       error = NO_ERROR;
     } // end if (testname == async)
@@ -4626,18 +4796,23 @@ logwrite("load_firmware", "two arg");
       // try to read it
       //
       if ( tokens.size() == 2 ) {
-        std::string configkey = tokens[1];
-        error = this->get_configmap_value(configkey, retstring);
+        try {
+          std::string configkey = tokens.at(1);
+          error = this->get_configmap_value(configkey, retstring);
+        }
+        catch ( std::out_of_range & ) { logwrite( function, "ERROR: configkey token out of range" ); error=ERROR; }
       }
 
       // if a third argument was passed then set this configkey
       //
       if ( tokens.size() == 3 ) {
-        std::string key = tokens[1];
-        std::string value = tokens[2];
-        bool configchanged;
-        error = this->write_config_key( key.c_str(), value.c_str(), configchanged );
-        if (error == NO_ERROR) error = this->archon_cmd(APPLYCDS);
+        try { std::string key = tokens.at(1);
+              std::string value = tokens.at(2);
+              bool configchanged;
+              error = this->write_config_key( key.c_str(), value.c_str(), configchanged );
+              if (error == NO_ERROR) error = this->archon_cmd(APPLYCDS);
+        }
+        catch ( std::out_of_range & ) { logwrite( function, "ERROR: key,value tokens out of range" ); error=ERROR; }
       }
 
       int keycount=0;
@@ -4670,7 +4845,8 @@ logwrite("load_firmware", "two arg");
       bool rw=false;  // read and write
 
       if (tokens.size() > 1) {
-        nseqstr = tokens[1];
+        try { nseqstr = tokens.at(1); }
+        catch ( std::out_of_range & ) { logwrite( function, "ERROR: nseqstr token out of range" ); return(ERROR); }
       }
       else {
         logwrite(function, "usage: test bw <nseq> [ rw | ro ]");
@@ -4678,8 +4854,10 @@ logwrite("load_firmware", "two arg");
       }
 
       if (tokens.size() > 2) {
-        if (tokens[2] == "rw") rw=true; else rw=false;
-        if (tokens[2] == "ro") ro=true; else ro=false;
+        try { if (tokens.at(2) == "rw") rw=true; else rw=false;
+              if (tokens.at(2) == "ro") ro=true; else ro=false;
+        }
+        catch ( std::out_of_range & ) { logwrite( function, "ERROR: rw tokens out of range" ); error=ERROR; }
       }
 
       try {
@@ -4818,16 +4996,16 @@ logwrite("load_firmware", "two arg");
       }
 
       try {
-        nseq    = std::stoi( tokens[1] );
-        sleepus = std::stoi( tokens[2] );
+        nseq    = std::stoi( tokens.at(1) );
+        sleepus = std::stoi( tokens.at(2) );
       }
       catch (std::invalid_argument &) {
-        message.str(""); message << "ERROR: unable to convert " << tokens[1] << " or " << tokens[2] << " to an integer";
+        message.str(""); message << "ERROR: unable to convert one or more args to an integer";
         logwrite(function, message.str());
         return(ERROR);
       }
       catch (std::out_of_range &) {
-        message.str(""); message << "ERROR: " << tokens[1] << " or " << tokens[2] << " outside integer range";
+        message.str(""); message << "ERROR: nseq, sleepus tokens outside range";
         logwrite(function, message.str());
         return(ERROR);
       }

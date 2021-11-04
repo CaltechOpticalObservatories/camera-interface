@@ -152,6 +152,7 @@ namespace Archon {
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
       long longexposure(std::string state_in, std::string &state_out);
+      long shutter(std::string shutter_in, std::string& shutter_out);
       long hdrshift(std::string bits_in, std::string &bits_out);
       long heater(std::string args, std::string &retstring);
       long sensor(std::string args, std::string &retstring);
@@ -189,7 +190,8 @@ namespace Archon {
        */
       struct frame_data_t {
         int      index;                       // index of newest buffer data
-        int      frame;                       // index of newest buffer data
+        int      frame;                       // frame of newest buffer data
+        int      next_index;                  // index of next buffer
         std::string timer;                    // current hex 64 bit internal timer
         int      rbuf;                        // current buffer locked for reading
         int      wbuf;                        // current buffer locked for writing

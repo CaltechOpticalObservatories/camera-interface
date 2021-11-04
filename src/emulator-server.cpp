@@ -287,8 +287,8 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare(0,9,"LOADPARAM")==0) {
-                    server.write_parameter( cmd.substr(14) );
-                    retstream << "<" << ref;
+                    ret = server.write_parameter( cmd.substr(14) );
+                    retstream << ( ret==ERROR ? "?" : "<" ) << ref;
                     }
     else
     if (cmd.compare(0,9,"PREPPARAM")==0) {
@@ -297,8 +297,8 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare(0,13,"FASTLOADPARAM")==0) {
-                    server.write_parameter( cmd.substr(14) );
-                    retstream << "<" << ref;
+                    ret = server.write_parameter( cmd.substr(14) );
+                    retstream << ( ret==ERROR ? "?" : "<" ) << ref;
                     }
     else
     if (cmd.compare(0,13,"FASTPREPPARAM")==0) {

@@ -31,10 +31,10 @@ namespace Common {
     this->image_num = 0;
     this->fits_naming = "time";
     this->fitstime = "";
-    this->shutterenable = true;
     this->abortstate = false;
     this->_abortstate = false;
     this->writekeys_when = "before";
+    this->autodir_state = true;
   }
 
 
@@ -105,44 +105,6 @@ bool Common::get_abortstate() {
     return error;
   }
   /** Common::Common::writekeys ***********************************************/
-
-
-  /** Common::Common::shutter *************************************************/
-  /**
-   * @fn     shutter
-   * @brief  set or get the shutter enable state
-   * @param  std::string shutter_in
-   * @param  std::string& shutter_out
-   * @return ERROR or NO_ERROR
-   *
-   */
-  long Common::shutter(std::string shutter_in, std::string& shutter_out) {
-    std::string function = "Common::Common::shutter";
-    std::stringstream message;
-    long error = NO_ERROR;
-
-    if ( !shutter_in.empty() ) {
-      try {
-        std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::tolower );  // make lowercase
-        if ( shutter_in == "disable" || shutter_in == "0" ) this->shutterenable = false;
-        else
-        if ( shutter_in == "enable"  || shutter_in == "1" ) this->shutterenable = true;
-        else {
-          message.str(""); message << "ERROR: " << shutter_in << " is invalid. Expecting enable or disable";
-          logwrite( function, message.str() );
-          error = ERROR;
-        }
-      }
-      catch (...) {
-        logwrite( function, "error converting shutter_in to lowercase" );
-        return( ERROR );
-      }
-    }
-
-    shutter_out = this->shutterenable ? "enabled" : "disabled";
-    return error;
-  }
-  /** Common::Common::shutter *************************************************/
 
 
   /** Common::Common::fitsnaming **********************************************/
@@ -240,6 +202,7 @@ bool Common::get_abortstate() {
    * @return NO_ERROR
    *
    * This function is overloaded with a form that doesn't use a return value.
+   * The only restriction on base name is that it can't contain a '/' character.
    *
    */
   long Common::basename(std::string name_in) {
@@ -249,19 +212,27 @@ bool Common::get_abortstate() {
   long Common::basename(std::string name_in, std::string& name_out) {
     std::string function = "Common::Common::basename";
     std::stringstream message;
+    long error=NO_ERROR;
 
-    // If no string is passed then this is a request; return the current value.
+    // Base name cannot contain a "/" because that would be a subdirectory,
+    // and subdirectories are not checked here, only by imdir command.
     //
-    if (name_in.empty()) {
-      message.str(""); message << "base name is " << this->base_name;
-      logwrite(function, message.str());
-      name_out = this->base_name;
+    if (  name_in.find('/') != std::string::npos ) {
+      logwrite( function, "ERROR: basename cannot contain a '/' character" );
+      error = ERROR;
     }
-    else {                             // Otherwise set the image name
-      this->base_name = name_in;
-      name_out = name_in;
+    else if ( !name_in.empty() ) {     // If a name is supplied
+      this->base_name = name_in;       // then set the image name.
+      error = NO_ERROR;
     }
-    return(NO_ERROR);
+
+    // In any case, log and return the current value.
+    //
+    message.str(""); message << "base name is " << this->base_name;
+    logwrite(function, message.str());
+    name_out = this->base_name;
+
+    return(error);
   }
   /** Common::Common::basename ************************************************/
 
@@ -277,8 +248,9 @@ bool Common::get_abortstate() {
    * This function is overloaded with a form that doesn't use a return value reference.
    *
    * The base directory for images is this->image_dir. It is set (or read) here. It
-   * is not created; it must already exist. The date subdirectory is added later, in
-   * the get_fitsname() function.
+   * may contain any number of subdirectories. This function will try to create any
+   * needed subdirectories if they don't already exist.  If autodir is set then a 
+   * UTC date subdirectory is added later, in the get_fitsname() function.
    *
    */
   long Common::imdir(std::string dir_in) {
@@ -288,65 +260,138 @@ bool Common::get_abortstate() {
   long Common::imdir(std::string dir_in, std::string& dir_out) {
     std::string function = "Common::Common::imdir";
     std::stringstream message;
+    std::vector<std::string> tokens;
+    long error = NO_ERROR;
 
-    // If no string is passed then this is a request; return the current value.
+    // Tokenize the input string on the '/' character to get each requested
+    // subdirectory as a separate token.
     //
-    if (dir_in.empty()) {
-      message.str(""); message << "image directory: " << this->image_dir;
-      logwrite(function, message.str());
-      dir_out = this->image_dir;
-      return(NO_ERROR);
-    }
+    Tokenize(dir_in, tokens, "/");
 
-    struct stat st;
-    if (stat(dir_in.c_str(), &st) == 0) {
-      // Use stat to check that the requested dir_in is a directory
+    std::stringstream nextdir;  // the next subdirectory to check and/or create
+
+    // Loop through each requested subdirectory to check if they exist.
+    // Try to create them if they don't exist.
+    //
+    for ( auto tok : tokens ) {
+
+      // The next directory to create --
+      // start from the bottom and append each successive token.
       //
-      if (S_ISDIR(st.st_mode)) {
-        try {
-          // and if it is then try writing a test file to make sure we'll be able to write to it
-          //
-          std::string testfile;
-          testfile = dir_in + "/.tmp";
-          FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
-          if (!fp) {
-            message.str(""); message << "error cannot write to requested image directory " << dir_in;
-            logwrite(function, message.str());
-            dir_out = this->image_dir;
-            return(ERROR);
-          }
-          else {                                           // remove the test file
-            std::fclose(fp);
-            if (std::remove(testfile.c_str()) != 0) {
-              message.str(""); message << "error removing temporary file " << testfile;
-              logwrite(function, message.str());
-            }
-          }
-        }
-        catch(...) {
-          message.str(""); message << "error writing to " << dir_in;
+      nextdir << "/" << tok;
+
+      // Check if each directory exists
+      //
+      DIR *dirp;                                             // pointer to the directory
+      if ( (dirp = opendir(nextdir.str().c_str())) == NULL ) {
+        // If directory doesn't exist then try to create it.
+        //
+        if ( (mkdir(nextdir.str().c_str(), S_IRUSR | S_IWUSR | S_IXUSR)) == 0 ) {
+          message.str(""); message << "created directory " << nextdir.str();
           logwrite(function, message.str());
-          dir_out = this->image_dir;
-          return(ERROR);
         }
-        this->image_dir = dir_in;                          // passed all tests so set the image_dir
-        dir_out = this->image_dir;                         // and the return var
-        return(NO_ERROR);                                  // return success
+        else {                                               // error creating date subdirectory
+          message.str("");
+          message << "ERROR " << errno << " creating directory " << nextdir.str() << ": " << strerror(errno);
+          logwrite(function, message.str());
+          error = ERROR;
+          break;
+        }
       }
       else {
-        message.str(""); message << "error requested image directory " << dir_in << " is not a directory";
-        logwrite(function, message.str());
-        dir_out = this->image_dir;                         // no changes, return the current image_dir
-        return(ERROR);
+        closedir(dirp);                                      // directory already existed so close it
       }
     }
-    else {
-      message.str(""); message << "error requested image directory " << dir_in << " does not exist";
-      dir_out = this->image_dir;
-      return(ERROR);
+
+    // Make sure the directory can be written to by writing a test file.
+    //
+    if ( error == NO_ERROR && !dir_in.empty() ) {
+      try {
+        std::string testfile;
+        testfile = dir_in + "/.tmp";
+        FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
+        if (!fp) {
+          message.str(""); message << "ERROR: cannot write to requested image directory " << dir_in;
+          logwrite(function, message.str());
+          error = ERROR;
+        }
+        else {                                           // remove the test file
+          std::fclose(fp);
+          if (std::remove(testfile.c_str()) != 0) {
+            message.str(""); message << "ERROR removing temporary file " << testfile;
+            logwrite(function, message.str());
+            error = ERROR;
+          }
+        }
+      }
+      catch(...) {
+        message.str(""); message << "ERROR writing to " << dir_in;
+        logwrite(function, message.str());
+        error = ERROR;
+      }
+      if ( error == NO_ERROR) this->image_dir = dir_in;    // passed all tests so set the image_dir
     }
+
+    // In any case, return the current value.
+    //
+    message.str(""); message << "image directory: " << this->image_dir;
+    logwrite(function, message.str());
+    dir_out = this->image_dir;
+    return( error );
   }
   /** Common::Common::imdir ***************************************************/
+
+
+  /** Common::Common::autodir *************************************************/
+  /**
+   * @fn     autodir
+   * @brief  set or get autodir_state used for creating UTC date subdirectory
+   * @param  std::string dir_in
+   * @param  std::string& dir_out (pass reference for return value)
+   * @return ERROR or NO_ERROR
+   *
+   * The base directory for images is this->image_dir. It is set (or read) here. It
+   * is not created; it must already exist. The date subdirectory is added later, in
+   * the get_fitsname() function.
+   *
+   */
+  long Common::autodir(std::string state_in, std::string& state_out) {
+    std::string function = "Common::Common::autodir";
+    std::stringstream message;
+    long error = NO_ERROR;
+
+    if ( !state_in.empty() ) {
+      try {
+        bool verifiedstate;
+        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::tolower );  // make lowercase
+        if ( state_in == "no"  ) verifiedstate = false;
+        else
+        if ( state_in == "yes" ) verifiedstate = true;
+        else {
+          message.str(""); message << "ERROR: " << state_in << " is invalid.  Expecting yes or no";
+          logwrite( function, message.str() );
+          error = ERROR;
+        }
+        if ( error == NO_ERROR ) this->autodir_state = verifiedstate;
+      }
+      catch (...) {
+        logwrite( function, "error converting state_in to lowercase" );
+        return( ERROR );
+      }
+    }
+
+    // set the return value and report the state now, either setting or getting
+    //
+    state_out = this->autodir_state ? "yes" : "no";
+    message.str("");
+    message << "autodir is " << ( this->autodir_state ? "ON" : "OFF" );
+    logwrite( function, message.str() );
+
+    return error;
+
+  }
+  /** Common::Common::autodir *************************************************/
+
 
 
   /** Common::Common:set_fitstime *********************************************/
@@ -410,32 +455,33 @@ bool Common::get_abortstate() {
     std::stringstream message;
     std::stringstream fn, fitsname;
 
-    // image_dir is the requested base directory and now add on the date directory
+    // image_dir is the requested base directory and now optionaly add on the date directory
     //
-    std::stringstream basedir_datedir;
-    basedir_datedir << this->image_dir << "/" << get_system_date();
+    std::stringstream basedir;
+    if ( this->autodir_state ) basedir << this->image_dir << "/" << get_system_date();
+    else                       basedir << this->image_dir;
 
     // Make sure the directory exists
     //
     DIR *dirp;                                             // pointer to the directory
-    if ( (dirp = opendir(basedir_datedir.str().c_str())) == NULL ) {
+    if ( (dirp = opendir(basedir.str().c_str())) == NULL ) {
       // If directory doesn't exist then try to create it.
       // Note that this only creates the bottom-level directory, the added date part.
       // The base directory has to exist.
       //
-      if ( (mkdir(basedir_datedir.str().c_str(), S_IRUSR | S_IWUSR | S_IXUSR)) == 0 ) {
-        message.str(""); message << "created date subdirectory " << basedir_datedir.str();
+      if ( (mkdir(basedir.str().c_str(), S_IRUSR | S_IWUSR | S_IXUSR)) == 0 ) {
+        message.str(""); message << "created directory " << basedir.str();
         logwrite(function, message.str());
       }
       else {                                               // error creating date subdirectory
         message.str("");
-        message << "error " << errno << " creating date subdirectory " << basedir_datedir.str() << ": " << strerror(errno);
+        message << "error " << errno << " creating directory " << basedir.str() << ": " << strerror(errno);
         logwrite(function, message.str());
         // a common error might be that the base directory doesn't exist
         //
         if (errno==ENOENT) {
           message.str("");
-          message << "requested base directory " << basedir_datedir.str() << " does not exist";
+          message << "requested base directory " << basedir.str() << " does not exist";
           logwrite(function, message.str());
         }
         return(ERROR);
@@ -446,10 +492,10 @@ bool Common::get_abortstate() {
     }
 
     // start building the filename with directory/basename_
-    // where "basedir_datedir" is "image_dir/date" which was just assembled above
+    // where "basedir" was just assembled above
     //
     fitsname.str("");
-    fitsname << basedir_datedir.str() << "/" << this->base_name << "_";
+    fitsname << basedir.str() << "/" << this->base_name << "_";
 
     // add the controllerid if one is given
     //

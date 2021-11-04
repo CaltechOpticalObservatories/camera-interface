@@ -101,7 +101,7 @@ namespace Common {
       Common();
       ~Common() {}
 
-      bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
+      bool          autodir_state;           //!< if true then images are saved in a date subdir below image_dir, i.e. image_dir/YYYYMMDD/
       bool          abortstate;              //!< set true to abort the current operation (exposure, readout, etc.)
       std::string   writekeys_when;          //!< when to write fits keys "before" or "after" exposure
       Queue message;                         //!< message queue object
@@ -114,11 +114,11 @@ namespace Common {
 
       long imdir(std::string dir_in);
       long imdir(std::string dir_in, std::string& dir_out);
+      long autodir(std::string state_in, std::string& state_out);
       long basename(std::string name_in);
       long basename(std::string name_in, std::string& name_out);
       long imnum(std::string num_in, std::string& num_out);
       long writekeys(std::string writekeys_in, std::string &writekeys_out);
-      long shutter(std::string shutter_in, std::string& shutter_out);
       long fitsnaming(std::string naming_in, std::string& naming_out);
       void increment_imnum() { if (this->fits_naming.compare("number")==0) this->image_num++; };
       void set_fitstime(std::string time_in);
@@ -168,6 +168,7 @@ namespace Common {
       bool          abortexposure;
       bool          iscube;                  //!< the info object given to the FITS writer will need to know cube status
       int           extension;               //!< extension number for data cubes
+      bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
       int32_t       exposure_time;           //!< exposure time in exposure_unit
       std::string   exposure_unit;           //!< exposure time unit
       int           exposure_factor;         //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
