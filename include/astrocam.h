@@ -48,6 +48,8 @@ namespace AstroCam {
     SPLIT1,
     SPLIT2,
     QUAD,
+    FT12S2,
+    FT21S1,
 //  HAWAII_1CH,           // TODO
 //  HAWAII_4CH,           // TODO
 //  HAWAII_16CH,          // TODO
@@ -102,6 +104,9 @@ namespace AstroCam {
    * The functions it contains are the procedures for performing the deinterlacing.
    *
    * This is a template class so that the buffers are created of the proper type.
+   *
+   * For the deinterlacing algorithms below, it is assumed that the amplifiers
+   * are written to imbuf in the order (0,1,2...) and direction (-->) indicated.
    *
    */
   template <typename T>
@@ -178,10 +183,10 @@ namespace AstroCam {
       //
       void split_serial2( int row_start, int row_stop, int index ) {
         for ( int r = row_start; r < row_stop; r++ ) {
-          int left  = r * this->cols;
           int right = r * this->cols + this->cols/2 - 1;
+          int left  = right - 1;
           for ( int c = 0; c < this->cols; c += 2 ) {
-            *( this->workbuf + left++  ) = *( this->imbuf + (index--) );
+            *( this->workbuf + left--  ) = *( this->imbuf + (index--) );
             *( this->workbuf + right++ ) = *( this->imbuf + (index--) );
           }
         }
@@ -242,8 +247,6 @@ namespace AstroCam {
       }
 
       // No Deinterlacing -- copy imbuf to workbuf
-      // memcpy is faster but this is here just to follow the same style
-      // as the other deinterlacing functions.
       //
       //    +-------------------+
       //    |                   |
@@ -320,8 +323,9 @@ namespace AstroCam {
             this->flip_udlr( row_start, row_stop, index_ud );
             break;
           case L2:
-            this->flip_ud( row_start, row_stop, index_ud );  // TODO not tested
+            this->flip_ud( row_start, row_stop, index_ud );
             break;
+          case FT21S1:
           case SPLIT1:
             if ( this->cols % 2 != 0 ) {   // should have already been checked, but here for safety
               logwrite( function, "ERROR: cannot deinterlace: lowerboth requires an even number of columns" );
@@ -329,6 +333,7 @@ namespace AstroCam {
             }
             this->split_serial( row_start, row_stop, index );
             break;
+          case FT12S2:
           case SPLIT2:
             if ( this->cols % 2 != 0 ) {   // should have already been checked, but here for safety
               logwrite( function, "ERROR: cannot deinterlace: upperboth requires an even number of columns" );

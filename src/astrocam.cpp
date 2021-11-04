@@ -119,6 +119,8 @@ namespace AstroCam {
     this->readout_source.insert( { "SPLIT1",   { SPLIT1,      0x5f5f31 } } );  // "__1"
     this->readout_source.insert( { "SPLIT2",   { SPLIT2,      0x5f5f32 } } );  // "__2"
     this->readout_source.insert( { "QUAD",        { QUAD,           0x414c4c } } );  // "ALL"
+    this->readout_source.insert( { "FT12S2",      { FT12S2,         0x313232 } } );  // "122" -- frame transfer from 1->2, read split2
+    this->readout_source.insert( { "FT21S1",      { FT21S1,         0x323131 } } );  // "211" -- frame transfer from 2->1, read split1
 //  this->readout_source.insert( { "hawaii1",     { HAWAII_1CH,     0xffffff } } );  // TODO HxRG  1 channel
 //  this->readout_source.insert( { "hawaii32",    { HAWAII_32CH,    0xffffff } } );  // TODO HxRG 32 channel
 //  this->readout_source.insert( { "hawaii32lr",  { HAWAII_32CH_LR, 0xffffff } } );  // TODO HxRG 32 channel alternate left/right
