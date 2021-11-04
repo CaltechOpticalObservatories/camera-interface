@@ -776,7 +776,7 @@ namespace AstroCam {
                                   _controller.info.detector_pixels[1], 
                                   server.common.abortstate, 
                                   _controller.pCallback, 
-                                  server.common.shutterenable);
+                                  _controller.info.shutterenable);
 
       // The system writes a few things in the header
       //
@@ -2046,6 +2046,58 @@ namespace AstroCam {
     return( error );
   }
   /**************** AstroCam::Interface::exptime ******************************/
+
+
+  /** AstroCam::Interface::shutter ********************************************/
+  /**
+   * @fn     shutter
+   * @brief  set or get the shutter enable state
+   * @param  std::string shutter_in
+   * @param  std::string& shutter_out
+   * @return ERROR or NO_ERROR
+   *
+   */
+  long Interface::shutter(std::string shutter_in, std::string& shutter_out) {
+    std::string function = "AstroCam::Interface::shutter";
+    std::stringstream message;
+    long error = NO_ERROR;
+    bool shutten = false;
+
+    if ( !shutter_in.empty() ) {
+      try {
+        std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::tolower );  // make lowercase
+        if ( shutter_in == "disable" || shutter_in == "0" ) shutten = false;
+        else
+        if ( shutter_in == "enable"  || shutter_in == "1" ) shutten = true;
+        else {
+          message.str(""); message << "ERROR: " << shutter_in << " is invalid. Expecting enable or disable";
+          logwrite( function, message.str() );
+          error = ERROR;
+        }
+      }
+      catch (...) {
+        logwrite( function, "error converting shutter_in to lowercase" );
+        return( ERROR );
+      }
+    }
+
+    // Set shutterenable the same for all devices
+    // TODO enable setting differently for each device
+    //
+    for ( auto dev : this->devlist ) {
+      this->controller.at(dev).info.shutterenable = shutten;
+    }
+
+    // set the return value and report the state now, either setting or getting
+    //
+    shutter_out = shutten ? "enabled" : "disabled";
+    message.str("");
+    message << "shutter is " << shutter_out;
+    logwrite( function, message.str() );
+
+    return error;
+  }
+  /** AstroCam::Interface::shutter ********************************************/
 
 
   /**************** AstroCam::Interface::geometry *****************************/

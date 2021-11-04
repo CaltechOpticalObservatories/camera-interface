@@ -592,6 +592,7 @@ namespace AstroCam {
       long load_firmware(std::string timlodfile, std::string &retstring);
       long set_camera_mode(std::string mode);
       long exptime(std::string exptime_in, std::string &retstring);
+      long shutter(std::string shutter_in, std::string& shutter_out);
       long geometry(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);
       long buffer(std::string size_in, std::string &retstring);
