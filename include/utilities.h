@@ -23,7 +23,7 @@
 
 extern std::string zone;
 
-auto my_hardware_concurrency();
+int my_hardware_concurrency();
 int cores_available();
 
 unsigned int parse_val(const std::string& str);     //!< returns an unsigned int from a string

@@ -96,7 +96,7 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 elseif(${INTERFACE_TYPE} STREQUAL "Archon")
         message(STATUS "compiling for STA Archon")
         set(INTERFACE_TARGET archon)
-        add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb )
+        add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 -ggdb )
         add_definitions(-DSTA_ARCHON)
         list(APPEND INTERFACE_SOURCE
                 "${PROJECT_SOURCE_DIR}/archon.cpp"

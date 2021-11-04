@@ -2599,7 +2599,9 @@ namespace AstroCam {
     std::stringstream message;
 
     int nthreads = cores_available();
-nthreads=2;
+nthreads=2;  // TODO *** come back to this !!! ***
+logwrite( function, "NOTICE:override nthreads=2 !!!" );
+server.common.message.enqueue( "NOTICE:override nthreads=2 !!!" );
 
 #ifdef LOGLEVEL_DEBUG
     message << "*** [DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << this->workbuf
