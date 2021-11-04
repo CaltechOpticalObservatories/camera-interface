@@ -16,8 +16,15 @@
 #include <cstring>
 #include <algorithm>
 #include <unistd.h>
+#include <iostream>  // for istream
+#include <fstream>   // for ifstream
+#include <iterator>  // for istream_iterator
+#include <thread>
 
 extern std::string zone;
+
+auto my_hardware_concurrency();
+int cores_available();
 
 unsigned int parse_val(const std::string& str);     //!< returns an unsigned int from a string
 

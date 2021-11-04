@@ -10,6 +10,18 @@
 
 std::string zone="";
 
+  auto my_hardware_concurrency() {
+    std::ifstream cpuinfo( "/proc/cpuinfo" );
+    return std::count( std::istream_iterator<std::string>(cpuinfo),
+                       std::istream_iterator<std::string>(),
+                       std::string("processor") );
+  }
+
+  int cores_available() {
+    unsigned int cores = std::thread::hardware_concurrency();
+    return cores ? cores : my_hardware_concurrency();
+  }
+
   /** parse_val ***************************************************************/
   /**
    * @fn     parse_val
