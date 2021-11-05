@@ -21,7 +21,6 @@
 #include "network.h"
 #include "fits.h"
 
-#define POLLTIMEOUT 5000           //!< poll timeout in msec
 #define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 #define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
 #define BLOCK_LEN 1024             //!< Archon block size
