@@ -34,6 +34,11 @@ namespace Archon {
     this->is_longexposure = false;
     this->n_hdrshift = 16;
 
+    this->trigin_state="disabled";
+    this->trigin_expose = 0;
+    this->trigin_untimed = 0;
+    this->trigin_readout = 0;
+
     // Make sure the following systemkeys are added.
     // They can be changed at any time by a command but since they have defaults
     // they don't require a command so this ensures they get into the systemkeys db.
@@ -126,6 +131,21 @@ namespace Archon {
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {
         this->exposeparam = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 19, "TRIGIN_EXPOSE_PARAM")==0) {
+        this->trigin_exposeparam = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 20, "TRIGIN_UNTIMED_PARAM")==0) {
+        this->trigin_untimedparam = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 20, "TRIGIN_READOUT_PARAM")==0) {
+        this->trigin_readoutparam = config.arg[entry];
         applied++;
       }
 
@@ -2663,6 +2683,11 @@ logwrite("load_firmware", "two arg");
     std::stringstream message, sscmd;
     int error=NO_ERROR;
 
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] paramname=" << paramname << " value=" << newvalue;
+    logwrite( function, message.str() );
+#endif
+
     if ( paramname==NULL || newvalue==NULL ) {
       error = ERROR;
       logwrite(function, "ERROR: paramname|value cannot have NULL");
@@ -2679,7 +2704,7 @@ logwrite("load_firmware", "two arg");
     /**
      * If no change in value then don't send the command
      */
-    if ( this->parammap[paramname].value == newvalue ) {
+    if ( error==NO_ERROR && this->parammap[paramname].value == newvalue ) {
       error = NO_ERROR;
       message.str(""); message << "parameter " << paramname << "=" << newvalue << " not written: no change in value";
       logwrite(function, message.str());
@@ -3524,6 +3549,362 @@ logwrite("load_firmware", "two arg");
     return( NO_ERROR );
   }
   /**************** Archon::Interface::hdrshift *******************************/
+
+
+  /**************** Archon::Interface::trigin *********************************/
+  /**
+   * @fn     trigin
+   * @brief  setup Archon for external triggering of exposures
+   * @param  state_in
+   * @return ERROR or NO_ERROR
+   *
+   * This function sets three Archon parameters, as defined in
+   * the configuration file for:
+   *   TRIGIN_EXPOSE_PARAM
+   *   TRIGIN_UNTIMED_PARAM
+   *   TRIGIN_READOUT_PARAM
+   *
+   * Calling trigin() should be considered analagous to calling expose()
+   * with the exception that the actual exposure is expected to be triggered
+   * in the Archon ACF by a TRIGIN pulse.
+   *
+   * This trigin() function then assumes that the exposure was started and
+   * then waits for the exposure delay, waits for readout, reads the frame 
+   * buffer, then writes the frame to disk. In the case of "untimed" then
+   * it doesn't wait for the exposure delay but returns immediately,
+   * requiring a second call to trigin() with the argument "readout" in
+   * order to enter the sequence of wait for readout, read frame buffer,
+   * write frame to disk.
+   *
+   */
+  long Interface::trigin( std::string state_in ) {
+    std::string function = "Archon::Interface::trigin";
+    std::string newstate;
+    std::stringstream message;
+    std::vector<std::string> tokens;
+    long error = NO_ERROR;
+
+    std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
+
+    if ( ! this->modeselected ) {
+      logwrite(function, "ERROR: no mode selected");
+      return ERROR;
+    }
+
+    // Check that the needed parameters are defined
+    //
+    if ( this->trigin_exposeparam.empty() ) {
+      message.str(""); message << "ERROR: TRIGIN_EXPOSE_PARAM not defined in configuration file " << this->config.filename;
+      logwrite( function, message.str() );
+      error = ERROR;
+    }
+    if ( this->trigin_untimedparam.empty() ) {
+      message.str(""); message << "ERROR: TRIGIN_UNTIMED_PARAM not defined in configuration file " << this->config.filename;
+      logwrite( function, message.str() );
+      error = ERROR;
+    }
+    if ( this->trigin_readoutparam.empty() ) {
+      message.str(""); message << "ERROR: TRIGIN_READOUT_PARAM not defined in configuration file " << this->config.filename;
+      logwrite( function, message.str() );
+      error = ERROR;
+    }
+
+    std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::tolower );  // make lowercase
+
+    Tokenize( state_in, tokens, " " );                                                // break into tokens
+
+    // Must have 1 or 2 arguments only
+    //
+    if ( tokens.size() < 1 || tokens.size() > 2 ) {
+      message.str(""); message << "ERROR: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
+      logwrite( function, message.str() );
+      error = ERROR;
+    }
+
+    // If the basic checks have failed then get out now, no point in continuing
+    //
+    if ( error != NO_ERROR ) return( error );
+
+    // Now look at the arguments, expecting { expose [N] | untimed | readout }
+    // and set the Archon parameters appropriately. The assumption is that
+    // after setting these parameters, the Archon will receive a TRIGIN which
+    // resets the timing core so that the ACF will take appropriate action
+    // based on the settings of these parameters.
+    //
+    try {
+
+      // The first token is taken to be the state name
+      //
+      newstate = tokens.at(0);
+
+      if ( tokens.at(0) == "expose" ) {     // timed exposures can take an optional argument
+        if ( tokens.size() == 1 ) {         // no size given so = 1
+          this->trigin_expose  = 1;
+          this->trigin_untimed = 0;
+          this->trigin_readout = 0;
+        }
+        else {                              // size given so try to set trigin_expose to requested value
+          int expnum = std::stoi( tokens.at(1) );
+          if ( expnum < 1 ) {
+            logwrite( function, "ERROR: number of timed exposures must be greater than zero" );
+            error = ERROR;
+          }
+          else {
+            this->trigin_expose  = expnum;
+            this->trigin_untimed = 0;
+            this->trigin_readout = 0;
+          }
+        }
+      }
+      else
+      if ( tokens.at(0) == "untimed"  ) {   // untimed exposures
+        this->trigin_expose  = 0;
+        this->trigin_untimed = 1;
+        this->trigin_readout = 0;
+      }
+      else
+      if ( tokens.at(0) == "readout"  ) {   // readout is used at the end of untimed exposures
+        this->trigin_expose  = 0;
+        this->trigin_untimed = 0;
+        this->trigin_readout = 1;
+      }
+      else
+      if ( tokens.at(0) == "disable"  ) {   // used to disable untimed exposures
+        this->trigin_expose  = 0;
+        this->trigin_untimed = 0;
+        this->trigin_readout = 0;
+      }
+      else {
+        message.str(""); message << "ERROR: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
+        logwrite( function, message.str() );
+        error = ERROR;
+      }
+    }
+    catch ( std::invalid_argument & ) {
+      message.str(""); message << "ERROR: unable to convert token in input string: " << state_in << " to integer";
+      logwrite( function, message.str() );
+      error = ERROR;
+    }
+    catch ( std::out_of_range & ) {
+      message.str(""); message << "ERROR: out of range parsing input string: " << state_in;
+      logwrite( function, message.str() );
+      error = ERROR;
+    }
+    catch (...) {
+      message.str(""); message << "unknown error parsing input string: " << state_in;
+      logwrite( function, message.str() );
+      error = ERROR;
+    }
+
+    // Now that all of the parameter values have been set, write them to Archon.
+    //
+    if ( error == NO_ERROR ) error = this->write_parameter( this->trigin_exposeparam.c_str(),  this->trigin_expose  );
+    if ( error == NO_ERROR ) error = this->write_parameter( this->trigin_untimedparam.c_str(), this->trigin_untimed );
+    if ( error == NO_ERROR ) error = this->write_parameter( this->trigin_readoutparam.c_str(), this->trigin_readout );
+    if ( error == NO_ERROR ) this->trigin_state = newstate;
+
+    // Save the last frame number acquired -- wait_for_readout() will need this later
+    //
+    if ( error == NO_ERROR) error = this->get_frame_status();
+
+    if ( error != NO_ERROR ) {
+      logwrite(function, "ERROR: unable to get frame status");
+    }
+    else this->lastframe = this->frame.bufframen[this->frame.index];
+
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] lastframe=" << this->lastframe;
+    logwrite( function, message.str() );
+#endif
+
+    // For "untimed" or "disable" there's nothing more to do right now.
+    //
+    if ( error == NO_ERROR && ( this->trigin_state == "untimed" || this->trigin_state == "disable" ) ) {
+      message.str(""); message << "untimed exposure trigger " << ( this->trigin_state == "disable" ? "disabled" : "enabled" );
+      logwrite( function, message.str() );
+      return( error );
+    }
+
+    // Don't continue if Archon parameters were not written properly
+    //
+    if ( error != NO_ERROR ) return( error );
+
+    // ------------------------------------------------------------------------
+    // Now the rest is somewhat like the "expose" function...
+    // ------------------------------------------------------------------------
+
+    // Always initialize the extension number because someone could
+    // set datacube true and then send "expose" without a number.
+    //
+    this->camera_info.extension = 0;
+
+    // ------------------------------------------------------------------------
+    // "readout"
+    // The assumption here is that the exposure has started and this command is
+    // sent to prepare for the end of exposure. The exposure is nearly complete.
+    // The next TRIGIN will end the exposure and begin the readout so now we
+    // begin waiting for the new frame to appear in the Archon frame buffer.
+    // ------------------------------------------------------------------------
+    //
+    if ( this->trigin_state == "readout" ) {
+      // Open a new FITS file for each frame when not using datacubes
+      //
+      this->camera_info.start_time = get_timestamp();                // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+      this->get_timer(&this->start_timer);                           // Archon internal timer (one tick=10 nsec)
+      this->common.set_fitstime(this->camera_info.start_time);       // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+      error=this->common.get_fitsname(this->camera_info.fits_name);  // Assemble the FITS filename
+      error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+
+      if (error==NO_ERROR) error = this->wait_for_readout();         // Wait for the readout into frame buffer,
+      if (error==NO_ERROR) error = read_frame();                     // then read the frame buffer to host (and write file) when frame ready.
+
+      this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+
+      // ASYNC status message on completion of each file
+      //
+      message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+      this->common.message.enqueue( message.str() );
+      logwrite( function, message.str() );
+
+    }
+
+    else
+
+    // ------------------------------------------------------------------------
+    // "expose"
+    // The assumption here is that the exposure hasn't started yet. The next
+    // TRIGIN will initiate the complete exposure sequence in the Archon,
+    // exposure delay followed by sensor readout, so now we are waiting for that
+    // sequence to start. 
+    // ------------------------------------------------------------------------
+    //
+    if ( this->trigin_state == "expose" ) {
+
+      // get system time and Archon's timer after exposure starts
+      // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
+      //
+      this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+      error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
+
+      this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+      error=this->common.get_fitsname(this->camera_info.fits_name); // assemble the FITS filename
+
+      // Copy the userkeys database object into camera_info
+      //
+      this->camera_info.userkeys.keydb   = this->userkeys.keydb;
+      this->camera_info.systemkeys.keydb = this->systemkeys.keydb;
+
+      // add any keys from the ACF file (from modemap[mode].acfkeys) into the
+      // camera_info.userkeys object
+      //
+      Common::FitsKeys::fits_key_t::iterator keyit;
+      for (keyit  = this->modemap[mode].acfkeys.keydb.begin();
+           keyit != this->modemap[mode].acfkeys.keydb.end();
+           keyit++) {
+        this->camera_info.userkeys.keydb[keyit->second.keyword].keyword    = keyit->second.keyword;
+        this->camera_info.userkeys.keydb[keyit->second.keyword].keytype    = keyit->second.keytype;
+        this->camera_info.userkeys.keydb[keyit->second.keyword].keyvalue   = keyit->second.keyvalue;
+        this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
+      }
+
+      // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
+      // one extension for the image and a separate extension for raw data.
+      //
+      if ( (error == NO_ERROR) && (mode != "RAW") && (this->modemap[mode].rawenable) ) {
+        if ( !this->common.datacube() ) {                                   // if datacube not already set then it must be overridden here
+          this->common.message.enqueue( "NOTICE:override datacube true" );  // let everyone know
+          logwrite( function, "NOTICE:override datacube true" );
+          this->common.datacube(true);
+        }
+        this->camera_info.extension = 0;
+      }
+
+      // Save the datacube state in camera_info so that the FITS writer can know about it
+      //
+      this->camera_info.iscube = this->common.datacube();
+
+      // Open the FITS file now for cubes
+      //
+      if ( this->common.datacube() ) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+
+      if (this->trigin_expose > 1) {
+        message.str(""); message << "starting sequence of " << this->trigin_expose << " frames. lastframe=" << this->lastframe;
+        logwrite(function, message.str());
+      }
+
+      // If not RAW mode then wait for Archon frame buffer to be ready,
+      // then read the latest ready frame buffer to the host. If this
+      // is a squence, then loop over all expected frames.
+      //
+      if ( (error == NO_ERROR) && (mode != "RAW") ) {                 // If not raw mode then
+        while ( this->trigin_expose-- > 0 ) {
+
+          // Open a new FITS file for each frame when not using datacubes
+          //
+          if ( !this->common.datacube() ) {
+            this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+            this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
+            this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+            error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
+            error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+          }
+
+          if (error==NO_ERROR && this->camera_info.exposure_time != 0) {  // wait for the exposure delay to complete (if there is one)
+            error = this->wait_for_exposure();
+          }
+
+          if (error==NO_ERROR) error = this->wait_for_readout();      // Wait for the readout into frame buffer,
+          if (error==NO_ERROR) error = read_frame();                  // then read the frame buffer to host (and write file) when frame ready.
+
+          if ( !this->common.datacube() ) {                           // Error or not, close the file.
+            this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+
+            // ASYNC status message on completion of each file
+            //
+            message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+            this->common.message.enqueue( message.str() );
+            logwrite( function, message.str() );
+          }
+
+          if (error != NO_ERROR) break;                               // don't try additional sequences if there were errors
+        }
+      }
+      else if ( (error == NO_ERROR) && (mode == "RAW") ) {
+        error = this->get_frame_status();                             // Get the current frame buffer status
+        if (error==NO_ERROR) error = this->common.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
+        if (error==NO_ERROR) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+        if (error==NO_ERROR) error = read_frame();                    // For raw mode just read immediately
+        this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+      }
+      // for cubes, close the FITS file now that they've all been written
+      //
+      if ( this->common.datacube() ) {
+        this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+
+        // ASYNC status message on completion of each file
+        //
+        message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+        this->common.message.enqueue( message.str() );
+        logwrite( function, message.str() );
+      }
+    }  // end if ( this->trigin_state == "expose" )
+
+    else
+
+    // ------------------------------------------------------------------------
+    // unknown
+    // (should be impossible)
+    // ------------------------------------------------------------------------
+    //
+    {
+      message.str(""); message << "unexpected error processing trigin state " << this->trigin_state;
+      logwrite( function, message.str() );
+      error = ERROR;
+    }
+
+    return( error );
+  }
+  /**************** Archon::Interface::trigin *********************************/
 
 
   /**************** Archon::Interface::longexposure ***************************/

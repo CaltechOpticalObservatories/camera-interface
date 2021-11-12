@@ -94,6 +94,14 @@ namespace Archon {
       bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
       bool is_longexposure;                  //!< true for long exposure mode (exptime in sec), false for exptime in msec
 
+      std::string trigin_state;              //!< for external triggering of exposures
+      int trigin_expose;
+      int trigin_untimed;
+      int trigin_readout;
+      std::string trigin_exposeparam;
+      std::string trigin_untimedparam;
+      std::string trigin_readoutparam;
+
       float heater_target_min;               //!< minimum heater target temperature
       float heater_target_max;               //!< maximum heater target temperature
 
@@ -153,6 +161,7 @@ namespace Archon {
       long longexposure(std::string state_in, std::string &state_out);
       long shutter(std::string shutter_in, std::string& shutter_out);
       long hdrshift(std::string bits_in, std::string &bits_out);
+      long trigin(std::string state_in);
       long heater(std::string args, std::string &retstring);
       long sensor(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);

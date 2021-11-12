@@ -564,6 +564,10 @@ void doit(Network::TcpSocket sock) {
                     ret = server.hdrshift(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
+    else
+    if (cmd.compare("trigin")==0) {
+                    ret = server.trigin(args);
+                    }
 #endif
     else
     if (cmd.compare("expose")==0) {
