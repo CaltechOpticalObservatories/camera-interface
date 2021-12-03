@@ -17,9 +17,9 @@ std::ofstream filestream;      //!< IO stream class
 unsigned int nextday = 86410;  //!< number of seconds until a new day
 
 
-/** initlog ******************************************************************/
+/** init_log *****************************************************************/
 /**
- * @fn     initlog
+ * @fn     init_log
  * @brief  initializes the logging
  * @param  none
  * @return 0 on success, 1 on error
@@ -28,8 +28,8 @@ unsigned int nextday = 86410;  //!< number of seconds until a new day
  * LOGPATH and LOGNAME are defined in logentry.h
  *
  */
-long initlog(std::string logpath) {
-  std::string function = "initlog";
+long init_log(std::string logpath) {
+  std::string function = "init_log";
   std::stringstream filename;
   std::stringstream message;
   int year, mon, mday, hour, min, sec, usec;
@@ -66,12 +66,12 @@ long initlog(std::string logpath) {
 
   return 0;
 }
-/** initlog ******************************************************************/
+/** init_log *****************************************************************/
 
 
-/** closelog *****************************************************************/
+/** close_log ****************************************************************/
 /**
- * @fn     closelog
+ * @fn     close_log
  * @brief  closes the logfile stream
  * @param  none
  * @return none
@@ -79,13 +79,13 @@ long initlog(std::string logpath) {
  * Call this from the main class deconstructor to clean up the log file.
  *
  */
-void closelog() {
+void close_log() {
   if (filestream.is_open() == true) {
     filestream.flush();
     filestream.close();
   }
 }
-/** closelog *****************************************************************/
+/** close_log ****************************************************************/
 
 
 /** logwrite *****************************************************************/

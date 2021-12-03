@@ -23,15 +23,21 @@ std::string logpath;
 void signal_handler(int signo) {
   std::string function = "Camera::signal_handler";
   switch (signo) {
+    case SIGTERM:
     case SIGINT:
-      logwrite(function, "received INT");
+      logwrite(function, "received termination signal");
       server.common.message.enqueue("exit");  // shutdown the async_main thread if running
       server.exit_cleanly();                  // shutdown the server
+      break;
+    case SIGHUP:
+      logwrite(function, "caught SIGHUP");
+      server.configure_controller();
       break;
     case SIGPIPE:
       logwrite(function, "caught SIGPIPE");
       break;
     default:
+      logwrite(function, "received unknown signal");
       server.common.message.enqueue("exit");  // shutdown the async_main thread if running
       server.exit_cleanly();                  // shutdown the server
       break;
@@ -60,25 +66,46 @@ void doit(Network::TcpSocket sock);         // the worker thread
 int main(int argc, char **argv) {
   std::string function = "Camera::main";
   std::stringstream message;
+  long ret=NO_ERROR;
+  std::string daemon_in;     // daemon setting read from config file
+  bool start_daemon = false; // don't start as daemon unless specifically requested
 
+  // capture these signals
+  //
   signal(SIGINT, signal_handler);
   signal(SIGPIPE, signal_handler);
+  signal(SIGHUP, signal_handler);
 
-  // get the configuration file from the command line
+  // check for "-f <filename>" command line option to specify config file
   //
-  long ret;
+  if ( cmdOptionExists( argv, argv+argc, "-f" ) ) {
+    char* filename = getCmdOption( argv, argv+argc, "-f" );
+    if ( filename ) {
+      server.config.filename = std::string( filename );
+    }
+  }
+  else
+
+  // if no "-f <filename>" then as long as there's at least one arg,
+  // assume that is the config file name.
+  //
   if (argc>1) {
     server.config.filename = std::string( argv[1] );
-    ret = server.config.read_config(server.config);      // read configuration file specified on command line
   }
   else {
     logwrite(function, "ERROR: no configuration file specified");
     server.exit_cleanly();
   }
 
+  if ( server.config.read_config(server.config) != NO_ERROR) {  // read configuration file specified on command line
+    logwrite(function, "ERROR: unable to configure system");
+    server.exit_cleanly();
+  }
+
   for (int entry=0; entry < server.config.n_entries; entry++) {
     if (server.config.param[entry] == "LOGPATH") logpath = server.config.arg[entry];
     if (server.config.param[entry] == "TM_ZONE") zone = server.config.arg[entry];
+    if (server.config.param[entry] == "DAEMON")  daemon_in = server.config.arg[entry];
   }
   if (logpath.empty()) {
     logwrite(function, "ERROR: LOGPATH not specified in configuration file");
@@ -93,7 +120,28 @@ int main(int argc, char **argv) {
     server.systemkeys.addkey( "TM_ZONE=GMT//time zone" );
   }
 
-  if ( (initlog(logpath) != 0) ) {                       // initialize the logging system
+  if ( !daemon_in.empty() && daemon_in == "yes" ) start_daemon = true;
+  else
+  if ( !daemon_in.empty() && daemon_in == "no"  ) start_daemon = false;
+  else {
+    message.str(""); message << "ERROR: unrecognized argument DAEMON=" << daemon_in << ", expected { yes | no }";
+    logwrite( function, message.str() );
+    server.exit_cleanly();
+  }
+
+  // check for "-d" command line option last so that the command line
+  // can override the config file to start as daemon
+  //
+  if ( cmdOptionExists( argv, argv+argc, "-d" ) ) {
+    start_daemon = true;
+  }
+
+  if ( start_daemon ) {
+    logwrite( function, "starting daemon" );
+    Daemon::daemonize( "camerad", "/tmp", "", "", "" );
+  }
+
+  if ( (init_log(logpath) != 0) ) {                      // initialize the logging system
     logwrite(function, "ERROR: unable to initialize logging system");
     server.exit_cleanly();
   }
@@ -177,14 +225,14 @@ int main(int argc, char **argv) {
  * are remaining in the day, then closes and re-inits a new log file.
  *
  * The number of seconds until the next day "nextday" is a global which
- * is set by initlog.
+ * is set by init_log.
  *
  */
 void new_log_day( ) { 
   while (1) {
     std::this_thread::sleep_for( std::chrono::seconds( nextday ) );
-    closelog();
-    initlog( logpath );
+    close_log();
+    init_log( logpath );
   }
 }
 /** new_log_day **************************************************************/

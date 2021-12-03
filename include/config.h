@@ -43,8 +43,19 @@
         size_t index1, index2;                                  // String indexing variables
         int linesread = 0;                                      // Counts the number of parameter lines read from file
 
+        // Try to open the config file
+        //
         if ( !this->filename.empty() ) {
-          filestream.open( this->filename, std::ios::in );
+          try {
+            filestream.exceptions ( std::ios_base::failbit );   // set the fail bit to catch exceptions opening config file
+            filestream.open( this->filename, std::ios::in );
+          }
+          catch ( std::ios_base::failure &e ) {
+            std::stringstream message;
+            message.str(""); message << "ERROR: opening configuration file " << this->filename;
+            logwrite( function, message.str() );
+            return( 1 );
+          }
         }
         else {
           logwrite(function, "no config file specified");
@@ -56,6 +67,9 @@
         this->param.clear();
         this->arg.clear();
 
+        // Read the config file
+        //
+        try {                                                   // setting the fail bit above requires catching exceptions here
         while (getline(filestream, line)) {                     // Get a line from the file as long as they are available
 
           if (line.length() > 2) {                              // valid line is at least 3 characters, ie. X=Y
@@ -117,6 +131,10 @@
           else continue;                                        // For lines of less than 2 characters, we just loop to the next line
 
           linesread++;                                          // Increment the number of values read successfully
+        }
+        }
+        catch ( std::ios_base::failure &e ) {                   // even an EOF will set the fail bit, which we don't care about
+          ;                                                     // so just ignore it here
         }
 
         this->n_entries = linesread;                            // Set the number of elements to the number of lines read

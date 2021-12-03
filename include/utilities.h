@@ -23,6 +23,8 @@
 
 extern std::string zone;
 
+bool cmdOptionExists( char** begin, char** end, const std::string &option );
+char* getCmdOption( char** begin, char** end, const std::string &option );
 int my_hardware_concurrency();
 int cores_available();
 

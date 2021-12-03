@@ -10,17 +10,81 @@
 
 std::string zone="";
 
+  /** cmdOptionExists *********************************************************/
+  /**
+   * @fn     cmdOptionExists
+   * @brief  returns true if option is found in argv
+   * @return bool
+   *
+   * Intended to be called as cmdOptionExists( argv, argv+argc, "-X" )
+   * to search for "-X" option in argv.
+   *
+   * Pair with getCmdOption() function.
+   *
+   */
+  bool cmdOptionExists( char** begin, char** end, const std::string &option ) {
+    return std::find( begin, end, option ) != end;
+  }
+  /** cmdOptionExists *********************************************************/
+
+
+  /** getCmdOption ************************************************************/
+  /**
+   * @fn     getCmdOption
+   * @brief  returns pointer to command line option specified with "-X option"
+   * @return char*
+   *
+   * Intended to be called as char* option = getCmdOption( argv, argv+argc, "-X" );
+   * to get option associated with "-X option" in argv.
+   *
+   * Pair with cmdOptionExists()
+   *
+   */
+  char* getCmdOption( char** begin, char** end, const std::string &option ) {
+    char** itr = std::find(begin, end, option);
+    if ( itr != end && ++itr != end ) {
+      return *itr;
+    }
+    return 0;
+  }
+  /** getCmdOption ************************************************************/
+
+
+  /** my_hardware_concurrency *************************************************/
+  /**
+   * @fn     my_hardware_concurrency
+   * @brief  return number of concurrent threads supported by the implementation
+   * @param  none
+   * @return int
+   *
+   * Counts the number of processors listed in /proc/cpuinfo
+   *
+   */
   int my_hardware_concurrency() {
     std::ifstream cpuinfo( "/proc/cpuinfo" );
     return std::count( std::istream_iterator<std::string>(cpuinfo),
                        std::istream_iterator<std::string>(),
                        std::string("processor") );
   }
+  /** my_hardware_concurrency *************************************************/
 
+
+  /** cores_available *********************************************************/
+  /**
+   * @fn     cores_available
+   * @brief  return number of concurrent threads supported by the implementation
+   * @param  none
+   * @return int
+   *
+   * If the value is not known then check /proc/cpuinfo
+   *
+   */
   int cores_available() {
     unsigned int cores = std::thread::hardware_concurrency();
     return cores ? cores : my_hardware_concurrency();
   }
+  /** cores_available *********************************************************/
+
 
   /** parse_val ***************************************************************/
   /**
