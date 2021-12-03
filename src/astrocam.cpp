@@ -754,7 +754,7 @@ namespace AstroCam {
     message.str("");
     message << "*** [DEBUG] _controller.devnum=" << _controller.devnum 
             << " .devname=" << _controller.devname << " _controller.image_size=" << _controller.info.image_size
-            << " shutterenable=" << server.common.shutterenable;
+            << " shutterenable=" << _controller.info.shutterenable;
     logwrite(function, message.str());
 #endif
 
