@@ -8,6 +8,7 @@
 
 #include "build_date.h"
 #include "server.h"
+#include "daemonize.h"
 
 Camera::Server server;
 std::string logpath; 

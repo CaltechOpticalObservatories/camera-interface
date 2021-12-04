@@ -30,7 +30,6 @@
 #include "logentry.h"
 #include "config.h"
 #include "network.h"
-#include "daemonize.h"
 
 #define  N_THREADS    10    //!< total number of threads spawned by server, one for blocking and the remainder for non-blocking
 #define  BUFSIZE      1024  //!< size of the input command buffer
