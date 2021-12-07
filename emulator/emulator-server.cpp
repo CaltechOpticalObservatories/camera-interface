@@ -212,6 +212,7 @@ void doit(Network::TcpSocket sock) {
      *
      */
 
+#ifdef STA_ARCHON
     if (cmd.compare("SYSTEM")==0) {
                     std::string retstring;
                     ret = server.system_report( cmd, retstring );
@@ -339,6 +340,7 @@ void doit(Network::TcpSocket sock) {
                     }
     else {  // Archon simply ignores things it doesn't understand
     }
+#endif
 
     if ( ! retstream.str().empty() ) {
       retstream << "\n";

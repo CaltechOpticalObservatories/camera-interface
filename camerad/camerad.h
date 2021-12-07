@@ -1,5 +1,5 @@
 /** ---------------------------------------------------------------------------
- * @file     server.h
+ * @file     camerad.h
  * @brief    
  * @author   David Hale <dhale@astro.caltech.edu>
  * @date     

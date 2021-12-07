@@ -6,7 +6,7 @@
 // are otherwise be unavailable to them. The interface class is accessible
 // through this because Camera::Server server inherits AstroCam::Interface.
 //
-#include "server.h"
+#include "camerad.h"
 extern Camera::Server server;
 
 namespace AstroCam {

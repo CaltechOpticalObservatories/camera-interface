@@ -1,13 +1,13 @@
 /**
- * @file    server.cpp
- * @brief   this is the main server
+ * @file    camerad.cpp
+ * @brief   this is the main camerad server
  * @details spawns threads to handle requests, receives and parses commands
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
 
 #include "build_date.h"
-#include "server.h"
+#include "camerad.h"
 #include "daemonize.h"
 
 Camera::Server server;

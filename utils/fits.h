@@ -17,7 +17,7 @@
 #include <thread>
 #include <atomic>
 #include <string>
-#include "common.h"
+// #include "common.h"
 #include "build_date.h"
 #include "utilities.h"
 #include "logentry.h"

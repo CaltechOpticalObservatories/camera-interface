@@ -15,19 +15,12 @@ Camera Detector Controller Interface Software
 
 ## Build instructions:
 
- - edit the CMakeLists.txt file to un-comment ONE of the following two lines
+ - edit the toplevel CMakeLists.txt file to un-comment ONE of the following two lines
  according to the controller interface you are using:
 
 ```
 set(INTERFACE_TYPE "Archon")
 #set(INTERFACE_TYPE "AstroCam")
-```
-
- - if your software is installed in a directory other than ~/Software/camera-interface
- then change the following line:
-
-```
-set(PROJECT_BASE_DIR $ENV{HOME}/Software/camera-interface)
 ```
 
  - change to the build directory
@@ -53,14 +46,18 @@ set(PROJECT_BASE_DIR $ENV{HOME}/Software/camera-interface)
    % make
 ```
 
- - run the program,
+ - run the program using one of these forms, 
 
 ```
-   % ../bin/cameraserver <file.cfg>
+   % ../bin/camerad <file.cfg>
+   % ../bin/camerad -f <file.cfg>
+   % ../bin/camerad -d -f <file.cfg>
 ```   
 
    where <file.cfg> is an appropriate configuration file. See the example .cfg files
-   in this distribution.
+   in the Config directory of this distribution. Note that the -f option specifies 
+   a config file and the -d option forces it to run as a daemon, overriding any 
+   DAEMON=no setting in the configuration file.
 
  - Note that only when INTERFACE_TYPE is set to Archon will the emulator software
  be compiled.
