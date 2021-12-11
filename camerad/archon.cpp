@@ -3212,6 +3212,7 @@ logwrite("load_firmware", "two arg");
     std::stringstream message;
     long error = NO_ERROR;
     int currentframe=this->lastframe;
+    int busycount=0;
     bool done = false;
 
     message.str("");
@@ -3241,6 +3242,19 @@ logwrite("load_firmware", "two arg");
 
       usleep( 10000 );  // reduces polling frequency
       error = this->get_frame_status();
+
+      // If Archon is busy then ignore it, keep trying for up to ~ 1 second
+      // (100 attempts, ~10000us between attempts)
+      //
+      if (error == BUSY) {
+        if ( ++busycount > 100 ) {
+	  done = true;
+	  logwrite( function, "ERROR: received BUSY from Archon too many times" );
+	  break;
+	}
+	else continue;
+      }
+      else busycount=0;
 
       if (error == ERROR) {
         done = true;
