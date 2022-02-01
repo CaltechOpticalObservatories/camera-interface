@@ -449,6 +449,13 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
+    if (cmd.compare("isloaded")==0) {
+                    std::string retstring = server.firmwareloaded ? "true" : "false";
+                    sock.Write(retstring);
+                    sock.Write(" ");
+                    ret = NO_ERROR;
+                    }
+    else
     if (cmd.compare("basename")==0) {
                     std::string retstring;  // string for the return value
                     ret = server.common.basename(args, retstring);
