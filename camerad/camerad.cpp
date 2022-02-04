@@ -489,6 +489,13 @@ void doit(Network::TcpSocket sock) {
                     sock.Write(" ");
                     }
     else
+    if (cmd.compare("longerror")==0) {
+                    std::string retstring;   // string for the return value
+                    ret = server.common.longerror(args, retstring);
+                    sock.Write(retstring);
+                    sock.Write(" ");
+                    }
+    else
     if (cmd.compare("fitsnaming")==0) {
                     std::string retstring;
                     ret = server.common.fitsnaming(args, retstring);
@@ -510,8 +517,10 @@ void doit(Network::TcpSocket sock) {
     if (cmd.compare("key")==0) {
                     if (args.compare(0, 4, "list")==0)
                       ret = server.userkeys.listkeys();
-                    else
+                    else {
                       ret = server.userkeys.addkey(args);
+                      if ( ret != NO_ERROR ) server.common.log_error( function, "bad syntax" );
+                    }
                     }
     else
     if (cmd.compare("abort")==0) {
@@ -580,7 +589,7 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("printstatus")==0) {
                     ret = server.get_frame_status();
-                    if (ret==NO_ERROR) ret = server.print_frame_status();
+                    if (ret==NO_ERROR) server.print_frame_status();
                     }
     else
     if (cmd.compare("readframe")==0) {
@@ -690,6 +699,7 @@ void doit(Network::TcpSocket sock) {
 
     if (ret != NOTHING) {
       std::string retstr=(ret==0?"DONE\n":"ERROR\n");
+      if ( ret==0 ) retstr="DONE\n"; else retstr="ERROR" + server.common.get_longerror() + "\n";
       if (sock.Write(retstr)<0) connection_open=false;
     }
 

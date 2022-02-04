@@ -25,6 +25,7 @@
 namespace Common {
 
   Common::Common() {
+    this->is_longerror = false;
     this->is_datacube = false;
     this->image_dir = "/tmp";
     this->base_name = "image";
@@ -71,6 +72,54 @@ bool Common::get_abortstate() {
 }
 
 
+  /** Common::Common::log_error ***********************************************/
+  /**
+   * @fn     log_error
+   * @brief  logs the error and saves the message to be returned on the command port
+   * @param  std::string function name
+   * @param  std::string message (error)
+   * @return ERROR or NO_ERROR
+   *
+   */
+  void Common::log_error( std::string function, std::string message ) {
+    std::stringstream err;
+
+    // Save this message in class variable
+    this->lasterrorstring.str("");
+    this->lasterrorstring << message;
+
+    // Form an error string as "ERROR: <message>"
+    err << "ERROR: " << this->lasterrorstring.str();
+
+    // Log and send to async port in the usual ways
+    //
+    logwrite( function, err.str() );
+    this->message.enqueue( err.str() );
+  }
+  /** Common::Common::log_error ***********************************************/
+
+
+  /** Common::Common::get_longerror *******************************************/
+  /**
+   * @fn     get_longerror
+   * @brief  return the saved error message
+   * @param  none
+   * @return std::string message
+   *
+   * If is_longerror is set (true) then return the last saved error message
+   * in lasterrorstring, then erase that string.
+   *
+   * If is_longerror is clear (false) then return an empty string.
+   *
+   */
+  std::string Common::get_longerror() {
+    std::string err = ( this->is_longerror ? ( " " + this->lasterrorstring.str() ) : "" );
+    this->lasterrorstring.str("");
+    return ( err );
+  }
+  /** Common::Common::get_longerror *******************************************/
+
+
   /** Common::Common::writekeys ***********************************************/
   /**
    * @fn     writekeys
@@ -90,13 +139,14 @@ bool Common::get_abortstate() {
         std::transform( writekeys_in.begin(), writekeys_in.end(), writekeys_in.begin(), ::tolower );  // make lowercase
         if ( writekeys_in == "before" || writekeys_in == "after" ) this->writekeys_when = writekeys_in;
         else {
-          message.str(""); message << "ERROR: " << writekeys_in << " is invalid. Expecting before or after";
-          logwrite( function, message.str() );
+          message.str(""); message << writekeys_in << " is invalid. Expecting before or after";
+          this->log_error( function, message.str() );
           error = ERROR;
         }
       }
       catch (...) {
-        logwrite( function, "error converting writekeys_in to lowercase" );
+        message.str(""); message << "unknown exception parsing argument: " << writekeys_in;
+        this->log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -132,11 +182,11 @@ bool Common::get_abortstate() {
       error = NO_ERROR;
     }
     else {
-      message.str(""); message << "error: invalid naming type: " << naming_in << ". Must be \"time\" or \"number\".";
+      message.str(""); message << "invalid naming type: " << naming_in << ". Must be \"time\" or \"number\".";
       error = ERROR;
     }
 
-    logwrite(function, message.str());
+    error == NO_ERROR ? logwrite(function, message.str()) : this->log_error( function, message.str() );
     naming_out = this->fits_naming;    // return the current value
     return error;
   }
@@ -171,16 +221,16 @@ bool Common::get_abortstate() {
         num = std::stoi(num_in);
       }
       catch (std::invalid_argument &) {
-        logwrite(function, "error invalid number: unable to convert to integer");
+        this->log_error( function, "invalid number: unable to convert to integer" );
         return(ERROR);
       }
       catch (std::out_of_range &) {
-        logwrite(function, "error imnum out of integer range");
+        this->log_error( function, "imnum out of integer range" );
         return(ERROR);
       }
       if (num < 0) {                   // can't be negative
-        message.str(""); message << "error requested image number " << num << " must be >= 0";
-        logwrite(function, message.str());
+        message.str(""); message << "requested image number " << num << " must be >= 0";
+        this->log_error( function, message.str() );
         return(ERROR);
       }
       else {                           // value is OK
@@ -218,7 +268,7 @@ bool Common::get_abortstate() {
     // and subdirectories are not checked here, only by imdir command.
     //
     if (  name_in.find('/') != std::string::npos ) {
-      logwrite( function, "ERROR: basename cannot contain a '/' character" );
+      this->log_error( function, "basename cannot contain a '/' character" );
       error = ERROR;
     }
     else if ( !name_in.empty() ) {     // If a name is supplied
@@ -292,8 +342,8 @@ bool Common::get_abortstate() {
         }
         else {                                               // error creating date subdirectory
           message.str("");
-          message << "ERROR " << errno << " creating directory " << nextdir.str() << ": " << strerror(errno);
-          logwrite(function, message.str());
+          message << "creating directory " << nextdir.str() << ": " << strerror(errno);
+          this->log_error( function, message.str() );
           error = ERROR;
           break;
         }
@@ -311,22 +361,22 @@ bool Common::get_abortstate() {
         testfile = dir_in + "/.tmp";
         FILE* fp = std::fopen(testfile.c_str(), "w");    // create the test file
         if (!fp) {
-          message.str(""); message << "ERROR: cannot write to requested image directory " << dir_in;
-          logwrite(function, message.str());
+          message.str(""); message << "cannot write to requested image directory " << dir_in;
+          this->log_error( function, message.str() );
           error = ERROR;
         }
         else {                                           // remove the test file
           std::fclose(fp);
           if (std::remove(testfile.c_str()) != 0) {
-            message.str(""); message << "ERROR removing temporary file " << testfile;
-            logwrite(function, message.str());
+            message.str(""); message << "removing temporary file " << testfile;
+            this->log_error( function, message.str() );
             error = ERROR;
           }
         }
       }
       catch(...) {
-        message.str(""); message << "ERROR writing to " << dir_in;
-        logwrite(function, message.str());
+        message.str(""); message << "writing to " << dir_in;
+        this->log_error( function, message.str() );
         error = ERROR;
       }
       if ( error == NO_ERROR) this->image_dir = dir_in;    // passed all tests so set the image_dir
@@ -368,14 +418,15 @@ bool Common::get_abortstate() {
         else
         if ( state_in == "yes" ) verifiedstate = true;
         else {
-          message.str(""); message << "ERROR: " << state_in << " is invalid.  Expecting yes or no";
-          logwrite( function, message.str() );
+          message.str(""); message << state_in << " is invalid.  Expecting yes or no";
+          this->log_error( function, message.str() );
           error = ERROR;
         }
         if ( error == NO_ERROR ) this->autodir_state = verifiedstate;
       }
       catch (...) {
-        logwrite( function, "error converting state_in to lowercase" );
+        message.str(""); message << "unknown exception parsing argument: " << state_in;
+        this->log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -413,7 +464,7 @@ bool Common::get_abortstate() {
     std::stringstream message;
 
     if ( time_in.length() != 26 ) {  // wrong number of characters, input can't be formatted correctly
-      message.str(""); message << "error: bad input time: " << time_in;
+      message.str(""); message << "ERROR: bad input time: " << time_in;
       logwrite(function, message.str());
       this->fitstime = "99999999999999";
       return;
@@ -475,14 +526,14 @@ bool Common::get_abortstate() {
       }
       else {                                               // error creating date subdirectory
         message.str("");
-        message << "error " << errno << " creating directory " << basedir.str() << ": " << strerror(errno);
-        logwrite(function, message.str());
+        message << "code " << errno << " creating directory " << basedir.str() << ": " << strerror(errno);
+        this->log_error( function, message.str() );
         // a common error might be that the base directory doesn't exist
         //
         if (errno==ENOENT) {
           message.str("");
           message << "requested base directory " << basedir.str() << " does not exist";
-          logwrite(function, message.str());
+          this->log_error( function, message.str() );
         }
         return(ERROR);
       }
@@ -642,7 +693,7 @@ bool Common::get_abortstate() {
     //
     Tokenize(arg, tokens, "=");
     if (tokens.size() != 2) {
-      logwrite(function, "error: missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)");
+      logwrite( function, "missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)" );
       return(ERROR);
     }
 
@@ -667,7 +718,7 @@ bool Common::get_abortstate() {
     if (keyvalue == ".") {
       fits_key_t::iterator ii = this->keydb.find(keyword);
       if (ii==this->keydb.end()) {
-        message.str(""); message << "error: keyword " << keyword << " not found";
+        message.str(""); message << "keyword " << keyword << " not found";
         logwrite(function, message.str());
       }
       else {
@@ -681,8 +732,8 @@ bool Common::get_abortstate() {
     // check for instances of the comment separator in keycomment
     //
     if (keycomment.find(comment_separator) != std::string::npos) {
-      message.str(""); message << "error: FITS comment delimiter: found too many instancces of " << comment_separator << " in keycomment";
-      logwrite(function, message.str());
+      message.str(""); message << "ERROR: FITS comment delimiter: found too many instancces of " << comment_separator << " in keycomment";
+      logwrite( function, message.str() );
       return(NO_ERROR);
     }
 
@@ -731,13 +782,14 @@ bool Common::get_abortstate() {
         else
         if (state_in == "true"  ) this->is_datacube = true;
         else {
-          message.str(""); message << "ERROR: " << state_in << " is invalid. Expecting true or false";
-          logwrite(function, message.str());
+          message.str(""); message << state_in << " is invalid. Expecting true or false";
+          this->log_error( function, message.str() );
           error = ERROR;
         }
       }
       catch (...) {
-        logwrite(function, "error converting state_in to lowercase");
+        message.str(""); message << "unknown exception parsing argument: " << state_in;
+        this->log_error( function, message.str() );
         error = ERROR;
       }
     }
@@ -745,8 +797,8 @@ bool Common::get_abortstate() {
     // error or not, the state reported is whatever was last successfully set
     //
     state_out = (this->is_datacube ? "true" : "false");
-    message.str(""); message << "datacube=" << state_out;
-    logwrite(function, message.str());
+    logwrite( function, state_out );
+    message.str(""); message << "NOTICE:datacube=" << state_out;
     this->message.enqueue( message.str() );
 
     // and this lets the server know if it was set or not
@@ -754,6 +806,66 @@ bool Common::get_abortstate() {
     return( error );
   }
   /** Common::Common::datacube ************************************************/
+
+
+
+  /** Common::Common::longerror ***********************************************/
+  /**
+   * @fn     longerror
+   * @brief  set or get the longerror state
+   * @param  std::string state_in
+   * @return true or false
+   *
+   * The state_in string should be "True" or "False", case-insensitive.
+   *
+   * This function is overloaded.
+   *
+   */
+  void Common::longerror(bool state_in) {                                 // write-only boolean
+    std::string dontcare;
+    this->longerror( (state_in ? "true" : "false"), dontcare );
+  }
+  bool Common::longerror() {                                              // read-only boolean
+    return ( this->is_longerror );
+  }
+  long Common::longerror(std::string state_in, std::string &state_out) {  // read-write string, called from server
+    std::string function = "Common::Common::longerror";
+    std::stringstream message;
+    int error = NO_ERROR;
+
+    // If something is passed then try to use it to set the longerror state
+    //
+    if ( !state_in.empty() ) {
+      try {
+        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::tolower );    // make lowercase
+        if (state_in == "false" ) this->is_longerror = false;
+        else
+        if (state_in == "true"  ) this->is_longerror = true;
+        else {
+          message.str(""); message << state_in << " is invalid. Expecting true or false";
+          this->log_error( function, message.str() );
+          error = ERROR;
+        }
+      }
+      catch (...) {
+        message.str(""); message << "unknown exception parsing argument: " << state_in;
+        this->log_error( function, message.str() );
+        error = ERROR;
+      }
+    }
+
+    // error or not, the state reported is whatever was last successfully set
+    //
+    state_out = (this->is_longerror ? "true" : "false");
+    logwrite( function, state_out );
+    message.str(""); message << "NOTICE:longerror=" << state_out;
+    this->message.enqueue( message.str() );
+
+    // and this lets the server know if it was set or not
+    //
+    return( error );
+  }
+  /** Common::Common::longerror ***********************************************/
 
 
   /** Common::Queue::enqueue **************************************************/

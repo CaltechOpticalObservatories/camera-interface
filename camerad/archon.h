@@ -137,7 +137,7 @@ namespace Archon {
       long load_parameter(std::string paramname, std::string value);
       long fetchlog();
       long get_frame_status();
-      long print_frame_status();
+      void print_frame_status();
       long lock_buffer(int buffer);
       long get_timer(unsigned long int *timer);
       long fetch(uint64_t bufaddr, uint32_t bufblocks);

@@ -117,11 +117,11 @@ namespace Archon {
           port = std::stoi( config.arg[entry] );
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: unable to convert port number to integer");
+          this->common.log_error( function, "unable to convert port number to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          logwrite(function, "ERROR: port number out of integer range");
+          this->common.log_error( function, "port number out of integer range" );
           return(ERROR);
         }
         this->camera_info.port = port;
@@ -174,11 +174,11 @@ namespace Archon {
           readtime = std::stoi ( config.arg[entry] );
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: unable to convert readout time to integer");
+          this->common.log_error( function, "unable to convert readout time to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          logwrite(function, "ERROR: readout time out of integer range");
+          this->common.log_error( function, "readout time out of integer range" );
           return(ERROR);
         }
         this->common.readout_time[0] = readtime;
@@ -206,7 +206,7 @@ namespace Archon {
       error = NO_ERROR;
     }
     message << "applied " << applied << " configuration lines to controller";
-    logwrite(function, message.str());
+    error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() ) ;
     return error;
   }
   /**************** Archon::Interface::configure_controller *******************/
@@ -252,7 +252,7 @@ namespace Archon {
         logwrite(function, message.str());
       }
       else {
-        logwrite(function, "cannot allocate zero-length image memory");
+        this->common.log_error( function, "cannot allocate zero-length image memory" );
         return(ERROR);
       }
     }
@@ -286,8 +286,8 @@ namespace Archon {
     logwrite(function, "opening a connection to the camera system");
 
     if ( this->archon.Connect() != 0 ) {
-      message.str(""); message << "ERROR: " << errno << " connecting to " << this->camera_info.hostname << ":" << this->camera_info.port;
-      logwrite(function, message.str());
+      message.str(""); message << "connecting to " << this->camera_info.hostname << ":" << this->camera_info.port << ": " << strerror(errno);
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -327,13 +327,13 @@ namespace Archon {
           type   = std::stoi( tokens[2] );
         }
         catch (std::invalid_argument &) {
-          message.str(""); message << "ERROR: unable to convert module or type from " << tokens[0] << "=" << tokens[1] << " to integer";
-          logwrite(function, message.str());
+          message.str(""); message << "unable to convert module or type from " << tokens[0] << "=" << tokens[1] << " to integer";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: module " << tokens[0].substr(3) << " or type " << tokens[1] << " out of range";
-          logwrite(function, message.str());
+          message.str(""); message << "module " << tokens[0].substr(3) << " or type " << tokens[1] << " out of range";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
       }
@@ -351,13 +351,13 @@ namespace Archon {
           this->modversion.at(module-1) = version;    // store the type in a vector indexed by module
         }
         catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: requested module " << module << " out of range {1:" << nmods;
-          logwrite(function, message.str());
+          message.str(""); message << "requested module " << module << " out of range {1:" << nmods;
+          this->common.log_error( function, message.str() );
         }
       }
       else {                                          // else should never happen
-        message.str(""); message << "ERROR: module " << module << " outside range {1:" << nmods << "}";
-        logwrite(function, message.str());
+        message.str(""); message << "module " << module << " outside range {1:" << nmods << "}";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
 
@@ -372,8 +372,8 @@ namespace Archon {
       // Check that the AD modules are installed in the correct slot
       //
       if ( ( type == 2 || type == 17 ) && ( module < 5 || module > 8 ) ) {
-        message.str(""); message << "ERROR: AD module (type=" << type << ") cannot be in slot " << module << ". Use slots 5-8";
-        logwrite( function, message.str() );
+        message.str(""); message << "AD module (type=" << type << ") cannot be in slot " << module << ". Use slots 5-8";
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
 
@@ -423,7 +423,7 @@ namespace Archon {
     // Throw an error for any other errors
     //
     else {
-      logwrite(function, "ERROR: disconnecting Archon camera");
+      this->common.log_error( function, "disconnecting Archon camera" );
     }
 
     return(error);
@@ -496,13 +496,13 @@ namespace Archon {
     int     error = NO_ERROR;
 
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
-      logwrite(function, "ERROR: connection not open to controller");
+      this->common.log_error( function, "connection not open to controller" );
       return(ERROR);
     }
 
     if (this->archon_busy) {                    // only one command at a time
       message.str(""); message << "Archon busy: ignored command " << cmd;
-      logwrite(function, message.str());
+      this->common.log_error( function, message.str() );
       return(BUSY);
     }
 
@@ -527,7 +527,8 @@ namespace Archon {
       std::transform( prefix.begin(), prefix.end(), prefix.begin(), ::toupper );    // make uppercase
     }
     catch (...) {
-      logwrite(function, "ERROR: converting command to uppercase");
+      message.str(""); message << "converting Archon command: " << prefix << " to uppercase";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -554,7 +555,7 @@ namespace Archon {
     // send the command
     //
     if ( (this->archon.Write(scmd)) == -1) {
-      logwrite(function, "ERROR: writing to camera socket");
+      this->common.log_error( function, "writing to camera socket");
     }
 
     // For the FETCH command we don't wait for a reply, but return immediately.
@@ -571,18 +572,23 @@ namespace Archon {
     reply.clear();                                   // zero reply buffer
     do {
       if ( (retval=this->archon.Poll()) <= 0) {
-        if (retval==0) { logwrite(function, "Poll timeout"); error = TIMEOUT; }
-        if (retval<0)  { logwrite(function, "Poll error");   error = ERROR;   }
+        if (retval==0) { message.str(""); message << "Poll timeout waiting for response from Archon command (maybe unrecognized command?)"; error = TIMEOUT; }
+        if (retval<0)  { message.str(""); message << "Poll error waiting for response from Archon command";   error = ERROR;   }
+        if ( error != NO_ERROR ) this->common.log_error( function, message.str() );
         break;
       }
       memset(buffer, '\0', 2048);                    // init temporary buffer
       retval = this->archon.Read(buffer, 2048);      // read into temp buffer
       if (retval <= 0) {
-        logwrite(function, "ERROR: reading Archon");
+        this->common.log_error( function, "reading Archon" );
         break; 
       }
       reply.append(buffer);                          // append read buffer into the reply string
     } while(retval>0 && reply.find("\n") == std::string::npos);
+
+    // If there was an Archon error then clear the busy flag and get out now
+    //
+    if ( error != NO_ERROR ) { this->archon_busy = false; return error; }
 
     // The first three bytes of the reply should contain the msgref of the
     // command, which can be used as a check that the received reply belongs
@@ -592,18 +598,16 @@ namespace Archon {
     //
     if (reply.compare(0, 1, "?")==0) {               // "?" means Archon experienced an error processing command
       error = ERROR;
-      message.str(""); message << "ERROR: Archon controller returned error processing command: " << cmd;
-      logwrite(function, message.str());
+      message.str(""); message << "Archon controller returned error processing command: " << cmd;
+      this->common.log_error( function, message.str() );
     }
     else
     if (reply.compare(0, 3, check)!=0) {             // First 3 bytes of reply must equal checksum else reply doesn't belong to command
       error = ERROR;
       std::string hdr = reply;
       try { scmd.erase(scmd.find("\n"), 1); } catch(...) { }
-      message.str(""); message << "ERROR: command-reply mismatch for command: " << scmd;
-      logwrite(function, message.str());
-      message.str(""); message << "ERROR: expected " << check << " but received " << reply;
-      logwrite(function, message.str());
+      message.str(""); message << "command-reply mismatch for command: " + scmd + ": expected " + check + " but received " + reply ;
+      this->common.log_error( function, message.str() );
     }
     else {                                           // command and reply are a matched pair
       error = NO_ERROR;
@@ -652,8 +656,8 @@ namespace Archon {
     int   error   = NO_ERROR;
 
     if (this->parammap.find(paramname.c_str()) == this->parammap.end()) {
-      message.str(""); message << "ERROR: parameter \"" << paramname << "\" not found";
-      logwrite(function, message.str());
+      message.str(""); message << "parameter \"" << paramname << "\" not found in ACF";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -664,6 +668,13 @@ namespace Archon {
         << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
         << this->parammap[paramname.c_str()].line;
     error = this->archon_cmd(cmd.str(), reply);               // send RCONFIG command here
+
+    if ( error != NO_ERROR ) {
+      message.str(""); message << "ERROR: sending archon_cmd(" << cmd.str() << ")";
+      logwrite( function, message.str() );
+      return error;
+    }
+
     try { reply.erase(reply.find("\n"), 1); } catch(...) { }  // strip newline
 
     // reply should now be of the form PARAMETERn=PARAMNAME=VALUE
@@ -690,8 +701,8 @@ namespace Archon {
     }
 
     if (error==ERROR) {
-      message << "ERROR:  malformed reply: " << reply;
-      logwrite(function, message.str());
+      message << "malformed reply: " << reply << " to Archon command " << cmd.str() << ": Expected PARAMETERn=PARAMNAME=VALUE";
+      this->common.log_error( function, message.str() );
     }
     else {
       message.str(""); message << paramname << " = " << value;
@@ -719,17 +730,16 @@ namespace Archon {
     // Prepare to apply it to the system -- will be loaded on next EXTLOAD signal
     //
     scmd << "FASTPREPPARAM " << paramname << " " << value;
-    if (error == NO_ERROR) error = this->archon_cmd(scmd.str());
+    error = this->archon_cmd(scmd.str());
 
     if (error != NO_ERROR) {
-      message.str(""); message << "ERROR: writing parameter \"" << paramname << "=" << value << "\" to configuration memory";
-      logwrite(function, message.str());
+      message << "ERROR: writing parameter \"" << paramname << "=" << value << "\" to configuration memory";
     }
     else {
-      message.str(""); message << "parameter: " << paramname << " written to configuration memory";
-      logwrite(function, message.str());
+      message << "parameter: " << paramname << " written to configuration memory";
     }
 
+    logwrite( function, message.str() );
     return(error);
   }
   /**************** Archon::Interface::prep_parameter *************************/
@@ -750,16 +760,16 @@ namespace Archon {
     int error = NO_ERROR;
 
     scmd << "FASTLOADPARAM " << paramname << " " << value;
+    error = this->archon_cmd(scmd.str());
 
-    if (error == NO_ERROR) error = this->archon_cmd(scmd.str());
     if (error != NO_ERROR) {
-      message.str(""); message << "ERROR: loading parameter \"" << paramname << "=" << value << "\" into Archon";
-      logwrite(function, message.str());
+      message << "ERROR: loading parameter \"" << paramname << "=" << value << "\" into Archon";
     }
     else {
-      message.str(""); message << "parameter \"" << paramname << "=" << value << "\" loaded into Archon";
-      logwrite(function, message.str());
+      message << "parameter \"" << paramname << "=" << value << "\" loaded into Archon";
     }
+
+    logwrite( function, message.str() );
     return(error);
   }
   /**************** Archon::Interface::load_parameter *************************/
@@ -786,8 +796,7 @@ namespace Archon {
     //
     do {
       if ( (retval=this->archon_cmd(FETCHLOG, reply))!=NO_ERROR ) {          // send command here
-        message.str(""); message << "ERROR: " << retval << " calling FETCHLOG";
-        logwrite(function, message.str());
+        logwrite( function, "ERROR: calling FETCHLOG" );
         return(retval);
       }
       if (reply != "(null)") {
@@ -876,7 +885,6 @@ namespace Archon {
    *
    */
   long Interface::load_firmware(std::string acffile, std::string &retstring) {
-logwrite("load_firmware", "two arg");
     return( this->load_firmware( acffile ) );
   }
   /**************** Archon::Interface::load_firmware **************************/
@@ -930,13 +938,13 @@ logwrite("load_firmware", "two arg");
       filestream.open(acffile, std::ios_base::in);
     }
     catch(...) {
-      message << "ERROR: opening acf file " << acffile << ": " << std::strerror(errno);
-      logwrite(function, message.str());
+      message << "opening acf file " << acffile << ": " << std::strerror(errno);
+      this->common.log_error( function, message.str() );
       return ERROR;
     }
     if ( ! filestream.is_open() || ! filestream.good() ) {
-      message << "ERROR: acf file " << acffile << " not open";
-      logwrite(function, message.str());
+      message << "acf file " << acffile << " could not be opened";
+      this->common.log_error( function, message.str() );
       return ERROR;
     }
 
@@ -949,11 +957,13 @@ logwrite("load_firmware", "two arg");
     // The downside is that bias voltages, temperatures, etc are not updated 
     // until you give a "POLLON". 
     //
-    if (error == NO_ERROR) error = this->archon_cmd(POLLOFF);
+    error = this->archon_cmd(POLLOFF);
 
     // clear configuration memory for this controller
     //
     if (error == NO_ERROR) error = this->archon_cmd(CLEARCONFIG);
+
+    if ( error != NO_ERROR ) { logwrite( function, "ERROR: could not prepare Archon for new ACF" ); return error; }
 
     // Any failure after clearing the configuration memory will mean
     // no firmware is loaded.
@@ -982,8 +992,8 @@ logwrite("load_firmware", "two arg");
           line.erase(line.find("]"), 1);         // erase the closing ] bracket
         }
         catch(...) {
-          message.str(""); message << "ERROR: malformed mode section: " << savedline << ": expected [MODE_xxxx]";
-          logwrite(function, message.str());
+          message.str(""); message << "malformed mode section: " << savedline << ": expected [MODE_xxxx]";
+          this->common.log_error( function, message.str() );
 	  filestream.close();
           return ERROR;
         }
@@ -995,8 +1005,8 @@ logwrite("load_firmware", "two arg");
           // and put into the modemap
           //
           if ( this->modemap.find(mode) != this->modemap.end() ) {
-            message.str(""); message << "ERROR: duplicate definition of mode: " << mode << ": load aborted";
-            logwrite(function, message.str());
+            message.str(""); message << "duplicate definition of mode: " << mode << ": load aborted";
+            this->common.log_error( function, message.str() );
 	    filestream.close();
             return ERROR;
           }
@@ -1008,8 +1018,8 @@ logwrite("load_firmware", "two arg");
           }
         }
         else {                                   // somehow there's no xxx left after removing "[MODE_" and "]"
-          message.str(""); message << "ERROR: malformed mode section: " << savedline << ": expected [MODE_xxxx]";
-          logwrite(function, message.str());
+          message.str(""); message << "malformed mode section: " << savedline << ": expected [MODE_xxxx]";
+          this->common.log_error( function, message.str() );
 	  filestream.close();
           return ERROR;
         }
@@ -1080,8 +1090,8 @@ logwrite("load_firmware", "two arg");
             value = tokens[1];
           }
           else {
-            message.str(""); message << "ERROR: malformed ACF line: " << savedline << ": expected KEY=VALUE";
-            logwrite(function, message.str());
+            message.str(""); message << "malformed ACF line: " << savedline << ": expected KEY=VALUE";
+            this->common.log_error( function, message.str() );
 	    filestream.close();
             return ERROR;
           }
@@ -1114,8 +1124,8 @@ logwrite("load_firmware", "two arg");
           }
         }
         catch ( ... ) {
-          message.str(""); message << "ERROR: extracting KEY=VALUE pair from ACF line: " << savedline;
-          logwrite(function, message.str());
+          message.str(""); message << "extracting KEY=VALUE pair from ACF line: " << savedline;
+          this->common.log_error( function, message.str() );
           filestream.close();
           return ERROR;
         }
@@ -1130,8 +1140,8 @@ logwrite("load_firmware", "two arg");
         line = line.substr(5);                                            // strip off the "ARCH:" portion
         Tokenize(line, tokens, "=");                                      // separate into KEY, VALUE tokens
         if (tokens.size() != 2) {
-          message.str(""); message << "ERROR: malformed ARCH line: " << savedline << ": expected ARCH:KEY=VALUE";
-          logwrite(function, message.str());
+          message.str(""); message << "malformed ARCH line: " << savedline << ": expected ARCH:KEY=VALUE";
+          this->common.log_error( function, message.str() );
 	  filestream.close();
           return ERROR;
         }
@@ -1148,8 +1158,8 @@ logwrite("load_firmware", "two arg");
           this->modemap[mode].geometry.amps[1] = std::stoi( tokens[1] );
         }
         else {
-          message.str(""); message << "ERROR: unrecognized internal parameter specified: "<< tokens[0];
-          logwrite(function, message.str());
+          message.str(""); message << "unrecognized internal parameter specified: "<< tokens[0];
+          this->common.log_error( function, message.str() );
 	  filestream.close();
           return(ERROR);
         }
@@ -1166,8 +1176,8 @@ logwrite("load_firmware", "two arg");
         // The token left of "=" is the keyword. Immediate right is the value
         Tokenize(line, tokens, "=");
         if (tokens.size() != 2) {                                         // need at least two tokens at this point
-          message.str(""); message << "ERROR: malformed FITS command: " << savedline << ": expected KEYWORD=value/comment";
-          logwrite(function, message.str());
+          message.str(""); message << "malformed FITS command: " << savedline << ": expected KEYWORD=value/comment";
+          this->common.log_error( function, message.str() );
           filestream.close();
           return(ERROR);
         }
@@ -1193,10 +1203,10 @@ logwrite("load_firmware", "two arg");
         }
 
         if (tokens.size() > 2) {       // everything below this has been covered
-          message.str(""); message << "ERROR: malformed FITS command: " << savedline << ": expected KEYWORD=VALUE/COMMENT";
-          logwrite(function, message.str());
-          message.str(""); message << "ERROR: too many \"/\" in comment string? " << keystring;
-          logwrite(function, message.str());
+          message.str(""); message << "malformed FITS command: " << savedline << ": expected KEYWORD=VALUE/COMMENT";
+          this->common.log_error( function, message.str() );
+          message.str(""); message << "too many \"/\" in comment string? " << keystring;
+          this->common.log_error( function, message.str() );
           filestream.close();
           return(ERROR);
         }
@@ -1223,8 +1233,8 @@ logwrite("load_firmware", "two arg");
         Tokenize(line, tokens, "=");                  // separate into PARAMETERn, ParameterName, value tokens
 
         if (tokens.size() != 3) {
-          message.str(""); message << "ERROR: malformed paramter line: " << savedline << ": expected PARAMETERn=Param=value";;
-          logwrite(function, message.str());
+          message.str(""); message << "malformed paramter line: " << savedline << ": expected PARAMETERn=Param=value";;
+          this->common.log_error( function, message.str() );
           filestream.close();
           return ERROR;
         }
@@ -1354,7 +1364,7 @@ logwrite("load_firmware", "two arg");
     // No point in trying anything if no firmware has been loaded yet
     //
     if ( ! this->firmwareloaded ) {
-      logwrite(function, "ERROR: no firmware loaded");
+      this->common.log_error( function, "no firmware loaded" );
       return(ERROR);
     }
 
@@ -1364,8 +1374,8 @@ logwrite("load_firmware", "two arg");
     // and put into the modemap...
     //
     if (this->modemap.find(mode) == this->modemap.end()) {
-      message.str(""); message << "ERROR: undefined mode " << mode << " in ACF file " << this->common.firmware[0];
-      logwrite(function, message.str());
+      message.str(""); message << "undefined mode " << mode << " in ACF file " << this->common.firmware[0];
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -1373,7 +1383,7 @@ logwrite("load_firmware", "two arg");
     //
     if ( load_mode_settings(mode) != NO_ERROR) {
       message.str(""); message << "ERROR: failed to load mode settings for mode: " << mode;
-      logwrite(function, message.str());
+      logwrite( function, message.str() );
       return(ERROR);
     }
 
@@ -1393,13 +1403,19 @@ logwrite("load_firmware", "two arg");
     logwrite(function, message.str());
 #endif
 
+    // get out if any errors at this point
+    //
+    if ( error != NO_ERROR ) { logwrite( function, "ERROR: one or more internal variables missing from configmap" ); return error; }
+
     int num_detect = this->modemap[mode].geometry.num_detect;             // for convenience
 
     // set current number of Archon buffers and resize local memory
+    // get out if an error
     //
     int bigbuf=-1;
     if (error==NO_ERROR) error = get_configmap_value("BIGBUF", bigbuf);   // get value of BIGBUF from loaded acf file
     this->camera_info.activebufs = (bigbuf==1) ? 2 : 3;                   // set number of active buffers based on BIGBUF
+    if ( error != NO_ERROR ) { logwrite( function, "ERROR: unable to read BIGBUF from ACF" ); return error; }
 
     // There is one special reserved mode name, "RAW"
     //
@@ -1455,28 +1471,26 @@ logwrite("load_firmware", "two arg");
       message.str(""); message << "[DEBUG] this->camera_info.detector_pixels[1] (LINECOUNT) = " << this->camera_info.detector_pixels[1];
       logwrite(function, message.str());
 #endif
+      if ( error != NO_ERROR ) { logwrite( function, "ERROR: unable to get PIXELCOUNT,LINECOUNT from ACF" ); return error; }
     }
 
     // set bitpix based on SAMPLEMODE
     //
     int samplemode=-1;
     if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode); // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
-    if (samplemode < 0) {
-      message.str(""); message << "ERROR: bad or missing SAMPLEMODE from " << this->common.firmware[0];
-      logwrite(function, message.str());
-      return (ERROR);
-    }
+    if ( error != NO_ERROR ) { logwrite( function, "ERROR: unable to get SAMPLEMODE from ACF" ); return error; }
+    if (samplemode < 0) { this->common.log_error( function, "bad or missing SAMPLEMODE from ACF" ); return ERROR; }
     this->camera_info.bitpix = (samplemode==0) ? 16 : 32;
 
     // Load parameters and Apply CDS/Deint configuration if any of them changed
     //
-    if ((error == NO_ERROR) && paramchanged)  error = this->archon_cmd(LOADPARAMS);
-    if ((error == NO_ERROR) && configchanged) error = this->archon_cmd(APPLYCDS);
+    if ((error == NO_ERROR) && paramchanged)  error = this->archon_cmd(LOADPARAMS);  // TODO I think paramchanged is never set!
+    if ((error == NO_ERROR) && configchanged) error = this->archon_cmd(APPLYCDS);    // TODO I think configchaned is never set!
 
     // Get the current frame buffer status
     if (error == NO_ERROR) error = this->get_frame_status();
     if (error != NO_ERROR) {
-      logwrite(function, "ERROR: unable to get frame status");
+      logwrite( function, "ERROR: unable to get frame status" );
       return(error);
     }
 
@@ -1493,13 +1507,13 @@ logwrite("load_firmware", "two arg");
       else
       if (this->camera_info.bitpix == 32) error = this->camera_info.set_axes(FLOAT_IMG);  // 32 bit image is float
       else {
-        message.str(""); message << "ERROR: bad bitpix " << this->camera_info.bitpix;
-        logwrite(function, message.str());
+        message.str(""); message << "bad bitpix " << this->camera_info.bitpix << ": expected 16 | 32";
+        this->common.log_error( function, message.str() );
         return (ERROR);
       }
     }
     if (error != NO_ERROR) {
-      logwrite(function, "ERROR: setting axes");
+      this->common.log_error( function, "setting axes" );
       return (ERROR);
     }
 
@@ -1508,7 +1522,7 @@ logwrite("load_firmware", "two arg");
     this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
 
     if (this->image_data_bytes == 0) {
-      logwrite(function, "ERROR: image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file");
+      this->common.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
       error = ERROR;
     }
 
@@ -1590,7 +1604,8 @@ logwrite("load_firmware", "two arg");
       logwrite(function, message.str());
     }
     else {
-      logwrite(function, errstr.str());
+      logwrite( function, errstr.str() );
+      return error;
     }
 
     /**
@@ -1629,7 +1644,8 @@ logwrite("load_firmware", "two arg");
         else
         if ( adchan.find("AM") != std::string::npos ) admax = MAXADMCHANS;
         else {
-          message.str(""); message << "ERROR: bad tapline syntax. Expected ADn or AMn but got " << adchan;
+          message.str(""); message << "bad tapline syntax. Expected ADn or AMn but got " << adchan;
+          this->common.log_error( function, message.str() );
           return( ERROR );
         }
 
@@ -1647,17 +1663,17 @@ logwrite("load_firmware", "two arg");
           adnum = std::stoi(adchan) - 1;
         }
         catch (std::invalid_argument &) {
-          message.str(""); message << "ERROR: unable to convert AD number \'" << adchan << "\' to integer";
-          logwrite(function, message.str());
+          message.str(""); message << "unable to convert AD number \'" << adchan << "\' to integer";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          logwrite(function, "AD number out of integer range");
+          this->common.log_error( function, "AD number out of integer range" );
           return(ERROR);
         }
         if ( (adnum < 0) || (adnum > admax) ) {
-          message.str(""); message << "ERROR: ADC channel " << adnum << " outside range {0:" << admax << "}";
-          logwrite(function, message.str());
+          message.str(""); message << "ADC channel " << adnum << " outside range {0:" << admax << "}";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         // Now that adnum is OK, convert next two tokens to gain, offset
@@ -1668,13 +1684,13 @@ logwrite("load_firmware", "two arg");
           offset_try = std::stoi( tokens[2] );      // offset as function of AD channel
         }
         catch (std::invalid_argument &) {
-          message.str(""); message << "ERROR: unable to convert GAIN \"" << tokens[1] << "\" and/or OFFSET \"" << tokens[2] << "\" to integer";
-          logwrite( function, message.str() );
+          message.str(""); message << "unable to convert GAIN \"" << tokens[1] << "\" and/or OFFSET \"" << tokens[2] << "\" to integer";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: GAIN " << tokens[1] << ", OFFSET " << tokens[2] << " outside integer range";
-          logwrite(function, message.str());
+          message.str(""); message << "GAIN " << tokens[1] << ", OFFSET " << tokens[2] << " outside integer range";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         // Now assign the gain,offsets to their appropriate position in the vectors
@@ -1684,10 +1700,10 @@ logwrite("load_firmware", "two arg");
           this->offset.at( adnum ) = offset_try;    // offset as function of AD channel
         }
         catch ( std::out_of_range & ) {
-          message.str(""); message << "ERROR: AD# " << adnum << " outside range {0:" << (this->gain.size() & this->offset.size()) << "}";
-          logwrite( function, message.str() );
+          message.str(""); message << "AD# " << adnum << " outside range {0:" << (this->gain.size() & this->offset.size()) << "}";
+          this->common.log_error( function, message.str() );
           if ( this->gain.size()==0 || this->offset.size()==0 ) {
-            logwrite( function, "ERROR: gain/offset vectors are empty: no ADC or ADM board installed?" );
+            this->common.log_error( function, "gain/offset vectors are empty: no ADC or ADM board installed?" );
           }
           return( ERROR );
         }
@@ -1721,7 +1737,7 @@ logwrite("load_firmware", "two arg");
     // send FRAME command to get frame buffer status
     //
     if ( (error = this->archon_cmd(FRAME, reply)) ) {
-      logwrite(function, "ERROR: sending FRAME command");
+      logwrite( function, "ERROR: sending FRAME command" );
       return(error);
     }
 
@@ -1747,9 +1763,9 @@ logwrite("load_firmware", "two arg");
       //
       if (subtokens.size() != 2) {
         message.str("");
-        message << "ERROR: invalid number of tokens (" << subtokens.size() << ") in FRAME message:";
+        message << "expected 2 but received invalid number of tokens (" << subtokens.size() << ") in FRAME message:";
         for (size_t i=0; i<subtokens.size(); i++) message << " " << subtokens[i];
-        logwrite(function, message.str());
+        this->common.log_error( function, message.str() );
         return(ERROR);  // We could continue; but if one is bad then we could miss seeing a larger problem
       }
 
@@ -1774,11 +1790,13 @@ logwrite("load_firmware", "two arg");
             value  = std::stoi( subtokens[1] );                     // this value will get assigned to the corresponding parameter
         }
         catch (std::invalid_argument &) {
-          logwrite(function, "ERROR: unable to convert buffer or value to integer");
+          message.str(""); message << "unable to convert buffer: " << subtokens[0] << " or value: " << subtokens[1] << " from FRAME message to integer. Expected BUFnSOMETHING=nnnn";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          logwrite(function, "buffer or value out of integer range");
+          message.str(""); message << "buffer: " << subtokens[0] << " or value: " << subtokens[1] << " from FRAME message outside integer range. Expected BUFnSOMETHING=nnnn";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
       }
@@ -1791,8 +1809,8 @@ logwrite("load_firmware", "two arg");
       //
       if (subtokens[0].compare(0, 3, "BUF")==0) {
         if (bufnum < 1 || bufnum > Archon::nbufs) {
-          message.str(""); message << "ERROR: buffer number " << bufnum << " outside range {1:" << Archon::nbufs << "}";
-          logwrite(function, message.str());
+          message.str(""); message << "buffer number " << bufnum << " from FRAME message outside range {1:" << Archon::nbufs << "}";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         bufnum--;   // subtract 1 because it is 1-based in the message but need 0-based for the indexing
@@ -1820,8 +1838,8 @@ logwrite("load_firmware", "two arg");
       newestframe = this->frame.bufframen[this->frame.index];
     }
     else {
-      message.str(""); message << "ERROR: index " << this->frame.index << " exceeds number of buffers " << this->frame.bufframen.size();
-      logwrite(function, message.str());
+      message.str(""); message << "newest buf " << this->frame.index << " from FRAME message exceeds number of buffers " << this->frame.bufframen.size();
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -1883,11 +1901,10 @@ logwrite("load_firmware", "two arg");
    * the "FRAME" command. See Archon::Interface::get_frame_status()
    *
    */
-  long Interface::print_frame_status() {
+  void Interface::print_frame_status() {
     std::string function = "Archon::Interface::print_frame_status";
     std::stringstream message;
     int bufn;
-    int error = NO_ERROR;
     char statestr[Archon::nbufs][4];
 
     // write as log message
@@ -1921,7 +1938,7 @@ logwrite("load_firmware", "two arg");
       logwrite(function, message.str());
       message.str("");
     }
-    return(error);
+    return;
   }
   /**************** Archon::Interface::print_frame_status *********************/
 
@@ -1942,8 +1959,8 @@ logwrite("load_firmware", "two arg");
     sscmd.str("");
     sscmd << "LOCK" << buffer;
     if ( this->archon_cmd(sscmd.str()) ) {
-      message.str(""); message << "ERROR: locking frame buffer " << buffer;
-      logwrite(function, message.str());
+      message.str(""); message << "ERROR: sending Archon command to lock frame buffer " << buffer;
+      logwrite( function, message.str() );
       return(ERROR);
     }
     return (NO_ERROR);
@@ -1983,8 +2000,8 @@ logwrite("load_firmware", "two arg");
     // to be two tokens
     //
     if (tokens.size() != 2) {
-      message.str(""); message << "ERROR: unrecognized timer response: " << reply;
-      logwrite(function, message.str());
+      message.str(""); message << "unrecognized timer response: " << reply << ". Expected TIMER=xxxx";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -1993,8 +2010,8 @@ logwrite("load_firmware", "two arg");
     std::string timer_str = tokens[1]; 
     try { timer_str.erase(timer_str.find("\n"), 1); } catch(...) { }  // remove newline
     if (!std::all_of(timer_str.begin(), timer_str.end(), ::isxdigit)) {
-      message.str(""); message << "ERROR: unrecognized timer value: " << timer_str;
-      logwrite(function, message.str());
+      message.str(""); message << "unrecognized timer value: " << timer_str << ". Expected hexadecimal string";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2023,13 +2040,13 @@ logwrite("load_firmware", "two arg");
     uint64_t maxaddr = maxoffset + maxblocks;
 
     if (bufaddr < 0xA0000000 || bufaddr > maxaddr) {
-      message.str(""); message << "ERROR: requested address 0x" << std::hex << bufaddr << " outside range {0xA0000000:0x" << maxaddr << "}";
-      logwrite(function, message.str());
+      message.str(""); message << "fetch Archon buffer requested address 0x" << std::hex << bufaddr << " outside range {0xA0000000:0x" << maxaddr << "}";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
     if (bufblocks > maxblocks) {
-      message.str(""); message << "ERROR: requested blocks 0x" << std::hex << bufblocks << " outside range {0:0x" << maxblocks << "}";
-      logwrite(function, message.str());
+      message.str(""); message << "fetch Archon buffer requested blocks 0x" << std::hex << bufblocks << " outside range {0:0x" << maxblocks << "}";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2044,12 +2061,13 @@ logwrite("load_firmware", "two arg");
       std::transform( scmd.begin(), scmd.end(), scmd.begin(), ::toupper );  // make uppercase
     }
     catch (...) {
-      logwrite(function, "ERROR: converting command to uppercase");
+      message.str(""); message << "converting command: " << sscmd.str() << " to uppercase";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
     if (this->archon_cmd(scmd) == ERROR) {
-      logwrite(function, "ERROR: sending FETCH command. Aborting read.");
+      logwrite( function, "ERROR: sending FETCH command. Aborting read." );
       this->archon_cmd(UNLOCK);                                             // unlock all buffers
       return(ERROR);
     }
@@ -2085,14 +2103,14 @@ logwrite("load_firmware", "two arg");
     long error = NO_ERROR;
 
     if ( ! this->modeselected ) {
-      logwrite(function, "ERROR: no mode selected");
+      this->common.log_error( function, "no mode selected" );
       return ERROR;
     }
 
     int rawenable = this->modemap[this->camera_info.current_observing_mode].rawenable;
 
     if (rawenable == -1) {
-      logwrite(function, "ERROR: RAWENABLE is undefined");
+      this->common.log_error( function, "RAWENABLE is undefined" );
       return ERROR;
     }
 
@@ -2103,12 +2121,14 @@ logwrite("load_firmware", "two arg");
       // the RAWENABLE parameter must be set in the ACF file, in order to read RAW data
       //
       if (rawenable==0) {
-        logwrite(function, "ERROR: observing mode is RAW but RAWENABLE=0 -- change mode or set RAWENABLE?");
+        this->common.log_error( function, "observing mode is RAW but RAWENABLE=0 -- change mode or set RAWENABLE?" );
         return ERROR;
       }
       else {
-        if (error == NO_ERROR) error = this->read_frame(Common::FRAME_RAW);       // read raw frame
-        if (error == NO_ERROR) error = this->write_frame();                       // write raw frame
+        error = this->read_frame(Common::FRAME_RAW);                              // read raw frame
+        if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading raw frame" ); return error; }
+        error = this->write_frame();                                              // write raw frame
+        if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing raw frame" ); return error; }
       }
     }
 
@@ -2116,8 +2136,10 @@ logwrite("load_firmware", "two arg");
     // datacube was already set = true in the expose function
     //
     else {
-      if (error == NO_ERROR) error = this->read_frame(Common::FRAME_IMAGE);       // read image frame
-      if (error == NO_ERROR) error = this->write_frame();                         // write image frame
+      error = this->read_frame(Common::FRAME_IMAGE);                              // read image frame
+      if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading image frame" ); return error; }
+      error = this->write_frame();                                                // write image frame
+      if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing image frame" ); return error; }
 
       // If mode is not RAW but RAWENABLE=1, then we will first read an image
       // frame (just done above) and then a raw frame (below). To do that we
@@ -2130,22 +2152,24 @@ logwrite("load_firmware", "two arg");
         logwrite(function, "[DEBUG] switching to mode=RAW");
 #endif
         std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode so we can come back to it
-        if (error == NO_ERROR) error = this->set_camera_mode("raw");      // switch to raw mode
+        error = this->set_camera_mode("raw");                             // switch to raw mode
+        if ( error != NO_ERROR ) { logwrite( function, "ERROR: switching to raw mode" ); return error; }
 
 #ifdef LOGLEVEL_DEBUG
         message.str(""); message << "error=" << error << "[DEBUG] calling read_frame(Common::FRAME_RAW) if error=0"; logwrite(function, message.str());
 #endif
-        if (error == NO_ERROR) error = this->read_frame(Common::FRAME_RAW);       // read raw frame
-/////   message.str(""); message << "[DEBUG] error=" << error << " calling write_raw() if error=0"; logwrite(function, message.str());
-/////   if (error == NO_ERROR) error = this->write_raw();                 // write raw frame
+        error = this->read_frame(Common::FRAME_RAW);                      // read raw frame
+        if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading raw frame" ); return error; }
 #ifdef LOGLEVEL_DEBUG
         message.str(""); message << "error=" << error << "[DEBUG] calling write_frame() for raw data if error=0"; logwrite(function, message.str());
 #endif
-        if (error == NO_ERROR) error = this->write_frame();                 // write raw frame
+        error = this->write_frame();                                      // write raw frame
+        if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing raw frame" ); return error; }
 #ifdef LOGLEVEL_DEBUG
         message.str(""); message << "error=" << error << "[DEBUG] switching back to original mode if error=0"; logwrite(function, message.str());
 #endif
-        if (error == NO_ERROR) error = this->set_camera_mode(orig_mode);  // switch back to the original mode
+        error = this->set_camera_mode(orig_mode);                         // switch back to the original mode
+        if ( error != NO_ERROR ) { logwrite( function, "ERROR: switching back to previous mode" ); return error; }
       }
     }
 
@@ -2188,21 +2212,21 @@ logwrite("load_firmware", "two arg");
     //
     if ( (this->image_data == NULL)    ||
          (this->image_data_bytes == 0) ) {
-      logwrite(function, "ERROR: image buffer not ready");
+      this->common.log_error( function, "image buffer not ready" );
 //    return(ERROR);
     }
 
     if ( this->image_data_allocated != this->image_data_bytes ) {
-      message.str(""); message << "ERROR: incorrect image buffer size: " 
+      message.str(""); message << "incorrect image buffer size: " 
                                << this->image_data_allocated << " bytes allocated but " << this->image_data_bytes << " needed";
-      logwrite(function, message.str());
+      this->common.log_error( function, message.str() );
 //    return(ERROR);
     }
 ***/
 
     error = this->prepare_image_buffer();
     if (error == ERROR) {
-      logwrite(function, "ERROR: unable to allocate an image buffer");
+      logwrite( function, "ERROR: unable to allocate an image buffer" );
       return(ERROR);
     }
 
@@ -2213,7 +2237,7 @@ logwrite("load_firmware", "two arg");
 //  error = this->get_frame_status();
 //
 //  if (error != NO_ERROR) {
-//    logwrite(function, "ERROR: unable to get frame status");
+//    this->common.log_error( function, "unable to get frame status");
 //    return(error);
 //  }
 
@@ -2222,8 +2246,8 @@ logwrite("load_firmware", "two arg");
     bufready = this->frame.index + 1;
 
     if (bufready < 1 || bufready > this->camera_info.activebufs) {
-      message.str(""); message << "ERROR: invalid buffer " << bufready;
-      logwrite(function, message.str());
+      message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->camera_info.activebufs << "}";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2233,7 +2257,7 @@ logwrite("load_firmware", "two arg");
 
     // Lock the frame buffer before reading it
     //
-    if ((error=this->lock_buffer(bufready)) == ERROR) return (error);
+    if ( this->lock_buffer(bufready) == ERROR) { logwrite( function, "ERROR locking frame buffer" ); return (ERROR); }
 
     // Send the FETCH command to read the memory buffer from the Archon backplane.
     // Archon replies with one binary response per requested block. Each response
@@ -2257,8 +2281,9 @@ logwrite("load_firmware", "two arg");
         (unsigned int) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
         break;
 
-      default:
-        logwrite(function, "ERROR: unknown frame type specified");
+      default:  // should be impossible
+        message.str(""); message << "unknown frame type specified: " << frame_type << ": expected FRAME_RAW | FRAME_IMAGE";
+        this->common.log_error( function, message.str() );
         return(ERROR);
         break;
     }
@@ -2271,6 +2296,10 @@ logwrite("load_firmware", "two arg");
     // This will take the archon_busy semaphore, but not release it -- must release in this function!
     //
     error = this->fetch(bufaddr, bufblocks);
+    if ( error != NO_ERROR ) {
+      logwrite( function, "ERROR: fetching Archon buffer" );
+      return error;
+    }
 
     // Read the data from the connected socket into memory, one block at a time
     //
@@ -2281,10 +2310,10 @@ logwrite("load_firmware", "two arg");
 
       // Are there data to read?
       if ( (retval=this->archon.Poll()) <= 0) {
-        if (retval==0) logwrite(function, "Poll timeout");
-        if (retval<0)  logwrite(function, "Poll error");
-        error = ERROR;
-        break;
+        if (retval==0) { message.str(""); message << "Poll timeout waiting for Archon frame data"; error = ERROR;   }  // TODO should error=TIMEOUT?
+        if (retval<0)  { message.str(""); message << "Poll error waiting for Archon frame data";   error = ERROR;   }
+        if ( error != NO_ERROR ) this->common.log_error( function, message.str() );
+        break;                         // breaks out of for loop
       }
 
       // Wait for a block+header Bytes to be available
@@ -2297,34 +2326,35 @@ logwrite("load_firmware", "two arg");
         std::chrono::duration<double> diff = now-start;          // calculate the duration
         if (diff.count() > 1) {                                  // break while loop if duration > 1 second
           std::cerr << "\n";
-          logwrite(function, "ERROR: timeout waiting for data from Archon");
+          this->common.log_error( function, "timeout waiting for data from Archon" );
           error = ERROR;
-          break;
+          break;                       // breaks out of while loop
         }
       }
+      if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
 
       // Check message header
       //
       SNPRINTF(check, "<%02X:", this->msgref);
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
-        message.str(""); message << "ERROR: " << retval << " reading header";
-        logwrite(function, message.str());
+        message.str(""); message << "code " << retval << " reading Archon frame header";
+        this->common.log_error( function, message.str() );
         error = ERROR;
-        break;
+        break;                         // break out of for loop
       }
       if (header[0] == '?') {  // Archon retured an error
-        message.str(""); message << "ERROR: reading " << (frame_type==Common::FRAME_RAW?"raw ":"image ") << " data";
-        logwrite(function, message.str());
+        message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Common::FRAME_RAW?"raw ":"image ") << " data";
+        this->common.log_error( function, message.str() );
         this->fetchlog();      // check the Archon log for error messages
         error = ERROR;
-        break;
+        break;                         // break out of for loop
       }
       else if (strncmp(header, check, 4) != 0) {
         message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Common::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
-        logwrite(function, message.str());
+        this->common.log_error( function, message.str() );
         error = ERROR;
-        break;
+        break;                         // break out of for loop
       }
 
       // Read the frame contents
@@ -2350,10 +2380,12 @@ logwrite("load_firmware", "two arg");
 
     std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
 
-    if (block < bufblocks) {
-      message.str(""); message << "ERROR: incomplete frame read " << std::dec 
+    // If we broke out of the for loop for an error then report incomplete read
+    //
+    if ( error==ERROR || block < bufblocks) {
+      message.str(""); message << "incomplete frame read " << std::dec 
                                << totalbytesread << " bytes: " << block << " of " << bufblocks << " 1024-byte blocks";
-      logwrite(function, message.str());
+      logwrite( function, message.str() );
     }
 
     // Unlock the frame buffer
@@ -2370,7 +2402,7 @@ logwrite("load_firmware", "two arg");
     // Throw an error for any other errors
     //
     else {
-      logwrite(function, "ERROR: reading Archon camera data to memory!");
+      logwrite( function, "ERROR: reading Archon camera data to memory!" );
     }
     return(error);
   }
@@ -2402,7 +2434,7 @@ logwrite("load_firmware", "two arg");
     long        error;
 
     if ( ! this->modeselected ) {
-      logwrite(function, "ERROR: no mode selected");
+      this->common.log_error( function, "no mode selected" );
       return ERROR;
     }
 
@@ -2430,6 +2462,7 @@ logwrite("load_firmware", "two arg");
 
 //      error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
         error = this->fits_file.write_image(fbuf, this->camera_info); // write the image to disk
+        if ( error != NO_ERROR ) { this->common.log_error( function, "writing 32-bit image to disk" ); }
         if (fbuf != NULL) {
           delete [] fbuf;
         }
@@ -2443,6 +2476,7 @@ logwrite("load_firmware", "two arg");
           cbuf16 = (uint16_t *)this->image_data;                          // cast to 16b unsigned int
 //        error = fits_file.write_image(cbuf16, this->fits_info);         // write the image to disk //TODO
           error = this->fits_file.write_image(cbuf16, this->camera_info); // write the image to disk
+          if ( error != NO_ERROR ) { this->common.log_error( function, "writing 16-bit raw image to disk" ); }
         }
         else
         if (this->camera_info.datatype == SHORT_IMG) {
@@ -2453,11 +2487,12 @@ logwrite("load_firmware", "two arg");
             ibuf[pix] = cbuf16s[pix] - 32768;                             // subtract 2^15 from every pixel
           }
           error = this->fits_file.write_image(ibuf, this->camera_info);   // write the image to disk
+          if ( error != NO_ERROR ) { this->common.log_error( function, "writing 16-bit image to disk" ); }
           if (ibuf != NULL) { delete [] ibuf; }
         }
         else {
-          message.str(""); message << "ERROR: unsupported 16 bit datatype " << this->camera_info.datatype;
-          logwrite(function, message.str());
+          message.str(""); message << "unsupported 16 bit datatype " << this->camera_info.datatype;
+          this->common.log_error( function, message.str() );
           error = ERROR;
         }
         break;
@@ -2466,9 +2501,9 @@ logwrite("load_firmware", "two arg");
       // shouldn't happen
       //
       default:
-//      message.str(""); message << "ERROR: unrecognized bits per pixel: " << this->fits_info.bitpix; //TODO 
-        message.str(""); message << "ERROR: unrecognized bits per pixel: " << this->camera_info.bitpix;
-        logwrite(function, message.str());
+//      message.str(""); message << "unrecognized bits per pixel: " << this->fits_info.bitpix; //TODO 
+        message.str(""); message << "unrecognized bits per pixel: " << this->camera_info.bitpix;
+        this->common.log_error( function, message.str() );
         error = ERROR;
         break;
     }
@@ -2481,12 +2516,12 @@ logwrite("load_firmware", "two arg");
         this->camera_info.extension++;                                // increment extension for cubes
         message.str(""); message << "DATACUBE:" << this->camera_info.extension << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
         this->common.message.enqueue( message.str() );
-        logwrite( function, message.str() );
+        error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
       }
       logwrite(function, "frame write complete");
     }
     else {
-      logwrite(function, "ERROR: writing image");
+      logwrite( function, "ERROR: writing image" );
     }
 
     return(error);
@@ -2507,7 +2542,6 @@ logwrite("load_firmware", "two arg");
     std::stringstream message;
 
     unsigned short *cbuf16;              //!< used to cast char buf into 16 bit int
-             int    error = NO_ERROR;
 
     // Cast the image buffer of chars into integers to convert four 8-bit values 
     // into a 16-bit value
@@ -2535,8 +2569,8 @@ logwrite("load_firmware", "two arg");
       if (fits_create_file( &FP, this->camera_info.fits_name.c_str(), &status ) ) {
         message.str("");
         message << "cfitsio error " << status << " creating FITS file " << this->camera_info.fits_name;
-        logwrite(function, message.str());
-        error = ERROR;
+        this->common.log_error( function, message.str() );
+        return ERROR;
       }
     }
     else {
@@ -2549,8 +2583,8 @@ logwrite("load_firmware", "two arg");
       if (fits_open_file( &FP, this->camera_info.fits_name.c_str(), READWRITE, &status ) ) {
         message.str("");
         message << "cfitsio error " << status << " opening FITS file " << this->camera_info.fits_name;
-        logwrite(function, message.str());
-        error = ERROR;
+        this->common.log_error( function, message.str() );
+        return ERROR;
       }
     }
 
@@ -2562,8 +2596,8 @@ logwrite("load_firmware", "two arg");
     if ( fits_create_img( FP, USHORT_IMG, naxes, axes, &status) ) {
       message.str("");
       message << "fitsio error " << status << " creating FITS image for " << this->camera_info.fits_name;
-      logwrite(function, message.str());
-      error = ERROR;
+      this->common.log_error( function, message.str() );
+      return ERROR;
     }
 
     // supplemental header keywords
@@ -2576,8 +2610,8 @@ logwrite("load_firmware", "two arg");
     if ( fits_write_img( FP, TUSHORT, firstele, nelements, cbuf16, &status) ) {
       message.str("");
       message << "fitsio error " << status << " writing FITS image HDU to " << this->camera_info.fits_name;
-      logwrite(function, message.str());
-      error = ERROR;
+      this->common.log_error( function, message.str() );
+      return ERROR;
     }
 
     // close file
@@ -2586,11 +2620,11 @@ logwrite("load_firmware", "two arg");
     if ( fits_close_file( FP, &status ) ) {
       message.str("");
       message << "fitsio error " << status << " closing fits file " << this->camera_info.fits_name;
-      logwrite(function, message.str());
-      error = ERROR;
+      this->common.log_error( function, message.str() );
+      return ERROR;
     }
 
-    return error;
+    return NO_ERROR;
   }
   /**************** Archon::Interface::write_raw ******************************/
 
@@ -2611,15 +2645,15 @@ logwrite("load_firmware", "two arg");
 
     if ( key==NULL || newvalue==NULL ) {
       error = ERROR;
-      logwrite(function, "ERROR: key|value cannot have NULL");
+      this->common.log_error( function, "key|value cannot have NULL" );
     }
 
     else
 
     if ( this->configmap.find(key) == this->configmap.end() ) {
       error = ERROR;
-      message.str(""); message << "ERROR: key " << key << " not found in configmap";
-      logwrite(function, message.str());
+      message.str(""); message << "requested key " << key << " not found in configmap";
+      this->common.log_error( function, message.str() );
     }
 
     else
@@ -2655,7 +2689,7 @@ logwrite("load_firmware", "two arg");
       }
       else {
         message.str(""); message << "ERROR: config key=value: " << key << "=" << newvalue << " not written";
-        logwrite(function, message.str());
+        logwrite( function, message.str() );
       }
     }
     return(error);
@@ -2690,15 +2724,15 @@ logwrite("load_firmware", "two arg");
 
     if ( paramname==NULL || newvalue==NULL ) {
       error = ERROR;
-      logwrite(function, "ERROR: paramname|value cannot have NULL");
+      this->common.log_error( function, "paramname|value cannot have NULL" );
     }
 
     else
 
     if ( this->parammap.find(paramname) == this->parammap.end() ) {
       error = ERROR;
-      message.str(""); message << "ERROR: parameter \"" << paramname << "\" not found in parammap";
-      logwrite(function, message.str());
+      message.str(""); message << "parameter \"" << paramname << "\" not found in parammap";
+      this->common.log_error( function, message.str() );
     }
 
     /**
@@ -2729,8 +2763,11 @@ logwrite("load_firmware", "two arg");
       message.str(""); message << "sending archon_cmd(" << sscmd.str() << ")";
       logwrite(function, message.str());
       error=this->archon_cmd((char *)sscmd.str().c_str());   // send the WCONFIG command here
-      this->parammap[paramname].value = newvalue;            // save newvalue in the STL map
-      changed = true;
+      if ( error == NO_ERROR ) {
+        this->parammap[paramname].value = newvalue;            // save newvalue in the STL map
+        changed = true;
+      }
+      else logwrite( function, "ERROR: sending WCONFIG command" );
     } 
     
     return(error);
@@ -2785,8 +2822,8 @@ logwrite("load_firmware", "two arg");
     }
     else {
       message.str("");
-      message << "ERROR: key not found in configmap: " << key_in;
-      logwrite(function, message.str());
+      message << "requested key: " << key_in << " not found in configmap";
+      this->common.log_error( function, message.str() );
       return ERROR;
     }
   }
@@ -2821,7 +2858,7 @@ logwrite("load_firmware", "two arg");
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
     if ( ! this->modeselected ) {
-      logwrite(function, "ERROR: no mode selected");
+      this->common.log_error( function, "no mode selected" );
       return ERROR;
     }
 
@@ -2829,8 +2866,8 @@ logwrite("load_firmware", "two arg");
     // check to make sure it was set, or else expose won't work
     //
     if (this->exposeparam.empty()) {
-      message.str(""); message << "ERROR: EXPOSE_PARAM not defined in configuration file " << this->config.filename;
-      logwrite(function, message.str());
+      message.str(""); message << "EXPOSE_PARAM not defined in configuration file " << this->config.filename;
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2842,24 +2879,20 @@ logwrite("load_firmware", "two arg");
     if ( this->camera_info.exposure_time   == -1 ||
          this->camera_info.exposure_factor == -1 ||
          this->camera_info.exposure_unit.empty() ) {
-      logwrite( function, "exptime and/or longexposure have not been set--will read from Archon" );
+      logwrite( function, "NOTICE:exptime and/or longexposure have not been set--will read from Archon" );
+      this->common.message.enqueue( "NOTICE:exptime and/or longexposure have not been set--will read from Archon" );
 
       // read the Archon configuration memory
       //
       std::string etime, lexp;
-      if ( error == NO_ERROR ) { if ( (error=read_parameter( "exptime", etime )) != NO_ERROR ) logwrite( function, "ERROR reading \"exptime\" parameter from Archon" ); }
-      if ( error == NO_ERROR ) { if ( (error=read_parameter( "longexposure", lexp )) != NO_ERROR ) logwrite( function, "ERROR reading \"longexposure\" parameter from Archon" ); }
+      if ( read_parameter( "exptime", etime ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"exptime\" parameter from Archon" ); return ERROR; }
+      if ( read_parameter( "longexposure", lexp ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" ); return ERROR; }
 
       // Tell the server these values
       //
       std::string retval;
-      if ( error == NO_ERROR ) { if ( (error=this->exptime( etime, retval )) != NO_ERROR ) logwrite( function, "ERROR setting exptime" ); }
-      if ( error == NO_ERROR ) { if ( (error=this->longexposure( lexp, retval )) != NO_ERROR ) logwrite( function, "ERROR setting longexposure" ); }
-
-      if ( error != NO_ERROR ) {
-        logwrite( function, "unable to start exposure" );
-        return( ERROR );
-      }
+      if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
+      if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
     }
 
     // If nseq_in is not supplied then set nseq to 1
@@ -2874,13 +2907,13 @@ logwrite("load_firmware", "two arg");
         nseqstr = nseq_in;                                          // before trying to use it
       }
       catch (std::invalid_argument &) {
-        message.str(""); message << "ERROR: unable to convert sequences: " << nseq_in << " to integer";
-        logwrite(function, message.str());
+        message.str(""); message << "unable to convert sequences: " << nseq_in << " to integer";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
       catch (std::out_of_range &) {
-        message.str(""); message << "ERROR: sequences " << nseq_in << " outside integer range";
-        logwrite(function, message.str());
+        message.str(""); message << "sequences " << nseq_in << " outside integer range";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
     }
@@ -2893,7 +2926,7 @@ logwrite("load_firmware", "two arg");
     error = this->get_frame_status();  // TODO is this needed here?
 
     if (error != NO_ERROR) {
-      logwrite(function, "ERROR: unable to get frame status");
+      logwrite( function, "ERROR: unable to get frame status" );
       return(ERROR);
     }
     this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
@@ -2902,18 +2935,27 @@ logwrite("load_firmware", "two arg");
     //
     error = this->prep_parameter(this->exposeparam, nseqstr);
     if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
+    if ( error != NO_ERROR ) {
+      logwrite( function, "ERROR: could not initiate exposure" );
+      return( error );
+    }
 
     // get system time and Archon's timer after exposure starts
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
     //
-    if (error == NO_ERROR) {
-      this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-      error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
-      this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-      error=this->common.get_fitsname(this->camera_info.fits_name); // assemble the FITS filename
+    this->camera_info.start_time = get_timestamp();                 // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+    if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
+      logwrite( function, "ERROR: could not get start time" );
+      return( ERROR );
+    }
+    this->common.set_fitstime(this->camera_info.start_time);        // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+    error=this->common.get_fitsname(this->camera_info.fits_name);   // assemble the FITS filename
+    if ( error != NO_ERROR ) {
+      logwrite( function, "ERROR: couldn't validate fits filename" );
+      return( error );
     }
 
-    if (error == NO_ERROR) logwrite(function, "exposure started");
+    logwrite(function, "exposure started");
 
     // Copy the userkeys database object into camera_info
     //
@@ -2948,7 +2990,7 @@ logwrite("load_firmware", "two arg");
     // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
     // one extension for the image and a separate extension for raw data.
     //
-    if ( (error == NO_ERROR) && (mode != "RAW") && (this->modemap[mode].rawenable) ) {
+    if ( (mode != "RAW") && (this->modemap[mode].rawenable) ) {
       if ( !this->common.datacube() ) {                                   // if datacube not already set then it must be overridden here
         this->common.message.enqueue( "NOTICE:override datacube true" );  // let everyone know
         logwrite( function, "NOTICE:override datacube true" );
@@ -2963,7 +3005,13 @@ logwrite("load_firmware", "two arg");
 
     // Open the FITS file now for cubes
     //
-    if ( this->common.datacube() ) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+    if ( this->common.datacube() ) {
+      error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+      if ( error != NO_ERROR ) {
+        this->common.log_error( function, "couldn't open fits file" );
+        return( error );
+      }
+    }
 
 //  //TODO only use camera_info -- don't use fits_info -- is this OK? TO BE CONFIRMED
 //  this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer  //TODO
@@ -2979,44 +3027,80 @@ logwrite("load_firmware", "two arg");
     // then read the latest ready frame buffer to the host. If this
     // is a squence, then loop over all expected frames.
     //
-    if ( (error == NO_ERROR) && (mode != "RAW") ) {                 // If not raw mode then
+    if ( mode != "RAW" ) {                                          // If not raw mode then
       while (nseq-- > 0) {
 
         // Open a new FITS file for each frame when not using datacubes
         //
         if ( !this->common.datacube() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-          this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
+          if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
+            logwrite( function, "ERROR: could not get start time" );
+            return( ERROR );
+          }
           this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: couldn't validate fits filename" );
+            return( error );
+          }
           error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+          if ( error != NO_ERROR ) {
+            this->common.log_error( function, "couldn't open fits file" );
+            return( error );
+          }
         }
 
-        if (error==NO_ERROR && this->camera_info.exposure_time != 0) {  // wait for the exposure delay to complete (if there is one)
+        if ( this->camera_info.exposure_time != 0 ) {                   // wait for the exposure delay to complete (if there is one)
           error = this->wait_for_exposure();
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: waiting for exposure" );
+            return error;
+          }
         }
 
-        if (error==NO_ERROR) error = this->wait_for_readout();      // Wait for the readout into frame buffer,
-        if (error==NO_ERROR) error = read_frame();                  // then read the frame buffer to host (and write file) when frame ready.
+        error = this->wait_for_readout();                               // Wait for the readout into frame buffer,
+        if ( error != NO_ERROR ) {
+          logwrite( function, "ERROR: waiting for readout" );
+          return error;
+        }
 
-        if ( !this->common.datacube() ) {                           // Error or not, close the file.
+        error = read_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
+        if ( error != NO_ERROR ) {
+          logwrite( function, "ERROR: reading frame buffer" );
+          return error;
+        }
+
+        if ( !this->common.datacube() ) {                               // Error or not, close the file.
           this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
 
           // ASYNC status message on completion of each file
           //
-          message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+          message.str(""); message << "FILE:" << this->camera_info.fits_name << " COMPLETE";
           this->common.message.enqueue( message.str() );
           logwrite( function, message.str() );
         }
 
-        if (error != NO_ERROR) break;                               // don't try additional sequences if there were errors
+        if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
       }
     }
-    else if ( (error == NO_ERROR) && (mode == "RAW") ) {
+    else if ( mode == "RAW") {
       error = this->get_frame_status();                             // Get the current frame buffer status
-      if (error==NO_ERROR) error = this->common.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
-      if (error==NO_ERROR) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
-      if (error==NO_ERROR) error = read_frame();                    // For raw mode just read immediately
+      if (error != NO_ERROR) {
+        logwrite( function, "ERROR: unable to get frame status" );
+        return(ERROR);
+      }
+      error = this->common.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
+      if ( error != NO_ERROR ) {
+        logwrite( function, "ERROR: couldn't validate fits filename" );
+        return( error );
+      }
+      error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+      if ( error != NO_ERROR ) {
+        this->common.log_error( function, "couldn't open fits file" );
+        return( error );
+      }
+      error = read_frame();                    // For raw mode just read immediately
       this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
     }
 
@@ -3029,7 +3113,7 @@ logwrite("load_firmware", "two arg");
       //
       message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
       this->common.message.enqueue( message.str() );
-      logwrite( function, message.str() );
+      error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
     }
 
     return (error);
@@ -3129,7 +3213,7 @@ logwrite("load_firmware", "two arg");
       //
       if ( (error=this->get_timer(&timer)) == ERROR ) {
         std::cerr << "\n";
-        logwrite(function, "ERROR: getting timer");
+        logwrite( function, "ERROR: could not get Archon timer" );
         break;
       }
 
@@ -3164,35 +3248,20 @@ logwrite("load_firmware", "two arg");
       // problem.
       //
       if (--exposure_timeout_time < 0) {
-        logwrite(function, "ERROR: timeout waiting for exposure");
-        return ERROR;
+        std::cerr << "\n";
+        error = ERROR;
+        this->common.log_error( function, "timeout waiting for exposure" );
+        break;
       }
     }  // end while (done == false && this->abort == false)
 
-    if (this->abort) {
-      std::cerr << "\n";
-      logwrite(function, "exposure aborted");
-      return NO_ERROR;
-    }
     std::cerr << "\n";
 
-    // On success, write the value to the log and return
-    //
-    if (error == NO_ERROR && this->abort == false){
-      return(NO_ERROR);
+    if (this->abort) {
+      logwrite(function, "exposure aborted");
     }
-    // If the wait was stopped, log a message and return NO_ERROR
-    //
-    else if (this->abort == true) {
-      logwrite(function, "ERROR: waiting for exposure stopped by external signal");
-      return(NO_ERROR);
-    }
-    // Throw an error for any other errors
-    //
-    else {
-      logwrite(function, "ERROR: waiting for Archon camera data");
-      return(error);
-    }
+
+    return( error );
   }
   /**************** Archon::Interface::wait_for_exposure **********************/
 
@@ -3227,8 +3296,8 @@ logwrite("load_firmware", "two arg");
       waittime = this->common.readout_time.at(0) * 1.1;        // this is in msec
     }
     catch(std::out_of_range &) {
-      message.str(""); message << "ERROR: readout time for Archon not found from config file";
-      logwrite(function, message.str());
+      message.str(""); message << "readout time for Archon not found from config file";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -3249,7 +3318,7 @@ logwrite("load_firmware", "two arg");
       if (error == BUSY) {
         if ( ++busycount > 100 ) {
 	  done = true;
-	  logwrite( function, "ERROR: received BUSY from Archon too many times" );
+	  this->common.log_error( function, "received BUSY from Archon too many times trying to get frame status" );
 	  break;
 	}
 	else continue;
@@ -3258,7 +3327,7 @@ logwrite("load_firmware", "two arg");
 
       if (error == ERROR) {
         done = true;
-        logwrite( function, "ERROR getting frame status" );
+        logwrite( function, "ERROR: unable to get frame status" );
         break;
       }
       currentframe = this->frame.bufframen[this->frame.index];
@@ -3275,8 +3344,8 @@ logwrite("load_firmware", "two arg");
       if (clock_now > clock_timeout) {
         done = true;
         error = ERROR;
-        message.str(""); message << "ERROR: timeout waiting for new frame. lastframe = " << this->lastframe;
-        logwrite( function, message.str() );
+        message.str(""); message << "timeout waiting for new frame. lastframe = " << this->lastframe;
+        this->common.log_error( function, message.str() );
         break;
       }
       clock_now = get_clock_time();
@@ -3298,6 +3367,11 @@ logwrite("load_firmware", "two arg");
       this->common.message.enqueue( message.str() );
     }
 
+    if ( error != NO_ERROR ) {
+      logwrite( function, "ERROR: unable to get frame status" );
+      return error;
+    }
+
 #ifdef LOGLEVEL_DEBUG
     message.str(""); 
     message << "[DEBUG] lastframe=" << this->lastframe 
@@ -3309,7 +3383,7 @@ logwrite("load_firmware", "two arg");
 
     // On success, write the value to the log and return
     //
-    if (error == NO_ERROR && this->abort == false) {
+    if ( this->abort == false ) {
       message.str("");
       message << "received currentframe: " << currentframe;
       logwrite(function, message.str());
@@ -3322,10 +3396,10 @@ logwrite("load_firmware", "two arg");
       logwrite(function, "wait for readout stopped by external signal");
       return(NO_ERROR);
     }
-    // Throw an error for any other errors
+    // Throw an error for any other errors (should be impossible)
     //
     else {
-      logwrite(function, "ERROR: waiting for readout");
+      this->common.log_error( function, "waiting for readout" );
       return(error);
     }
   }
@@ -3367,8 +3441,8 @@ logwrite("load_firmware", "two arg");
     Tokenize(parameter, tokens, " ");
 
     if (tokens.size() != 2) {
-      message.str(""); message << "ERROR: param expected 2 arguments (paramname and value) but got " << tokens.size();
-      logwrite(function, message.str());
+      message.str(""); message << "param expected 2 arguments (paramname and value) but got " << tokens.size();
+      this->common.log_error( function, message.str() );
       ret=ERROR;
     }
     else {
@@ -3404,21 +3478,21 @@ logwrite("load_firmware", "two arg");
         exp_time = std::stoi( exptime_in );
       }
       catch (std::invalid_argument &) {
-        message.str(""); message << "ERROR: unable to convert exposure time: " << exptime_in << " to integer";
-        logwrite(function, message.str());
+        message.str(""); message << "converting exposure time: " << exptime_in << " to integer";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
       catch (std::out_of_range &) {
-        message.str(""); message << "ERROR: exposure time " << exptime_in << " outside integer range";
-        logwrite(function, message.str());
+        message.str(""); message << "requested exposure time: " << exptime_in << " outside integer range";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
 
       // Archon allows only 20 bit parameters
       //
       if ( exp_time < 0 || exp_time > 0xFFFFF ) {
-        message.str(""); message << "ERROR: " << exptime_in << " out of range {0:1048575}";
-        logwrite( function, message.str() );
+        message.str(""); message << "requested exposure time: " << exptime_in << " out of range {0:1048575}";
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
 
@@ -3461,7 +3535,7 @@ logwrite("load_firmware", "two arg");
     long error = NO_ERROR;
 
     if ( this->shutenableparam.empty() ) {
-      logwrite( function, "ERROR: SHUTENABLE_PARAM is not defined in configuration file" );
+      this->common.log_error( function, "SHUTENABLE_PARAM is not defined in configuration file" );
       return( ERROR );
     }
 
@@ -3473,8 +3547,8 @@ logwrite("load_firmware", "two arg");
         else
         if ( shutter_in == "enable"  || shutter_in == "1" ) shutten = true;
         else {
-          message.str(""); message << "ERROR: " << shutter_in << " is invalid. Expecting enable or disable";
-          logwrite( function, message.str() );
+          message.str(""); message << shutter_in << " is invalid. Expecting enable or disable";
+          this->common.log_error( function, message.str() );
           error = ERROR;
         }
         if ( error == NO_ERROR ) {
@@ -3490,7 +3564,8 @@ logwrite("load_firmware", "two arg");
         }
       }
       catch (...) {
-        logwrite( function, "error converting shutter_in to lowercase" );
+        message.str(""); message << "converting requested shutter state: " << shutter_in << " to lowercase";
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -3533,19 +3608,19 @@ logwrite("load_firmware", "two arg");
         hdrshift_req = std::stoi( bits_in );
       }
       catch ( std::invalid_argument & ) {
-        message.str(""); message << "ERROR: unable to convert \"" << bits_in << "\" to integer";
-        logwrite( function, message.str() );
+        message.str(""); message << "converting hdrshift: " << bits_in << " to integer";
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
       catch ( std::out_of_range & ) {
-        message.str(""); message << "ERROR: \"" << bits_in << "\" is outside integer range";
-        logwrite( function, message.str() );
+        message.str(""); message << "hdrshift: " << bits_in << " is outside integer range";
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
     }
 
     if ( hdrshift_req < 0 || hdrshift_req > 31 ) {
-      logwrite( function, "ERROR: hdrshift outside range {0:31}" );
+      this->common.log_error( function, "hdrshift outside range {0:31}" );
       return( ERROR );
     }
     else this->n_hdrshift = hdrshift_req;
@@ -3601,25 +3676,25 @@ logwrite("load_firmware", "two arg");
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
     if ( ! this->modeselected ) {
-      logwrite(function, "ERROR: no mode selected");
+      this->common.log_error( function, "no mode selected" );
       return ERROR;
     }
 
     // Check that the needed parameters are defined
     //
     if ( this->trigin_exposeparam.empty() ) {
-      message.str(""); message << "ERROR: TRIGIN_EXPOSE_PARAM not defined in configuration file " << this->config.filename;
-      logwrite( function, message.str() );
+      message.str(""); message << "TRIGIN_EXPOSE_PARAM not defined in configuration file " << this->config.filename;
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
     if ( this->trigin_untimedparam.empty() ) {
-      message.str(""); message << "ERROR: TRIGIN_UNTIMED_PARAM not defined in configuration file " << this->config.filename;
-      logwrite( function, message.str() );
+      message.str(""); message << "TRIGIN_UNTIMED_PARAM not defined in configuration file " << this->config.filename;
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
     if ( this->trigin_readoutparam.empty() ) {
-      message.str(""); message << "ERROR: TRIGIN_READOUT_PARAM not defined in configuration file " << this->config.filename;
-      logwrite( function, message.str() );
+      message.str(""); message << "TRIGIN_READOUT_PARAM not defined in configuration file " << this->config.filename;
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
 
@@ -3630,8 +3705,8 @@ logwrite("load_firmware", "two arg");
     // Must have 1 or 2 arguments only
     //
     if ( tokens.size() < 1 || tokens.size() > 2 ) {
-      message.str(""); message << "ERROR: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
-      logwrite( function, message.str() );
+      message.str(""); message << "requested trigin state: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
 
@@ -3660,7 +3735,7 @@ logwrite("load_firmware", "two arg");
         else {                              // size given so try to set trigin_expose to requested value
           int expnum = std::stoi( tokens.at(1) );
           if ( expnum < 1 ) {
-            logwrite( function, "ERROR: number of timed exposures must be greater than zero" );
+            this->common.log_error( function, "number of timed exposures must be greater than zero" );
             error = ERROR;
           }
           else {
@@ -3689,26 +3764,30 @@ logwrite("load_firmware", "two arg");
         this->trigin_readout = 0;
       }
       else {
-        message.str(""); message << "ERROR: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
-        logwrite( function, message.str() );
+        message.str(""); message << "requested trigin state: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
+        this->common.log_error( function, message.str() );
         error = ERROR;
       }
     }
     catch ( std::invalid_argument & ) {
-      message.str(""); message << "ERROR: unable to convert token in input string: " << state_in << " to integer";
-      logwrite( function, message.str() );
+      message.str(""); message << "converting number of timed external-trigger exposures: " << state_in << " to integer";
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
     catch ( std::out_of_range & ) {
-      message.str(""); message << "ERROR: out of range parsing input string: " << state_in;
-      logwrite( function, message.str() );
+      message.str(""); message << "parsing trigin string: " << state_in;
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
     catch (...) {
-      message.str(""); message << "unknown error parsing input string: " << state_in;
-      logwrite( function, message.str() );
+      message.str(""); message << "unknown exception parsing trigin string: " << state_in;
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
+
+    // Get out now if any internal errors from above
+    //
+    if ( error != NO_ERROR ) return( error );
 
     // Now that all of the parameter values have been set, write them to Archon.
     //
@@ -3720,11 +3799,7 @@ logwrite("load_firmware", "two arg");
     // Save the last frame number acquired -- wait_for_readout() will need this later
     //
     if ( error == NO_ERROR) error = this->get_frame_status();
-
-    if ( error != NO_ERROR ) {
-      logwrite(function, "ERROR: unable to get frame status");
-    }
-    else this->lastframe = this->frame.bufframen[this->frame.index];
+    if ( error == NO_ERROR) this->lastframe = this->frame.bufframen[this->frame.index];
 
 #ifdef LOGLEVEL_DEBUG
     message.str(""); message << "[DEBUG] lastframe=" << this->lastframe;
@@ -3778,7 +3853,7 @@ logwrite("load_firmware", "two arg");
       //
       message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
       this->common.message.enqueue( message.str() );
-      logwrite( function, message.str() );
+      error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
 
     }
 
@@ -3839,7 +3914,13 @@ logwrite("load_firmware", "two arg");
 
       // Open the FITS file now for cubes
       //
-      if ( this->common.datacube() ) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+      if ( this->common.datacube() ) {
+        error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+        if ( error != NO_ERROR ) {
+          this->common.log_error( function, "couldn't open fits file" );
+          return( error );
+        }
+      }
 
       if (this->trigin_expose > 1) {
         message.str(""); message << "starting sequence of " << this->trigin_expose << " frames. lastframe=" << this->lastframe;
@@ -3860,7 +3941,15 @@ logwrite("load_firmware", "two arg");
             this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
             this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
             error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
+            if ( error != NO_ERROR ) {
+              this->common.log_error( function, "couldn't validate fits filename" );
+              return( error );
+            }
             error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+            if ( error != NO_ERROR ) {
+              this->common.log_error( function, "couldn't open fits file" );
+              return( error );
+            }
           }
 
           if (error==NO_ERROR && this->camera_info.exposure_time != 0) {  // wait for the exposure delay to complete (if there is one)
@@ -3877,7 +3966,7 @@ logwrite("load_firmware", "two arg");
             //
             message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
             this->common.message.enqueue( message.str() );
-            logwrite( function, message.str() );
+            error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
           }
 
           if (error != NO_ERROR) break;                               // don't try additional sequences if there were errors
@@ -3899,7 +3988,7 @@ logwrite("load_firmware", "two arg");
         //
         message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
         this->common.message.enqueue( message.str() );
-        logwrite( function, message.str() );
+        error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
       }
     }  // end if ( this->trigin_state == "expose" )
 
@@ -3912,7 +4001,7 @@ logwrite("load_firmware", "two arg");
     //
     {
       message.str(""); message << "unexpected error processing trigin state " << this->trigin_state;
-      logwrite( function, message.str() );
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
 
@@ -3943,13 +4032,14 @@ logwrite("load_firmware", "two arg");
         else
         if ( state_in == "TRUE" || state_in == "1" ) this->is_longexposure = true;
         else {
-          message.str(""); message << "ERROR: " << state_in << " is invalid. Expecting {true,false,0,1}";
-          logwrite( function, message.str() );
+          message.str(""); message << "longexposure state " << state_in << " is invalid. Expecting {true,false,0,1}";
+          this->common.log_error( function, message.str() );
           return( ERROR );
         }
       }
       catch (...) {
-        logwrite( function, "error converting state_in to uppercase" );
+        message.str(""); message << "unknown exception converting longexposure state " << state_in << " to uppercase";
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -4011,7 +4101,7 @@ logwrite("load_firmware", "two arg");
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->firmwareloaded ) {
-      logwrite( function, "ERROR: firmware not loaded" );
+      this->common.log_error( function, "firmware not loaded" );
       return( ERROR );
     }
 
@@ -4022,13 +4112,13 @@ logwrite("load_firmware", "two arg");
     int ret = compare_versions( this->backplaneversion, REV_RAMP );
     if ( ret < 0 ) {
       if ( ret == -999 ) {
-        message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_RAMP;
+        message << "comparing backplane version " << this->backplaneversion << " to " << REV_RAMP;
       }
       else {
-        message << "ERROR: requires backplane version " << REV_RAMP << " or newer. ("
+        message << "requires backplane version " << REV_RAMP << " or newer. ("
                 << this->backplaneversion << " detected)";
       }
-      logwrite( function, message.str() );
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4037,7 +4127,7 @@ logwrite("load_firmware", "two arg");
     // At minimum there must be two tokens, <module> A|B
     //
     if ( tokens.size() < 2 ) {
-      logwrite( function, "ERROR: expected at least two arguments: <module> A|B" );
+      this->common.log_error( function, "expected at least two arguments: <module> A|B" );
       return ERROR;
     }
 
@@ -4048,19 +4138,19 @@ logwrite("load_firmware", "two arg");
       module   = std::stoi( tokens[0] );
       heaterid = tokens[1];
       if ( heaterid != "A" && heaterid != "B" ) {
-        message.str(""); message << "ERROR: invalid heater " << heaterid << ": expected <module> A|B";
-        logwrite(function, message.str());
+        message.str(""); message << "invalid heater " << heaterid << ": expected <module> A|B";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
     }
     catch (std::invalid_argument &) {
-      message.str(""); message << "ERROR: first argument must be <module> but unable to convert " << tokens[0] << " to integer";
-      logwrite(function, message.str());
+      message.str(""); message << "converting heater <module> " << tokens[0] << " to integer";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
     catch (std::out_of_range &) {
-      message.str(""); message << "ERROR: first argument must be <module> but " << tokens[0] << " is outside integer range";
-      logwrite(function, message.str());
+      message.str(""); message << "heater <module>: " << tokens[0] << " is outside integer range";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -4068,15 +4158,15 @@ logwrite("load_firmware", "two arg");
     //
     switch ( this->modtype[ module-1 ] ) {
       case 0:
-        message.str(""); message << "ERROR: module " << module << " not installed";
-        logwrite(function, message.str());
+        message.str(""); message << "module " << module << " not installed";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       case 5:  // Heater
       case 11: // HeaterX
         break;
       default:
-        message.str(""); message << "ERROR: module " << module << " not a heater board";
-        logwrite(function, message.str());
+        message.str(""); message << "module " << module << " not a heater board";
+        this->common.log_error( function, message.str() );
         return(ERROR);
     }
 
@@ -4088,8 +4178,8 @@ logwrite("load_firmware", "two arg");
     //
     ret = compare_versions( this->backplaneversion, REV_HEATERTARGET );
     if ( ret == -999 ) {
-      message.str(""); message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_HEATERTARGET;
-      logwrite( function, message.str() );
+      message.str(""); message << "comparing backplane version " << this->backplaneversion << " to " << REV_HEATERTARGET;
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
     else if ( ret == -1 ) {
@@ -4157,20 +4247,20 @@ logwrite("load_firmware", "two arg");
         try {
           target = std::stof( tokens[2] );
          if ( target < this->heater_target_min || target > this->heater_target_max ) {
-           message.str(""); message << "ERROR: requested target " << target << " outside range {" 
+           message.str(""); message << "requested heater target " << target << " outside range {" 
                                     << this->heater_target_min << ":" << this->heater_target_max << "}";
-            logwrite( function, message.str() );
+            this->common.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
-          message.str(""); message << "ERROR: unable to convert <target>=" << tokens[2] << " to float";
-          logwrite(function, message.str());
+          message.str(""); message << "converting heater <target>=" << tokens[2] << " to float";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: <target>=" << tokens[2] << " outside range of float";
-          logwrite(function, message.str());
+          message.str(""); message << "heater <target>: " << tokens[2] << " outside range of float";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         // ...if target is OK then push into the config, value vectors
@@ -4191,20 +4281,20 @@ logwrite("load_firmware", "two arg");
         try {
           target = std::stof( tokens[3] );
          if ( target < this->heater_target_min || target > this->heater_target_max ) {
-           message.str(""); message << "ERROR: requested target " << target << " outside range {" 
+           message.str(""); message << "requested heater target " << target << " outside range {" 
                                     << this->heater_target_min << ":" << this->heater_target_max << "}";
-            logwrite( function, message.str() );
+            this->common.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
-          message.str(""); message << "ERROR: unable to convert <target>=" << tokens[3] << " to float";
-          logwrite(function, message.str());
+          message.str(""); message << "converting heater <target> " << tokens[3] << " to float";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: <target>=" << tokens[3] << " outside range of float";
-          logwrite(function, message.str());
+          message.str(""); message << "heater <target>: " << tokens[3] << " outside range of float";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         // ...if target is OK then push into the config, value vectors
@@ -4226,18 +4316,19 @@ logwrite("load_firmware", "two arg");
           try {
             ramprate = std::stoi( tokens[3] );
             if ( ramprate < 1 || ramprate > 32767 ) {
-              message.str(""); message << "ERROR: ramprate " << ramprate << " outside range {1:32767}";
+              message.str(""); message << "heater ramprate " << ramprate << " outside range {1:32767}";
+              this->common.log_error( function, message.str() );
               return( ERROR );
             }
           }
           catch (std::invalid_argument &) {
-            message.str(""); message << "ERROR: expected RAMP <ramprate> but unable to convert <ramprate>=" << tokens[3] << " to integer";
-            logwrite(function, message.str());
+            message.str(""); message << "converting RAMP <ramprate> " << tokens[3] << " to integer";
+            this->common.log_error( function, message.str() );
             return(ERROR);
           }
           catch (std::out_of_range &) {
-            message.str(""); message << "ERROR: expected RAMP <ramprate> but <ramprate>=" << tokens[3] << " outside range of integer";
-            logwrite(function, message.str());
+            message.str(""); message << "RAMP <ramprate>: " << tokens[3] << " outside range of integer";
+            this->common.log_error( function, message.str() );
             return(ERROR);
           }
           ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMPRATE"; heaterconfig.push_back( ss.str() );
@@ -4245,8 +4336,8 @@ logwrite("load_firmware", "two arg");
         }
       }
       else {
-        message.str(""); message << "ERROR: expected ON | RAMP for 3rd argument but got " << tokens[2];
-        logwrite(function, message.str());
+        message.str(""); message << "expected heater <" << module << "> ON | RAMP for 3rd argument but got " << tokens[2];
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -4256,26 +4347,27 @@ logwrite("load_firmware", "two arg");
     //
     if ( tokens.size() == 5 ) {        // RAMP ON <ramprate>
       if ( tokens[2] != "RAMP" && tokens[3] != "ON" ) {
-        message.str(""); message << "ERROR: expected RAMP ON <ramprate> but got"; for (int i=2; i<5; i++) message << " " << tokens[i];
-        logwrite(function, message.str());
+        message.str(""); message << "expected RAMP ON <ramprate> but got"; for (int i=2; i<5; i++) message << " " << tokens[i];
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
       else {  // got "<module> A|B RAMP ON" now check that the last (5th) token is a number
         try {
           ramprate = std::stoi( tokens[4] );
           if ( ramprate < 1 || ramprate > 32767 ) {
-            message.str(""); message << "ERROR: ramprate " << ramprate << " outside range {1:32767}";
+            message.str(""); message << "heater ramprate " << ramprate << " outside range {1:32767}";
+            this->common.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
-          message.str(""); message << "ERROR: expected RAMP ON <ramprate> but unable to convert <ramprate>=" << tokens[4] << " to integer";
-          logwrite(function, message.str());
+          message.str(""); message << "expected RAMP ON <ramprate> but unable to convert <ramprate>=" << tokens[4] << " to integer";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: expected RAMP ON <ramprate> but <ramprate>=" << tokens[4] << " outside range of integer";
-          logwrite(function, message.str());
+          message.str(""); message << "expected RAMP ON <ramprate> but <ramprate>=" << tokens[4] << " outside range of integer";
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMP";     heaterconfig.push_back( ss.str() );
@@ -4290,8 +4382,8 @@ logwrite("load_firmware", "two arg");
     //
     if ( tokens.size() == 6 ) {
       if ( tokens[2] != "PID" ) {
-        message.str(""); message << "ERROR: expected PID <p> <i> <d> but got"; for (int i=2; i<6; i++) message << " " << tokens[i];
-        logwrite(function, message.str());
+        message.str(""); message << "expected PID <p> <i> <d> but got"; for (int i=2; i<6; i++) message << " " << tokens[i];
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
       else {  // got "<module> A|B PID <p> <i> <d>" now check that the last 3 tokens are numbers
@@ -4300,8 +4392,8 @@ logwrite("load_firmware", "two arg");
         bool fractionalpid_ok = false;
         ret = compare_versions( this->backplaneversion, REV_FRACTIONALPID );
         if ( ret == -999 ) {
-          message.str(""); message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_FRACTIONALPID;
-          logwrite( function, message.str() );
+          message.str(""); message << "comparing backplane version " << this->backplaneversion << " to " << REV_FRACTIONALPID;
+          this->common.log_error( function, message.str() );
           return( ERROR );
         }
         else if ( ret == -1 ) fractionalpid_ok = false;
@@ -4318,7 +4410,7 @@ logwrite("load_firmware", "two arg");
             tokens[4] = std::to_string( std::lrint( std::stof( tokens[4] ) ) ); // replace token with rounded integer
             tokens[5] = std::to_string( std::lrint( std::stof( tokens[5] ) ) ); // replace token with rounded integer
 
-            message.str(""); message << "NOTICE:fractional PID requires backplane version " << REV_FRACTIONALPID << " or newer";
+            message.str(""); message << "NOTICE:fractional heater PID requires backplane version " << REV_FRACTIONALPID << " or newer";
             logwrite( function, message.str() );
             this->common.message.enqueue( message.str() );
             message.str(""); message << "NOTICE:backplane version " << this->backplaneversion << " detected";
@@ -4327,26 +4419,27 @@ logwrite("load_firmware", "two arg");
             message.str(""); message << "NOTICE:PIDs converted to: " << tokens[3] << " " << tokens[4] << " " << tokens[5];
             this->common.message.enqueue( message.str() );
             logwrite( function, message.str() );
+
           }
           pid_p = std::stof( tokens[3] );
           pid_i = std::stof( tokens[4] );
           pid_d = std::stof( tokens[5] );
           if ( pid_p < 0 || pid_p > 10000 || pid_i < 0 || pid_i > 10000 || pid_d < 0 || pid_d > 10000 ) {
-            message.str(""); message << "ERROR: one or more PID values outside range {0:10000}";
-            logwrite( function, message.str() );
+            message.str(""); message << "one or more heater PID values outside range {0:10000}";
+            this->common.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
-          message.str(""); message << "ERROR: expected PID <p> <i> <d> but unable to convert one or more values to numbers:";
+          message.str(""); message << "converting one or more heater PID values to numbers:";
           for (int i=3; i<6; i++) message << " " << tokens[i];
-          logwrite(function, message.str());
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          message.str(""); message << "ERROR: expected PID <p> <i> <d> but one or more values outside range:";
+          message.str(""); message << "heater PID exception: one or more values outside range:";
           for (int i=3; i<6; i++) message << " " << tokens[i];
-          logwrite(function, message.str());
+          this->common.log_error( function, message.str() );
           return(ERROR);
         }
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "P"; heaterconfig.push_back( ss.str() );
@@ -4360,8 +4453,8 @@ logwrite("load_firmware", "two arg");
     // Otherwise we have an invalid number of tokens
     //
     else {
-      message.str(""); message << "ERROR: received " << tokens.size() << " arguments but expected 2, 3, 4, 5, or 6";
-      logwrite(function, message.str());
+      message.str(""); message << "received " << tokens.size() << " arguments but expected 2, 3, 4, 5, or 6";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4376,7 +4469,7 @@ logwrite("load_firmware", "two arg");
         message.str("");
         message << "BUG DETECTED: heaterconfig (" << heaterconfig.size() 
                 << ") - heatervalue (" << heatervalue.size() << ") vector size mismatch";
-        logwrite( function, message.str() );
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
 
@@ -4388,7 +4481,7 @@ logwrite("load_firmware", "two arg");
         error = this->write_config_key( heaterconfig[i].c_str(), heatervalue[i].c_str(), changed );
         message.str("");
         if ( error != NO_ERROR ) {
-          message << "ERROR; writing configuration " << heaterconfig[i] << "=" << heatervalue[i];
+          message << "writing configuration " << heaterconfig[i] << "=" << heatervalue[i];
           error_count++;  // this counter will be checked before the APPLYMOD command
         }
         else if ( !changed ) {
@@ -4397,7 +4490,7 @@ logwrite("load_firmware", "two arg");
         else {
           message << "updated heater configuration: " << heaterconfig[i] << "=" << heatervalue[i];
         }
-        logwrite( function, message.str() );
+        error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
       }
 
       // send the APPLMODxx command which parses and applies the configuration for module xx
@@ -4439,7 +4532,7 @@ logwrite("load_firmware", "two arg");
       error = this->get_configmap_value( key, value );
 
       if ( error != NO_ERROR ) {
-        message << "ERROR: reading heater configuration " << key;
+        message << "reading heater configuration " << key;
         logwrite( function, message.str() );
         return( error );
       }
@@ -4467,9 +4560,16 @@ logwrite("load_firmware", "two arg");
   /**************** Archon::Interface::sensor *********************************/
   /**
    * @fn     sensor
-   * @brief  
+   * @brief  set or get temperature sensor current
    * @param  args contains various allowable strings (see full descsription)
    * @return ERROR or NO_ERROR
+   *
+   * sensor <module> < A | B | C > [ <current> ]
+   *
+   * Sets or gets the temperature sensor current <current> for the specified
+   * sensor <A|B|C> on the specified module <module>. <module> refers to the
+   * (integer) module number. <current> is specified in nano-amps. 
+   * This is used only for RTDs
    *
    */
   long Interface::sensor(std::string args, std::string &retstring) {
@@ -4486,7 +4586,7 @@ logwrite("load_firmware", "two arg");
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->firmwareloaded ) {
-      logwrite( function, "ERROR: firmware not loaded" );
+      this->common.log_error( function, "firmware not loaded" );
       return( ERROR );
     }
 
@@ -4495,13 +4595,13 @@ logwrite("load_firmware", "two arg");
     int ret = compare_versions( this->backplaneversion, REV_SENSORCURRENT );
     if ( ret < 0 ) {
       if ( ret == -999 ) {
-        message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_SENSORCURRENT;
+        message << "comparing backplane version " << this->backplaneversion << " to " << REV_SENSORCURRENT;
       }
       else {
-        message << "ERROR: requires backplane version " << REV_SENSORCURRENT << " or newer. ("
+        message << "requires backplane version " << REV_SENSORCURRENT << " or newer. ("
                 << this->backplaneversion << " detected)";
       }
-      logwrite( function, message.str() );
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4518,8 +4618,8 @@ logwrite("load_firmware", "two arg");
       readonly = false;
     }
     else {
-      message.str(""); message << "ERROR: incorrect number of arguments: " << args << ": expected <module#> <A|B|C> [current]";
-      logwrite( function, message.str() );
+      message.str(""); message << "incorrect number of arguments: " << args << ": expected <module#> <A|B|C> [current]";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4532,26 +4632,26 @@ logwrite("load_firmware", "two arg");
       if ( !readonly ) {
         current = std::stof( tokens.at(2) );
         if ( current > 1600000. ) {
-          message.str(""); message << "ERROR: requested current " << current << " exceeds maximum (1600000 nA)";
-          logwrite( function, message.str() );
+          message.str(""); message << "requested current " << current << " exceeds maximum (1600000 nA)";
+          this->common.log_error( function, message.str() );
           return( ERROR );
         }
       }
 
       if ( sensorid != "A" && sensorid != "B" && sensorid != "C" ) {
-        message.str(""); message << "ERROR: invalid sensor " << sensorid << ": expected <module#> <A|B|C> [ current ]";
-        logwrite( function, message.str() );
+        message.str(""); message << "invalid sensor " << sensorid << ": expected <module#> <A|B|C> [ current ]";
+        this->common.log_error( function, message.str() );
         return( ERROR );
       }
     }
     catch ( std::invalid_argument & ) {
-      message.str(""); message << "ERROR: invalid argument in " << args << ": expected <module#> <A|B|C> [ current ]";
-      logwrite( function, message.str() );
+      message.str(""); message << "parsing argument: " << args << ": expected <module#> <A|B|C> [ current ]";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
     catch ( std::out_of_range & ) {
-      message.str(""); message << "ERROR: outside range in " << args << ": expected <module#> <A|B|C> [ current ]";
-      logwrite( function, message.str() );
+      message.str(""); message << "argument outside range in " << args << ": expected <module#> <A|B|C> [ current ]";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4559,15 +4659,15 @@ logwrite("load_firmware", "two arg");
     //
     switch ( this->modtype[ module-1 ] ) {
       case 0:
-        message.str(""); message << "ERROR: module " << module << " not installed";
-        logwrite( function, message.str() );
+        message.str(""); message << "module " << module << " not installed";
+        this->common.log_error( function, message.str() );
         return( ERROR );
       case 5:  // Heater
       case 11: // HeaterX
         break;
       default:
-        message.str(""); message << "ERROR: module " << module << " is not a heater board";
-        logwrite( function, message.str() );
+        message.str(""); message << "module " << module << " is not a heater board";
+        this->common.log_error( function, message.str() );
         return( ERROR );
     }
 
@@ -4584,13 +4684,13 @@ logwrite("load_firmware", "two arg");
       message.str("");
       error = this->get_configmap_value( key, current );
       if ( error != NO_ERROR ) {
-        message << "ERROR: reading current " << key;
+        message << "reading sensor current " << key;
       }
       else {
         retstring = std::to_string( current );
         message << "module " << module << " sensor " << sensorid << " current=" << current;
       }
-      logwrite( function, message.str() );
+      error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
       return ( error );
     }
 
@@ -4610,7 +4710,7 @@ logwrite("load_firmware", "two arg");
     if ( error == NO_ERROR ) error = this->archon_cmd( applystr.str() );
 
     if ( error != NO_ERROR ) {
-      message << "ERROR: writing sensor current configuration: " << key << "=" << value;
+      message << "writing sensor current configuration: " << key << "=" << value;
     }
     else if ( !changed ) {
       message << "sensor current configuration: " << key << "=" << value << " unchanged";
@@ -4648,7 +4748,7 @@ logwrite("load_firmware", "two arg");
     // must have loaded firmware
     //
     if ( ! this->firmwareloaded ) {
-      logwrite( function, "ERROR: firmware not loaded" );
+      this->common.log_error( function, "firmware not loaded" );
       return( ERROR );
     }
 
@@ -4661,8 +4761,8 @@ logwrite("load_firmware", "two arg");
       readonly = false;
     }
     else {
-      message.str(""); message << "ERROR: incorrect number of arguments: " << args << ": expected module channel [voltage]";
-      logwrite(function, message.str());
+      message.str(""); message << "incorrect number of arguments: " << args << ": expected module channel [voltage]";
+      this->common.log_error( function, message.str() );
       return ERROR;
     }
 
@@ -4674,21 +4774,21 @@ logwrite("load_firmware", "two arg");
       if (!readonly) voltage = std::stof( tokens[2] );
     }
     catch (std::invalid_argument &) {
-      message.str(""); message << "ERROR: unable to convert one or more arguments: " << args;
-      logwrite(function, message.str());
+      message.str(""); message << "parsing bias arguments: " << args << ": expected <module> <channel> [ voltage ]";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
     catch (std::out_of_range &) {
-      message.str(""); message << "ERROR: one or more arguments outside range: " << args;
-      logwrite(function, message.str());
+      message.str(""); message << "argument range: " << args << ": expected <module> <channel> [ voltage ]";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
     // Check that the module number is valid
     //
     if ( (module < 0) || (module > nmods) ) {
-      message.str(""); message << "ERROR: module " << module << ": outside range {0:" << nmods << "}";
-      logwrite(function, message.str());
+      message.str(""); message << "module " << module << ": outside range {0:" << nmods << "}";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -4697,8 +4797,8 @@ logwrite("load_firmware", "two arg");
     //
     switch ( this->modtype[ module-1 ] ) {
       case 0:
-        message.str(""); message << "ERROR: module " << module << " not installed";
-        logwrite(function, message.str());
+        message.str(""); message << "module " << module << " not installed";
+        this->common.log_error( function, message.str() );
         return(ERROR);
         break;
       case 3:  // LVBias
@@ -4714,8 +4814,8 @@ logwrite("load_firmware", "two arg");
         vmax = +31.0;
         break;
       default:
-        message.str(""); message << "ERROR: module " << module << " not a bias board";
-        logwrite(function, message.str());
+        message.str(""); message << "module " << module << " not a bias board";
+        this->common.log_error( function, message.str() );
         return(ERROR);
         break;
     }
@@ -4724,8 +4824,8 @@ logwrite("load_firmware", "two arg");
     // and add it to the bias configuration string.
     //
     if ( (channel < 1) || (channel > 30) ) {
-      message.str(""); message << "ERROR: channel " << module << ": outside range {1:30}";
-      logwrite(function, message.str());
+      message.str(""); message << "bias channel " << module << ": outside range {1:30}";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
     if ( (channel > 0) && (channel < 25) ) {
@@ -4737,8 +4837,8 @@ logwrite("load_firmware", "two arg");
     }
 
     if ( (voltage < vmin) || (voltage > vmax) ) {
-      message.str(""); message << "ERROR: voltage " << voltage << ": outside range {" << vmin << ":" << vmax << "}";
-      logwrite(function, message.str());
+      message.str(""); message << "bias voltage " << voltage << ": outside range {" << vmin << ":" << vmax << "}";
+      this->common.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -4755,13 +4855,13 @@ logwrite("load_firmware", "two arg");
       message.str("");
       error = this->get_configmap_value(key, voltage);
       if (error != NO_ERROR) {
-        message << "ERROR: reading bias " << key;
+        message << "reading bias " << key;
       }
       else {
         retstring = std::to_string(voltage);
         message << "read bias " << key << "=" << voltage;
       }
-      logwrite(function, message.str());
+      logwrite( function, message.str() );
       return error;
     }
 
@@ -4781,7 +4881,7 @@ logwrite("load_firmware", "two arg");
     if (error == NO_ERROR) error = this->archon_cmd(applystr.str());
 
     if (error != NO_ERROR) {
-      message << "ERROR: writing bias configuration: " << key << "=" << value;
+      message << "writing bias configuration: " << key << "=" << value;
     }
     else if (!changed) {
       message << "bias configuration: " << key << "=" << value <<" unchanged";
@@ -4807,13 +4907,14 @@ logwrite("load_firmware", "two arg");
    */
   long Interface::cds(std::string args, std::string &retstring) {
     std::string function = "Archon::Interface::cds";
+    std::stringstream message;
     std::vector<std::string> tokens;
     std::string key, value;
     bool changed;
     long error = ERROR;
 
     if ( args.empty() ) {
-      logwrite(function, "ERROR: no argument");
+      this->common.log_error( function, "no argument: expected cds <configkey> [ value ]" );
       return( ERROR );
     }
 
@@ -4845,16 +4946,18 @@ logwrite("load_firmware", "two arg");
       // More than two tokens is an error
       //
       else {
-        logwrite(function, "ERROR: Too many arguments. Expected <configkey> [ value ]");
+        this->common.log_error( function, "Too many arguments. Expected cds <configkey> [ value ]" );
         return( ERROR );
       }
     }
     catch(std::out_of_range &) {
-      logwrite(function, "ERROR: tokenizing arguments");
+      message << "parsing cds arguments: " << args << ": Expected cds <configkey> [ value ]";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
     catch(...) {
-      logwrite(function, "ERROR: unknown error processing  arguments");
+      message << "unknown exception parsing cds arguments: " << args << ": Expected cds <configkey> [ value ]";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4881,7 +4984,7 @@ logwrite("load_firmware", "two arg");
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->firmwareloaded ) {
-      logwrite( function, "ERROR: firmware not loaded" );
+      this->common.log_error( function, "firmware not loaded" );
       return( ERROR );
     }
 
@@ -4890,13 +4993,13 @@ logwrite("load_firmware", "two arg");
     int ret = compare_versions( this->backplaneversion, REV_VCPU );
     if ( ret < 0 ) {
       if ( ret == -999 ) {
-        message << "ERROR: comparing backplane version " << this->backplaneversion << " to " << REV_VCPU;
+        message << "comparing backplane version " << this->backplaneversion << " to " << REV_VCPU;
       }
       else {
-        message << "ERROR: requires backplane version " << REV_VCPU << " or newer. ("
+        message << "requires backplane version " << REV_VCPU << " or newer. ("
                 << this->backplaneversion << " detected)";
       }
-      logwrite( function, message.str() );
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4905,7 +5008,7 @@ logwrite("load_firmware", "two arg");
     // There must be three tokens, <module> <reg> <value>
     //
     if ( tokens.size() != 3 ) {
-      logwrite( function, "ERROR: expected three arguments: <module> <reg> <value>" );
+      this->common.log_error( function, "expected three arguments: <module> <reg> <value>" );
       return ERROR;
     }
 
@@ -4918,13 +5021,13 @@ logwrite("load_firmware", "two arg");
       value  = std::stoi( tokens[2] );
     }
     catch (std::invalid_argument &) {
-      message.str(""); message << "ERROR: unable to convert one of \"" << args << "\" to integer";
-      logwrite(function, message.str());
+      message.str(""); message << "unable to convert one of \"" << args << "\" to integer";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
     catch (std::out_of_range &) {
-      message.str(""); message << "ERROR: one of \"" << args << "\" is outside integer range";
-      logwrite(function, message.str());
+      message.str(""); message << "one of \"" << args << "\" is outside integer range";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4932,8 +5035,8 @@ logwrite("load_firmware", "two arg");
     //
     switch ( this->modtype[ module-1 ] ) {
       case 0:
-        message.str(""); message << "ERROR: requested module " << module << " not installed";
-        logwrite(function, message.str());
+        message.str(""); message << "requested module " << module << " not installed";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       case 3:  // LVBias
       case 5:  // Heater
@@ -4943,24 +5046,24 @@ logwrite("load_firmware", "two arg");
       case 11: // HeaterX
         break;
       default:
-        message.str(""); message << "ERROR: requested module " << module << " does not contain a VCPU";
-        logwrite(function, message.str());
+        message.str(""); message << "requested module " << module << " does not contain a VCPU";
+        this->common.log_error( function, message.str() );
         return( ERROR );
     }
 
     // check that register number is valid
     //
     if ( reg < 0 || reg > 15 ) {
-      message.str(""); message << "ERROR: requested register " << reg << " outside range {0:15}";
-      logwrite(function, message.str());
+      message.str(""); message << "requested register " << reg << " outside range {0:15}";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
     // check that value is within range
     //
     if ( value < 0 || value > 65535 ) {
-      message.str(""); message << "ERROR: requested value " << value << " outside range {0:65535}";
-      logwrite(function, message.str());
+      message.str(""); message << "requested value " << value << " outside range {0:65535}";
+      this->common.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4969,7 +5072,7 @@ logwrite("load_firmware", "two arg");
     inreg_key << "MOD" << module << "/VCPU_INREG" << reg;
     long error = this->write_config_key( inreg_key.str().c_str(), value, changed );
     if ( error != NO_ERROR ) {
-      message.str(""); message << "ERROR writing configuration " << inreg_key.str() << "=" << value;
+      message.str(""); message << "configuration " << inreg_key.str() << "=" << value;
       logwrite( function, message.str() );
       return( ERROR );
     }
@@ -5030,13 +5133,13 @@ logwrite("load_firmware", "two arg");
     Tokenize(args, tokens, " ");
 
     if (tokens.size() < 1) {
-      logwrite(function, "no test name provided");
+      this->common.log_error( function, "no test name provided" );
       return ERROR;
     }
 
     std::string testname;
     try { testname = tokens.at(0); }                                 // the first token is the test name
-    catch ( std::out_of_range & ) { logwrite( function, "ERROR: testname token out of range" ); return( ERROR ); }
+    catch ( std::out_of_range & ) { this->common.log_error( function, "testname token out of range" ); return( ERROR ); }
 
     // ----------------------------------------------------
     // busy
@@ -5052,16 +5155,17 @@ logwrite("load_firmware", "two arg");
       }
       else if ( tokens.size() == 2 ) {
         try { this->archon_busy = ( tokens.at(1)=="yes" ? true : false ); }
-        catch ( std::out_of_range & ) { logwrite( function, "ERROR: tokens out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->common.log_error( function, "tokens out of range" ); error=ERROR; }
         message.str(""); message << "archon_busy=" << this->archon_busy;
         logwrite( function, message.str() );
         error = NO_ERROR;
       }
       else {
-        message.str(""); message << "ERROR: expected one argument, yes or no";
-        logwrite( function, message.str() );
+        message.str(""); message << "expected one argument, yes or no";
+        this->common.log_error( function, message.str() );
         error = ERROR;
       }
+      retstring = this->archon_busy ? "true" : "false";
     }
 
     // ----------------------------------------------------
@@ -5077,9 +5181,11 @@ logwrite("load_firmware", "two arg");
       std::string msg;
       this->common.set_fitstime( get_timestamp() );                  // must set common.fitstime first
       error = this->common.get_fitsname(msg);                        // get the fitsname (by reference)
+      retstring = msg;
       message.str(""); message << "NOTICE:" << msg;
       this->common.message.enqueue( message.str() );                 // queue the fitsname
       logwrite(function, msg);                                       // log the fitsname
+      if (error!=NO_ERROR) { this->common.log_error( function, "couldn't validate fits filename" ); }
     } // end if (testname == fitsname)
 
     // ----------------------------------------------------
@@ -5090,6 +5196,8 @@ logwrite("load_firmware", "two arg");
     else
     if ( testname == "builddate" ) {
       std::string build(BUILD_DATE); build.append(" "); build.append(BUILD_TIME);
+      retstring = build;
+      error = NO_ERROR;
       logwrite( function, build );
     } // end if ( testname == builddate )
 
@@ -5109,7 +5217,7 @@ logwrite("load_firmware", "two arg");
               logwrite( function, message.str() );
               this->common.message.enqueue( message.str() );
         }
-        catch ( std::out_of_range & ) { logwrite( function, "ERROR: tokens out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->common.log_error( function, "tokens out of range" ); error=ERROR; }
       }
       else {                                // if no string passed then queue a simple test message
         logwrite(function, "NOTICE:test");
@@ -5162,6 +5270,7 @@ logwrite("load_firmware", "two arg");
         keycount++;
         message.str(""); message << param_it->first << "=" << param_it->second.value;
         logwrite(function, message.str());
+        this->common.message.enqueue( "NOTICE:"+message.str() );
       }
       message.str(""); message << "found " << keycount << " parammap entries";
       logwrite(function, message.str());
@@ -5195,7 +5304,7 @@ logwrite("load_firmware", "two arg");
           std::string configkey = tokens.at(1);
           error = this->get_configmap_value(configkey, retstring);
         }
-        catch ( std::out_of_range & ) { logwrite( function, "ERROR: configkey token out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->common.log_error( function, "configkey token out of range" ); error=ERROR; }
       }
 
       // if a third argument was passed then set this configkey
@@ -5207,7 +5316,7 @@ logwrite("load_firmware", "two arg");
               error = this->write_config_key( key.c_str(), value.c_str(), configchanged );
               if (error == NO_ERROR) error = this->archon_cmd(APPLYCDS);
         }
-        catch ( std::out_of_range & ) { logwrite( function, "ERROR: key,value tokens out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->common.log_error( function, "key,value tokens out of range" ); error=ERROR; }
       }
 
       int keycount=0;
@@ -5230,7 +5339,7 @@ logwrite("load_firmware", "two arg");
     if (testname == "bw") {
 
       if ( ! this->modeselected ) {
-        logwrite(function, "ERROR: no mode selected");
+        this->common.log_error( function, "no mode selected" );
         return ERROR;
       }
 
@@ -5241,10 +5350,10 @@ logwrite("load_firmware", "two arg");
 
       if (tokens.size() > 1) {
         try { nseqstr = tokens.at(1); }
-        catch ( std::out_of_range & ) { logwrite( function, "ERROR: nseqstr token out of range" ); return(ERROR); }
+        catch ( std::out_of_range & ) { this->common.log_error( function, "nseqstr token out of range" ); return(ERROR); }
       }
       else {
-        logwrite(function, "usage: test bw <nseq> [ rw | ro ]");
+        this->common.log_error( function, "usage: test bw <nseq> [ rw | ro ]");
         return ERROR;
       }
 
@@ -5252,20 +5361,20 @@ logwrite("load_firmware", "two arg");
         try { if (tokens.at(2) == "rw") rw=true; else rw=false;
               if (tokens.at(2) == "ro") ro=true; else ro=false;
         }
-        catch ( std::out_of_range & ) { logwrite( function, "ERROR: rw tokens out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->common.log_error( function, "rw tokens out of range" ); error=ERROR; }
       }
 
       try {
         nseq = std::stoi( nseqstr );                                // test that nseqstr is an integer before trying to use it
       }
       catch (std::invalid_argument &) {
-        message.str(""); message << "ERROR: unable to convert sequences: " << nseqstr << " to integer";
-        logwrite(function, message.str());
+        message.str(""); message << "unable to convert sequences: " << nseqstr << " to integer";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
       catch (std::out_of_range &) {
-        message.str(""); message << "ERROR: sequences " << nseqstr << " outside integer range";
-        logwrite(function, message.str());
+        message.str(""); message << "sequences " << nseqstr << " outside integer range";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
 
@@ -5273,14 +5382,14 @@ logwrite("load_firmware", "two arg");
       // check to make sure it was set, or else expose won't work
       //
       if (this->exposeparam.empty()) {
-        message.str(""); message << "ERROR: EXPOSE_PARAM not defined in configuration file " << this->config.filename;
-        logwrite(function, message.str());
+        message.str(""); message << "EXPOSE_PARAM not defined in configuration file " << this->config.filename;
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
       error = this->get_frame_status();  // TODO is this needed here?
 
       if (error != NO_ERROR) {
-        logwrite(function, "ERROR: unable to get frame status");
+        logwrite( function, "ERROR: unable to get frame status" );
         return(ERROR);
       }
       this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
@@ -5296,12 +5405,20 @@ logwrite("load_firmware", "two arg");
       if (error == NO_ERROR) {
         this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
         error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
+        if ( error != NO_ERROR ) {
+          logwrite( function, "ERROR: couldn't get start time" );
+          return( error );
+        }
         this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
         // If read-write selected then need to do some FITS stuff
         //
         if ( rw ) {
           this->camera_info.extension = 0;                            // always initialize extension
           error = this->common.get_fitsname( this->camera_info.fits_name ); // assemble the FITS filename if rw selected
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: couldn't validate fits filename" );
+            return( error );
+          }
           Common::FitsKeys::fits_key_t::iterator keyit;               // add keys from the ACF file 
           for (keyit  = this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.begin();
                keyit != this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.end();
@@ -5311,8 +5428,18 @@ logwrite("load_firmware", "two arg");
             this->camera_info.userkeys.keydb[keyit->second.keyword].keyvalue   = keyit->second.keyvalue;
             this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
           }
+
           this->camera_info.iscube = this->common.datacube();
-          if ( this->common.datacube() ) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+
+          // open the file now for datacubes
+          //
+          if ( this->common.datacube() ) {
+            error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+            if ( error != NO_ERROR ) {
+              this->common.log_error( function, "couldn't open fits file" );
+              return( error );
+            }
+          }
         }
       }
 
@@ -5330,16 +5457,28 @@ logwrite("load_firmware", "two arg");
         //
         if ( rw && !this->common.datacube() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-          this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
+          if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
+            logwrite( function, "ERROR: couldn't get start time" );
+            return( error );
+          }
           this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: couldn't validate fits filename" );
+            return( error );
+          }
+
           error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+          if ( error != NO_ERROR ) {
+            this->common.log_error( function, "couldn't open fits file" );
+            return( error );
+          }
         }
 
         if (this->camera_info.exposure_time != 0) {                 // wait for the exposure delay to complete (if there is one)
           error = this->wait_for_exposure();
           if (error==ERROR) {
-            logwrite(function, "exposure delay error");
+            logwrite( function, "ERROR: exposure delay error" );
             break;
           }
           else {
@@ -5386,7 +5525,7 @@ logwrite("load_firmware", "two arg");
       int delta_archon, delta_system;
 
       if (tokens.size() < 3) {
-        logwrite(function, "ERROR: expected test timer <cycles> <sleepus>");
+        this->common.log_error( function, "expected test timer <cycles> <sleepus>" );
         return ERROR;
       }
 
@@ -5395,13 +5534,13 @@ logwrite("load_firmware", "two arg");
         sleepus = std::stoi( tokens.at(2) );
       }
       catch (std::invalid_argument &) {
-        message.str(""); message << "ERROR: unable to convert one or more args to an integer";
-        logwrite(function, message.str());
+        message.str(""); message << "unable to convert one or more args to an integer";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
       catch (std::out_of_range &) {
-        message.str(""); message << "ERROR: nseq, sleepus tokens outside range";
-        logwrite(function, message.str());
+        message.str(""); message << "nseq, sleepus tokens outside range";
+        this->common.log_error( function, message.str() );
         return(ERROR);
       }
 
@@ -5459,7 +5598,7 @@ logwrite("load_firmware", "two arg");
       message.str(""); message << "average delta=" << m << " stddev=" << stdev;
       logwrite(function, message.str());
 
-      retstring = std::to_string( stdev );
+      retstring = "delta=" + std::to_string( m ) + " stddev=" + std::to_string( stdev );
 
     } // end if (testname==timer)
 
@@ -5468,8 +5607,8 @@ logwrite("load_firmware", "two arg");
     // ----------------------------------------------------
     //
     else {
-      message.str(""); message << "ERROR: unknown test: " << testname;
-      logwrite(function, message.str());
+      message.str(""); message << "unknown test: " << testname;
+      this->common.log_error( function, message.str() );
       error = ERROR;
     }
 

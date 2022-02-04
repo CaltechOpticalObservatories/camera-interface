@@ -91,11 +91,13 @@ namespace Common {
       std::string image_dir;
       std::string base_name;
       std::string fits_naming;
-      std::string fitstime;                                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
+      std::string fitstime;                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
       int image_num;
       bool is_datacube;
+      bool is_longerror;                     //!< set to return error message on command port
       std::atomic<bool> _abortstate;;
       std::mutex abort_mutex;
+      std::stringstream lasterrorstring;     //!< a place to preserve an error message
 
     public:
       Common();
@@ -111,6 +113,10 @@ namespace Common {
 
       std::map<int, std::string> firmware;   //!< firmware file for given controller device number, read from .cfg file
       std::map<int, int> readout_time;       //!< readout time in msec for given controller device number, read from .cfg file
+
+      void log_error( std::string function, std::string message );
+
+      std::string get_longerror();
 
       long imdir(std::string dir_in);
       long imdir(std::string dir_in, std::string& dir_out);
@@ -128,6 +134,9 @@ namespace Common {
       void datacube(bool state_in);
       bool datacube();
       long datacube(std::string state_in, std::string &state_out);
+      void longerror(bool state_in);
+      bool longerror();
+      long longerror(std::string state_in, std::string &state_out);
   };
   /**************** Common::Common ********************************************/
 
