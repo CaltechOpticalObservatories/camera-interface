@@ -64,6 +64,17 @@ namespace Archon {
   const int nmods = 12;            //!< number of modules per controller
   const int nadchan = 4;           //!< number of channels per ADC module
 
+  // Parameter defaults, unless overridden by the configuration file
+  //
+  const int DEF_TRIGIN_EXPOSE_ENABLE   = 1;
+  const int DEF_TRIGIN_EXPOSE_DISABLE  = 0;
+  const int DEF_TRIGIN_UNTIMED_ENABLE  = 1;
+  const int DEF_TRIGIN_UNTIMED_DISABLE = 0;
+  const int DEF_TRIGIN_READOUT_ENABLE  = 1;
+  const int DEF_TRIGIN_READOUT_DISABLE = 0;
+  const int DEF_SHUTENABLE_ENABLE      = 1;
+  const int DEF_SHUTENABLE_DISABLE     = 0;
+
   class Interface {
     private:
       unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
@@ -95,12 +106,22 @@ namespace Archon {
       bool is_longexposure;                  //!< true for long exposure mode (exptime in sec), false for exptime in msec
 
       std::string trigin_state;              //!< for external triggering of exposures
-      int trigin_expose;
-      int trigin_untimed;
-      int trigin_readout;
-      std::string trigin_exposeparam;
-      std::string trigin_untimedparam;
-      std::string trigin_readoutparam;
+
+      int trigin_expose;                     //!< current value of trigin expose
+      int trigin_expose_enable;              //!< value which enables trigin expose
+      int trigin_expose_disable;             //!< value which disables trigin expose
+
+      int trigin_untimed;                    //!< current value of trigin_untimed
+      int trigin_untimed_enable;             //!< value which enables trigin untimed
+      int trigin_untimed_disable;            //!< value which disables trigin untimed
+
+      int trigin_readout;                    //!< current value of trigin_readout
+      int trigin_readout_enable;             //!< value which enables trigin readout
+      int trigin_readout_disable;            //!< value which disables trigin readout
+
+      std::string trigin_exposeparam;        //!< parameter name to write for trigin_expose
+      std::string trigin_untimedparam;       //!< parameter name to write for trigin_untimed
+      std::string trigin_readoutparam;       //!< parameter name to write for trigin_readout
 
       float heater_target_min;               //!< minimum heater target temperature
       float heater_target_max;               //!< maximum heater target temperature
@@ -113,7 +134,10 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
-      std::string shutenableparam;           //!< param name to enable shutter open on expose when set =1 (disable when =0)
+
+      std::string shutenableparam;           //!< param name to enable shutter open on expose
+      int shutenable_enable;                 //!< the value which enables shutter enable
+      int shutenable_disable;                //!< the value which disables shutter enable
 
       // Functions
       //
@@ -156,6 +180,7 @@ namespace Archon {
       long wait_for_exposure();
       long wait_for_readout();
       long get_parameter(std::string parameter, std::string &retstring);
+      long set_parameter( std::string parameter, long value );
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
       long longexposure(std::string state_in, std::string &state_out);

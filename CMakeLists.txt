@@ -7,9 +7,12 @@
 # user must define the interface type here
 # valid types are: "AstroCam" | "Archon"
 # ----------------------------------------------------------------------------
-#set(INTERFACE_TYPE "Archon")
-set(INTERFACE_TYPE "AstroCam")
+set(INTERFACE_TYPE "Archon")
+#set(INTERFACE_TYPE "AstroCam")
 # ----------------------------------------------------------------------------
+
+# un-comment the following to log verbose debug messages
+#add_definitions(-DLOGLEVEL_DEBUG)
 
 cmake_minimum_required( VERSION 3.12 )
 

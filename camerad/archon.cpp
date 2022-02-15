@@ -39,6 +39,16 @@ namespace Archon {
     this->trigin_untimed = 0;
     this->trigin_readout = 0;
 
+    this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
+    this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
+    this->trigin_untimed_enable  = DEF_TRIGIN_UNTIMED_ENABLE;
+    this->trigin_untimed_disable = DEF_TRIGIN_UNTIMED_DISABLE;
+    this->trigin_readout_enable  = DEF_TRIGIN_READOUT_ENABLE;
+    this->trigin_readout_disable = DEF_TRIGIN_READOUT_DISABLE;
+
+    this->shutenable_enable      = DEF_SHUTENABLE_ENABLE;
+    this->shutenable_disable     = DEF_SHUTENABLE_DISABLE;
+
     // Make sure the following systemkeys are added.
     // They can be changed at any time by a command but since they have defaults
     // they don't require a command so this ensures they get into the systemkeys db.
@@ -111,7 +121,7 @@ namespace Archon {
         applied++;
       }
 
-      if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {
+      if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {              // ARCHON_PORT
         int port;
         try {
           port = std::stoi( config.arg[entry] );
@@ -129,28 +139,164 @@ namespace Archon {
         applied++;
       }
 
-      if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {
+      if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {             // EXPOSE_PARAM
         this->exposeparam = config.arg[entry];
         applied++;
       }
 
-      if (config.param[entry].compare(0, 19, "TRIGIN_EXPOSE_PARAM")==0) {
+      if (config.param[entry].compare(0, 19, "TRIGIN_EXPOSE_PARAM")==0) {      // TRIGIN_EXPOSE_PARAM
         this->trigin_exposeparam = config.arg[entry];
         applied++;
       }
 
-      if (config.param[entry].compare(0, 20, "TRIGIN_UNTIMED_PARAM")==0) {
+      if (config.param[entry].compare(0, 20, "TRIGIN_UNTIMED_PARAM")==0) {     // TRIGIN_UNTIMED_PARAM
         this->trigin_untimedparam = config.arg[entry];
         applied++;
       }
 
-      if (config.param[entry].compare(0, 20, "TRIGIN_READOUT_PARAM")==0) {
+      if (config.param[entry].compare(0, 20, "TRIGIN_READOUT_PARAM")==0) {     // TRIGIN_READOUT_PARAM
         this->trigin_readoutparam = config.arg[entry];
         applied++;
       }
 
-      if (config.param[entry].compare(0, 16, "SHUTENABLE_PARAM")==0) {
+      if (config.param[entry].compare(0, 20, "TRIGIN_EXPOSE_ENABLE")==0) {     // TRIGIN_EXPOSE_ENABLE
+        int enable;
+        try {
+          enable = std::stoi( config.arg[entry] );
+	}
+        catch (std::invalid_argument &) {
+          this->common.log_error( function, "unable to convert TRIGIN_EXPOSE_ENABLE to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->common.log_error( function, "TRIGIN_EXPOSE_ENABLE out of integer range" );
+          return(ERROR);
+        }
+        this->trigin_expose_enable = enable;
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 21, "TRIGIN_EXPOSE_DISABLE")==0) {    // TRIGIN_EXPOSE_DISABLE
+        int disable;
+        try {
+          disable = std::stoi( config.arg[entry] );
+	}
+        catch (std::invalid_argument &) {
+          this->common.log_error( function, "unable to convert TRIGIN_EXPOSE_DISABLE to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->common.log_error( function, "TRIGIN_EXPOSE_DISABLE out of integer range" );
+          return(ERROR);
+        }
+        this->trigin_expose_disable = disable;
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 21, "TRIGIN_UNTIMED_ENABLE")==0) {    // TRIGIN_UNTIMED_ENABLE
+        int enable;
+        try {
+          enable = std::stoi( config.arg[entry] );
+	}
+        catch (std::invalid_argument &) {
+          this->common.log_error( function, "unable to convert TRIGIN_UNTIMED_ENABLE to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->common.log_error( function, "TRIGIN_UNTIMED_ENABLE out of integer range" );
+          return(ERROR);
+        }
+        this->trigin_untimed_enable = enable;
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 22, "TRIGIN_UNTIMED_DISABLE")==0) {   // TRIGIN_UNTIMED_DISABLE
+        int disable;
+        try {
+          disable = std::stoi( config.arg[entry] );
+	}
+        catch (std::invalid_argument &) {
+          this->common.log_error( function, "unable to convert TRIGIN_UNTIMED_DISABLE to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->common.log_error( function, "TRIGIN_UNTIMED_DISABLE out of integer range" );
+          return(ERROR);
+        }
+        this->trigin_untimed_disable = disable;
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 21, "TRIGIN_READOUT_ENABLE")==0) {    // TRIGIN_READOUT_ENABLE
+        int enable;
+        try {
+          enable = std::stoi( config.arg[entry] );
+	}
+        catch (std::invalid_argument &) {
+          this->common.log_error( function, "unable to convert TRIGIN_READOUT_ENABLE to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->common.log_error( function, "TRIGIN_READOUT_ENABLE out of integer range" );
+          return(ERROR);
+        }
+        this->trigin_readout_enable = enable;
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 22, "TRIGIN_READOUT_DISABLE")==0) {   // TRIGIN_READOUT_DISABLE
+        int disable;
+        try {
+          disable = std::stoi( config.arg[entry] );
+	}
+        catch (std::invalid_argument &) {
+          this->common.log_error( function, "unable to convert TRIGIN_READOUT_DISABLE to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->common.log_error( function, "TRIGIN_READOUT_DISABLE out of integer range" );
+          return(ERROR);
+        }
+        this->trigin_readout_disable = disable;
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 16, "SHUTENABLE_PARAM")==0) {         // SHUTENABLE_PARAM
         this->shutenableparam = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 17, "SHUTENABLE_ENABLE")==0) {        // SHUTENABLE_ENABLE
+        int enable;
+        try {
+          enable = std::stoi( config.arg[entry] );
+	}
+        catch (std::invalid_argument &) {
+          this->common.log_error( function, "unable to convert SHUTENABLE_ENABLE to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->common.log_error( function, "SHUTENABLE_ENABLE out of integer range" );
+          return(ERROR);
+        }
+        this->shutenable_enable = enable;
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 18, "SHUTENABLE_DISABLE")==0) {       // SHUTENABLE_DISABLE
+        int disable;
+        try {
+          disable = std::stoi( config.arg[entry] );
+	}
+        catch (std::invalid_argument &) {
+          this->common.log_error( function, "unable to convert SHUTENABLE_DISABLE to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->common.log_error( function, "SHUTENABLE_DISABLE out of integer range" );
+          return(ERROR);
+        }
+        this->shutenable_disable = disable;
         applied++;
       }
 
@@ -733,10 +879,7 @@ namespace Archon {
     error = this->archon_cmd(scmd.str());
 
     if (error != NO_ERROR) {
-      message << "ERROR: writing parameter \"" << paramname << "=" << value << "\" to configuration memory";
-    }
-    else {
-      message << "parameter: " << paramname << " written to configuration memory";
+      message << "ERROR: prepping parameter \"" << paramname << "=" << value;
     }
 
     logwrite( function, message.str() );
@@ -2706,10 +2849,12 @@ namespace Archon {
   /**************** Archon::Interface::write_parameter ************************/
   /**
    * @fn     write_parameter
-   * @brief  write a parameter to the Archon controller
+   * @brief  write a parameter to the Archon configuration memory
    * @param  paramname
    * @param  newvalue
    * @return NO_ERROR or ERROR
+   *
+   * After writing a parameter, requires an APPLYALL or LOADPARAMS command
    *
    */
   long Interface::write_parameter( const char *paramname, const char *newvalue, bool &changed ) {
@@ -3432,6 +3577,11 @@ namespace Archon {
    * This function calls "prep_parameter()" and "load_parameter()"
    *
    */
+  long Interface::set_parameter( std::string parameter, long value ) {
+    std::stringstream paramstring;
+    paramstring << parameter << " " << value;
+    return( set_parameter( paramstring.str() ) );
+  }
   long Interface::set_parameter(std::string parameter) {
     std::string function = "Archon::Interface::set_parameter";
     std::stringstream message;
@@ -3543,9 +3693,9 @@ namespace Archon {
       try {
         bool shutten;
         std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::tolower );  // make lowercase
-        if ( shutter_in == "disable" || shutter_in == "0" ) shutten = false;
+        if ( shutter_in == "disable" ) shutten = false;
         else
-        if ( shutter_in == "enable"  || shutter_in == "1" ) shutten = true;
+        if ( shutter_in == "enable"  ) shutten = true;
         else {
           message.str(""); message << shutter_in << " is invalid. Expecting enable or disable";
           this->common.log_error( function, message.str() );
@@ -3555,7 +3705,7 @@ namespace Archon {
           // Now that the value is OK set the parameter on the Archon
           //
           std::stringstream cmd;
-          cmd << this->shutenableparam << " " << ( shutten ? "1" : "0" );
+          cmd << this->shutenableparam << " " << ( shutten ? this->shutenable_enable : this->shutenable_disable );
           error = this->set_parameter( cmd.str() );
 
           // If parameter was set OK then save the new value
@@ -3680,24 +3830,6 @@ namespace Archon {
       return ERROR;
     }
 
-    // Check that the needed parameters are defined
-    //
-    if ( this->trigin_exposeparam.empty() ) {
-      message.str(""); message << "TRIGIN_EXPOSE_PARAM not defined in configuration file " << this->config.filename;
-      this->common.log_error( function, message.str() );
-      error = ERROR;
-    }
-    if ( this->trigin_untimedparam.empty() ) {
-      message.str(""); message << "TRIGIN_UNTIMED_PARAM not defined in configuration file " << this->config.filename;
-      this->common.log_error( function, message.str() );
-      error = ERROR;
-    }
-    if ( this->trigin_readoutparam.empty() ) {
-      message.str(""); message << "TRIGIN_READOUT_PARAM not defined in configuration file " << this->config.filename;
-      this->common.log_error( function, message.str() );
-      error = ERROR;
-    }
-
     std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::tolower );  // make lowercase
 
     Tokenize( state_in, tokens, " " );                                                // break into tokens
@@ -3722,15 +3854,23 @@ namespace Archon {
     //
     try {
 
-      // The first token is taken to be the state name
+      // Ultimately, only will only write the parameter *IF* the parameter has been defined in the config file.
+      // In other words, make no requirement on having all trigger parameters (TRIGIN_EXPOSE_PARAM,
+      // TRIGIN_UNTIMED_PARAM, TRIGIN_READOUT_PARAM) defined. But if the "trigin expose" command is sent then
+      // obviously the TRIGIN_EXPOSE_PARAM must be defined, and so on.
       //
-      newstate = tokens.at(0);
-
       if ( tokens.at(0) == "expose" ) {     // timed exposures can take an optional argument
+        // At minimum, expose requires that TRIGIN_EXPOSE_PARAM be defined
+	//
+        if ( this->trigin_exposeparam.empty() ) {
+          message.str(""); message << "TRIGIN_EXPOSE_PARAM not defined in configuration file " << this->config.filename;
+          this->common.log_error( function, message.str() );
+          return( ERROR );
+        }
         if ( tokens.size() == 1 ) {         // no size given so = 1
           this->trigin_expose  = 1;
-          this->trigin_untimed = 0;
-          this->trigin_readout = 0;
+          this->trigin_untimed = this->trigin_untimed_disable;
+          this->trigin_readout = this->trigin_readout_disable;
         }
         else {                              // size given so try to set trigin_expose to requested value
           int expnum = std::stoi( tokens.at(1) );
@@ -3740,34 +3880,53 @@ namespace Archon {
           }
           else {
             this->trigin_expose  = expnum;
-            this->trigin_untimed = 0;
-            this->trigin_readout = 0;
+            this->trigin_untimed = this->trigin_untimed_disable;
+            this->trigin_readout = this->trigin_readout_disable;
           }
         }
       }
       else
       if ( tokens.at(0) == "untimed"  ) {   // untimed exposures
+        // At minimum, untimed requires that TRIGIN_UNTIMED_PARAM be defined
+	//
+        if ( this->trigin_untimedparam.empty() ) {
+          message.str(""); message << "TRIGIN_UNTIMED_PARAM not defined in configuration file " << this->config.filename;
+          this->common.log_error( function, message.str() );
+          return( ERROR );
+        }
         this->trigin_expose  = 0;
-        this->trigin_untimed = 1;
-        this->trigin_readout = 0;
+        this->trigin_untimed = this->trigin_untimed_enable;
+        this->trigin_readout = this->trigin_readout_disable;
       }
       else
       if ( tokens.at(0) == "readout"  ) {   // readout is used at the end of untimed exposures
+        // At minimum, readout requires that TRIGIN_READOUT_PARAM be defined
+	//
+        if ( this->trigin_readoutparam.empty() ) {
+          message.str(""); message << "TRIGIN_READOUT_PARAM not defined in configuration file " << this->config.filename;
+          this->common.log_error( function, message.str() );
+          return( ERROR );
+        }
         this->trigin_expose  = 0;
-        this->trigin_untimed = 0;
-        this->trigin_readout = 1;
+        this->trigin_untimed = this->trigin_untimed_disable;
+        this->trigin_readout = this->trigin_readout_enable;
       }
       else
       if ( tokens.at(0) == "disable"  ) {   // used to disable untimed exposures
         this->trigin_expose  = 0;
-        this->trigin_untimed = 0;
-        this->trigin_readout = 0;
+        this->trigin_untimed = this->trigin_untimed_disable;
+        this->trigin_readout = this->trigin_readout_disable;
       }
       else {
         message.str(""); message << "requested trigin state: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
         this->common.log_error( function, message.str() );
         error = ERROR;
       }
+
+      // The first token is taken to be the state name.
+      // Only after the parameters have been successfully written will we set this->trigin_state = newstate
+      //
+      newstate = tokens.at(0);
     }
     catch ( std::invalid_argument & ) {
       message.str(""); message << "converting number of timed external-trigger exposures: " << state_in << " to integer";
@@ -3789,11 +3948,60 @@ namespace Archon {
     //
     if ( error != NO_ERROR ) return( error );
 
-    // Now that all of the parameter values have been set, write them to Archon.
+    // Build up a vector of the parameters and their values that have been defined.
     //
-    if ( error == NO_ERROR ) error = this->write_parameter( this->trigin_exposeparam.c_str(),  this->trigin_expose  );
-    if ( error == NO_ERROR ) error = this->write_parameter( this->trigin_untimedparam.c_str(), this->trigin_untimed );
-    if ( error == NO_ERROR ) error = this->write_parameter( this->trigin_readoutparam.c_str(), this->trigin_readout );
+    typedef struct {
+      std::string param;
+      int value;
+    } triginfo_t;
+
+    std::vector<triginfo_t> trigger;
+
+    // If the parameter has been defined then push that parameter and its value into the vector.
+    // Check this for each of the three trigin parameters.
+    //
+
+    if ( !this->trigin_exposeparam.empty() ) {        // TRIGIN_EXPOSE
+      triginfo_t expose;
+      expose.param = this->trigin_exposeparam;
+      expose.value = this->trigin_expose;
+      trigger.push_back( expose );
+#ifdef LOGLEVEL_DEBUG
+      message.str(""); message << "[DEBUG] EXPOSE param=" << this->trigin_exposeparam << " value=" << this->trigin_expose;
+      logwrite( function, message.str() );
+#endif
+    }
+
+    if ( !this->trigin_untimedparam.empty() ) {       // TRIGIN_UNTIMED
+      triginfo_t untimed;
+      untimed.param = this->trigin_untimedparam;
+      untimed.value = this->trigin_untimed;
+      trigger.push_back( untimed );
+#ifdef LOGLEVEL_DEBUG
+      message.str(""); message << "[DEBUG] UNTIMED param=" << this->trigin_untimedparam << " value=" << this->trigin_untimed;
+      logwrite( function, message.str() );
+#endif
+    }
+
+    if ( !this->trigin_readoutparam.empty() ) {       // TRIGIN_READOUT
+      triginfo_t readout;
+      readout.param = this->trigin_readoutparam;
+      readout.value = this->trigin_readout;
+      trigger.push_back( readout );
+#ifdef LOGLEVEL_DEBUG
+      message.str(""); message << "[DEBUG] READOUT param=" << this->trigin_readoutparam << " value=" << this->trigin_readout;
+      logwrite( function, message.str() );
+#endif
+    }
+
+    // Now write those parameters to the Archon
+    //
+    for ( auto trig : trigger ) {
+      if ( error == NO_ERROR ) error = this->set_parameter( trig.param, trig.value );
+    }
+
+    // Now that the parameters have been successfully written we are in the new state
+    //
     if ( error == NO_ERROR ) this->trigin_state = newstate;
 
     // Save the last frame number acquired -- wait_for_readout() will need this later
