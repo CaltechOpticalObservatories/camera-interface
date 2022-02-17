@@ -25,6 +25,7 @@
 namespace Common {
 
   Common::Common() {
+    this->is_cubeamps = false;           // don't force amplifiers to be written as multi-extension cubes
     this->is_longerror = false;
     this->is_datacube = false;
     this->image_dir = "/tmp";
@@ -866,6 +867,65 @@ bool Common::get_abortstate() {
     return( error );
   }
   /** Common::Common::longerror ***********************************************/
+
+
+  /** Common::Common::cubeamps ************************************************/
+  /**
+   * @fn     cubeamps
+   * @brief  set or get the cubeamps state
+   * @param  std::string state_in
+   * @return true or false
+   *
+   * The state_in string should be "True" or "False", case-insensitive.
+   *
+   * This function is overloaded.
+   *
+   */
+  void Common::cubeamps(bool state_in) {                                  // write-only boolean
+    std::string dontcare;
+    this->cubeamps( (state_in ? "true" : "false"), dontcare );
+  }
+  bool Common::cubeamps() {                                               // read-only boolean
+    return ( this->is_cubeamps );
+  }
+  long Common::cubeamps(std::string state_in, std::string &state_out) {   // read-write string, called from server
+    std::string function = "Common::Common::cubeamps";
+    std::stringstream message;
+    int error = NO_ERROR;
+
+    // If something is passed then try to use it to set the cubeamps state
+    //
+    if ( !state_in.empty() ) {
+      try {
+        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::tolower );    // make lowercase
+        if (state_in == "false" ) this->is_cubeamps = false;
+        else
+        if (state_in == "true"  ) this->is_cubeamps = true;
+        else {
+          message.str(""); message << state_in << " is invalid. Expecting true or false";
+          this->log_error( function, message.str() );
+          error = ERROR;
+        }
+      }
+      catch (...) {
+        message.str(""); message << "unknown exception parsing argument: " << state_in;
+        this->log_error( function, message.str() );
+        error = ERROR;
+      }
+    }
+
+    // error or not, the state reported is whatever was last successfully set
+    //
+    state_out = (this->is_cubeamps ? "true" : "false");
+    logwrite( function, state_out );
+    message.str(""); message << "NOTICE:cubeamps=" << state_out;
+    this->message.enqueue( message.str() );
+
+    // and this lets the server know if it was set or not
+    //
+    return( error );
+  }
+  /** Common::Common::cubeamps ************************************************/
 
 
   /** Common::Queue::enqueue **************************************************/

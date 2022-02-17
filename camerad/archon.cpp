@@ -139,6 +139,14 @@ namespace Archon {
         applied++;
       }
 
+      if (config.param[entry].compare(0, 12, "AMPS_AS_CUBE")==0) {
+        std::string dontcare;
+        if ( this->common.cubeamps( config.arg[entry], dontcare ) == ERROR ) {
+          this->common.log_error( function, "setting cubeamps" );
+          return( ERROR );
+        }
+      }
+
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {             // EXPOSE_PARAM
         this->exposeparam = config.arg[entry];
         applied++;
@@ -1533,6 +1541,7 @@ namespace Archon {
     // set internal variables based on new .acf values loaded
     //
     error = NO_ERROR;
+    if (error==NO_ERROR) error = get_configmap_value("FRAMEMODE", this->modemap[mode].geometry.framemode);
     if (error==NO_ERROR) error = get_configmap_value("LINECOUNT", this->modemap[mode].geometry.linecount);
     if (error==NO_ERROR) error = get_configmap_value("PIXELCOUNT", this->modemap[mode].geometry.pixelcount);
     if (error==NO_ERROR) error = get_configmap_value("RAWENABLE", this->modemap[mode].rawenable);
@@ -1642,6 +1651,8 @@ namespace Archon {
     // Image can be 16 or 32 bpp depending on SAMPLEMODE setting in ACF.
     // Call set_axes(datatype) with the FITS data type needed, which will set the info.datatype variable.
     //
+    error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
+/*********
     if (this->camera_info.frame_type == Common::FRAME_RAW) {
       error = this->camera_info.set_axes(USHORT_IMG);                                     // 16 bit raw is unsigned short int
     }
@@ -1655,6 +1666,7 @@ namespace Archon {
         return (ERROR);
       }
     }
+*********/
     if (error != NO_ERROR) {
       this->common.log_error( function, "setting axes" );
       return (ERROR);
@@ -1674,6 +1686,54 @@ namespace Archon {
 
     message.str(""); message << "new mode: " << mode << " will use " << this->camera_info.bitpix << " bits per pixel";
     logwrite(function, message.str());
+
+    // Calculate amplifier sections
+    //
+    int rows = this->modemap[mode].geometry.linecount;     // rows per section
+    int cols = this->modemap[mode].geometry.pixelcount;    // cols per section
+
+    int hamps = this->modemap[mode].geometry.amps[0];      // horizontal amplifiers
+    int vamps = this->modemap[mode].geometry.amps[1];      // vertical amplifiers
+
+    int x0=-1, x1, y0, y1;                                 // for indexing
+    std::vector<long> coords;                              // vector of coordinates, convention is x0,x1,y0,y1
+    int framemode = this->modemap[mode].geometry.framemode;
+
+    this->camera_info.amp_section.clear();                 // vector of coords vectors, one set of coords per extension
+
+    for ( int y=0; y<vamps; y++ ) {
+      for ( int x=0; x<hamps; x++ ) {
+        if ( framemode == 2 ) {
+          x0 = x; x1=x+1;
+          y0 = y; y1=y+1;
+        }
+        else {
+          x0++;   x1=x0+1;
+          y0 = 0; y1=1;
+        }
+        coords.clear();
+        coords.push_back( (x0*cols + 1) );                 // x0 is xstart
+        coords.push_back( (x1)*cols );                     // x1 is xstop, xrange = x0:x1
+        coords.push_back( (y0*rows + 1) );                 // y0 is ystart
+        coords.push_back( (y1)*rows );                     // y1 is ystop, yrange = y0:y1
+
+        this->camera_info.amp_section.push_back( coords ); // (x0,x1,y0,y1) for this extension
+
+      }
+    }
+    message.str(""); message << "identified " << this->camera_info.amp_section.size() << " amplifier sections";
+    logwrite( function, message.str() );
+
+#ifdef LOGLEVEL_DEBUG
+    int ext=0;
+    for ( auto sec : this->camera_info.amp_section ) {
+      message.str(""); message << "[DEBUG] extension " << ext++ << ":";
+      for ( auto xy : sec ) {
+        message << " " << xy;
+      }
+      logwrite( function, message.str() );
+    }
+#endif
 
     return(error);
   }
@@ -1762,9 +1822,9 @@ namespace Archon {
 
     // Loop through every tap to get the offset for each
     //
-    for (int i=0; i<this->taplines; i++) {
+    for (int tapn=0; tapn<this->taplines; tapn++) {
       tap.str("");
-      tap << "TAPLINE" << i;  // used to find the tapline in the configmap
+      tap << "TAPLINE" << tapn;  // used to find the tapline in the configmap
 
       // The value of TAPLINEn = ADxx,gain,offset --
       // tokenize by comma to separate out each parameter...
@@ -1850,6 +1910,10 @@ namespace Archon {
           }
           return( ERROR );
         }
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] tap #" << tapn << " ad#" << adnum;
+        logwrite( function, message.str() );
+#endif
       }
     }
 
@@ -2574,7 +2638,7 @@ namespace Archon {
     uint32_t   *cbuf32;                  //!< used to cast char buf into 32 bit int
     uint16_t   *cbuf16;                  //!< used to cast char buf into 16 bit int
     int16_t    *cbuf16s;                 //!< used to cast char buf into 16 bit int
-    long        error;
+    long        error=NO_ERROR;
 
     if ( ! this->modeselected ) {
       this->common.log_error( function, "no mode selected" );
@@ -2594,20 +2658,96 @@ namespace Archon {
       //
       case 32: {
         cbuf32 = (uint32_t *)this->image_data;                  // cast here to 32b
-        float *fbuf = NULL;
-//      fbuf = new float[ this->fits_info.image_size ];         // allocate a float buffer of same number of pixels for scaling  //TODO
-        fbuf = new float[ this->camera_info.image_size ];       // allocate a float buffer of same number of pixels for scaling
 
-//      for (long pix=0; pix < this->fits_info.image_size; pix++)   //TODO
-        for (long pix=0; pix < this->camera_info.image_size; pix++) {
-          fbuf[pix] = (float) ( cbuf32[pix] >> this->n_hdrshift ); // right shift the requested number of bits
-        }
+        // Write each amplifier as a separate extension
+        //
+        if ( this->common.cubeamps() ) {
+          float *fext = NULL;
 
-//      error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
-        error = this->fits_file.write_image(fbuf, this->camera_info); // write the image to disk
-        if ( error != NO_ERROR ) { this->common.log_error( function, "writing 32-bit image to disk" ); }
-        if (fbuf != NULL) {
-          delete [] fbuf;
+          for ( int ext=0; ext < (int)this->camera_info.amp_section.size(); ext++ ) {
+            try {
+              // get the coordinates of this amplifier extension
+              //
+              long x1 = this->camera_info.amp_section.at(ext).at(0);
+              long x2 = this->camera_info.amp_section.at(ext).at(1);
+              long y1 = this->camera_info.amp_section.at(ext).at(2);
+              long y2 = this->camera_info.amp_section.at(ext).at(3);
+
+              this->camera_info.region_of_interest[0] = x1;
+              this->camera_info.region_of_interest[1] = x2;
+              this->camera_info.region_of_interest[2] = y1;
+              this->camera_info.region_of_interest[3] = y2;
+              error = this->camera_info.set_axes();
+
+#ifdef LOGLEVEL_DEBUG
+              message.str(""); message << "[DEBUG] x1=" << x1 << " x2=" << x2 << " y1=" << y1 << " y2=" << y2;
+              logwrite( function, message.str() );
+              message.str(""); message << "[DEBUG] axes[0]=" << this->camera_info.axes[0] << " axes[1]=" << this->camera_info.axes[1];
+              logwrite( function, message.str() );
+#endif
+
+              // allocate the number of pixels needed for this amplifier extension
+              //
+              long ext_size = (x2-x1+1) * (y2-y1+1);
+              fext = new float[ ext_size ];
+
+#ifdef LOGLEVEL_DEBUG
+              message.str(""); message << "[DEBUG] allocated " << ext_size << " pixels for extension " << this->camera_info.extension+1;
+              logwrite( function, message.str() );
+#endif
+              // copy this amplifier from the main cbuf32,
+              // at the same time right-shift the requested number of bits
+              //
+              long pix=0;
+              long ncols=this->camera_info.detector_pixels[0];  // PIXELCOUNT
+//            long nrows=this->camera_info.detector_pixels[1];  // LINECOUNT  // TODO needed for anything?
+              for ( long row=y1-1; row<y2; row++ ) {
+                for ( long col=x1-1; col<x2; col++ ) {
+                  fext[pix++] = (float)( cbuf32[ row*ncols + col ] >> this->n_hdrshift );
+                }
+              }
+
+#ifdef LOGLEVEL_DEBUG
+              message.str(""); message << "[DEBUG] calling fits_file.write_image( ) for extension " << this->camera_info.extension+1;
+              logwrite( function, message.str() );
+#endif
+
+              error = this->fits_file.write_image(fext, this->camera_info); // write the image to disk
+              this->camera_info.extension++;                                // increment extension for cubes
+              if ( fext != NULL ) { delete [] fext; fext=NULL; }
+
+#ifdef LOGLEVEL_DEBUG
+              message.str(""); message << "[DEBUG] freed pixels for extension " << ext+1;
+              logwrite( function, message.str() );
+#endif
+
+            }
+            catch( std::out_of_range & ) {
+              message.str(""); message << "ERROR: " << ext << " is a bad extension number";
+              logwrite( function, message.str() );
+              return( ERROR );
+            }
+          }
+        }  // end if this->common.cubeamps()
+
+        // Write all amplifiers to the same extension
+        //
+        else {
+          float *fbuf = NULL;
+//        fbuf = new float[ this->fits_info.image_size ];         // allocate a float buffer of same number of pixels for scaling  //TODO
+          fbuf = new float[ this->camera_info.image_size ];       // allocate a float buffer of same number of pixels for scaling
+
+//        for (long pix=0; pix < this->fits_info.image_size; pix++)   //TODO
+          for (long pix=0; pix < this->camera_info.image_size; pix++) {
+            fbuf[pix] = (float) ( cbuf32[pix] >> this->n_hdrshift ); // right shift the requested number of bits
+          }
+
+//        error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
+          error = this->fits_file.write_image(fbuf, this->camera_info); // write the image to disk
+          if ( error != NO_ERROR ) { this->common.log_error( function, "writing 32-bit image to disk" ); }
+          if (fbuf != NULL) {
+            delete [] fbuf;
+          }
         }
         break;
       }
@@ -3131,6 +3271,11 @@ namespace Archon {
       this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
     }
 ***/
+
+    // Enable datacubes if requested via cubeamps.
+    // This will enable writing each CCD amplifier in a separate extension.
+    //
+    if ( this->common.cubeamps() ) this->common.datacube( true ); else this->common.datacube( false );
 
     // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
     // one extension for the image and a separate extension for raw data.
@@ -5350,11 +5495,65 @@ namespace Archon {
     catch ( std::out_of_range & ) { this->common.log_error( function, "testname token out of range" ); return( ERROR ); }
 
     // ----------------------------------------------------
+    // ampinfo
+    // ----------------------------------------------------
+    // print what is known about the amplifiers
+    //
+    if (testname == "ampinfo") {
+
+      std::string mode = this->camera_info.current_observing_mode;
+      int framemode = this->modemap[mode].geometry.framemode;
+
+      message.str(""); message << "[ampinfo] observing mode=" << mode;
+      logwrite( function, message.str() );
+      message.str(""); message << "[ampinfo] FRAMEMODE=" << this->modemap[mode].geometry.framemode;
+      logwrite( function, message.str() );
+      message.str(""); message << "[ampinfo] LINECOUNT=" << this->modemap[mode].geometry.linecount << " PIXELCOUNT=" << this->modemap[mode].geometry.pixelcount;
+      logwrite( function, message.str() );
+      message.str(""); message << "[ampinfo] num_taps=" << this->modemap[mode].tapinfo.num_taps;
+      logwrite( function, message.str() );
+      message.str(""); message << "[ampinfo] hori_amps=" << this->modemap[mode].geometry.amps[0] << " vert_amps=" << this->modemap[mode].geometry.amps[1];
+      logwrite( function, message.str() );
+
+      message.str(""); message << "[ampinfo] gains =";
+      for ( auto gain : this->gain ) {
+        message << " " << gain;
+      }
+      logwrite( function, message.str() );
+
+      int rows = this->modemap[mode].geometry.linecount;
+      int cols = this->modemap[mode].geometry.pixelcount;
+
+      int hamps = this->modemap[mode].geometry.amps[0];
+      int vamps = this->modemap[mode].geometry.amps[1];
+
+      int x0=-1, x1, y0, y1;
+
+      for ( int y=0; y<vamps; y++ ) {
+        for ( int x=0; x<hamps; x++ ) {
+          if ( framemode == 2 ) {
+            x0 = x; x1=x+1;
+            y0 = y; y1=y+1;
+          }
+          else {
+            x0++;   x1=x0+1;
+            y0 = 0; y1=1;
+          }
+          message.str(""); message << "[ampinfo] x0=" << x0 << " x1=" << x1 << " y0=" << y0 << " y1=" << y1 
+                                   << " | amp section (xrange, yrange) " << (x0*cols + 1) << ":" << (x1)*cols << ", " << (y0*rows + 1) << ":" << (y1)*rows;
+          logwrite( function, message.str() );
+        }
+      }
+      error = NO_ERROR;
+    }
+
+    // ----------------------------------------------------
     // busy
     // ----------------------------------------------------
     // Override the archon_busy flag to test system responsiveness
     // when the Archon is busy.
     //
+    else
     if (testname == "busy") {
       if ( tokens.size() == 1 ) {
         message.str(""); message << "archon_busy=" << this->archon_busy;
