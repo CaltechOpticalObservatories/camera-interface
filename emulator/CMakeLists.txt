@@ -8,6 +8,8 @@ set( EMULATOR_DIR ${PROJECT_BASE_DIR}/emulator )
 
 include_directories( ${PROJECT_BASE_DIR}/utils ${PROJECT_BASE_DIR}/camerad )
 
+add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 -ggdb )
+
 if( ${INTERFACE_TYPE} STREQUAL "Archon" )
         add_definitions(-DSTA_ARCHON)
         set( EMULATOR_TARGET emulatorArchon )

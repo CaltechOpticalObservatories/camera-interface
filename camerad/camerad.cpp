@@ -124,7 +124,8 @@ int main(int argc, char **argv) {
   if ( !daemon_in.empty() && daemon_in == "yes" ) start_daemon = true;
   else
   if ( !daemon_in.empty() && daemon_in == "no"  ) start_daemon = false;
-  else {
+  else
+  if ( !daemon_in.empty() ) {
     message.str(""); message << "ERROR: unrecognized argument DAEMON=" << daemon_in << ", expected { yes | no }";
     logwrite( function, message.str() );
     server.exit_cleanly();
