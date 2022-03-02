@@ -32,7 +32,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define POLLTIMEOUT 5000               //!< default Poll timeout in msec
+#define POLLTIMEOUT 10000              //!< default Poll timeout in msec
 #define LISTENQ 64                     //!< listen(3n) backlog 
 
 namespace Network {

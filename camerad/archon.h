@@ -38,6 +38,7 @@
 #define  POWERON       std::string("POWERON")
 #define  POWEROFF      std::string("POWEROFF")
 #define  APPLYCDS      std::string("APPLYCDS")
+#define  APPLYSYSTEM   std::string("APPLYSYSTEM")
 #define  RESETTIMING   std::string("RESETTIMING")
 #define  LOADTIMING    std::string("LOADTIMING")
 #define  HOLDTIMING    std::string("HOLDTIMING")

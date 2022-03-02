@@ -183,6 +183,7 @@ namespace Common {
       bool          iscube;                  //!< the info object given to the FITS writer will need to know cube status
       int           extension;               //!< extension number for data cubes
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
+      std::string   shutteractivate;         //!< shutter activation state
       int32_t       exposure_time;           //!< exposure time in exposure_unit
       std::string   exposure_unit;           //!< exposure time unit
       int           exposure_factor;         //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
@@ -213,6 +214,7 @@ namespace Common {
         this->exposure_time = -1;            //!< default exposure time is undefined
         this->exposure_unit = "";            //!< default exposure unit is undefined
         this->exposure_factor = -1;          //!< default factor is undefined
+        this->shutteractivate = "";
       }
 
       long set_axes() {

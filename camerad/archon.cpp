@@ -3161,22 +3161,33 @@ namespace Archon {
     // same default values that the ACF has, rather than hope that the ACF programmer picks
     // their defaults to match mine.
     //
-    if ( this->camera_info.exposure_time   == -1 ||
-         this->camera_info.exposure_factor == -1 ||
-         this->camera_info.exposure_unit.empty() ) {
-      logwrite( function, "NOTICE:exptime and/or longexposure have not been set--will read from Archon" );
-      this->common.message.enqueue( "NOTICE:exptime and/or longexposure have not been set--will read from Archon" );
+    if ( this->camera_info.exposure_time   == -1 ) {
+      logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
+      this->common.message.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
 
       // read the Archon configuration memory
       //
-      std::string etime, lexp;
+      std::string etime;
       if ( read_parameter( "exptime", etime ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"exptime\" parameter from Archon" ); return ERROR; }
-      if ( read_parameter( "longexposure", lexp ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" ); return ERROR; }
 
       // Tell the server these values
       //
       std::string retval;
       if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
+    }
+    if ( this->camera_info.exposure_factor == -1 ||
+         this->camera_info.exposure_unit.empty() ) {
+      logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
+      this->common.message.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
+
+      // read the Archon configuration memory
+      //
+      std::string lexp;
+      if ( read_parameter( "longexposure", lexp ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" ); return ERROR; }
+
+      // Tell the server these values
+      //
+      std::string retval;
       if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
     }
 
@@ -3836,19 +3847,51 @@ namespace Archon {
 
     if ( !shutter_in.empty() ) {
       try {
-        bool shutten;
+        bool shutten;          // shutter enable state read from command
+        bool ability=false;    // are we going to change the ability (enable/disable)?
+        bool activate=false;   // are we going to activate the shutter (open/close)?
+        std::string activate_str;
+        int level=0, force=0;  // trigout level and force for activate
+        bool dontcare;
         std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::tolower );  // make lowercase
-        if ( shutter_in == "disable" ) shutten = false;
+        if ( shutter_in == "disable" ) {
+          ability = true;
+          shutten = false;
+	}
         else
-        if ( shutter_in == "enable"  ) shutten = true;
+        if ( shutter_in == "enable"  ) {
+          ability = true;
+          shutten = true;
+	}
+        else
+        if ( shutter_in == "open"  ) {
+          activate = true;
+          force = 1;
+          level = 1;
+          activate_str = "open";
+	}
+        else
+        if ( shutter_in == "close"  ) {
+          activate = true;
+          force = 1;
+          level = 0;
+          activate_str = "closed";
+	}
+        else
+        if ( shutter_in == "reset"  ) {
+          activate = true;
+          force = 0;
+          level = 0;
+          activate_str = "";
+	}
         else {
-          message.str(""); message << shutter_in << " is invalid. Expecting enable or disable";
+          message.str(""); message << shutter_in << " is invalid. Expecting { enable | disable | open | close | reset }";
           this->common.log_error( function, message.str() );
           error = ERROR;
         }
-        if ( error == NO_ERROR ) {
-          // Now that the value is OK set the parameter on the Archon
-          //
+        // if changing the ability (enable/disable) then do that now
+	//
+        if ( error == NO_ERROR && ability ) {
           std::stringstream cmd;
           cmd << this->shutenableparam << " " << ( shutten ? this->shutenable_enable : this->shutenable_disable );
           error = this->set_parameter( cmd.str() );
@@ -3857,6 +3900,26 @@ namespace Archon {
           //
           if ( error == NO_ERROR ) this->camera_info.shutterenable = shutten;
         }
+        // if changing the activation (open/close/reset) then do that now
+	//
+        if ( error == NO_ERROR && activate ) {
+          if ( this->configmap.find( "TRIGOUTFORCE" ) != this->configmap.end() ) {
+            error = this->write_config_key( "TRIGOUTFORCE", force, dontcare );
+	  }
+          else {
+            this->common.log_error( function, "TRIGOUTFORCE not found in configmap" );
+            error = ERROR;
+          }
+          if ( this->configmap.find( "TRIGOUTLEVEL" ) != this->configmap.end() ) {
+            if ( error == NO_ERROR) error = this->write_config_key( "TRIGOUTLEVEL", level, dontcare );
+	  }
+          else {
+            this->common.log_error( function, "TRIGOUTLEVEL not found in configmap" );
+            error = ERROR;
+          }
+          if ( error == NO_ERROR ) error = this->archon_cmd( APPLYSYSTEM );
+          if ( error == NO_ERROR ) { this->camera_info.shutteractivate = activate_str; }
+	}
       }
       catch (...) {
         message.str(""); message << "converting requested shutter state: " << shutter_in << " to lowercase";
@@ -3868,6 +3931,11 @@ namespace Archon {
     // set the return value and report the state now, either setting or getting
     //
     shutter_out = this->camera_info.shutterenable ? "enabled" : "disabled";
+
+    // if the shutteractivate string is not empty then use it for the return string, instead
+    //
+    if ( !this->camera_info.shutteractivate.empty() ) shutter_out = this->camera_info.shutteractivate;
+
     message.str("");
     message << "shutter is " << shutter_out;
     logwrite( function, message.str() );
