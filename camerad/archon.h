@@ -203,6 +203,7 @@ namespace Archon {
         int  num_detect;           // number of detectors, set in set_camera_mode
         int  linecount;            // number of lines per tap
         int  pixelcount;           // number of pixels per tap
+        int  framemode;            // Archon deinterlacing mode, 0=topfirst, 1=bottomfirst, 2=split
       };
 
       /**
