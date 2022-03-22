@@ -188,6 +188,7 @@ namespace Common {
       std::string   exposure_unit;           //!< exposure time unit
       int           exposure_factor;         //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
       double        exposure_progress;       //!< exposure progress (fraction)
+      int           num_pre_exposures;       //!< pre-exposures are exposures taken but not saved
       std::string   fits_name;               //!< contatenation of Common's image_dir + image_name + image_num
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
 
@@ -215,7 +216,10 @@ namespace Common {
         this->exposure_unit = "";            //!< default exposure unit is undefined
         this->exposure_factor = -1;          //!< default factor is undefined
         this->shutteractivate = "";
+        this->num_pre_exposures = 0;         //!< default is no pre-exposures
       }
+
+      long pre_exposures( std::string num_in, std::string &num_out );
 
       long set_axes() {
         std::string function = "Common::Information::set_axes";

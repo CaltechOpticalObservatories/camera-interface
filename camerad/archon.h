@@ -106,6 +106,8 @@ namespace Archon {
       bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
       bool is_longexposure;                  //!< true for long exposure mode (exptime in sec), false for exptime in msec
 
+      bool lastcubeamps;
+
       std::string trigin_state;              //!< for external triggering of exposures
 
       int trigin_expose;                     //!< current value of trigin expose

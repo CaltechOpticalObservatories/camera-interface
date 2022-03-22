@@ -182,7 +182,7 @@ class FITS_file {
       //
       if ( ! this->file_open ) {
 #ifdef LOGLEVEL_DEBUG
-        logwrite(function, "no open FITS file to close");
+        logwrite(function, "[DEBUG] no open FITS file to close");
 #endif
         return;
       }
@@ -268,6 +268,11 @@ class FITS_file {
       //
       this->threadcount++;                                   // increment threadcount for each thread spawned
 
+#ifdef LOGLEVEL_DEBUG
+      message.str("");
+      message << "[DEBUG] iscube=" << info.iscube << ". spawning image writing thread for frame " << this->framen << " of " << info.fits_name;
+      logwrite(function, message.str());
+#endif
       std::thread([&]() {                                    // create the detached thread here
         if (info.iscube) {
           this->write_cube_thread(array, info, this);
@@ -280,7 +285,7 @@ class FITS_file {
       }).detach();
 #ifdef LOGLEVEL_DEBUG
       message.str("");
-      message << "*** [DEBUG] spawned image writing thread for frame " << this->framen << " of " << info.fits_name;
+      message << "[DEBUG] spawned image writing thread for frame " << this->framen << " of " << info.fits_name;
       logwrite(function, message.str());
 #endif
 
@@ -317,7 +322,7 @@ class FITS_file {
 #ifdef LOGLEVEL_DEBUG
       else {
         message.str("");
-        message << "*** [DEBUG] " << info.fits_name << " complete";
+        message << "[DEBUG] " << info.fits_name << " complete";
         logwrite(function, message.str());
       }
 #endif
@@ -407,6 +412,11 @@ class FITS_file {
     void write_cube_thread(std::valarray<T> &data, Common::Information &info, FITS_file *self) {
       std::string function = "FITS_file::write_cube_thread";
       std::stringstream message;
+
+#ifdef LOGLEVEL_DEBUG
+      message.str(""); message << "[DEBUG] info.extension=" << info.extension << " this->framen=" << this->framen;
+      logwrite( function, message.str() );
+#endif
 
       // This makes the thread wait while another thread is writing images. This
       // thread will only start writing once the extension number matches the

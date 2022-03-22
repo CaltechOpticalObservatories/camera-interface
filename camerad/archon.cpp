@@ -39,6 +39,8 @@ namespace Archon {
     this->trigin_untimed = 0;
     this->trigin_readout = 0;
 
+    this->lastcubeamps = this->common.cubeamps();
+
     this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
     this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
     this->trigin_untimed_enable  = DEF_TRIGIN_UNTIMED_ENABLE;
@@ -2794,7 +2796,6 @@ namespace Archon {
     // Things to do after successful write
     //
     if ( error == NO_ERROR ) {
-      this->common.increment_imnum();                                 // increment image_num when fitsnaming == "number"
       if ( this->common.datacube() ) {
         this->camera_info.extension++;                                // increment extension for cubes
         message.str(""); message << "DATACUBE:" << this->camera_info.extension << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
@@ -3147,6 +3148,18 @@ namespace Archon {
       return ERROR;
     }
 
+    // When switching from cubeamps=true to cubeamps=false,
+    // simply reset the mode to the current mode in order to
+    // reset the image size. 
+    //
+    // This will need to be revisited once ROI is implemented. // TODO
+    //
+    if ( !this->common.cubeamps() && ( this->lastcubeamps != this->common.cubeamps() ) ) {
+      message.str(""); message << "detected change in cubeamps -- resetting camera mode to " << mode;
+      logwrite( function, message.str() );
+      this->set_camera_mode( mode );
+    }
+
     // exposeparam is set by the configuration file
     // check to make sure it was set, or else expose won't work
     //
@@ -3191,16 +3204,17 @@ namespace Archon {
       if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
     }
 
-    // If nseq_in is not supplied then set nseq to 1
+    // If nseq_in is not supplied then set nseq to 1.
+    // Add any pre-exposures onto the number of sequences.
     //
     if ( nseq_in.empty() ) {
-      nseqstr = "1";
-      nseq=1;
+      nseq = 1 + this->camera_info.num_pre_exposures;
+      nseqstr = std::to_string( nseq );
     }
     else {                                                          // sequence argument passed in
       try {
-        nseq = std::stoi( nseq_in );                                // test that nseq_in is an integer
-        nseqstr = nseq_in;                                          // before trying to use it
+        nseq = std::stoi( nseq_in ) + this->camera_info.num_pre_exposures;      // test that nseq_in is an integer
+        nseqstr = std::to_string( nseq );                           // before trying to use it
       }
       catch (std::invalid_argument &) {
         message.str(""); message << "unable to convert sequences: " << nseq_in << " to integer";
@@ -3283,11 +3297,6 @@ namespace Archon {
     }
 ***/
 
-    // Enable datacubes if requested via cubeamps.
-    // This will enable writing each CCD amplifier in a separate extension.
-    //
-    if ( this->common.cubeamps() ) this->common.datacube( true ); else this->common.datacube( false );
-
     // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
     // one extension for the image and a separate extension for raw data.
     //
@@ -3306,7 +3315,10 @@ namespace Archon {
 
     // Open the FITS file now for cubes
     //
-    if ( this->common.datacube() ) {
+    if ( this->common.datacube() && !this->common.cubeamps() ) {
+#ifdef LOGLEVEL_DEBUG
+      logwrite( function, "[DEBUG] opening fits file for multi-exposure sequence data cube" );
+#endif
       error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
       if ( error != NO_ERROR ) {
         this->common.log_error( function, "couldn't open fits file" );
@@ -3329,11 +3341,46 @@ namespace Archon {
     // is a squence, then loop over all expected frames.
     //
     if ( mode != "RAW" ) {                                          // If not raw mode then
+      int expcount = 0;                                             // counter used only for tracking pre-exposures
+
+      //
+      // -- MAIN SEQUENCE LOOP --
+      //
       while (nseq-- > 0) {
+
+        // Wait for any pre-exposures, first the exposure delay then the readout,
+        // but then continue to the next because pre-exposures are not read from
+        // the Archon's buffer.
+        //
+        if ( ++expcount <= this->camera_info.num_pre_exposures ) {
+
+          message.str(""); message << "pre-exposure " << expcount << " of " << this->camera_info.num_pre_exposures;
+          logwrite( function, message.str() );
+
+          if ( this->camera_info.exposure_time != 0 ) {                 // wait for the exposure delay to complete (if there is one)
+            error = this->wait_for_exposure();
+            if ( error != NO_ERROR ) {
+              logwrite( function, "ERROR: waiting for pre-exposure" );
+              return error;
+            }
+          }
+
+          error = this->wait_for_readout();                             // Wait for the readout into frame buffer,
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: waiting for pre-exposure readout" );
+            return error;
+          }
+
+          continue;
+        }
 
         // Open a new FITS file for each frame when not using datacubes
         //
-        if ( !this->common.datacube() ) {
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] datacube=" << this->common.datacube() << " cubeamps=" << this->common.cubeamps();
+        logwrite( function, message.str() );
+#endif
+        if ( !this->common.datacube() || this->common.cubeamps() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
           if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
             logwrite( function, "ERROR: could not get start time" );
@@ -3345,6 +3392,12 @@ namespace Archon {
             logwrite( function, "ERROR: couldn't validate fits filename" );
             return( error );
           }
+#ifdef LOGLEVEL_DEBUG
+          logwrite( function, "[DEBUG] reset extension=0 and opening new fits file" );
+#endif
+          // reset the extension number and open the fits file
+          //
+          this->camera_info.extension = 0;
           error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
           if ( error != NO_ERROR ) {
             this->common.log_error( function, "couldn't open fits file" );
@@ -3372,8 +3425,14 @@ namespace Archon {
           return error;
         }
 
-        if ( !this->common.datacube() ) {                               // Error or not, close the file.
+        // For non-sequence multiple exposures, including cubeamps, close the fits file here
+        //
+        if ( !this->common.datacube() || this->common.cubeamps() ) {    // Error or not, close the file.
+#ifdef LOGLEVEL_DEBUG
+          logwrite( function, "[DEBUG] closing fits file (1)" );
+#endif
           this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+          this->common.increment_imnum();                           // increment image_num when fitsnaming == "number"
 
           // ASYNC status message on completion of each file
           //
@@ -3383,7 +3442,9 @@ namespace Archon {
         }
 
         if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
-      }
+
+      }  // end of sequence loop, while (nseq-- > 0)
+
     }
     else if ( mode == "RAW") {
       error = this->get_frame_status();                             // Get the current frame buffer status
@@ -3403,12 +3464,17 @@ namespace Archon {
       }
       error = read_frame();                    // For raw mode just read immediately
       this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+      this->common.increment_imnum();          // increment image_num when fitsnaming == "number"
     }
 
-    // for cubes, close the FITS file now that they've all been written
+    // for multi-exposure (non-cubeamp) cubes, close the FITS file now that they've all been written
     //
-    if ( this->common.datacube() ) {
+    if ( this->common.datacube() && !this->common.cubeamps() ) {
+#ifdef LOGLEVEL_DEBUG
+      logwrite( function, "[DEBUG] closing fits file (2)" );
+#endif
       this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+      this->common.increment_imnum();          // increment image_num when fitsnaming == "number"
 
       // ASYNC status message on completion of each file
       //
@@ -3416,6 +3482,11 @@ namespace Archon {
       this->common.message.enqueue( message.str() );
       error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
     }
+
+    // remember the cubeamps setting used for the last completed exposure
+    // TODO revisit once region-of-interest is implemented
+    //
+    this->lastcubeamps = this->common.cubeamps();
 
     return (error);
   }
@@ -4269,6 +4340,7 @@ namespace Archon {
       if (error==NO_ERROR) error = read_frame();                     // then read the frame buffer to host (and write file) when frame ready.
 
       this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+      this->common.increment_imnum();                                // increment image_num when fitsnaming == "number"
 
       // ASYNC status message on completion of each file
       //
@@ -4382,6 +4454,7 @@ namespace Archon {
 
           if ( !this->common.datacube() ) {                           // Error or not, close the file.
             this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+            this->common.increment_imnum();                           // increment image_num when fitsnaming == "number"
 
             // ASYNC status message on completion of each file
             //
@@ -4399,11 +4472,13 @@ namespace Archon {
         if (error==NO_ERROR) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
         if (error==NO_ERROR) error = read_frame();                    // For raw mode just read immediately
         this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+        this->common.increment_imnum();                               // increment image_num when fitsnaming == "number"
       }
       // for cubes, close the FITS file now that they've all been written
       //
       if ( this->common.datacube() ) {
         this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+        this->common.increment_imnum();                               // increment image_num when fitsnaming == "number"
 
         // ASYNC status message on completion of each file
         //
@@ -5966,6 +6041,7 @@ namespace Archon {
         if (error==NO_ERROR && rw) error = this->read_frame();                     // read image frame directly with no write
         if (error==NO_ERROR && rw && !this->common.datacube()) {
           this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+          this->common.increment_imnum();                                          // increment image_num when fitsnaming == "number"
         }
         if (error==NO_ERROR) frames_read++;
       }
@@ -5974,8 +6050,10 @@ namespace Archon {
       // for cubes, close the FITS file now that they've all been written
       // (or any time there is an error)
       //
-      if ( rw && ( this->common.datacube() || (error==ERROR) ) ) this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
-
+      if ( rw && ( this->common.datacube() || (error==ERROR) ) ) {
+        this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+        this->common.increment_imnum();                                            // increment image_num when fitsnaming == "number"
+      }
 
       logwrite( function, (error==ERROR ? "ERROR" : "complete") );
 

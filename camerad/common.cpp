@@ -880,6 +880,9 @@ bool Common::get_abortstate() {
    *
    * This function is overloaded.
    *
+   * datacube also gets enabled/disabled along with cubeamps. If datacube
+   * is needed after disabling cubeamps then it must be separately enabled.
+   *
    */
   void Common::cubeamps(bool state_in) {                                  // write-only boolean
     std::string dontcare;
@@ -898,9 +901,15 @@ bool Common::get_abortstate() {
     if ( !state_in.empty() ) {
       try {
         std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::tolower );    // make lowercase
-        if (state_in == "false" ) this->is_cubeamps = false;
+        if (state_in == "false" ) {
+          this->is_cubeamps = false;
+          this->is_datacube = false;
+        }
         else
-        if (state_in == "true"  ) this->is_cubeamps = true;
+        if (state_in == "true"  ) {
+          this->is_cubeamps = true;
+          this->is_datacube = true;
+        }
         else {
           message.str(""); message << state_in << " is invalid. Expecting true or false";
           this->log_error( function, message.str() );
@@ -965,5 +974,61 @@ bool Common::get_abortstate() {
     return message;
   }
   /** Common::Queue::dequeue **************************************************/
+
+
+  /**************** Common::Information::pre_exposures ************************/
+  /**
+   * @fn     pre_exposures
+   * @brief  set/get pre-exposures
+   * @param  string num_in   incoming value
+   * @param  string &num_out return value
+   * @return ERROR or NO_ERROR
+   *
+   * Get / set number of pre-exposures, which are exposures taken by the
+   * controller but are not saved. This number is stored in the
+   * Common:Information class and will show up in the camera_info object.
+   *
+   */
+  long Information::pre_exposures( std::string num_in, std::string &num_out ) {
+    std::string function = "Common::Information::pre_exposures";
+    std::stringstream message;
+
+    // If no string is passed then this is a request; return the current value.
+    //
+    if ( num_in.empty() ) {
+      message.str(""); message << "pre-exposures: " << this->num_pre_exposures;
+      logwrite( function, message.str() );
+      num_out = std::to_string( this->num_pre_exposures );
+      return( NO_ERROR );
+    }
+
+    else {                             // Otherwise check the incoming value
+      int num;
+      try {
+        num = std::stoi( num_in );     // convert incoming string to integer
+      }
+      catch ( std::invalid_argument & ) {
+        message.str(""); message << "ERROR: invalid number: unable to convert " << num_in << " to integer";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+      catch ( std::out_of_range & ) {
+        message.str(""); message << "ERROR: " << num_in << " out of integer range";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+      if ( num < 0 ) {                 // can't be negative
+        message.str(""); message << "ERROR: requested pre-exposures " << num << " must be >= 0";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+      else {                           // incoming value is OK
+        this->num_pre_exposures = num; // set the class variable
+        num_out = num_in;              // set the return string value
+        return( NO_ERROR );
+      }
+    }
+  }
+  /**************** Common::Information::pre_exposures ************************/
 
 }
