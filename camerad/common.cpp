@@ -603,15 +603,20 @@ bool Common::get_abortstate() {
    * @fn     get_keytype
    * @brief  return the keyword type based on the keyvalue
    * @param  std::string value
-   * @return std::string type: "STRING", "FLOAT", "INT"
+   * @return std::string type: "BOOL", "STRING", "FLOAT", "INT"
    *
    * This function looks at the contents of the value string to determine if it
-   * contains an INT, FLOAT or STRING, and returns a string identifying the type.
+   * contains an INT, FLOAT, BOOL or STRING, and returns a string identifying the type.
    * That type is used in FITS_file::add_user_key() for adding keywords to the header.
    *
    */
   std::string FitsKeys::get_keytype(std::string keyvalue) {
     std::size_t pos(0);
+
+    // if the entire string is either (exactly) T or F then it's a boolean
+    if ( keyvalue == "T" || keyvalue == "F" ) {
+      return std::string( "BOOL" );
+    }
 
     // skip the whitespaces
     pos = keyvalue.find_first_not_of(' ');
@@ -620,10 +625,12 @@ bool Common::get_abortstate() {
     // check the significand
     if (keyvalue[pos] == '+' || keyvalue[pos] == '-') ++pos;    // skip the sign if exist
 
+    // count the number of digits and number of decimal points
     int n_nm, n_pt;
     for (n_nm = 0, n_pt = 0; std::isdigit(keyvalue[pos]) || keyvalue[pos] == '.'; ++pos) {
         keyvalue[pos] == '.' ? ++n_pt : ++n_nm;
     }
+
     if (n_pt>1 || n_nm<1 || pos<keyvalue.size()){ // no more than one point, no numbers, or a non-digit character
       return std::string("STRING");               // then it's a string
     }
@@ -634,12 +641,12 @@ bool Common::get_abortstate() {
     }
 
     if (pos == keyvalue.size()) {
-      if (keyvalue.find(".") == std::string::npos)
-        return std::string("INT");           // all numbers and no decimals, it's an integer
-      else
-        return std::string("FLOAT");         // numbers with a decimal, it's a float
+      if (keyvalue.find(".") == std::string::npos)    // all numbers and no decimals, it's an integer
+        return std::string("INT");
+      else                                            // otherwise numbers with a decimal, it's a float
+        return std::string("FLOAT");
     }
-    else return std::string("STRING");       // lastly, must be a string
+    else return std::string("STRING");                // lastly, must be a string
   }
   /** Common::FitsKeys::get_keytype *******************************************/
 
@@ -709,6 +716,7 @@ bool Common::get_abortstate() {
     size_t pos = keystring.find(comment_separator);                        // location of the comment separator
     keyvalue = keystring.substr(0, pos);                                   // keyvalue is everything up to comment
     keyvalue = keyvalue.erase(0, keyvalue.find_first_not_of(" "));         // remove leading spaces from keyvalue
+    keyvalue = keyvalue.erase(keyvalue.find_last_not_of(" ")+1);           // remove trailing spaces from keyvalue
     if (pos != std::string::npos) {
       keycomment = keystring.erase(0, pos + comment_separator.length());
       keycomment = keycomment.erase(0, keycomment.find_first_not_of(" ")); // remove leading spaces from keycomment
@@ -744,6 +752,11 @@ bool Common::get_abortstate() {
     this->keydb[keyword].keytype    = this->get_keytype(keyvalue);
     this->keydb[keyword].keyvalue   = keyvalue;
     this->keydb[keyword].keycomment = keycomment;
+
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] added key: " << keyword << "=" << keyvalue << " (" << this->keydb[keyword].keytype << ") // " << keycomment;
+    logwrite( function, message.str() );
+#endif
 
     return(NO_ERROR);
   }

@@ -510,26 +510,17 @@ class FITS_file {
      * @return 
      *
      * Uses CCFits
+     *
+     * TODO is this function obsolete?
+     *
      */
     void make_camera_header(Common::Information &info) {
       std::string function = "FITS_file::make_camera_header";
       std::stringstream message;
       try {
-        std::string build(BUILD_DATE); build.append(" "); build.append(BUILD_TIME);
-        this->pFits->pHDU().addKey("SERV_VER", build, "server build date");
-
         // To put just the filename into the header (and not the path), find the last slash
         // and substring from there to the end.
         //
-        int loc = info.fits_name.find_last_of("/");
-        std::string filename;
-        filename = info.fits_name.substr(loc+1);
-        this->pFits->pHDU().addKey("FILENAME", filename, "this filename");
-
-        this->pFits->pHDU().addKey("SHUTTEN", info.shutterenable, "shutter was enabled" );
-
-        message.str(""); message << "exposure time in " << info.exposure_unit;
-        this->pFits->pHDU().addKey("EXPTIME", info.exposure_time, message.str().c_str() );
       }
       catch (CCfits::FitsError & err) {
         message.str(""); message << "error creating FITS header: " << err.message();
@@ -563,7 +554,11 @@ class FITS_file {
       }
 
       try {
-        if (type.compare("INT") == 0) {
+        if (type.compare("BOOL") == 0) {
+          bool boolvalue = ( value == "T" ? true : false );
+          this->pFits->pHDU().addKey( keyword, boolvalue, comment );
+        }
+        else if (type.compare("INT") == 0) {
           this->pFits->pHDU().addKey(keyword, std::stoi(value), comment);
         }
         else if (type.compare("FLOAT") == 0) {
@@ -573,7 +568,7 @@ class FITS_file {
           this->pFits->pHDU().addKey(keyword, value, comment);
         }
         else {
-          message.str(""); message << "error unknown type: " << type << " for user keyword: " << keyword << "=" << value << " / " << comment;
+          message.str(""); message << "ERROR unknown type: " << type << " for user keyword: " << keyword << "=" << value << ": expected {INT,FLOAT,STRING,BOOL}";
           logwrite(function, message.str());
         }
       }

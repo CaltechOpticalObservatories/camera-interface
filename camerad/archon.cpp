@@ -51,14 +51,6 @@ namespace Archon {
     this->shutenable_enable      = DEF_SHUTENABLE_ENABLE;
     this->shutenable_disable     = DEF_SHUTENABLE_DISABLE;
 
-    // Make sure the following systemkeys are added.
-    // They can be changed at any time by a command but since they have defaults
-    // they don't require a command so this ensures they get into the systemkeys db.
-    //
-    std::stringstream keystr;
-    keystr << "HDRSHIFT=" << this->n_hdrshift << "// number of HDR right-shift bits";
-    this->systemkeys.addkey( keystr.str() );
-
     // pre-size the modtype and modversion vectors to hold the max number of modules
     //
     this->modtype.resize( nmods );
@@ -538,6 +530,14 @@ namespace Archon {
     // empty the Archon log
     //
     error = this->fetchlog();
+
+    // Make sure the following systemkeys are added.
+    // They can be changed at any time by a command but since they have defaults
+    // they don't require a command so this ensures they get into the systemkeys db.
+    //
+    std::stringstream keystr;
+    keystr << "HDRSHIFT=" << this->n_hdrshift << "// number of HDR right-shift bits";
+    this->systemkeys.addkey( keystr.str() );
 
     return(error);
   }
@@ -1471,9 +1471,9 @@ namespace Archon {
 
       // add to systemkeys keyword database
       //
-      std::stringstream fw_key;
-      fw_key << "FIRMWARE=" << acffile << "// controller firmware";
-      this->systemkeys.addkey( fw_key.str() );
+      std::stringstream keystr;
+      keystr << "FIRMWARE=" << acffile << "// controller firmware";
+      this->systemkeys.addkey( keystr.str() );
     }
 
     // If there was an Archon error then read the Archon error log
@@ -1813,6 +1813,39 @@ namespace Archon {
       return error;
     }
 
+    // The new mode could contain a ShutterEnable param,
+    // and if it does then the server needs to know about that.
+    //
+    if ( !this->shutenableparam.empty() ) {
+
+      // first read the parameter
+      //
+      std::string lshutten;
+      if ( read_parameter( this->shutenableparam, lshutten ) != NO_ERROR ) { 
+        message.str(""); message << "ERROR: reading \"" << this->shutenableparam << "\" parameter from Archon";
+        logwrite( function, message.str() );
+        return ERROR;
+      }
+
+      // parse the parameter value
+      // and convert it to a string for the shutter command
+      //
+      std::string shuttenstr;
+      if ( lshutten == "1" ) shuttenstr = "enable";
+      else
+      if ( lshutten == "0" ) shuttenstr = "disable";
+      else {
+        message.str(""); message << "ERROR: unrecognized shutter enable parameter value " << lshutten << ": expected {0,1}";
+        logwrite( function, message.str() );
+        return ERROR;
+      }
+
+      // Tell the server
+      //
+      std::string dontcare;
+      if ( this->shutter( shuttenstr, dontcare ) != NO_ERROR ) { logwrite( function, "ERROR: setting shutter enable parameter" ); return ERROR; }
+    }
+
     /**
      * read back some TAPLINE information
      */
@@ -1821,6 +1854,15 @@ namespace Archon {
     std::vector<std::string> tokens;
     std::stringstream        tap;
     std::string              adchan;
+
+    // Remove all GAIN* and OFFSET* keywords from the systemkeys database
+    // because the new mode could have different channels (so simply 
+    // over-writing existing keys might not be sufficient). 
+    //
+    // The new GAIN* and OFFSET* system keys will be added in the next loop.
+    //
+    this->systemkeys.EraseKeys( "GAIN" );
+    this->systemkeys.EraseKeys( "OFFSET" );
 
     // Loop through every tap to get the offset for each
     //
@@ -1903,6 +1945,14 @@ namespace Archon {
         try {
           this->gain.at( adnum )   = gain_try;      // gain as function of AD channel
           this->offset.at( adnum ) = offset_try;    // offset as function of AD channel
+
+          // Add the gain/offset as system header keywords.
+          //
+          std::stringstream keystr;
+          keystr.str(""); keystr << "GAIN" << std::setfill('0') << std::setw(2) << adnum << "=" << this->gain.at( adnum ) << "// gain for AD chan " << adnum;
+          this->systemkeys.addkey( keystr.str() );
+          keystr.str(""); keystr << "OFFSET" << std::setfill('0') << std::setw(2) << adnum << "=" << this->offset.at( adnum ) << "// offset for AD chan " << adnum;
+          this->systemkeys.addkey( keystr.str() );
         }
         catch ( std::out_of_range & ) {
           message.str(""); message << "AD# " << adnum << " outside range {0:" << (this->gain.size() & this->offset.size()) << "}";
@@ -3116,6 +3166,25 @@ namespace Archon {
   /**************** Archon::Interface::get_configmap_value ********************/
 
 
+  /**************** Archon::Interface::add_filename_key ***********************/
+  /**
+   * @fn     add_filename_key
+   * @brief  adds the current filename to the systemkeys database
+   * @param  none
+   * @return none
+   *
+   */
+  void Interface::add_filename_key() {
+    std::stringstream keystr;
+    int loc = this->camera_info.fits_name.find_last_of( "/" );
+    std::string filename;
+    filename = this->camera_info.fits_name.substr( loc+1 );
+    keystr << "FILENAME=" << filename << "// this filename";
+    this->systemkeys.addkey( keystr.str() );
+  }
+  /**************** Archon::Interface::add_filename_key ***********************/
+
+
   /**************** Archon::Interface::expose *********************************/
   /**
    * @fn     expose
@@ -3265,6 +3334,8 @@ namespace Archon {
       return( error );
     }
 
+    this->add_filename_key();                                       // add filename to system keys database
+
     logwrite(function, "exposure started");
 
     // Copy the userkeys database object into camera_info
@@ -3392,6 +3463,8 @@ namespace Archon {
             logwrite( function, "ERROR: couldn't validate fits filename" );
             return( error );
           }
+          this->add_filename_key();                                     // add filename to system keys database
+
 #ifdef LOGLEVEL_DEBUG
           logwrite( function, "[DEBUG] reset extension=0 and opening new fits file" );
 #endif
@@ -3457,6 +3530,7 @@ namespace Archon {
         logwrite( function, "ERROR: couldn't validate fits filename" );
         return( error );
       }
+      this->add_filename_key();                                     // add filename to system keys database
       error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
       if ( error != NO_ERROR ) {
         this->common.log_error( function, "couldn't open fits file" );
@@ -3884,6 +3958,11 @@ namespace Archon {
       if ( ret==NO_ERROR ) this->camera_info.exposure_time = exp_time;
     }
 
+    // add exposure time to system keys db
+    //
+    message.str(""); message << "EXPTIME=" << this->camera_info.exposure_time << " // exposure time in " << ( this->is_longexposure ? "sec" : "msec" );
+    this->systemkeys.addkey( message.str() );
+
     // prepare the return value
     //
     message.str(""); message << this->camera_info.exposure_time << ( this->is_longexposure ? " sec" : " msec" );
@@ -3910,6 +3989,7 @@ namespace Archon {
     std::string function = "Archon::Interface::shutter";
     std::stringstream message;
     long error = NO_ERROR;
+    int level=0, force=0;  // trigout level and force for activate
 
     if ( this->shutenableparam.empty() ) {
       this->common.log_error( function, "SHUTENABLE_PARAM is not defined in configuration file" );
@@ -3922,7 +4002,6 @@ namespace Archon {
         bool ability=false;    // are we going to change the ability (enable/disable)?
         bool activate=false;   // are we going to activate the shutter (open/close)?
         std::string activate_str;
-        int level=0, force=0;  // trigout level and force for activate
         bool dontcare;
         std::transform( shutter_in.begin(), shutter_in.end(), shutter_in.begin(), ::tolower );  // make lowercase
         if ( shutter_in == "disable" ) {
@@ -3954,6 +4033,10 @@ namespace Archon {
           force = 0;
           level = 0;
           activate_str = "";
+          // shutter back to normal operation;
+          // shutter force level keyword has no context so remove it from the system keys db
+          //
+          this->systemkeys.EraseKeys( "SHUTFORC" );
 	}
         else {
           message.str(""); message << shutter_in << " is invalid. Expecting { enable | disable | open | close | reset }";
@@ -4011,6 +4094,18 @@ namespace Archon {
     message << "shutter is " << shutter_out;
     logwrite( function, message.str() );
 
+    // If the shutter was forced open or closed then add that to the system keys db
+    //
+    if ( force ) {
+      message.str(""); message << "SHUTFORC=" << level << "// shutter force level";
+      this->systemkeys.addkey( message.str() );
+    }
+
+    // Add the shutter enable keyword to the system keys db
+    //
+    message.str(""); message << "SHUTTEN=" << ( this->camera_info.shutterenable ? "T" : "F" ) << "// shutter was enabled";
+    this->systemkeys.addkey( message.str() );
+
     return error;
   }
   /** Common::Common::shutter *************************************************/
@@ -4063,11 +4158,11 @@ namespace Archon {
     //
     bits_out = std::to_string( this->n_hdrshift );
 
-    // add to user keyword database
+    // add to system keyword database
     //
-    std::stringstream hdrshift_key;
-    hdrshift_key << "HDRSHIFT=" << this->n_hdrshift << "// number of HDR right-shift bits";
-    this->systemkeys.addkey( hdrshift_key.str() );
+    std::stringstream keystr;
+    keystr << "HDRSHIFT=" << this->n_hdrshift << "// number of HDR right-shift bits";
+    this->systemkeys.addkey( keystr.str() );
 
     return( NO_ERROR );
   }
@@ -4334,6 +4429,7 @@ namespace Archon {
       this->get_timer(&this->start_timer);                           // Archon internal timer (one tick=10 nsec)
       this->common.set_fitstime(this->camera_info.start_time);       // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
       error=this->common.get_fitsname(this->camera_info.fits_name);  // Assemble the FITS filename
+      this->add_filename_key();                                      // add filename to system keys database
       error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
 
       if (error==NO_ERROR) error = this->wait_for_readout();         // Wait for the readout into frame buffer,
@@ -4370,6 +4466,7 @@ namespace Archon {
 
       this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
       error=this->common.get_fitsname(this->camera_info.fits_name); // assemble the FITS filename
+      this->add_filename_key();                                     // add filename to system keys database
 
       // Copy the userkeys database object into camera_info
       //
@@ -4438,6 +4535,7 @@ namespace Archon {
               this->common.log_error( function, "couldn't validate fits filename" );
               return( error );
             }
+            this->add_filename_key();                                     // add filename to system keys database
             error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
             if ( error != NO_ERROR ) {
               this->common.log_error( function, "couldn't open fits file" );
@@ -4469,6 +4567,7 @@ namespace Archon {
       else if ( (error == NO_ERROR) && (mode == "RAW") ) {
         error = this->get_frame_status();                             // Get the current frame buffer status
         if (error==NO_ERROR) error = this->common.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
+        this->add_filename_key();                                     // add filename to system keys database
         if (error==NO_ERROR) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
         if (error==NO_ERROR) error = read_frame();                    // For raw mode just read immediately
         this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
@@ -5969,6 +6068,7 @@ namespace Archon {
             logwrite( function, "ERROR: couldn't validate fits filename" );
             return( error );
           }
+          this->add_filename_key();                                   // add filename to system keys database
           Common::FitsKeys::fits_key_t::iterator keyit;               // add keys from the ACF file 
           for (keyit  = this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.begin();
                keyit != this->modemap[this->camera_info.current_observing_mode].acfkeys.keydb.end();
@@ -6017,6 +6117,7 @@ namespace Archon {
             logwrite( function, "ERROR: couldn't validate fits filename" );
             return( error );
           }
+          this->add_filename_key();                                     // add filename to system keys database
 
           error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
           if ( error != NO_ERROR ) {

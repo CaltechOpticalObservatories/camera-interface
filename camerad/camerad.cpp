@@ -148,8 +148,13 @@ int main(int argc, char **argv) {
     server.exit_cleanly();
   }
 
+  // log and add server build date to system keys db
+  //
   message << "this version built " << BUILD_DATE << " " << BUILD_TIME;
   logwrite(function, message.str());
+
+  message.str(""); message << "CAMD_VER=" << BUILD_DATE << " " << BUILD_TIME << " // camerad build date";
+  server.systemkeys.addkey( message.str() );
 
   message.str(""); message << server.config.n_entries << " lines read from " << server.config.filename;
   logwrite(function, message.str());
@@ -523,8 +528,10 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("key")==0) {
-                    if (args.compare(0, 4, "list")==0)
-                      ret = server.userkeys.listkeys();
+                    if (args.compare(0, 4, "list")==0) {
+                      logwrite( function, "systemkeys:" ); ret = server.systemkeys.listkeys();
+                      logwrite( function, "userkeys:" );   ret = server.userkeys.listkeys();
+                    }
                     else {
                       ret = server.userkeys.addkey(args);
                       if ( ret != NO_ERROR ) server.common.log_error( function, "bad syntax" );

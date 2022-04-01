@@ -179,6 +179,7 @@ namespace Archon {
       long write_parameter( const char *paramname, const char *newvalue );
       long write_parameter( const char *paramname, int newvalue );
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
+      void add_filename_key();
       long expose(std::string nseq_in);
       long wait_for_exposure();
       long wait_for_readout();

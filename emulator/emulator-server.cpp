@@ -269,6 +269,10 @@ void doit(Network::TcpSocket sock) {
                     retstream << "<" << ref;
                     }
     else
+    if (cmd.compare("APPLYSYSTEM")==0) {
+                    retstream << "<" << ref;
+                    }
+    else
     if (cmd.compare("POWERON")==0) {
                     server.poweron = true;
                     retstream << "<" << ref;

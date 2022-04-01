@@ -57,6 +57,35 @@ namespace Common {
       typedef std::map<std::string, user_key_t> fits_key_t;  //!< STL map for the actual keyword database
 
       fits_key_t keydb;                                      //!< keyword database
+
+      // Find all entries in the keyword database which match the search_for string,
+      // return a vector of iterators.
+      //
+      std::vector< fits_key_t::const_iterator > FindKeys( std::string search_for ) {
+        std::vector< fits_key_t::const_iterator > vec;
+        for ( auto it  = this->keydb.lower_bound( search_for ); 
+                   it != std::end( this->keydb ) && it->first.compare( 0, search_for.size(), search_for ) == 0; 
+                 ++it   ) {
+          vec.push_back( it );
+        }
+        return( vec );
+      }
+
+      // Find and remove all entries in the keyword database which match the search_for string.
+      //
+      void EraseKeys( std::string search_for ) {
+        for ( auto it  = this->keydb.lower_bound( search_for ); 
+                   it != std::end( this->keydb ) && it->first.compare( 0, search_for.size(), search_for ) == 0; 
+                   it++ ) {
+#ifdef LOGLEVEL_DEBUG
+          std::stringstream message;
+          message << "[DEBUG] erased key: " << it->second.keyword << "=" << it->second.keyvalue << " (" << it->second.keytype << ") // " << it->second.keycomment;
+          logwrite( "FitsKeys::EraseKey", message.str() );
+#endif
+          this->keydb.erase( it );
+        }
+        return;
+      }
   };
   /**************** Common::FitsKeys ******************************************/
 

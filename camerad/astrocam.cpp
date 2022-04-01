@@ -2095,6 +2095,11 @@ namespace AstroCam {
     message << "shutter is " << shutter_out;
     logwrite( function, message.str() );
 
+    // Add the shutter enable keyword to the system keys db
+    //
+    message.str(""); message << "SHUTTEN=" << ( this->camera_info.shutterenable ? "T" : "F" ) << "// shutter was enabled";
+    this->systemkeys.addkey( message.str() );
+
     return error;
   }
   /** AstroCam::Interface::shutter ********************************************/
