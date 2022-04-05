@@ -4423,7 +4423,12 @@ namespace Archon {
     // ------------------------------------------------------------------------
     //
     if ( this->trigin_state == "readout" ) {
-      // Open a new FITS file for each frame when not using datacubes
+
+      // Save the datacube state in camera_info so that the FITS writer can know about it
+      //
+      this->camera_info.iscube = this->common.datacube();
+
+      // Open a new FITS file
       //
       this->camera_info.start_time = get_timestamp();                // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       this->get_timer(&this->start_timer);                           // Archon internal timer (one tick=10 nsec)
