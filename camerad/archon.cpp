@@ -1022,6 +1022,12 @@ namespace Archon {
     //
     if (error == NO_ERROR) error = this->archon_cmd(APPLYALL);
 
+    // If no errors then automatically set the mode to DEFAULT.
+    // This should come after APPLYALL in case any new parameters need to be written,
+    // which shouldn't be done until after they have been applied.
+    //
+    if ( error == NO_ERROR ) error = this->set_camera_mode( std::string( "DEFAULT" ) );
+
     return( error );
   }
   /**************** Archon::Interface::load_firmware **************************/
@@ -1481,10 +1487,6 @@ namespace Archon {
     if (error != NO_ERROR) error = this->fetchlog();
 
     this->modeselected = false;           // require that a mode be selected after loading new firmware
-
-    // If no errors then automatically set the mode to DEFAULT
-    //
-    if ( error == NO_ERROR ) error = this->set_camera_mode( std::string( "DEFAULT" ) );
 
     // Even if exptime, longexposure were previously set, a new ACF could have different
     // default values than the server has, so reset these to "undefined" in order to
