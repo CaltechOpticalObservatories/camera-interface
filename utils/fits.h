@@ -481,6 +481,26 @@ class FITS_file {
           this->imageExt->addKey("BSCALE", 1, "scaling factor");
         }
 
+        // Add AMPSEC keys
+        //
+        if ( info.amp_section.size() > 0 ) {
+          try {
+            int x1 = info.amp_section.at( info.extension ).at( 0 );
+            int x2 = info.amp_section.at( info.extension ).at( 1 );
+            int y1 = info.amp_section.at( info.extension ).at( 2 );
+            int y2 = info.amp_section.at( info.extension ).at( 3 );
+
+            message.str(""); message << "[" << x1 << ":" << x2 << "," << y1 << ":" << y2 << "]";
+            this->imageExt->addKey( "AMPSEC", message.str(), "amplifier section" );
+          }
+          catch ( std::out_of_range & ) {
+            logwrite( function, "ERROR: no amplifier section referenced for this extension" );
+          }
+        }
+        else {
+          logwrite( function, "no AMPSEC key: missing amplifier section information" );
+        }
+
         // Write and flush to make sure image is written to disk
         //
         this->imageExt->write(fpixel, info.image_size, data);

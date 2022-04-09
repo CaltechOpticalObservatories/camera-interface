@@ -105,6 +105,36 @@ namespace Archon {
     int applied=0;
     long error;
 
+    // Must re-init all values to start-up defaults in case this function is 
+    // called again to re-load the config file (such as if a HUP is received)
+    // and the new config file may not have everything defined.
+    // This ensures nothing is carried over from any previous config.
+    //
+    this->camera_info.hostname = "";
+    this->archon.sethost( "" );
+    this->camera_info.port = -1;
+    this->archon.setport( -1 );
+
+    this->is_longexposure = false;
+    this->n_hdrshift = 16;
+
+    this->common.firmware[0] = "";
+
+    this->exposeparam = "";
+    this->trigin_exposeparam = "";
+    this->trigin_untimedparam = "";
+    this->trigin_readoutparam = "";
+
+    this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
+    this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
+    this->trigin_untimed_enable  = DEF_TRIGIN_UNTIMED_ENABLE;
+    this->trigin_untimed_disable = DEF_TRIGIN_UNTIMED_DISABLE;
+    this->trigin_readout_enable  = DEF_TRIGIN_READOUT_ENABLE;
+    this->trigin_readout_disable = DEF_TRIGIN_READOUT_DISABLE;
+
+    this->shutenable_enable      = DEF_SHUTENABLE_ENABLE;
+    this->shutenable_disable     = DEF_SHUTENABLE_DISABLE;
+
     // loop through the entries in the configuration file, stored in config class
     //
     for (int entry=0; entry < this->config.n_entries; entry++) {

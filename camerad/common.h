@@ -58,14 +58,16 @@ namespace Common {
 
       fits_key_t keydb;                                      //!< keyword database
 
-      // Find all entries in the keyword database which match the search_for string,
+      // Find all entries in the keyword database which start with the search_for string,
       // return a vector of iterators.
       //
       std::vector< fits_key_t::const_iterator > FindKeys( std::string search_for ) {
+        std::string function = "FitsKeys::EraseKeys";
+        std::stringstream message;
         std::vector< fits_key_t::const_iterator > vec;
         for ( auto it  = this->keydb.lower_bound( search_for ); 
                    it != std::end( this->keydb ) && it->first.compare( 0, search_for.size(), search_for ) == 0; 
-                 ++it   ) {
+                 ++it ) {
           vec.push_back( it );
         }
         return( vec );
@@ -74,16 +76,24 @@ namespace Common {
       // Find and remove all entries in the keyword database which match the search_for string.
       //
       void EraseKeys( std::string search_for ) {
-        for ( auto it  = this->keydb.lower_bound( search_for ); 
-                   it != std::end( this->keydb ) && it->first.compare( 0, search_for.size(), search_for ) == 0; 
-                   it++ ) {
+        std::vector< fits_key_t::const_iterator > erasevec;
+
+        // get a vector of iterators for all the keys matching the search string
+        //
+        erasevec = this->FindKeys( search_for );
 #ifdef LOGLEVEL_DEBUG
-          std::stringstream message;
-          message << "[DEBUG] erased key: " << it->second.keyword << "=" << it->second.keyvalue << " (" << it->second.keytype << ") // " << it->second.keycomment;
-          logwrite( "FitsKeys::EraseKey", message.str() );
+        message.str(""); message << "[DEBUG] found " << erasevec.size() << " entries matching \"" << search_for << "*\"";
+        logwrite( function, message.str() );
 #endif
-          this->keydb.erase( it );
-        }
+
+        // loop through that vector and erase the selected iterators from the database
+        //
+        for ( auto vec : erasevec ) {
+#ifdef LOGLEVEL_DEBUG
+	  message.str(""); message << "[DEBUG] erasing " << vec->first; logwrite( function, message.str() );
+#endif
+	  this->keydb.erase( vec );
+	}
         return;
       }
   };
