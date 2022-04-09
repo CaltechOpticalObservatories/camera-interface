@@ -62,8 +62,6 @@ namespace Common {
       // return a vector of iterators.
       //
       std::vector< fits_key_t::const_iterator > FindKeys( std::string search_for ) {
-        std::string function = "FitsKeys::EraseKeys";
-        std::stringstream message;
         std::vector< fits_key_t::const_iterator > vec;
         for ( auto it  = this->keydb.lower_bound( search_for ); 
                    it != std::end( this->keydb ) && it->first.compare( 0, search_for.size(), search_for ) == 0; 
@@ -76,6 +74,8 @@ namespace Common {
       // Find and remove all entries in the keyword database which match the search_for string.
       //
       void EraseKeys( std::string search_for ) {
+        std::string function = "FitsKeys::EraseKeys";
+        std::stringstream message;
         std::vector< fits_key_t::const_iterator > erasevec;
 
         // get a vector of iterators for all the keys matching the search string
