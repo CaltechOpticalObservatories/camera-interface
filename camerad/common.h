@@ -207,7 +207,7 @@ namespace Common {
       bool          type_set;                //!< set when FITS data type has been defined
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];      //!< element 0=cols (pixels), 1=rows (lines)
-      long          image_size;              //!< pixels per image sensor
+      long          section_size;            //!< pixels to write for this section (could be less than full sensor size)
       long          image_memory;            //!< bytes per image sensor
       std::string   current_observing_mode;  //!< the current mode
       std::string   readout_name;            //!< name of the readout source
@@ -297,8 +297,9 @@ namespace Common {
         this->axes[0] = this->axis_pixels[0] / this->binning[0];
         this->axes[1] = this->axis_pixels[1] / this->binning[1];
 
-        this->image_size   = this->axes[0] * this->axes[1];                    // Pixels per detector
-        this->image_memory = this->axes[0] * this->axes[1] * bytes_per_pixel;  // Bytes per detector
+        this->section_size = this->axes[0] * this->axes[1];                    // Pixels to write for this image section
+        this->image_memory = this->detector_pixels[0] 
+                           * this->detector_pixels[1] * bytes_per_pixel;       // Bytes per detector
 
 #ifdef LOGLEVEL_DEBUG
         message << "[DEBUG] region_of_interest[1]=" << this->region_of_interest[1]

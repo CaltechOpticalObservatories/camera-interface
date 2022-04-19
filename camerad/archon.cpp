@@ -2757,10 +2757,16 @@ namespace Archon {
               long y1 = this->camera_info.amp_section.at(ext).at(2);
               long y2 = this->camera_info.amp_section.at(ext).at(3);
 
+              // assign this amplifier section as the region of interest
+              //
               this->camera_info.region_of_interest[0] = x1;
               this->camera_info.region_of_interest[1] = x2;
               this->camera_info.region_of_interest[2] = y1;
               this->camera_info.region_of_interest[3] = y2;
+
+              // This call to set_axes() is to set the axis_pixels, axes, and section_size,
+              // needed for the FITS writer
+              //
               error = this->camera_info.set_axes();
 
 #ifdef LOGLEVEL_DEBUG
@@ -2779,12 +2785,12 @@ namespace Archon {
               message.str(""); message << "[DEBUG] allocated " << ext_size << " pixels for extension " << this->camera_info.extension+1;
               logwrite( function, message.str() );
 #endif
+
               // copy this amplifier from the main cbuf32,
               // at the same time right-shift the requested number of bits
               //
               long pix=0;
               long ncols=this->camera_info.detector_pixels[0];  // PIXELCOUNT
-//            long nrows=this->camera_info.detector_pixels[1];  // LINECOUNT  // TODO needed for anything?
               for ( long row=y1-1; row<y2; row++ ) {
                 for ( long col=x1-1; col<x2; col++ ) {
                   fext[pix++] = (float)( cbuf32[ row*ncols + col ] >> this->n_hdrshift );
@@ -2798,17 +2804,12 @@ namespace Archon {
 
               error = this->fits_file.write_image(fext, this->camera_info); // write the image to disk
               this->camera_info.extension++;                                // increment extension for cubes
-              if ( fext != NULL ) { delete [] fext; fext=NULL; }
-
-#ifdef LOGLEVEL_DEBUG
-              message.str(""); message << "[DEBUG] freed pixels for extension " << ext+1;
-              logwrite( function, message.str() );
-#endif
-
+              if ( fext != NULL ) { delete [] fext; fext=NULL; }            // dynamic object not automatic so must be destroyed
             }
             catch( std::out_of_range & ) {
               message.str(""); message << "ERROR: " << ext << " is a bad extension number";
               logwrite( function, message.str() );
+              if ( fext != NULL ) { delete [] fext; fext=NULL; }            // dynamic object not automatic so must be destroyed
               return( ERROR );
             }
           }
@@ -2818,11 +2819,11 @@ namespace Archon {
         //
         else {
           float *fbuf = NULL;
-//        fbuf = new float[ this->fits_info.image_size ];         // allocate a float buffer of same number of pixels for scaling  //TODO
-          fbuf = new float[ this->camera_info.image_size ];       // allocate a float buffer of same number of pixels for scaling
+//        fbuf = new float[ this->fits_info.section_size ];       // allocate a float buffer of same number of pixels for scaling  //TODO
+          fbuf = new float[ this->camera_info.section_size ];     // allocate a float buffer of same number of pixels for scaling
 
-//        for (long pix=0; pix < this->fits_info.image_size; pix++)   //TODO
-          for (long pix=0; pix < this->camera_info.image_size; pix++) {
+//        for (long pix=0; pix < this->fits_info.section_size; pix++)   //TODO
+          for (long pix=0; pix < this->camera_info.section_size; pix++) {
             fbuf[pix] = (float) ( cbuf32[pix] >> this->n_hdrshift ); // right shift the requested number of bits
           }
 
@@ -2849,8 +2850,8 @@ namespace Archon {
         if (this->camera_info.datatype == SHORT_IMG) {
           cbuf16s = (int16_t *)this->image_data;                          // cast to 16b signed int
           int16_t *ibuf = NULL;
-          ibuf = new int16_t[ this->camera_info.image_size ];
-          for (long pix=0; pix < this->camera_info.image_size; pix++) {
+          ibuf = new int16_t[ this->camera_info.section_size ];
+          for (long pix=0; pix < this->camera_info.section_size; pix++) {
             ibuf[pix] = cbuf16s[pix] - 32768;                             // subtract 2^15 from every pixel
           }
           error = this->fits_file.write_image(ibuf, this->camera_info);   // write the image to disk
@@ -5748,7 +5749,10 @@ namespace Archon {
    * series of if..else.. conditionals.
    *
    * current tests are:
+   *   ampinfo   - print what is known about the amplifiers
+   *   busy      - Override the archon_busy flag
    *   fitsname  - show what the fitsname will look like
+   *   builddate - log the build date
    *   async     - queue an asynchronous status message
    *   modules   - Log all installed modules and their types
    *   parammap  - Log all parammap entries found in the ACF file

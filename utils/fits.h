@@ -215,6 +215,7 @@ class FITS_file {
       catch (CCfits::FitsError& error){
         message.str(""); message << "ERROR writing checksum and closing file: " << error.message();
         logwrite(function, message.str());
+        this->file_open = false;   // must set this false on exception
       }
 
       // Let the world know that the file is closed
@@ -254,8 +255,8 @@ class FITS_file {
 
       // copy the data into an array of the appropriate type  //TODO use multiple threads for this??
       //
-      std::valarray<T> array(info.image_size);
-      for (long i = 0; i < info.image_size; i++) {
+      std::valarray<T> array( info.section_size );
+      for ( long i = 0; i < info.section_size; i++ ) {
         array[i] = data[i];
       }
 
@@ -270,7 +271,8 @@ class FITS_file {
 
 #ifdef LOGLEVEL_DEBUG
       message.str("");
-      message << "[DEBUG] iscube=" << info.iscube << ". spawning image writing thread for frame " << this->framen << " of " << info.fits_name;
+      message << "[DEBUG] threadcount=" << this->threadcount << " iscube=" << info.iscube << " section_size=" << info.section_size 
+              << ". spawning image writing thread for frame " << this->framen << " of " << info.fits_name;
       logwrite(function, message.str());
 #endif
       std::thread([&]() {                                    // create the detached thread here
@@ -379,7 +381,7 @@ class FITS_file {
       //
       try {
         long fpixel(1);        // start with the first pixel always
-        self->pFits->pHDU().write(fpixel, info.image_size, data);
+        self->pFits->pHDU().write( fpixel, info.section_size, data );
         self->pFits->flush();  // make sure the image is written to disk
       }
       catch (CCfits::FitsError& error){
@@ -503,7 +505,7 @@ class FITS_file {
 
         // Write and flush to make sure image is written to disk
         //
-        this->imageExt->write(fpixel, info.image_size, data);
+        this->imageExt->write( fpixel, info.section_size, data );
         self->pFits->flush();
       }
       catch (CCfits::FitsError& error){
