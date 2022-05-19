@@ -26,6 +26,7 @@ namespace Archon {
     this->msgref = 0;
     this->lastframe = 0;
     this->frame.index = 0;
+    this->frame.next_index = 0;
     this->abort = false;
     this->taplines = 0;
     this->image_data = NULL;
@@ -666,7 +667,7 @@ namespace Archon {
    * @brief  send a command to Archon
    * @param  cmd
    * @param  reply (optional)
-   * @return ERROR or NO_ERROR
+   * @return ERROR, BUSY or NO_ERROR
    *
    */
   long Interface::archon_cmd(std::string cmd) { // use this form when the calling
@@ -2028,7 +2029,7 @@ namespace Archon {
     // send FRAME command to get frame buffer status
     //
     if ( (error = this->archon_cmd(FRAME, reply)) ) {
-      logwrite( function, "ERROR: sending FRAME command" );
+      if ( error == ERROR ) logwrite( function, "ERROR: sending FRAME command" );  // don't log here if BUSY
       return(error);
     }
 
@@ -2167,12 +2168,15 @@ namespace Archon {
     // except for start-up case (when it is 0) and
     // wrapping to 0 when it reaches the maximum number of active buffers.
     //
-    if ( ( num_zero != Archon::nbufs ) &&                            // If not start-up case and
-         ( this->frame.index+1 < this->camera_info.activebufs ) ) {  // less than active bufs
-      this->frame.next_index = this->frame.index + 1;                // then simply add 1 to current index,
+    this->frame.next_index = this->frame.index + 1;
+    if ( this->frame.next_index >= this->camera_info.activebufs ) {
+      this->frame.next_index = 0;
     }
-    else {
-      this->frame.next_index = 0;                                    // otherwise start-up case or wrap-around to 0.
+
+    // startup condition for next_frame
+    //
+    if ( ( this->frame.bufframen[ this->frame.index ] ) == 1 && this->frame.bufcomplete[ this->frame.index ] == 0 ) {
+      this->frame.next_index = 0;
     }
 
     return(error);
@@ -3522,12 +3526,14 @@ namespace Archon {
         error = this->wait_for_readout();                               // Wait for the readout into frame buffer,
         if ( error != NO_ERROR ) {
           logwrite( function, "ERROR: waiting for readout" );
+          this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
           return error;
         }
 
         error = read_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
         if ( error != NO_ERROR ) {
           logwrite( function, "ERROR: reading frame buffer" );
+          this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
           return error;
         }
 
@@ -3791,11 +3797,11 @@ namespace Archon {
       usleep( 10000 );  // reduces polling frequency
       error = this->get_frame_status();
 
-      // If Archon is busy then ignore it, keep trying for up to ~ 1 second
-      // (100 attempts, ~10000us between attempts)
+      // If Archon is busy then ignore it, keep trying for up to ~ 3 second
+      // (300 attempts, ~10000us between attempts)
       //
       if (error == BUSY) {
-        if ( ++busycount > 100 ) {
+        if ( ++busycount > 300 ) {
 	  done = true;
 	  this->common.log_error( function, "received BUSY from Archon too many times trying to get frame status" );
 	  break;
@@ -3823,7 +3829,7 @@ namespace Archon {
       if (clock_now > clock_timeout) {
         done = true;
         error = ERROR;
-        message.str(""); message << "timeout waiting for new frame. lastframe = " << this->lastframe;
+        message.str(""); message << "timeout waiting for new frame exceeded " << waittime << ". lastframe = " << this->lastframe;
         this->common.log_error( function, message.str() );
         break;
       }
@@ -3833,6 +3839,11 @@ namespace Archon {
       // which is buflines not from this->frame.index but from the NEXT index...
       //
       message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.next_index ];
+#ifdef LOGLEVEL_DEBUG
+      message << " [DEBUG] ";
+      message << " index=" << this->frame.index << " next_index=" << this->frame.next_index << " | ";
+      for ( int i=0; i < Archon::nbufs; i++ ) { message << " " << this->frame.buflines[ i ]; }
+#endif
       this->common.message.enqueue( message.str() );
 
     } // end while (done == false && this->abort == false)
@@ -3842,12 +3853,15 @@ namespace Archon {
     //
     if ( error == NO_ERROR ) {
       error = this->get_frame_status();
+      if ( error != NO_ERROR ) {
+        logwrite( function, "ERROR: unable to get frame status" );
+        return error;
+      }
       message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.index ];
       this->common.message.enqueue( message.str() );
     }
 
     if ( error != NO_ERROR ) {
-      logwrite( function, "ERROR: unable to get frame status" );
       return error;
     }
 
