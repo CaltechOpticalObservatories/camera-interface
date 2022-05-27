@@ -4730,6 +4730,14 @@ namespace Archon {
    *   <module> < A | B > RAMP [ <on | off> [ramprate] ]
    *   possible args: 3 (get) or 5 (set)
    *
+   * to set or get the current limit for heater A or B on the specified module:
+   *   <module> < A | B > ILIM [ <value> ]
+   *   possible args: 3 (get) or 4 (set)
+   *
+   * to set or get the input sensor for heater A or B on the specified module:
+   *   <module> < A | B > INPUT [ A | B | C ]
+   *   possible args: 3 (get) or 4 (set)
+   *
    */
   long Interface::heater(std::string args, std::string &retstring) {
     std::string function = "Archon::Interface::heater";
@@ -4863,7 +4871,7 @@ namespace Archon {
     }
     else
     // If there are three (3) tokens then the 3rd must be one of the following:
-    // ON | OFF (for ENABLE), <target>, PID, RAMP
+    // ON | OFF (for ENABLE), <target>, PID, RAMP, ILIM
     //
     if ( tokens.size() == 3 ) {
       if ( tokens[2] == "ON" ) {       // ON
@@ -4887,6 +4895,16 @@ namespace Archon {
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "P"; heaterconfig.push_back( ss.str() );
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "I"; heaterconfig.push_back( ss.str() );
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "D"; heaterconfig.push_back( ss.str() );
+      }
+      else
+      if ( tokens[2] == "ILIM" ) {     // ILIM
+        readonly = true;
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "IL"; heaterconfig.push_back( ss.str() );
+      }
+      else
+      if ( tokens[2] == "INPUT" ) {    // INPUT
+        readonly = true;
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "SENSOR"; heaterconfig.push_back( ss.str() );
       }
       else {                           // <target>
         // first check that the requested target is a valid number and within range...
@@ -4918,7 +4936,10 @@ namespace Archon {
     }
     else
     // If there are four (4) tokens then the 4th must be one of the following:
-    // <target> (for enable), <ramprate> | ON | OFF (for RAMP)
+    // <target>               in <module> < A | B > [ <on | off> <target> ]
+    // <ramprate> | ON | OFF  in <module> < A | B > RAMP [ <on | off> [ramprate] ]
+    // <value>                in <module> < A | B > ILIM [ <value> ]
+    // A | B | C              in <module> < A | B > INPUT [ A | B | C ]
     //
     if ( tokens.size() == 4 ) {
 
@@ -4981,6 +5002,51 @@ namespace Archon {
           ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMPRATE"; heaterconfig.push_back( ss.str() );
           heatervalue.push_back( tokens[3] );
         }
+      }
+      else
+      if ( tokens[2] == "ILIM" ) {     // ILIM x
+        int il_value=0;
+        try {
+          il_value = std::stoi( tokens[3] );
+          if ( il_value < 0 || il_value > 10000 ) {
+            message.str(""); message << "heater ilim " << il_value << " outside range {0:10000}";
+            this->common.log_error( function, message.str() );
+            return( ERROR );
+          }
+        }
+        catch (std::invalid_argument &) {
+          message.str(""); message << "converting ILIM <value> " << tokens[3] << " to integer";
+          this->common.log_error( function, message.str() );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          message.str(""); message << "ILIM <value>: " << tokens[3] << " outside range of integer";
+          this->common.log_error( function, message.str() );
+          return(ERROR);
+        }
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "IL"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( tokens[3] );
+      }
+      else
+      if ( tokens[2] == "INPUT" ) {    // INPUT A|B|C
+        std::string sensorid;
+        if ( tokens[3] == "A" ) { sensorid = "0"; } else
+        if ( tokens[3] == "B" ) { sensorid = "1"; } else
+        if ( tokens[3] == "C" ) { sensorid = "2";
+          // input C supported only on HeaterX cards
+          if ( this->modtype[ module-1 ] != 11 ) {
+            message.str(""); message << "sensor C not supported on module " << module << ": HeaterX module required";
+            this->common.log_error( function, message.str() );
+            return( ERROR );
+          }
+        }
+        else {
+          message.str(""); message << "invalid sensor " << tokens.at(3) << ": expected <module> A|B INPUT A|B|C";
+          this->common.log_error( function, message.str() );
+          return( ERROR );
+        }
+        ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "SENSOR"; heaterconfig.push_back( ss.str() );
+        heatervalue.push_back( sensorid );
       }
       else {
         message.str(""); message << "expected heater <" << module << "> ON | RAMP for 3rd argument but got " << tokens[2];
@@ -5179,7 +5245,7 @@ namespace Archon {
       error = this->get_configmap_value( key, value );
 
       if ( error != NO_ERROR ) {
-        message << "reading heater configuration " << key;
+        message.str(""); message << "reading heater configuration " << key;
         logwrite( function, message.str() );
         return( error );
       }
@@ -5189,8 +5255,26 @@ namespace Archon {
         //
         if ( key.substr( key.length()-6 ) == "ENABLE" ||
              key.substr( key.length()-4 ) == "RAMP" ) {
-          if ( value == "0" ) value = "OFF";
+          if ( value == "0" ) value = "OFF"; else
           if ( value == "1" ) value = "ON";
+          else {
+            message.str(""); message << "bad value " << value << " from configuration. expected 0 or 1";
+            this->common.log_error( function, message.str() );
+            error = ERROR;
+          }
+        }
+        else
+        // or if key ends with "SENSOR" then map the value (0,1,2) to the name (A,B,C)
+        //
+        if ( key.substr( key.length()-6 ) == "SENSOR" ) {
+          if ( value == "0" ) value = "A"; else
+          if ( value == "1" ) value = "B"; else
+          if ( value == "2" ) value = "C"; 
+          else {
+            message.str(""); message << "bad value " << value << " from configuration. expected 0,1,2";
+            this->common.log_error( function, message.str() );
+            error = ERROR;
+          }
         }
         retss << value << " ";
         message.str(""); message << key << "=" << value;
@@ -5211,12 +5295,18 @@ namespace Archon {
    * @param  args contains various allowable strings (see full descsription)
    * @return ERROR or NO_ERROR
    *
-   * sensor <module> < A | B | C > [ <current> ]
+   * sensor <module> < A | B | C > [ current ]
+   *        possible args: 2 (get) or 3 (set)
+   *
+   * sensor <module> < A | B | C > AVG [ N ]
+   *        possible args: 3 (get) or 4 (set)
    *
    * Sets or gets the temperature sensor current <current> for the specified
    * sensor <A|B|C> on the specified module <module>. <module> refers to the
    * (integer) module number. <current> is specified in nano-amps. 
    * This is used only for RTDs
+   *
+   * When the AVG arg is used then set or get digital averaging
    *
    */
   long Interface::sensor(std::string args, std::string &retstring) {
@@ -5224,8 +5314,9 @@ namespace Archon {
     std::stringstream message;
     std::vector<std::string> tokens;
     std::string sensorid;                   //!< A | B | C
+    std::stringstream sensorconfig;         //!< configuration line to read or write
+    std::string sensorvalue="";             //!< configuration line value
     int module;                             //!< integer module number
-    float current;                          //!< requested current
     bool readonly=true;                     //!< true is reading, not writing current
     long error;
 
@@ -5258,16 +5349,9 @@ namespace Archon {
 
     // At minimum there must be two tokens, <module> <sensorid>
     //
-    if ( tokens.size() == 2 ) {
-      readonly = true;
-    }
-    else if ( tokens.size() == 3 ) {
-      readonly = false;
-    }
-    else {
-      message.str(""); message << "incorrect number of arguments: " << args << ": expected <module#> <A|B|C> [current]";
-      this->common.log_error( function, message.str() );
-      return( ERROR );
+    if ( tokens.size() < 2 ) {
+      this->common.log_error( function, "expected at least two arguments: <module> A|B" );
+      return ERROR;
     }
 
     // Get the module and sensorid
@@ -5276,28 +5360,19 @@ namespace Archon {
       module   = std::stoi( tokens.at(0) );
       sensorid = tokens.at(1);
 
-      if ( !readonly ) {
-        current = std::stof( tokens.at(2) );
-        if ( current > 1600000. ) {
-          message.str(""); message << "requested current " << current << " exceeds maximum (1600000 nA)";
-          this->common.log_error( function, message.str() );
-          return( ERROR );
-        }
-      }
-
       if ( sensorid != "A" && sensorid != "B" && sensorid != "C" ) {
-        message.str(""); message << "invalid sensor " << sensorid << ": expected <module#> <A|B|C> [ current ]";
+        message.str(""); message << "invalid sensor " << sensorid << ": expected <module#> <A|B|C> [ current | AVG [N] ]";
         this->common.log_error( function, message.str() );
         return( ERROR );
       }
     }
     catch ( std::invalid_argument & ) {
-      message.str(""); message << "parsing argument: " << args << ": expected <module#> <A|B|C> [ current ]";
+      message.str(""); message << "parsing argument: " << args << ": expected <module#> <A|B|C> [ current | AVG [N] ]";
       this->common.log_error( function, message.str() );
       return( ERROR );
     }
     catch ( std::out_of_range & ) {
-      message.str(""); message << "argument outside range in " << args << ": expected <module#> <A|B|C> [ current ]";
+      message.str(""); message << "argument outside range in " << args << ": expected <module#> <A|B|C> [ current | AVG [N] ]";
       this->common.log_error( function, message.str() );
       return( ERROR );
     }
@@ -5318,54 +5393,229 @@ namespace Archon {
         return( ERROR );
     }
 
-    std::stringstream sensorconfig;
-    sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "CURRENT";
+    // input C supported only on HeaterX cards
+    if ( sensorid == "C" && this->modtype[ module-1 ] != 11 ) {
+      message.str(""); message << "sensor C not supported on module " << module << ": HeaterX module required";
+      this->common.log_error( function, message.str() );
+      return( ERROR );
+    }
 
-    std::string key   = sensorconfig.str();
-    std::string value = std::to_string(current);
-    bool changed      = false;
+    // Now check the number of tokens to decide how to next proceed...
 
-    // If no current was supplied (readonly) then just read the configuration and exit
+    // If there are 2 tokens then must be to read the current,
+    //  <module> < A | B | C > 
     //
-    if ( readonly ) {
-      message.str("");
-      error = this->get_configmap_value( key, current );
-      if ( error != NO_ERROR ) {
-        message << "reading sensor current " << key;
+    if ( tokens.size() == 2 ) {
+      readonly = true;
+      sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "CURRENT";
+    }
+    else
+
+    // If there are 3 tokens then it is either to write the current,
+    //  <module> < A | B | C > current
+    // or to read the average,
+    //  <module> < A | B | C > AVG
+    //
+    if ( tokens.size() == 3 ) {
+      // if the 3rd arg is AVG then read the average (MODmSENSORxFILTER)
+      //
+      if ( tokens[2] == "AVG" ) {
+        readonly = true;
+        sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "FILTER";
       }
       else {
-        retstring = std::to_string( current );
-        message << "module " << module << " sensor " << sensorid << " current=" << current;
+        // if it's not AVG then assume it's a current value and try to convert it to int
+        //
+        int current_val=-1;
+        try {
+          current_val = std::stoi( tokens[2] );
+        }
+        catch ( std::invalid_argument & ) {
+          message.str(""); message << "parsing \"" << args << "\" : expected \"AVG\" or integer for arg 3";
+          this->common.log_error( function, message.str() );
+          return( ERROR );
+        }
+        catch ( std::out_of_range & ) {
+          message.str(""); message << "parsing \"" << args << "\" : arg 3 outside integer range";
+          this->common.log_error( function, message.str() );
+          return( ERROR );
+        }
+
+        // successfully converted value so check the range
+        //
+        if ( current_val < 0 || current_val > 1600000 ) {
+          message.str(""); message << "requested current " << current_val << " outside range {0:1600000}";
+          this->common.log_error( function, message.str() );
+          return( ERROR );
+        }
+
+        // prepare sensorconfig string for writing
+        //
+        readonly = false;
+        sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "CURRENT";
+        sensorvalue = tokens[2];
       }
-      error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
-      return ( error );
+    }
+    else
+
+    // If there are 4 tokens thenn it must be to write the average,
+    // <module> < A | B | C > AVG N
+    //
+    if ( tokens.size() == 4 ) {        // set avg
+      // check the contents of the 3rd arg
+      //
+      if ( tokens[2] != "AVG" ) {
+        message.str(""); message << "invalid syntax \"" << tokens[2] << "\". expected <module> A|B|C AVG N";
+      }
+
+      // convert the avg value N to int and check for proper value
+      int filter_val=-1;
+      try {
+        filter_val = std::stoi( tokens[3] );
+      }
+      catch ( std::invalid_argument & ) {
+        message.str(""); message << "parsing \"" << args << "\" : expected integer for arg 4";
+        this->common.log_error( function, message.str() );
+        return( ERROR );
+      }
+      catch ( std::out_of_range & ) {
+        message.str(""); message << "parsing \"" << args << "\" : arg 4 outside integer range";
+        this->common.log_error( function, message.str() );
+        return( ERROR );
+      }
+
+      // prepare sensorconfig string for writing
+      //
+      readonly = false;
+      sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "FILTER";
+
+      switch ( filter_val ) {
+        case   1: sensorvalue = "0"; break;
+        case   2: sensorvalue = "1"; break;
+        case   4: sensorvalue = "2"; break;
+        case   8: sensorvalue = "3"; break;
+        case  16: sensorvalue = "4"; break;
+        case  32: sensorvalue = "5"; break;
+        case  64: sensorvalue = "6"; break;
+        case 128: sensorvalue = "7"; break;
+        case 256: sensorvalue = "8"; break;
+          break;
+        default:
+          message.str(""); message << "requested average " << filter_val << " outside range {1,2,4,8,16,32,64,128,256}";
+          this->common.log_error( function, message.str() );
+          return ( ERROR );
+      }
     }
 
-    // Write the config line to update the sensor current
+    // Otherwise an invalid number of tokens
     //
-    error = this->write_config_key( key.c_str(), value.c_str(), changed );
+    else {
+      message.str(""); message << "received " << tokens.size() << " arguments but expected 2, 3, or 4";
+      this->common.log_error( function, message.str() );
+      return( ERROR );
+    }
 
-    // Now send the APPLYMODx command
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] module=" << module << " sensorid=" << sensorid
+                             << " readonly=" << ( readonly ? "true" : "false" )
+                             << " sensorconfig=" << sensorconfig.str()
+                             << " sensorvalue=" << sensorvalue;
+    logwrite( function, message.str() );
+#endif
+
+    std::string sensorkey = sensorconfig.str();
+
+    if ( ! readonly ) {
+
+      // should be impossible but just make sure these aren't empty because they're needed
+      //
+      if ( sensorconfig.rdbuf()->in_avail() == 0 || sensorvalue=="" ) {
+        this->common.log_error( function, "BUG DETECTED: sensorconfig and sensorvalue cannot be empty" );
+        return ( ERROR );
+      }
+
+      // Write the config line to update the sensor current
+      //
+      bool changed = false;
+      error = this->write_config_key( sensorkey.c_str(), sensorvalue.c_str(), changed );
+
+      // Now send the APPLYMODx command
+      //
+      std::stringstream applystr;
+      applystr << "APPLYMOD"
+               << std::setfill('0')
+               << std::setw(2)
+               << std::hex
+               << (module-1);
+
+      if ( error == NO_ERROR ) error = this->archon_cmd( applystr.str() );
+
+      message.str("");
+
+      if ( error != NO_ERROR ) {
+        message << "writing sensor configuration: " << sensorkey << "=" << sensorvalue;
+      }
+      else if ( !changed ) {
+        message << "sensor configuration: " << sensorkey << "=" << sensorvalue << " unchanged";
+      }
+      else {
+        message << "updated sensor configuration: " << sensorkey << "=" << sensorvalue;
+      }
+      logwrite( function, message.str() );
+    }
+
+    // now read back the configuration line
     //
-    std::stringstream applystr;
-    applystr << "APPLYMOD"
-             << std::setfill('0')
-             << std::setw(2)
-             << std::hex
-             << (module-1);
-
-    if ( error == NO_ERROR ) error = this->archon_cmd( applystr.str() );
+    std::string value;
+    error = this->get_configmap_value( sensorkey, value );
 
     if ( error != NO_ERROR ) {
-      message << "writing sensor current configuration: " << key << "=" << value;
-    }
-    else if ( !changed ) {
-      message << "sensor current configuration: " << key << "=" << value << " unchanged";
-    }
-    else {
-      message << "updated sensor current configuration: " << key << "=" << value;
+      message.str(""); message << "reading sensor configuration " << sensorkey;
+      logwrite( function, message.str() );
+      return( error );  
+    } 
+
+    // return value to calling function, passed by reference
+    //
+    retstring = value;
+
+    // if key ends with "FILTER" 
+    // then convert the return value {0,1,2,...} to {1,2,4,8,...}
+    //
+    if ( sensorkey.substr( sensorkey.length()-6 ) == "FILTER" ) {
+
+      // array of filter values that humans use
+      //
+      std::array< std::string, 9 > filter = { "1", "2", "4", "8", "16", "32", "64", "128", "256" };
+
+      // the value in the configuration is an index into the above array
+      //
+      int findex=0;
+
+      try {
+        findex = std::stoi( value );
+      }
+      catch ( std::invalid_argument & ) {
+        message.str(""); message << "bad value: " << value << " read back from configuration. expected integer";
+        this->common.log_error( function, message.str() );
+        return( ERROR );
+      }
+      catch ( std::out_of_range & ) {
+        message.str(""); message << "value: " << value << " read back from configuration outside integer range";
+        this->common.log_error( function, message.str() );
+        return( ERROR );
+      }
+      try {
+        retstring = filter.at( findex );         // return value to calling function, passed by reference
+      }
+      catch ( std::out_of_range & ) {
+        message.str(""); message << "filter index " << findex << " outside range: {0:" << filter.size()-1 << "}";
+        this->common.log_error( function, message.str() );
+        return( ERROR );
+      }
     }
 
+    message.str(""); message << sensorkey << "=" << value << " (" << retstring << ")";
     logwrite( function, message.str() );
 
     return ( error );
