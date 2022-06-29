@@ -100,6 +100,8 @@ namespace Archon {
       }
     }
 
+    std::cerr << function << "complete" << "\n";
+
     return( NO_ERROR );
   }
   /**************** Interface::configure_controller ***************************/

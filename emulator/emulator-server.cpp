@@ -25,6 +25,10 @@ void signal_handler(int signo) {
       std::cerr << function << "received INT\n";
       server.exit_cleanly();                  // shutdown the server
       break;
+    case SIGHUP:
+      std::cerr << function << "caught SIGHUP\n";
+      server.configure_controller();
+      break;
     case SIGPIPE:
       std::cerr << function << "caught SIGPIPE\n";
       break;
@@ -56,6 +60,7 @@ int main(int argc, char **argv) {
 
   signal(SIGINT, signal_handler);
   signal(SIGPIPE, signal_handler);
+  signal(SIGHUP, signal_handler);
 
   // get the configuration file from the command line
   //
