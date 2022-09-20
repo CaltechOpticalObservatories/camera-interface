@@ -4437,8 +4437,13 @@ namespace Archon {
       return( error );
     }
 
-    // For "disable" there's nothing more to do right now
+    // For "disable" there's nothing more to do right now (except close any open FITS file)
+    //
     if ( error == NO_ERROR && this->trigin_state == "disable" ) {
+      if ( this->fits_file.isopen() ) {                              // "untimed" could have opened a FITS file
+        this->fits_file.close_file( false, this->camera_info );      // close the FITS file container
+        std::remove( this->camera_info.fits_name.c_str() );          // remove the (empty) file it created
+      }
       logwrite( function, "untimed exposure trigger disabled" );
       return( error );
     }
@@ -4473,16 +4478,6 @@ namespace Archon {
       this->camera_info.systemkeys.keydb = this->systemkeys.keydb;   // copy systemkeys database object into camera_info
 
       if (this->common.writekeys_when=="after") this->copy_keydb();  // copy the ACF and userkeys database into camera_info
-
-//    moved to "untimed"
-//    // Open a new FITS file
-//    //
-//    this->camera_info.start_time = get_timestamp();                // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-//    this->get_timer(&this->start_timer);                           // Archon internal timer (one tick=10 nsec)
-//    this->common.set_fitstime(this->camera_info.start_time);       // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-//    error=this->common.get_fitsname(this->camera_info.fits_name);  // Assemble the FITS filename
-//    this->add_filename_key();                                      // add filename to system keys database
-//    error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
 
       if (error==NO_ERROR) error = this->wait_for_readout();         // Wait for the readout into frame buffer,
       if (error==NO_ERROR) error = read_frame();                     // then read the frame buffer to host (and write file) when frame ready.
@@ -4522,20 +4517,6 @@ namespace Archon {
 
       this->camera_info.systemkeys.keydb = this->systemkeys.keydb;  // copy the systemkeys database into camera_info
       if (this->common.writekeys_when=="before") this->copy_keydb();// copy the ACF and userkeys database into camera_info
-
-//    this->camera_info.userkeys.keydb   = this->userkeys.keydb;
-//    // add any keys from the ACF file (from modemap[mode].acfkeys) into the
-//    // camera_info.userkeys object
-//    //
-//    Common::FitsKeys::fits_key_t::iterator keyit;
-//    for (keyit  = this->modemap[mode].acfkeys.keydb.begin();
-//         keyit != this->modemap[mode].acfkeys.keydb.end();
-//         keyit++) {
-//      this->camera_info.userkeys.keydb[keyit->second.keyword].keyword    = keyit->second.keyword;
-//      this->camera_info.userkeys.keydb[keyit->second.keyword].keytype    = keyit->second.keytype;
-//      this->camera_info.userkeys.keydb[keyit->second.keyword].keyvalue   = keyit->second.keyvalue;
-//      this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
-//    }
 
       // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
       // one extension for the image and a separate extension for raw data.
@@ -4659,7 +4640,7 @@ namespace Archon {
   /**************** Archon::Interface::copy_keydb *****************************/
   /**
    * @fn         copy_keydb
-   * @brief      copy the user keyword database into camera_info
+   * @brief      copy the ACF and user keyword databases into camera_info
    * @param[in]  none
    * @return     none
    *
@@ -4686,7 +4667,7 @@ namespace Archon {
     }
 
 #ifdef LOGLEVEL_DEBUG
-    logwrite( function, "copied userkeys db to camera_info" );
+    logwrite( function, "[DEBUG] copied userkeys db to camera_info" );
 #endif
 
     return;
