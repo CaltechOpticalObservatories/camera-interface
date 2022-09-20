@@ -187,6 +187,7 @@ namespace Archon {
       long set_parameter( std::string parameter, long value );
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
+      void copy_keydb();                                                /// copy user keyword database into camera_info
       long longexposure(std::string state_in, std::string &state_out);
       long shutter(std::string shutter_in, std::string& shutter_out);
       long hdrshift(std::string bits_in, std::string &bits_out);
