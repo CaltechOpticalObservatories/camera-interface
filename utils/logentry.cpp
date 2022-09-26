@@ -13,22 +13,23 @@
 #include "logentry.h"
 
 std::mutex loglock;
-std::ofstream filestream;      //!< IO stream class
-unsigned int nextday = 86410;  //!< number of seconds until a new day
+std::ofstream filestream;      /// IO stream class
+unsigned int nextday = 86410;  /// number of seconds until a new day
 
 
 /** init_log *****************************************************************/
 /**
- * @fn     init_log
- * @brief  initializes the logging
- * @param  none
- * @return 0 on success, 1 on error
+ * @fn         init_log
+ * @brief      initializes the logging
+ * @param[in]  logpath string is the path for log file
+ * @param[in]  name string is the name of the log file in logpath
+ * @return     0 on success, 1 on error
  *
- * Opens an ofstream to the specified logfile, "LOGPATH/LOGNAME_YYYYMMDD.log"
- * LOGPATH and LOGNAME are defined in logentry.h
+ * Opens an ofstream to the specified logfile, "logpath/name_YYYYMMDD.log"
+ * where logpath and name are passed in as parameters.
  *
  */
-long init_log(std::string logpath) {
+long init_log( std::string logpath, std::string name ) {
   std::string function = "init_log";
   std::stringstream filename;
   std::stringstream message;
@@ -37,9 +38,9 @@ long init_log(std::string logpath) {
 
   if ( ( error = get_time( year, mon, mday, hour, min, sec, usec ) ) ) return error;
 
-  // assemble log file name from #define and current date
+  // assemble log file name from the passed-in arguments and current date
   //
-  filename << logpath << "/cameraserver_" << std::setfill('0')
+  filename << logpath << "/" << name << "_" << std::setfill('0')
                       << std::setw(4) << year
                       << std::setw(2) << mon
                       << std::setw(2) << mday << ".log";
@@ -71,10 +72,10 @@ long init_log(std::string logpath) {
 
 /** close_log ****************************************************************/
 /**
- * @fn     close_log
- * @brief  closes the logfile stream
- * @param  none
- * @return none
+ * @fn         close_log
+ * @brief      closes the logfile stream
+ * @param[in]  none
+ * @return     none
  *
  * Call this from the main class deconstructor to clean up the log file.
  *
@@ -90,11 +91,11 @@ void close_log() {
 
 /** logwrite *****************************************************************/
 /**
- * @fn     logwrite
- * @brief  create a log file entry
- * @param  function
- * @param  message
- * @return none
+ * @fn         logwrite
+ * @brief      create a log file entry
+ * @param[in]  function
+ * @param[in]  message
+ * @return     none
  *
  * Create a time-stamped entry in the log file in the form of:
  * YYYY-MM-DDTHH:MM:SS.ssssss (function) message\n

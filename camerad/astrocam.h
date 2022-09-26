@@ -456,8 +456,8 @@ namespace AstroCam {
       //
       Config config;
       Common::Common common;            //!< instantiate a Common object
-//    Common::Information camera_info;  //!< this is the main camera_info object
-      Common::Information fits_info;    //!< used to copy the camera_info object to preserve info for FITS writing
+      Common::Information camera_info;  //!< this is the main camera_info object
+//    Common::Information fits_info;    //!< used to copy the camera_info object to preserve info for FITS writing
       Common::FitsKeys userkeys;        //!< create a FitsKeys object for FITS keys specified by the user
       Common::FitsKeys systemkeys;      //!< create a FitsKeys object for FITS keys provided by the server
 
@@ -583,6 +583,7 @@ namespace AstroCam {
       long test(std::string args, std::string &retstring);
       long interface(std::string &iface);
       long connect_controller(std::string devices_in);
+      long is_connected( std::string &retstring );
       long disconnect_controller();
       long configure_controller();
       long access_useframes(std::string& useframes);

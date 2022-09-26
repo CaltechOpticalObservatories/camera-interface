@@ -173,6 +173,11 @@ namespace AstroCam {
    * numbers. This vector will be updated here to represent only the devices that
    * are actually connected.
    *
+   * All devices requested must be connected in order to return success. It is
+   * considered an error condition if not all requested can be connected. If the
+   * user wishes to connect to only the device(s) available then the user must
+   * call with the specific device(s). In other words, it's all (requested) or nothing.
+   *
    */
   long Interface::connect_controller(std::string devices_in="") {
     std::string function = "AstroCam::Interface::connect_controller";
@@ -275,7 +280,7 @@ namespace AstroCam {
 
 #ifdef LOGLEVEL_DEBUG
         message.str("");
-        message << "*** [DEBUG] pointers for dev " << dev << ": "
+        message << "[DEBUG] pointers for dev " << dev << ": "
                 << " pArcDev=" << std::hex << std::uppercase << this->controller.at(dev).pArcDev 
                 << " pCB="     << std::hex << std::uppercase << this->controller.at(dev).pCallback
                 << " pFits="   << std::hex << std::uppercase << this->controller.at(dev).pFits;
@@ -285,10 +290,17 @@ namespace AstroCam {
       catch(std::out_of_range &) {
         message.str(""); message << "ERROR: creating controller object for device number " << dev << ": out of range";
         logwrite(function, message.str());
+        this->disconnect_controller();
         return(ERROR);
       }
-      catch(...) { logwrite(function, "unknown error creating controller object"); return(ERROR); }
+      catch(...) { logwrite(function, "unknown error creating controller object"); this->disconnect_controller(); return(ERROR); }
     }
+
+    // The size of devlist at this point is the number of devices that will
+    // be requested to be opened. This should match the number of opened
+    // devices at the end of this function.
+    //
+    size_t requested_device_count = this->devlist.size();
 
     // Open only the devices specified by the devlist vector
     //
@@ -317,16 +329,19 @@ namespace AstroCam {
         for (auto devcheck : this->devlist) message << devcheck << " ";
         message << "}";
         logwrite(function, message.str());
+        this->disconnect_controller();
         return(ERROR);
       }
       catch(const std::exception &e) {
         message.str(""); message << "ERROR: " << this->controller.at(dev).devname << ": " << e.what();
         logwrite(function, message.str());
+        this->disconnect_controller();
         return (ERROR);
       }
       catch(...) {
         message.str(""); message << "unknown error connecting to " << this->controller.at(dev).devname;
         logwrite(function, message.str());
+        this->disconnect_controller();
         return (ERROR);
       }
     }
@@ -344,9 +359,10 @@ namespace AstroCam {
         for (auto devcheck : this->devlist) message << devcheck << " ";
         message << "}";
         logwrite(function, message.str());
+        this->disconnect_controller();
         return(ERROR);
       }
-      catch(...) { logwrite(function, "unknown error updaing device list"); return(ERROR); }
+      catch(...) { logwrite(function, "unknown error updaing device list"); this->disconnect_controller(); return(ERROR); }
     }
 
     // Now remove the marked devices (those not connected) 
@@ -360,7 +376,24 @@ namespace AstroCam {
     for (auto devcheck : this->devlist) { message << devcheck << " "; } message << "}";
     logwrite(function, message.str());
 
-    return(0);
+    // check the size of the devlist now, against the size requested
+    //
+    if ( this->devlist.size() != requested_device_count ) {
+      message.str(""); message << "ERROR: " << this->devlist.size() <<" connected devices but "
+                               << requested_device_count << " requested";
+      logwrite( function, message.str() );
+
+      // disconnect/deconstruct everything --
+      //
+      // If the user might want to use what is available then the user
+      // must call again, requesting only what is available. It is an
+      // error if the interface cannot deliver what was requested.
+      //
+      this->disconnect_controller();
+
+      return( ERROR );
+    }
+    else return( NO_ERROR );
   }
   /** AstroCam::Interface::connect_controller *********************************/
 
@@ -396,6 +429,56 @@ namespace AstroCam {
     return NO_ERROR;         // always succeeds
   }
   /** AstroCam::Interface::disconnect_controller ******************************/
+
+
+  /** AstroCam::Interface::is_connected ***************************************/
+  /**
+   * @fn         is_connected
+   * @brief      are all selected controllers connected?
+   * @param[out] retstring, reference to string to return true|false
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::is_connected( std::string &retstring ) {
+    std::string function = "AstroCam::Interface::is_connected";
+    std::stringstream message;
+
+    size_t ndev = this->devlist.size();  /// number of connected devices
+    size_t nopen=0;                      /// number of open devices (should be equal to ndev if all are open)
+
+    // look through all connected devices
+    //
+    for ( auto dev : this->devlist ) {
+      try {
+        if ( this->controller.at(dev).connected ) nopen++;    // increment counter for each open device
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] dev " << dev << " is " << ( this->controller.at(dev).connected ? "connected" : "disconnected" );
+        logwrite( function, message.str() );
+#endif
+      }
+      catch( std::out_of_range & ) {
+        message.str(""); message << "ERROR: requested device number " << dev << " not in list: { ";
+        for ( auto devcheck : this->devlist ) message << devcheck << " ";
+        message << "}";
+        logwrite(function, message.str());
+        return( ERROR );
+      }
+      catch(...) { logwrite(function, "unknown error accessing device list"); return( ERROR ); }
+    }
+
+    // If all devices in (non-empty) devlist are connected then return true,
+    // otherwise return false with a space-delimited list of the disconnected devices.
+    //
+    if ( ndev !=0 && ndev == nopen ) {
+      retstring = "true";
+    }
+    else {
+      retstring = "false";
+    }
+
+    return( NO_ERROR );
+  }
+  /** AstroCam::Interface::is_connected ***************************************/
 
 
   /** AstroCam::Interface::configure_controller *******************************/
@@ -752,7 +835,7 @@ namespace AstroCam {
 
 #ifdef LOGLEVEL_DEBUG
     message.str("");
-    message << "*** [DEBUG] _controller.devnum=" << _controller.devnum 
+    message << "[DEBUG] _controller.devnum=" << _controller.devnum 
             << " .devname=" << _controller.devname << " _controller.section_size=" << _controller.info.section_size
             << " shutterenable=" << _controller.info.shutterenable;
     logwrite(function, message.str());
@@ -777,6 +860,10 @@ namespace AstroCam {
                                   server.common.abortstate, 
                                   _controller.pCallback, 
                                   _controller.info.shutterenable);
+#ifdef LOGLEVEL_DEBUG
+      message.str(""); message << "[DEBUG] pArcDev->expose started on " << _controller.devname;
+      logwrite( function, message.str() );
+#endif
 
       // The system writes a few things in the header
       //
@@ -791,10 +878,10 @@ namespace AstroCam {
       std::string estring = e.what();
       message.str("");
       if ( estring.find("aborted") != std::string::npos ) {
-        message << "ABORT: " << e.what();
+        message << "ABORT on " << _controller.devname << ": " << e.what();
       }
       else {
-        message << "ERROR: " << e.what();
+        message << "ERROR on " << _controller.devname << ": " << e.what();
       }
       server.common.set_abortstate( true );
       logwrite(function, message.str());
@@ -802,12 +889,14 @@ namespace AstroCam {
       return;
     }
     catch(...) {
-      logwrite(function, "unknown error calling pArcDev->expose(). forcing abort.");
+      message.str(""); message << "unknown error calling pArcDev->expose() on " << _controller.devname << ". forcing abort.";
+      logwrite(function, message.str() );
       server.common.set_abortstate( true );
       _controller.error = ERROR;
       return;
     }
     _controller.error = NO_ERROR;
+    return;
   }
   /** AstroCam::Interface::dothread_expose ************************************/
 
@@ -824,8 +913,11 @@ namespace AstroCam {
   void Interface::dothread_native( Controller &controller, std::vector<uint32_t> cmd ) {
     std::string function = "AstroCam::Interface::dothread_native";
     std::stringstream message;
+    uint32_t command;
 
     try {
+      if ( cmd.size() > 0 ) command = cmd.at(0);
+
       // ARC_API now uses an initialized_list object for the TIM_ID, command, and arguments.
       // The list object must be instantiated with a fixed size at compile time.
       //
@@ -839,23 +931,28 @@ namespace AstroCam {
       else
       if (cmd.size() == 5) controller.retval = controller.pArcDev->command( { TIM_ID, cmd.at(0), cmd.at(1), cmd.at(2), cmd.at(3), cmd.at(4) } );
       else {
-        message.str(""); message << "ERROR: invalid number of command arguments: " << cmd.size();
+        message.str(""); message << "ERROR: invalid number of command arguments: " << cmd.size() << " (expecting 1,2,3,4,5)";
         logwrite(function, message.str());
-        controller.retval = 0xDEAD;
+        controller.retval = 0x455252;
       }
     }
     catch(const std::runtime_error &e) {
-      message.str(""); message << "ERROR: " << controller.devname << ": " << e.what();
+      message.str(""); message << "ERROR sending 0x" << std::setfill('0') << std::setw(2) << std::hex << std::uppercase
+                                                     << command << " to " << controller.devname << ": " << e.what();
       logwrite(function, message.str());
+      controller.retval = 0x455252;
       return;
     }
     catch(std::out_of_range &) {  // impossible
       logwrite(function, "ERROR: indexing command argument");
+      controller.retval = 0x455252;
       return;
     }
     catch(...) {
-      message.str(""); message << "unknown error sending command to " << controller.devname;
+      message.str(""); message << "unknown error sending 0x" << std::setfill('0') << std::setw(2) << std::hex << std::uppercase
+                                                             << command << " to " << controller.devname;
       logwrite(function, message.str());
+      controller.retval = 0x455252;
       return;
     }
   }
@@ -1101,7 +1198,8 @@ namespace AstroCam {
         this->controller.at(dev).info.binning[1] = 1;
 
         this->controller.at(dev).info.bitpix = 16;
-        if ( this->controller.at(dev).info.set_axes(USHORT_IMG) != NO_ERROR ) {
+        this->controller.at(dev).info.frame_type = Common::FRAME_RAW;
+        if ( this->controller.at(dev).info.set_axes() != NO_ERROR ) {
           message.str(""); message << "ERROR setting axes for device " << dev;
           logwrite( function, message.str() );
           return( ERROR );
@@ -1153,6 +1251,12 @@ namespace AstroCam {
           return( ERROR );
         }
       }
+    }
+
+    if ( nseq > 1 ) {
+      message.str(""); message << "NOTICE: multiple exposures not currently supported";
+      logwrite( function, message.str() );
+      server.common.message.enqueue( message.str() );
     }
 
     // Clear the abort flag for a new exposure, in case it was previously set
@@ -1208,7 +1312,7 @@ namespace AstroCam {
 
 #ifdef LOGLEVEL_DEBUG
         message.str("");
-        message << "*** [DEBUG] pointers for dev " << dev << ": "
+        message << "[DEBUG] pointers for dev " << dev << ": "
                 << " pArcDev="  << std::hex << this->controller.at(dev).pArcDev 
                 << " pCB="      << std::hex << this->controller.at(dev).pCallback
                 << " pFits="    << std::hex << this->controller.at(dev).pFits;
@@ -1931,7 +2035,7 @@ namespace AstroCam {
 
 #ifdef LOGLEVEL_DEBUG
     message.str("");
-    message << "*** [DEBUG] completed " << (error != NO_ERROR ? "with error. " : "ok. ")
+    message << "[DEBUG] completed " << (error != NO_ERROR ? "with error. " : "ok. ")
             << "devnum=" << devnum << " " << "fpbcount=" << fpbcount << " "
             << this->controller.at(devnum).devname << " received frame " 
             << this->controller.at(devnum).frameinfo[fpbcount].framenum << " into buffer "
@@ -2282,7 +2386,7 @@ namespace AstroCam {
     int error = NO_ERROR;
 
 #ifdef LOGLEVEL_DEBUG
-    message << "*** [DEBUG] devnum=" << devnum << " " << "fpbcount=" << fpbcount 
+    message << "[DEBUG] devnum=" << devnum << " " << "fpbcount=" << fpbcount 
             << " fcount=" << fcount << " PCI buffer=" << std::hex << std::uppercase << buffer;
     logwrite(function, message.str());
 #endif
@@ -2321,10 +2425,10 @@ namespace AstroCam {
 
 #ifdef LOGLEVEL_DEBUG
     if ( server.useframes ) {
-      logwrite(function, "*** [DEBUG] waiting for frame");
+      logwrite(function, "[DEBUG] waiting for frame");
     }
     else {
-      logwrite(function, "*** [DEBUG] firmware doesn't support frames");
+      logwrite(function, "[DEBUG] firmware doesn't support frames");
     }
 #endif
 
@@ -2343,7 +2447,7 @@ namespace AstroCam {
           start_time = time_now;
           logwrite(function, "waiting for frames");//TODO presumably update GUI or set a global that the CLI can access
 #ifdef LOGLEVEL_DEBUG
-          message.str(""); message << "*** [DEBUG] this_frame=" << this_frame << " next_frame=" << next_frame;
+          message.str(""); message << "[DEBUG] this_frame=" << this_frame << " next_frame=" << next_frame;
           logwrite(function, message.str());
 #endif
         }
@@ -2360,7 +2464,7 @@ namespace AstroCam {
     //
     if ( ! server.common.get_abortstate() ) {
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "*** [DEBUG] calling server.write_frame for devnum=" << devnum << " fpbcount=" << fpbcount;
+    message.str(""); message << "[DEBUG] calling server.write_frame for devnum=" << devnum << " fpbcount=" << fpbcount;
     logwrite(function, message.str());
 #endif
       error = server.write_frame( devnum, fpbcount );
@@ -2496,7 +2600,7 @@ namespace AstroCam {
 #ifdef LOGLEVEL_DEBUG
     std::string function = "AstroCam::Interface::Controller::open_file";
     std::stringstream message;
-    message << "*** [DEBUG] devnum=" << devnum
+    message << "[DEBUG] devnum=" << devnum
             << " fits_name=" << this->info.fits_name 
             << " this->pFits=" << std::hex << std::uppercase << this->pFits;
     logwrite(function, message.str());
@@ -2521,7 +2625,7 @@ namespace AstroCam {
     if ( writekeys_in == "after" ) writekeys = true; else writekeys = false;
 #ifdef LOGLEVEL_DEBUG
     std::stringstream message;
-    message << "*** [DEBUG] devnum=" << devnum
+    message << "[DEBUG] devnum=" << devnum
             << " fits_name=" << this->info.fits_name 
             << " this->pFits=" << std::hex << std::uppercase << this->pFits;
     logwrite(function, message.str());
@@ -2609,7 +2713,7 @@ logwrite( function, "NOTICE:override nthreads=2 !!!" );
 server.common.message.enqueue( "NOTICE:override nthreads=2 !!!" );
 
 #ifdef LOGLEVEL_DEBUG
-    message << "*** [DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << this->workbuf
+    message << "[DEBUG] devnum=" << this->devnum << " nthreads=" << nthreads << " imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << this->workbuf
             << " this->info.readout_name=" << this->info.readout_name << "(" << this->info.readout_type << ")" 
             << " cols=" << std::dec << this->cols << " rows=" << std::dec << this->rows;
     logwrite(function, message.str());
@@ -2632,7 +2736,7 @@ server.common.message.enqueue( "NOTICE:override nthreads=2 !!!" );
     {                                       // begin local scope
     std::vector<std::thread> threads;       // create a local scope vector for the threads
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "*** [DEBUG] spawning deinterlacing threads, from 1 to " << nthreads << "...";
+    message.str(""); message << "[DEBUG] spawning deinterlacing threads, from 1 to " << nthreads << "...";
     logwrite( function, message.str() );
 #endif
     for ( int section = 1; section <= nthreads; section++ ) {
@@ -2646,7 +2750,7 @@ server.common.message.enqueue( "NOTICE:override nthreads=2 !!!" );
     }
 
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "*** [DEBUG] devnum " << this->devnum << " waiting for deinterlacing threads";
+    message.str(""); message << "[DEBUG] devnum " << this->devnum << " waiting for deinterlacing threads";
     logwrite(function, message.str());
 #endif
 
@@ -2706,7 +2810,7 @@ server.common.message.enqueue( "NOTICE:override nthreads=2 !!!" );
     if ( ( modrows != 0 ) && ( section == nthreads ) ) row_stop += modrows;  // add any leftover rows to the last thread if not evenly divisible
 
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "*** [DEBUG] section=" << section << " " << deinterlace.info()
+    message.str(""); message << "[DEBUG] section=" << section << " " << deinterlace.info()
                              << " row_start=" << row_start << " row_stop=" << row_stop
                              << " modrows=" << modrows << " index=" << index;
     logwrite(function, message.str());
@@ -2861,7 +2965,7 @@ if ( server.common.get_abortstate() ) {
 }
 
 #ifdef LOGLEVEL_DEBUG
-    message << "*** [DEBUG] workbuf=" << std::hex << this->workbuf << " this->pFits=" << this->pFits;
+    message << "[DEBUG] workbuf=" << std::hex << this->workbuf << " this->pFits=" << this->pFits;
     logwrite(function, message.str());
 #endif
 
