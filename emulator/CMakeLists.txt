@@ -6,7 +6,9 @@ cmake_minimum_required( VERSION 3.12 )
 
 set( EMULATOR_DIR ${PROJECT_BASE_DIR}/emulator )
 
-include_directories( ${PROJECT_BASE_DIR}/utils ${PROJECT_BASE_DIR}/camerad )
+include_directories( ${PROJECT_BASE_DIR}/utils 
+                     ${PROJECT_BASE_DIR}/camerad 
+                     ${PROJECT_BASE_DIR}/common )
 
 add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 -ggdb )
 
@@ -32,7 +34,8 @@ target_link_libraries(emulator
         network
         logentry
         utilities
-        commonCamera
+        common
+        camera
         ${EMULATOR_TARGET}
         ${CMAKE_THREAD_LIBS_INIT}
         )

@@ -1,6 +1,6 @@
 /**
  * @file    archon.cpp
- * @brief   common interface functions
+ * @brief   camera interface functions
  * @details 
  * @author  David Hale <dhale@astro.caltech.edu>
  *
@@ -40,7 +40,7 @@ namespace Archon {
     this->trigin_untimed = 0;
     this->trigin_readout = 0;
 
-    this->lastcubeamps = this->common.cubeamps();
+    this->lastcubeamps = this->camera.cubeamps();
 
     this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
     this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
@@ -119,7 +119,7 @@ namespace Archon {
     this->is_longexposure = false;
     this->n_hdrshift = 16;
 
-    this->common.firmware[0] = "";
+    this->camera.firmware[0] = "";
 
     this->exposeparam = "";
     this->trigin_exposeparam = "";
@@ -152,11 +152,11 @@ namespace Archon {
           port = std::stoi( config.arg[entry] );
         }
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert port number to integer" );
+          this->camera.log_error( function, "unable to convert port number to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "port number out of integer range" );
+          this->camera.log_error( function, "port number out of integer range" );
           return(ERROR);
         }
         this->camera_info.port = port;
@@ -166,8 +166,8 @@ namespace Archon {
 
       if (config.param[entry].compare(0, 12, "AMPS_AS_CUBE")==0) {
         std::string dontcare;
-        if ( this->common.cubeamps( config.arg[entry], dontcare ) == ERROR ) {
-          this->common.log_error( function, "setting cubeamps" );
+        if ( this->camera.cubeamps( config.arg[entry], dontcare ) == ERROR ) {
+          this->camera.log_error( function, "setting cubeamps" );
           return( ERROR );
         }
       }
@@ -198,11 +198,11 @@ namespace Archon {
           enable = std::stoi( config.arg[entry] );
 	}
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert TRIGIN_EXPOSE_ENABLE to integer" );
+          this->camera.log_error( function, "unable to convert TRIGIN_EXPOSE_ENABLE to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "TRIGIN_EXPOSE_ENABLE out of integer range" );
+          this->camera.log_error( function, "TRIGIN_EXPOSE_ENABLE out of integer range" );
           return(ERROR);
         }
         this->trigin_expose_enable = enable;
@@ -215,11 +215,11 @@ namespace Archon {
           disable = std::stoi( config.arg[entry] );
 	}
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert TRIGIN_EXPOSE_DISABLE to integer" );
+          this->camera.log_error( function, "unable to convert TRIGIN_EXPOSE_DISABLE to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "TRIGIN_EXPOSE_DISABLE out of integer range" );
+          this->camera.log_error( function, "TRIGIN_EXPOSE_DISABLE out of integer range" );
           return(ERROR);
         }
         this->trigin_expose_disable = disable;
@@ -232,11 +232,11 @@ namespace Archon {
           enable = std::stoi( config.arg[entry] );
 	}
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert TRIGIN_UNTIMED_ENABLE to integer" );
+          this->camera.log_error( function, "unable to convert TRIGIN_UNTIMED_ENABLE to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "TRIGIN_UNTIMED_ENABLE out of integer range" );
+          this->camera.log_error( function, "TRIGIN_UNTIMED_ENABLE out of integer range" );
           return(ERROR);
         }
         this->trigin_untimed_enable = enable;
@@ -249,11 +249,11 @@ namespace Archon {
           disable = std::stoi( config.arg[entry] );
 	}
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert TRIGIN_UNTIMED_DISABLE to integer" );
+          this->camera.log_error( function, "unable to convert TRIGIN_UNTIMED_DISABLE to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "TRIGIN_UNTIMED_DISABLE out of integer range" );
+          this->camera.log_error( function, "TRIGIN_UNTIMED_DISABLE out of integer range" );
           return(ERROR);
         }
         this->trigin_untimed_disable = disable;
@@ -266,11 +266,11 @@ namespace Archon {
           enable = std::stoi( config.arg[entry] );
 	}
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert TRIGIN_READOUT_ENABLE to integer" );
+          this->camera.log_error( function, "unable to convert TRIGIN_READOUT_ENABLE to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "TRIGIN_READOUT_ENABLE out of integer range" );
+          this->camera.log_error( function, "TRIGIN_READOUT_ENABLE out of integer range" );
           return(ERROR);
         }
         this->trigin_readout_enable = enable;
@@ -283,11 +283,11 @@ namespace Archon {
           disable = std::stoi( config.arg[entry] );
 	}
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert TRIGIN_READOUT_DISABLE to integer" );
+          this->camera.log_error( function, "unable to convert TRIGIN_READOUT_DISABLE to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "TRIGIN_READOUT_DISABLE out of integer range" );
+          this->camera.log_error( function, "TRIGIN_READOUT_DISABLE out of integer range" );
           return(ERROR);
         }
         this->trigin_readout_disable = disable;
@@ -305,11 +305,11 @@ namespace Archon {
           enable = std::stoi( config.arg[entry] );
 	}
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert SHUTENABLE_ENABLE to integer" );
+          this->camera.log_error( function, "unable to convert SHUTENABLE_ENABLE to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "SHUTENABLE_ENABLE out of integer range" );
+          this->camera.log_error( function, "SHUTENABLE_ENABLE out of integer range" );
           return(ERROR);
         }
         this->shutenable_enable = enable;
@@ -322,11 +322,11 @@ namespace Archon {
           disable = std::stoi( config.arg[entry] );
 	}
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert SHUTENABLE_DISABLE to integer" );
+          this->camera.log_error( function, "unable to convert SHUTENABLE_DISABLE to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "SHUTENABLE_DISABLE out of integer range" );
+          this->camera.log_error( function, "SHUTENABLE_DISABLE out of integer range" );
           return(ERROR);
         }
         this->shutenable_disable = disable;
@@ -337,7 +337,7 @@ namespace Archon {
       // so map always to 0
       //
       if (config.param[entry].compare(0, 16, "DEFAULT_FIRMWARE")==0) {
-        this->common.firmware[0] = config.arg[entry];
+        this->camera.firmware[0] = config.arg[entry];
         applied++;
       }
 
@@ -353,24 +353,24 @@ namespace Archon {
           readtime = std::stoi ( config.arg[entry] );
         }
         catch (std::invalid_argument &) {
-          this->common.log_error( function, "unable to convert readout time to integer" );
+          this->camera.log_error( function, "unable to convert readout time to integer" );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "readout time out of integer range" );
+          this->camera.log_error( function, "readout time out of integer range" );
           return(ERROR);
         }
-        this->common.readout_time[0] = readtime;
+        this->camera.readout_time[0] = readtime;
         applied++;
       }
 
       if (config.param[entry].compare(0, 5, "IMDIR")==0) {
-        this->common.imdir( config.arg[entry] );
+        this->camera.imdir( config.arg[entry] );
         applied++;
       }
 
       if (config.param[entry].compare(0, 8, "BASENAME")==0) {
-        this->common.basename( config.arg[entry] );
+        this->camera.basename( config.arg[entry] );
         applied++;
       }
 
@@ -385,7 +385,7 @@ namespace Archon {
       error = NO_ERROR;
     }
     message << "applied " << applied << " configuration lines to controller";
-    error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() ) ;
+    error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() ) ;
     return error;
   }
   /**************** Archon::Interface::configure_controller *******************/
@@ -431,7 +431,7 @@ namespace Archon {
         logwrite(function, message.str());
       }
       else {
-        this->common.log_error( function, "cannot allocate zero-length image memory" );
+        this->camera.log_error( function, "cannot allocate zero-length image memory" );
         return(ERROR);
       }
     }
@@ -466,7 +466,7 @@ namespace Archon {
 
     if ( this->archon.Connect() != 0 ) {
       message.str(""); message << "connecting to " << this->camera_info.hostname << ":" << this->camera_info.port << ": " << strerror(errno);
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -507,12 +507,12 @@ namespace Archon {
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert module or type from " << tokens[0] << "=" << tokens[1] << " to integer";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
           message.str(""); message << "module " << tokens[0].substr(3) << " or type " << tokens[1] << " out of range";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
       }
@@ -531,12 +531,12 @@ namespace Archon {
         }
         catch (std::out_of_range &) {
           message.str(""); message << "requested module " << module << " out of range {1:" << nmods;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
         }
       }
       else {                                          // else should never happen
         message.str(""); message << "module " << module << " outside range {1:" << nmods << "}";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
 
@@ -552,7 +552,7 @@ namespace Archon {
       //
       if ( ( type == 2 || type == 17 ) && ( module < 5 || module > 8 ) ) {
         message.str(""); message << "AD module (type=" << type << ") cannot be in slot " << module << ". Use slots 5-8";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
 
@@ -610,7 +610,7 @@ namespace Archon {
     // Throw an error for any other errors
     //
     else {
-      this->common.log_error( function, "disconnecting Archon camera" );
+      this->camera.log_error( function, "disconnecting Archon camera" );
     }
 
     return(error);
@@ -644,17 +644,17 @@ namespace Archon {
       // which generated the message.
       //
       message << cmd << ":BEGIN";
-      this->common.message.enqueue( message.str() );
+      this->camera.async.enqueue( message.str() );
 
       Tokenize(reply, tokens, " ");
       for (long unsigned int tok=0; tok < tokens.size(); tok++) {
         if ( ! tokens[tok].empty() && tokens[tok] != "\n" ) {
           message.str(""); message << cmd << ":" << tokens[tok];
-          this->common.message.enqueue( message.str() );
+          this->camera.async.enqueue( message.str() );
         }
       }
       message.str(""); message << cmd << ":END";
-      this->common.message.enqueue( message.str() );
+      this->camera.async.enqueue( message.str() );
     }
     return( ret );
   }
@@ -683,13 +683,13 @@ namespace Archon {
     int     error = NO_ERROR;
 
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
-      this->common.log_error( function, "connection not open to controller" );
+      this->camera.log_error( function, "connection not open to controller" );
       return(ERROR);
     }
 
     if (this->archon_busy) {                    // only one command at a time
       message.str(""); message << "Archon busy: ignored command " << cmd;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(BUSY);
     }
 
@@ -715,7 +715,7 @@ namespace Archon {
     }
     catch (...) {
       message.str(""); message << "converting Archon command: " << prefix << " to uppercase";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -742,7 +742,7 @@ namespace Archon {
     // send the command
     //
     if ( (this->archon.Write(scmd)) == -1) {
-      this->common.log_error( function, "writing to camera socket");
+      this->camera.log_error( function, "writing to camera socket");
     }
 
     // For the FETCH command we don't wait for a reply, but return immediately.
@@ -761,13 +761,13 @@ namespace Archon {
       if ( (retval=this->archon.Poll()) <= 0) {
         if (retval==0) { message.str(""); message << "Poll timeout waiting for response from Archon command (maybe unrecognized command?)"; error = TIMEOUT; }
         if (retval<0)  { message.str(""); message << "Poll error waiting for response from Archon command";   error = ERROR;   }
-        if ( error != NO_ERROR ) this->common.log_error( function, message.str() );
+        if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
         break;
       }
       memset(buffer, '\0', 2048);                    // init temporary buffer
       retval = this->archon.Read(buffer, 2048);      // read into temp buffer
       if (retval <= 0) {
-        this->common.log_error( function, "reading Archon" );
+        this->camera.log_error( function, "reading Archon" );
         break; 
       }
       reply.append(buffer);                          // append read buffer into the reply string
@@ -786,7 +786,7 @@ namespace Archon {
     if (reply.compare(0, 1, "?")==0) {               // "?" means Archon experienced an error processing command
       error = ERROR;
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
     }
     else
     if (reply.compare(0, 3, check)!=0) {             // First 3 bytes of reply must equal checksum else reply doesn't belong to command
@@ -794,7 +794,7 @@ namespace Archon {
       std::string hdr = reply;
       try { scmd.erase(scmd.find("\n"), 1); } catch(...) { }
       message.str(""); message << "command-reply mismatch for command: " + scmd + ": expected " + check + " but received " + reply ;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
     }
     else {                                           // command and reply are a matched pair
       error = NO_ERROR;
@@ -844,7 +844,7 @@ namespace Archon {
 
     if (this->parammap.find(paramname.c_str()) == this->parammap.end()) {
       message.str(""); message << "parameter \"" << paramname << "\" not found in ACF";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -889,7 +889,7 @@ namespace Archon {
 
     if (error==ERROR) {
       message << "malformed reply: " << reply << " to Archon command " << cmd.str() << ": Expected PARAMETERn=PARAMNAME=VALUE";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
     }
     else {
       message.str(""); message << paramname << " = " << value;
@@ -1116,10 +1116,10 @@ namespace Archon {
     // get the acf filename, either passed here or from loaded default
     //
     if ( acffile.empty() ) {
-      acffile = this->common.firmware[0];
+      acffile = this->camera.firmware[0];
     }
     else {
-      this->common.firmware[0] = acffile;
+      this->camera.firmware[0] = acffile;
     }
 
     // try to open the file
@@ -1129,12 +1129,12 @@ namespace Archon {
     }
     catch(...) {
       message << "opening acf file " << acffile << ": " << std::strerror(errno);
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return ERROR;
     }
     if ( ! filestream.is_open() || ! filestream.good() ) {
       message << "acf file " << acffile << " could not be opened";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return ERROR;
     }
 
@@ -1183,7 +1183,7 @@ namespace Archon {
         }
         catch(...) {
           message.str(""); message << "malformed mode section: " << savedline << ": expected [MODE_xxxx]";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
 	  filestream.close();
           return ERROR;
         }
@@ -1196,7 +1196,7 @@ namespace Archon {
           //
           if ( this->modemap.find(mode) != this->modemap.end() ) {
             message.str(""); message << "duplicate definition of mode: " << mode << ": load aborted";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
 	    filestream.close();
             return ERROR;
           }
@@ -1209,7 +1209,7 @@ namespace Archon {
         }
         else {                                   // somehow there's no xxx left after removing "[MODE_" and "]"
           message.str(""); message << "malformed mode section: " << savedline << ": expected [MODE_xxxx]";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
 	  filestream.close();
           return ERROR;
         }
@@ -1281,7 +1281,7 @@ namespace Archon {
           }
           else {
             message.str(""); message << "malformed ACF line: " << savedline << ": expected KEY=VALUE";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
 	    filestream.close();
             return ERROR;
           }
@@ -1315,7 +1315,7 @@ namespace Archon {
         }
         catch ( ... ) {
           message.str(""); message << "extracting KEY=VALUE pair from ACF line: " << savedline;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           filestream.close();
           return ERROR;
         }
@@ -1331,7 +1331,7 @@ namespace Archon {
         Tokenize(line, tokens, "=");                                      // separate into KEY, VALUE tokens
         if (tokens.size() != 2) {
           message.str(""); message << "malformed ARCH line: " << savedline << ": expected ARCH:KEY=VALUE";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
 	  filestream.close();
           return ERROR;
         }
@@ -1349,7 +1349,7 @@ namespace Archon {
         }
         else {
           message.str(""); message << "unrecognized internal parameter specified: "<< tokens[0];
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
 	  filestream.close();
           return(ERROR);
         }
@@ -1367,7 +1367,7 @@ namespace Archon {
         Tokenize(line, tokens, "=");
         if (tokens.size() != 2) {                                         // need at least two tokens at this point
           message.str(""); message << "malformed FITS command: " << savedline << ": expected KEYWORD=value/comment";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           filestream.close();
           return(ERROR);
         }
@@ -1394,9 +1394,9 @@ namespace Archon {
 
         if (tokens.size() > 2) {       // everything below this has been covered
           message.str(""); message << "malformed FITS command: " << savedline << ": expected KEYWORD=VALUE/COMMENT";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           message.str(""); message << "too many \"/\" in comment string? " << keystring;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           filestream.close();
           return(ERROR);
         }
@@ -1424,7 +1424,7 @@ namespace Archon {
 
         if (tokens.size() != 3) {
           message.str(""); message << "malformed paramter line: " << savedline << ": expected PARAMETERn=Param=value";;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           filestream.close();
           return ERROR;
         }
@@ -1550,7 +1550,7 @@ namespace Archon {
     // No point in trying anything if no firmware has been loaded yet
     //
     if ( ! this->firmwareloaded ) {
-      this->common.log_error( function, "no firmware loaded" );
+      this->camera.log_error( function, "no firmware loaded" );
       return(ERROR);
     }
 
@@ -1560,8 +1560,8 @@ namespace Archon {
     // and put into the modemap...
     //
     if (this->modemap.find(mode) == this->modemap.end()) {
-      message.str(""); message << "undefined mode " << mode << " in ACF file " << this->common.firmware[0];
-      this->common.log_error( function, message.str() );
+      message.str(""); message << "undefined mode " << mode << " in ACF file " << this->camera.firmware[0];
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -1611,7 +1611,7 @@ namespace Archon {
       this->camera_info.detector_pixels[1] = this->rawinfo.rawlines; 
       this->camera_info.detector_pixels[1]++;
       // frame_type will determine the bits per pixel and where the detector_axes come from
-      this->camera_info.frame_type = Common::FRAME_RAW;
+      this->camera_info.frame_type = Camera::FRAME_RAW;
       this->camera_info.region_of_interest[0] = 1;
       this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
       this->camera_info.region_of_interest[2] = 1;
@@ -1643,7 +1643,7 @@ namespace Archon {
 #endif
       this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps[0];
       this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps[1];
-      this->camera_info.frame_type = Common::FRAME_IMAGE;
+      this->camera_info.frame_type = Camera::FRAME_IMAGE;
       // ROI is the full detector
       this->camera_info.region_of_interest[0] = 1;
       this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
@@ -1666,7 +1666,7 @@ namespace Archon {
     int samplemode=-1;
     if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode); // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
     if ( error != NO_ERROR ) { logwrite( function, "ERROR: unable to get SAMPLEMODE from ACF" ); return error; }
-    if (samplemode < 0) { this->common.log_error( function, "bad or missing SAMPLEMODE from ACF" ); return ERROR; }
+    if (samplemode < 0) { this->camera.log_error( function, "bad or missing SAMPLEMODE from ACF" ); return ERROR; }
     this->camera_info.bitpix = (samplemode==0) ? 16 : 32;
 
     // Load parameters and Apply CDS/Deint configuration if any of them changed
@@ -1688,22 +1688,22 @@ namespace Archon {
     //
     error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
 /*********
-    if (this->camera_info.frame_type == Common::FRAME_RAW) {
+    if (this->camera_info.frame_type == Camera::FRAME_RAW) {
       error = this->camera_info.set_axes(USHORT_IMG);                                     // 16 bit raw is unsigned short int
     }
-    if (this->camera_info.frame_type == Common::FRAME_IMAGE) {
+    if (this->camera_info.frame_type == Camera::FRAME_IMAGE) {
       if (this->camera_info.bitpix == 16) error = this->camera_info.set_axes(SHORT_IMG);  // 16 bit image is short int
       else
       if (this->camera_info.bitpix == 32) error = this->camera_info.set_axes(FLOAT_IMG);  // 32 bit image is float
       else {
         message.str(""); message << "bad bitpix " << this->camera_info.bitpix << ": expected 16 | 32";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return (ERROR);
       }
     }
 *********/
     if (error != NO_ERROR) {
-      this->common.log_error( function, "setting axes" );
+      this->camera.log_error( function, "setting axes" );
       return (ERROR);
     }
 
@@ -1712,7 +1712,7 @@ namespace Archon {
     this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
 
     if (this->image_data_bytes == 0) {
-      this->common.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
+      this->camera.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
       error = ERROR;
     }
 
@@ -1925,7 +1925,7 @@ namespace Archon {
         if ( adchan.find("AM") != std::string::npos ) admax = MAXADMCHANS;
         else {
           message.str(""); message << "bad tapline syntax. Expected ADn or AMn but got " << adchan;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
 
@@ -1944,16 +1944,16 @@ namespace Archon {
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert AD number \'" << adchan << "\' to integer";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
-          this->common.log_error( function, "AD number out of integer range" );
+          this->camera.log_error( function, "AD number out of integer range" );
           return(ERROR);
         }
         if ( (adnum < 0) || (adnum > admax) ) {
           message.str(""); message << "ADC channel " << adnum << " outside range {0:" << admax << "}";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         // Now that adnum is OK, convert next two tokens to gain, offset
@@ -1965,12 +1965,12 @@ namespace Archon {
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert GAIN \"" << tokens[1] << "\" and/or OFFSET \"" << tokens[2] << "\" to integer";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
           message.str(""); message << "GAIN " << tokens[1] << ", OFFSET " << tokens[2] << " outside integer range";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         // Now assign the gain,offsets to their appropriate position in the vectors
@@ -1989,9 +1989,9 @@ namespace Archon {
         }
         catch ( std::out_of_range & ) {
           message.str(""); message << "AD# " << adnum << " outside range {0:" << (this->gain.size() & this->offset.size()) << "}";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           if ( this->gain.size()==0 || this->offset.size()==0 ) {
-            this->common.log_error( function, "gain/offset vectors are empty: no ADC or ADM board installed?" );
+            this->camera.log_error( function, "gain/offset vectors are empty: no ADC or ADM board installed?" );
           }
           return( ERROR );
         }
@@ -2057,7 +2057,7 @@ namespace Archon {
         message.str("");
         message << "expected 2 but received invalid number of tokens (" << subtokens.size() << ") in FRAME message:";
         for (size_t i=0; i<subtokens.size(); i++) message << " " << subtokens[i];
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);  // We could continue; but if one is bad then we could miss seeing a larger problem
       }
 
@@ -2083,12 +2083,12 @@ namespace Archon {
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert buffer: " << subtokens[0] << " or value: " << subtokens[1] << " from FRAME message to integer. Expected BUFnSOMETHING=nnnn";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
           message.str(""); message << "buffer: " << subtokens[0] << " or value: " << subtokens[1] << " from FRAME message outside integer range. Expected BUFnSOMETHING=nnnn";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
       }
@@ -2102,7 +2102,7 @@ namespace Archon {
       if (subtokens[0].compare(0, 3, "BUF")==0) {
         if (bufnum < 1 || bufnum > Archon::nbufs) {
           message.str(""); message << "buffer number " << bufnum << " from FRAME message outside range {1:" << Archon::nbufs << "}";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         bufnum--;   // subtract 1 because it is 1-based in the message but need 0-based for the indexing
@@ -2131,7 +2131,7 @@ namespace Archon {
     }
     else {
       message.str(""); message << "newest buf " << this->frame.index << " from FRAME message exceeds number of buffers " << this->frame.bufframen.size();
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2296,7 +2296,7 @@ namespace Archon {
     //
     if (tokens.size() != 2) {
       message.str(""); message << "unrecognized timer response: " << reply << ". Expected TIMER=xxxx";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2306,7 +2306,7 @@ namespace Archon {
     try { timer_str.erase(timer_str.find("\n"), 1); } catch(...) { }  // remove newline
     if (!std::all_of(timer_str.begin(), timer_str.end(), ::isxdigit)) {
       message.str(""); message << "unrecognized timer value: " << timer_str << ". Expected hexadecimal string";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2336,12 +2336,12 @@ namespace Archon {
 
     if (bufaddr < 0xA0000000 || bufaddr > maxaddr) {
       message.str(""); message << "fetch Archon buffer requested address 0x" << std::hex << bufaddr << " outside range {0xA0000000:0x" << maxaddr << "}";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
     if (bufblocks > maxblocks) {
       message.str(""); message << "fetch Archon buffer requested blocks 0x" << std::hex << bufblocks << " outside range {0:0x" << maxblocks << "}";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2357,7 +2357,7 @@ namespace Archon {
     }
     catch (...) {
       message.str(""); message << "converting command: " << sscmd.str() << " to uppercase";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -2367,7 +2367,7 @@ namespace Archon {
       return(ERROR);
     }
 
-    message.str(""); message << "reading " << (this->camera_info.frame_type==Common::FRAME_RAW?"raw":"image") << " with " << scmd;
+    message.str(""); message << "reading " << (this->camera_info.frame_type==Camera::FRAME_RAW?"raw":"image") << " with " << scmd;
     logwrite(function, message.str());
     return(NO_ERROR);
   }
@@ -2398,14 +2398,14 @@ namespace Archon {
     long error = NO_ERROR;
 
     if ( ! this->modeselected ) {
-      this->common.log_error( function, "no mode selected" );
+      this->camera.log_error( function, "no mode selected" );
       return ERROR;
     }
 
     int rawenable = this->modemap[this->camera_info.current_observing_mode].rawenable;
 
     if (rawenable == -1) {
-      this->common.log_error( function, "RAWENABLE is undefined" );
+      this->camera.log_error( function, "RAWENABLE is undefined" );
       return ERROR;
     }
 
@@ -2416,11 +2416,11 @@ namespace Archon {
       // the RAWENABLE parameter must be set in the ACF file, in order to read RAW data
       //
       if (rawenable==0) {
-        this->common.log_error( function, "observing mode is RAW but RAWENABLE=0 -- change mode or set RAWENABLE?" );
+        this->camera.log_error( function, "observing mode is RAW but RAWENABLE=0 -- change mode or set RAWENABLE?" );
         return ERROR;
       }
       else {
-        error = this->read_frame(Common::FRAME_RAW);                              // read raw frame
+        error = this->read_frame(Camera::FRAME_RAW);                              // read raw frame
         if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading raw frame" ); return error; }
         error = this->write_frame();                                              // write raw frame
         if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing raw frame" ); return error; }
@@ -2431,7 +2431,7 @@ namespace Archon {
     // datacube was already set = true in the expose function
     //
     else {
-      error = this->read_frame(Common::FRAME_IMAGE);                              // read image frame
+      error = this->read_frame(Camera::FRAME_IMAGE);                              // read image frame
       if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading image frame" ); return error; }
       error = this->write_frame();                                                // write image frame
       if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing image frame" ); return error; }
@@ -2451,9 +2451,9 @@ namespace Archon {
         if ( error != NO_ERROR ) { logwrite( function, "ERROR: switching to raw mode" ); return error; }
 
 #ifdef LOGLEVEL_DEBUG
-        message.str(""); message << "error=" << error << "[DEBUG] calling read_frame(Common::FRAME_RAW) if error=0"; logwrite(function, message.str());
+        message.str(""); message << "error=" << error << "[DEBUG] calling read_frame(Camera::FRAME_RAW) if error=0"; logwrite(function, message.str());
 #endif
-        error = this->read_frame(Common::FRAME_RAW);                      // read raw frame
+        error = this->read_frame(Camera::FRAME_RAW);                      // read raw frame
         if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading raw frame" ); return error; }
 #ifdef LOGLEVEL_DEBUG
         message.str(""); message << "error=" << error << "[DEBUG] calling write_frame() for raw data if error=0"; logwrite(function, message.str());
@@ -2487,7 +2487,7 @@ namespace Archon {
    * No write takes place here!
    *
    */
-  long Interface::read_frame(Common::frame_type_t frame_type) {
+  long Interface::read_frame(Camera::frame_type_t frame_type) {
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
     int retval;
@@ -2507,14 +2507,14 @@ namespace Archon {
     //
     if ( (this->image_data == NULL)    ||
          (this->image_data_bytes == 0) ) {
-      this->common.log_error( function, "image buffer not ready" );
+      this->camera.log_error( function, "image buffer not ready" );
 //    return(ERROR);
     }
 
     if ( this->image_data_allocated != this->image_data_bytes ) {
       message.str(""); message << "incorrect image buffer size: " 
                                << this->image_data_allocated << " bytes allocated but " << this->image_data_bytes << " needed";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
 //    return(ERROR);
     }
 ***/
@@ -2532,7 +2532,7 @@ namespace Archon {
 //  error = this->get_frame_status();
 //
 //  if (error != NO_ERROR) {
-//    this->common.log_error( function, "unable to get frame status");
+//    this->camera.log_error( function, "unable to get frame status");
 //    return(error);
 //  }
 
@@ -2542,11 +2542,11 @@ namespace Archon {
 
     if (bufready < 1 || bufready > this->camera_info.activebufs) {
       message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->camera_info.activebufs << "}";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
-    message.str(""); message << "will read " << (frame_type == Common::FRAME_RAW ? "raw" : "image")
+    message.str(""); message << "will read " << (frame_type == Camera::FRAME_RAW ? "raw" : "image")
                              << " data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
     logwrite(function, message.str());
 
@@ -2559,7 +2559,7 @@ namespace Archon {
     // has a message header.
     //
     switch (frame_type) {
-      case Common::FRAME_RAW:
+      case Camera::FRAME_RAW:
         // Archon buffer base address
         bufaddr   = this->frame.bufbase[this->frame.index] + this->frame.bufrawoffset[this->frame.index];
 
@@ -2567,7 +2567,7 @@ namespace Archon {
         bufblocks = (unsigned int) floor( (this->camera_info.image_memory + BLOCK_LEN - 1 ) / BLOCK_LEN );
         break;
 
-      case Common::FRAME_IMAGE:
+      case Camera::FRAME_IMAGE:
         // Archon buffer base address
         bufaddr   = this->frame.bufbase[this->frame.index];
 
@@ -2578,7 +2578,7 @@ namespace Archon {
 
       default:  // should be impossible
         message.str(""); message << "unknown frame type specified: " << frame_type << ": expected FRAME_RAW | FRAME_IMAGE";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
         break;
     }
@@ -2607,7 +2607,7 @@ namespace Archon {
       if ( (retval=this->archon.Poll()) <= 0) {
         if (retval==0) { message.str(""); message << "Poll timeout waiting for Archon frame data"; error = ERROR;   }  // TODO should error=TIMEOUT?
         if (retval<0)  { message.str(""); message << "Poll error waiting for Archon frame data";   error = ERROR;   }
-        if ( error != NO_ERROR ) this->common.log_error( function, message.str() );
+        if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
         break;                         // breaks out of for loop
       }
 
@@ -2621,7 +2621,7 @@ namespace Archon {
         std::chrono::duration<double> diff = now-start;          // calculate the duration
         if (diff.count() > 1) {                                  // break while loop if duration > 1 second
           std::cerr << "\n";
-          this->common.log_error( function, "timeout waiting for data from Archon" );
+          this->camera.log_error( function, "timeout waiting for data from Archon" );
           error = ERROR;
           break;                       // breaks out of while loop
         }
@@ -2633,21 +2633,21 @@ namespace Archon {
       SNPRINTF(check, "<%02X:", this->msgref);
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         error = ERROR;
         break;                         // break out of for loop
       }
       if (header[0] == '?') {  // Archon retured an error
-        message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Common::FRAME_RAW?"raw ":"image ") << " data";
-        this->common.log_error( function, message.str() );
+        message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ") << " data";
+        this->camera.log_error( function, message.str() );
         this->fetchlog();      // check the Archon log for error messages
         error = ERROR;
         break;                         // break out of for loop
       }
       else if (strncmp(header, check, 4) != 0) {
-        message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Common::FRAME_RAW?"raw ":"image ")
+        message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         error = ERROR;
         break;                         // break out of for loop
       }
@@ -2690,7 +2690,7 @@ namespace Archon {
     // On success, write the value to the log and return
     //
     if (error == NO_ERROR) {
-      message.str(""); message << "successfully read " << std::dec << totalbytesread << (frame_type==Common::FRAME_RAW?" raw":" image")
+      message.str(""); message << "successfully read " << std::dec << totalbytesread << (frame_type==Camera::FRAME_RAW?" raw":" image")
                                << " bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
       logwrite(function, message.str());
     }
@@ -2729,7 +2729,7 @@ namespace Archon {
     long        error=NO_ERROR;
 
     if ( ! this->modeselected ) {
-      this->common.log_error( function, "no mode selected" );
+      this->camera.log_error( function, "no mode selected" );
       return ERROR;
     }
 
@@ -2749,7 +2749,7 @@ namespace Archon {
 
         // Write each amplifier as a separate extension
         //
-        if ( this->common.cubeamps() ) {
+        if ( this->camera.cubeamps() ) {
           float *fext = NULL;
 
           for ( int ext=0; ext < (int)this->camera_info.amp_section.size(); ext++ ) {
@@ -2817,7 +2817,7 @@ namespace Archon {
               return( ERROR );
             }
           }
-        }  // end if this->common.cubeamps()
+        }  // end if this->camera.cubeamps()
 
         // Write all amplifiers to the same extension
         //
@@ -2833,7 +2833,7 @@ namespace Archon {
 
 //        error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
           error = this->fits_file.write_image(fbuf, this->camera_info); // write the image to disk
-          if ( error != NO_ERROR ) { this->common.log_error( function, "writing 32-bit image to disk" ); }
+          if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 32-bit image to disk" ); }
           if (fbuf != NULL) {
             delete [] fbuf;
           }
@@ -2848,7 +2848,7 @@ namespace Archon {
           cbuf16 = (uint16_t *)this->image_data;                          // cast to 16b unsigned int
 //        error = fits_file.write_image(cbuf16, this->fits_info);         // write the image to disk //TODO
           error = this->fits_file.write_image(cbuf16, this->camera_info); // write the image to disk
-          if ( error != NO_ERROR ) { this->common.log_error( function, "writing 16-bit raw image to disk" ); }
+          if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 16-bit raw image to disk" ); }
         }
         else
         if (this->camera_info.datatype == SHORT_IMG) {
@@ -2859,12 +2859,12 @@ namespace Archon {
             ibuf[pix] = cbuf16s[pix] - 32768;                             // subtract 2^15 from every pixel
           }
           error = this->fits_file.write_image(ibuf, this->camera_info);   // write the image to disk
-          if ( error != NO_ERROR ) { this->common.log_error( function, "writing 16-bit image to disk" ); }
+          if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 16-bit image to disk" ); }
           if (ibuf != NULL) { delete [] ibuf; }
         }
         else {
           message.str(""); message << "unsupported 16 bit datatype " << this->camera_info.datatype;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           error = ERROR;
         }
         break;
@@ -2875,7 +2875,7 @@ namespace Archon {
       default:
 //      message.str(""); message << "unrecognized bits per pixel: " << this->fits_info.bitpix; //TODO 
         message.str(""); message << "unrecognized bits per pixel: " << this->camera_info.bitpix;
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         error = ERROR;
         break;
     }
@@ -2883,11 +2883,11 @@ namespace Archon {
     // Things to do after successful write
     //
     if ( error == NO_ERROR ) {
-      if ( this->common.datacube() ) {
+      if ( this->camera.datacube() ) {
         this->camera_info.extension++;                                // increment extension for cubes
         message.str(""); message << "DATACUBE:" << this->camera_info.extension << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
-        this->common.message.enqueue( message.str() );
-        error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
+        this->camera.async.enqueue( message.str() );
+        error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
       }
       logwrite(function, "frame write complete");
     }
@@ -2940,7 +2940,7 @@ namespace Archon {
       if (fits_create_file( &FP, this->camera_info.fits_name.c_str(), &status ) ) {
         message.str("");
         message << "cfitsio error " << status << " creating FITS file " << this->camera_info.fits_name;
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return ERROR;
       }
     }
@@ -2954,7 +2954,7 @@ namespace Archon {
       if (fits_open_file( &FP, this->camera_info.fits_name.c_str(), READWRITE, &status ) ) {
         message.str("");
         message << "cfitsio error " << status << " opening FITS file " << this->camera_info.fits_name;
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return ERROR;
       }
     }
@@ -2967,7 +2967,7 @@ namespace Archon {
     if ( fits_create_img( FP, USHORT_IMG, naxes, axes, &status) ) {
       message.str("");
       message << "fitsio error " << status << " creating FITS image for " << this->camera_info.fits_name;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return ERROR;
     }
 
@@ -2981,7 +2981,7 @@ namespace Archon {
     if ( fits_write_img( FP, TUSHORT, firstele, nelements, cbuf16, &status) ) {
       message.str("");
       message << "fitsio error " << status << " writing FITS image HDU to " << this->camera_info.fits_name;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return ERROR;
     }
 
@@ -2991,7 +2991,7 @@ namespace Archon {
     if ( fits_close_file( FP, &status ) ) {
       message.str("");
       message << "fitsio error " << status << " closing fits file " << this->camera_info.fits_name;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return ERROR;
     }
 
@@ -3016,7 +3016,7 @@ namespace Archon {
 
     if ( key==NULL || newvalue==NULL ) {
       error = ERROR;
-      this->common.log_error( function, "key|value cannot have NULL" );
+      this->camera.log_error( function, "key|value cannot have NULL" );
     }
 
     else
@@ -3024,7 +3024,7 @@ namespace Archon {
     if ( this->configmap.find(key) == this->configmap.end() ) {
       error = ERROR;
       message.str(""); message << "requested key " << key << " not found in configmap";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
     }
 
     else
@@ -3097,7 +3097,7 @@ namespace Archon {
 
     if ( paramname==NULL || newvalue==NULL ) {
       error = ERROR;
-      this->common.log_error( function, "paramname|value cannot have NULL" );
+      this->camera.log_error( function, "paramname|value cannot have NULL" );
     }
 
     else
@@ -3105,7 +3105,7 @@ namespace Archon {
     if ( this->parammap.find(paramname) == this->parammap.end() ) {
       error = ERROR;
       message.str(""); message << "parameter \"" << paramname << "\" not found in parammap";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
     }
 
     /**
@@ -3196,7 +3196,7 @@ namespace Archon {
     else {
       message.str("");
       message << "requested key: " << key_in << " not found in configmap";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return ERROR;
     }
   }
@@ -3250,7 +3250,7 @@ namespace Archon {
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
     if ( ! this->modeselected ) {
-      this->common.log_error( function, "no mode selected" );
+      this->camera.log_error( function, "no mode selected" );
       return ERROR;
     }
 
@@ -3260,7 +3260,7 @@ namespace Archon {
     //
     // This will need to be revisited once ROI is implemented. // TODO
     //
-    if ( !this->common.cubeamps() && ( this->lastcubeamps != this->common.cubeamps() ) ) {
+    if ( !this->camera.cubeamps() && ( this->lastcubeamps != this->camera.cubeamps() ) ) {
       message.str(""); message << "detected change in cubeamps -- resetting camera mode to " << mode;
       logwrite( function, message.str() );
       this->set_camera_mode( mode );
@@ -3271,7 +3271,7 @@ namespace Archon {
     //
     if (this->exposeparam.empty()) {
       message.str(""); message << "EXPOSE_PARAM not defined in configuration file " << this->config.filename;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -3282,7 +3282,7 @@ namespace Archon {
     //
     if ( this->camera_info.exposure_time   == -1 ) {
       logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
-      this->common.message.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
+      this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
 
       // read the Archon configuration memory
       //
@@ -3297,7 +3297,7 @@ namespace Archon {
     if ( this->camera_info.exposure_factor == -1 ||
          this->camera_info.exposure_unit.empty() ) {
       logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
-      this->common.message.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
+      this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
       // read the Archon configuration memory
       //
@@ -3324,12 +3324,12 @@ namespace Archon {
       }
       catch (std::invalid_argument &) {
         message.str(""); message << "unable to convert sequences: " << nseq_in << " to integer";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
       catch (std::out_of_range &) {
         message.str(""); message << "sequences " << nseq_in << " outside integer range";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
     }
@@ -3364,8 +3364,8 @@ namespace Archon {
       logwrite( function, "ERROR: could not get start time" );
       return( ERROR );
     }
-    this->common.set_fitstime(this->camera_info.start_time);        // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-    error=this->common.get_fitsname(this->camera_info.fits_name);   // assemble the FITS filename
+    this->camera.set_fitstime(this->camera_info.start_time);        // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
+    error=this->camera.get_fitsname(this->camera_info.fits_name);   // assemble the FITS filename
     if ( error != NO_ERROR ) {
       logwrite( function, "ERROR: couldn't validate fits filename" );
       return( error );
@@ -3377,33 +3377,33 @@ namespace Archon {
 
     this->camera_info.systemkeys.keydb = this->systemkeys.keydb;    // copy the systemkeys database object into camera_info
 
-    if (this->common.writekeys_when=="before") this->copy_keydb();  // copy the ACF and userkeys database into camera_info
+    if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF and userkeys database into camera_info
 
     // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
     // one extension for the image and a separate extension for raw data.
     //
     if ( (mode != "RAW") && (this->modemap[mode].rawenable) ) {
-      if ( !this->common.datacube() ) {                                   // if datacube not already set then it must be overridden here
-        this->common.message.enqueue( "NOTICE:override datacube true" );  // let everyone know
+      if ( !this->camera.datacube() ) {                                   // if datacube not already set then it must be overridden here
+        this->camera.async.enqueue( "NOTICE:override datacube true" );  // let everyone know
         logwrite( function, "NOTICE:override datacube true" );
-        this->common.datacube(true);
+        this->camera.datacube(true);
       }
       this->camera_info.extension = 0;
     }
 
     // Save the datacube state in camera_info so that the FITS writer can know about it
     //
-    this->camera_info.iscube = this->common.datacube();
+    this->camera_info.iscube = this->camera.datacube();
 
     // Open the FITS file now for cubes
     //
-    if ( this->common.datacube() && !this->common.cubeamps() ) {
+    if ( this->camera.datacube() && !this->camera.cubeamps() ) {
 #ifdef LOGLEVEL_DEBUG
       logwrite( function, "[DEBUG] opening fits file for multi-exposure sequence data cube" );
 #endif
-      error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+      error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
       if ( error != NO_ERROR ) {
-        this->common.log_error( function, "couldn't open fits file" );
+        this->camera.log_error( function, "couldn't open fits file" );
         return( error );
       }
     }
@@ -3459,17 +3459,17 @@ namespace Archon {
         // Open a new FITS file for each frame when not using datacubes
         //
 #ifdef LOGLEVEL_DEBUG
-        message.str(""); message << "[DEBUG] datacube=" << this->common.datacube() << " cubeamps=" << this->common.cubeamps();
+        message.str(""); message << "[DEBUG] datacube=" << this->camera.datacube() << " cubeamps=" << this->camera.cubeamps();
         logwrite( function, message.str() );
 #endif
-        if ( !this->common.datacube() || this->common.cubeamps() ) {
+        if ( !this->camera.datacube() || this->camera.cubeamps() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
           if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
             logwrite( function, "ERROR: could not get start time" );
             return( ERROR );
           }
-          this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-          error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
+          this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
+          error=this->camera.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
           if ( error != NO_ERROR ) {
             logwrite( function, "ERROR: couldn't validate fits filename" );
             return( error );
@@ -3482,9 +3482,9 @@ namespace Archon {
           // reset the extension number and open the fits file
           //
           this->camera_info.extension = 0;
-          error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+          error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
           if ( error != NO_ERROR ) {
-            this->common.log_error( function, "couldn't open fits file" );
+            this->camera.log_error( function, "couldn't open fits file" );
             return( error );
           }
         }
@@ -3497,36 +3497,36 @@ namespace Archon {
           }
         }
 
-        if (this->common.writekeys_when=="after") this->copy_keydb();   // copy the ACF and userkeys database into camera_info
+        if (this->camera.writekeys_when=="after") this->copy_keydb();   // copy the ACF and userkeys database into camera_info
 
         error = this->wait_for_readout();                               // Wait for the readout into frame buffer,
 
         if ( error != NO_ERROR ) {
           logwrite( function, "ERROR: waiting for readout" );
-          this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
           return error;
         }
 
         error = read_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
         if ( error != NO_ERROR ) {
           logwrite( function, "ERROR: reading frame buffer" );
-          this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
+          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
           return error;
         }
 
         // For non-sequence multiple exposures, including cubeamps, close the fits file here
         //
-        if ( !this->common.datacube() || this->common.cubeamps() ) {    // Error or not, close the file.
+        if ( !this->camera.datacube() || this->camera.cubeamps() ) {    // Error or not, close the file.
 #ifdef LOGLEVEL_DEBUG
           logwrite( function, "[DEBUG] closing fits file (1)" );
 #endif
-          this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
-          this->common.increment_imnum();                           // increment image_num when fitsnaming == "number"
+          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+          this->camera.increment_imnum();                           // increment image_num when fitsnaming == "number"
 
           // ASYNC status message on completion of each file
           //
           message.str(""); message << "FILE:" << this->camera_info.fits_name << " COMPLETE";
-          this->common.message.enqueue( message.str() );
+          this->camera.async.enqueue( message.str() );
           logwrite( function, message.str() );
         }
 
@@ -3541,7 +3541,7 @@ namespace Archon {
         logwrite( function, "ERROR: unable to get frame status" );
         return(ERROR);
       }
-      error = this->common.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
+      error = this->camera.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
       if ( error != NO_ERROR ) {
         logwrite( function, "ERROR: couldn't validate fits filename" );
         return( error );
@@ -3552,36 +3552,36 @@ namespace Archon {
 
       this->copy_keydb();                                           // copy the ACF and userkeys databases into camera_info
 
-      error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+      error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
       if ( error != NO_ERROR ) {
-        this->common.log_error( function, "couldn't open fits file" );
+        this->camera.log_error( function, "couldn't open fits file" );
         return( error );
       }
       error = read_frame();                    // For raw mode just read immediately
-      this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
-      this->common.increment_imnum();          // increment image_num when fitsnaming == "number"
+      this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+      this->camera.increment_imnum();          // increment image_num when fitsnaming == "number"
     }
 
     // for multi-exposure (non-cubeamp) cubes, close the FITS file now that they've all been written
     //
-    if ( this->common.datacube() && !this->common.cubeamps() ) {
+    if ( this->camera.datacube() && !this->camera.cubeamps() ) {
 #ifdef LOGLEVEL_DEBUG
       logwrite( function, "[DEBUG] closing fits file (2)" );
 #endif
-      this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
-      this->common.increment_imnum();          // increment image_num when fitsnaming == "number"
+      this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+      this->camera.increment_imnum();          // increment image_num when fitsnaming == "number"
 
       // ASYNC status message on completion of each file
       //
       message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
-      this->common.message.enqueue( message.str() );
-      error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
+      this->camera.async.enqueue( message.str() );
+      error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
     }
 
     // remember the cubeamps setting used for the last completed exposure
     // TODO revisit once region-of-interest is implemented
     //
-    this->lastcubeamps = this->common.cubeamps();
+    this->lastcubeamps = this->camera.cubeamps();
 
     return (error);
   }
@@ -3652,7 +3652,7 @@ namespace Archon {
       // ASYNC status message reports the elapsed time in the chosen unit
       //
       message.str(""); message << "EXPOSURE:" << (int)(this->camera_info.exposure_time - (this->camera_info.exposure_progress * this->camera_info.exposure_time));
-      this->common.message.enqueue( message.str() );
+      this->camera.async.enqueue( message.str() );
     }
 
     if (this->abort) {
@@ -3692,7 +3692,7 @@ namespace Archon {
       // ASYNC status message reports the elapsed time in the chosen unit
       //
       message.str(""); message << "EXPOSURE:" << (int)(this->camera_info.exposure_time - (this->camera_info.exposure_progress * this->camera_info.exposure_time));
-      this->common.message.enqueue( message.str() );
+      this->camera.async.enqueue( message.str() );
 
       std::cerr << std::setw(3) << (int)(this->camera_info.exposure_progress*100) << "\b\b\b";  // send to stderr in case anyone is watching
 
@@ -3717,7 +3717,7 @@ namespace Archon {
       if (--exposure_timeout_time < 0) {
         std::cerr << "\n";
         error = ERROR;
-        this->common.log_error( function, "timeout waiting for exposure" );
+        this->camera.log_error( function, "timeout waiting for exposure" );
         break;
       }
     }  // end while (done == false && this->abort == false)
@@ -3760,11 +3760,11 @@ namespace Archon {
     //
     double waittime;
     try {
-      waittime = this->common.readout_time.at(0) * 1.1;        // this is in msec
+      waittime = this->camera.readout_time.at(0) * 1.1;        // this is in msec
     }
     catch(std::out_of_range &) {
       message.str(""); message << "readout time for Archon not found from config file";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -3785,7 +3785,7 @@ namespace Archon {
       if (error == BUSY) {
         if ( ++busycount > 300 ) {
 	  done = true;
-	  this->common.log_error( function, "received BUSY from Archon too many times trying to get frame status" );
+	  this->camera.log_error( function, "received BUSY from Archon too many times trying to get frame status" );
 	  break;
 	}
 	else continue;
@@ -3812,7 +3812,7 @@ namespace Archon {
         done = true;
         error = ERROR;
         message.str(""); message << "timeout waiting for new frame exceeded " << waittime << ". lastframe = " << this->lastframe;
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         break;
       }
       clock_now = get_clock_time();
@@ -3826,7 +3826,7 @@ namespace Archon {
       message << " index=" << this->frame.index << " next_index=" << this->frame.next_index << " | ";
       for ( int i=0; i < Archon::nbufs; i++ ) { message << " " << this->frame.buflines[ i ]; }
 #endif
-      this->common.message.enqueue( message.str() );
+      this->camera.async.enqueue( message.str() );
 
     } // end while (done == false && this->abort == false)
 
@@ -3840,7 +3840,7 @@ namespace Archon {
         return error;
       }
       message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.index ];
-      this->common.message.enqueue( message.str() );
+      this->camera.async.enqueue( message.str() );
     }
 
     if ( error != NO_ERROR ) {
@@ -3874,7 +3874,7 @@ namespace Archon {
     // Throw an error for any other errors (should be impossible)
     //
     else {
-      this->common.log_error( function, "waiting for readout" );
+      this->camera.log_error( function, "waiting for readout" );
       return(error);
     }
   }
@@ -3922,7 +3922,7 @@ namespace Archon {
 
     if (tokens.size() != 2) {
       message.str(""); message << "param expected 2 arguments (paramname and value) but got " << tokens.size();
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       ret=ERROR;
     }
     else {
@@ -3959,12 +3959,12 @@ namespace Archon {
       }
       catch (std::invalid_argument &) {
         message.str(""); message << "converting exposure time: " << exptime_in << " to integer";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
       catch (std::out_of_range &) {
         message.str(""); message << "requested exposure time: " << exptime_in << " outside integer range";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
 
@@ -3972,7 +3972,7 @@ namespace Archon {
       //
       if ( exp_time < 0 || exp_time > 0xFFFFF ) {
         message.str(""); message << "requested exposure time: " << exptime_in << " out of range {0:1048575}";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
 
@@ -4005,7 +4005,7 @@ namespace Archon {
   /**************** Archon::Interface::exptime ********************************/
 
 
-  /** Common::Common::shutter *************************************************/
+  /** Camera::Camera::shutter *************************************************/
   /**
    * @fn     shutter
    * @brief  set or get the shutter enable state
@@ -4021,7 +4021,7 @@ namespace Archon {
     int level=0, force=0;  // trigout level and force for activate
 
     if ( this->shutenableparam.empty() ) {
-      this->common.log_error( function, "SHUTENABLE_PARAM is not defined in configuration file" );
+      this->camera.log_error( function, "SHUTENABLE_PARAM is not defined in configuration file" );
       return( ERROR );
     }
 
@@ -4069,7 +4069,7 @@ namespace Archon {
 	}
         else {
           message.str(""); message << shutter_in << " is invalid. Expecting { enable | disable | open | close | reset }";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           error = ERROR;
         }
         // if changing the ability (enable/disable) then do that now
@@ -4090,14 +4090,14 @@ namespace Archon {
             error = this->write_config_key( "TRIGOUTFORCE", force, dontcare );
 	  }
           else {
-            this->common.log_error( function, "TRIGOUTFORCE not found in configmap" );
+            this->camera.log_error( function, "TRIGOUTFORCE not found in configmap" );
             error = ERROR;
           }
           if ( this->configmap.find( "TRIGOUTLEVEL" ) != this->configmap.end() ) {
             if ( error == NO_ERROR) error = this->write_config_key( "TRIGOUTLEVEL", level, dontcare );
 	  }
           else {
-            this->common.log_error( function, "TRIGOUTLEVEL not found in configmap" );
+            this->camera.log_error( function, "TRIGOUTLEVEL not found in configmap" );
             error = ERROR;
           }
           if ( error == NO_ERROR ) error = this->archon_cmd( APPLYSYSTEM );
@@ -4106,7 +4106,7 @@ namespace Archon {
       }
       catch (...) {
         message.str(""); message << "converting requested shutter state: " << shutter_in << " to lowercase";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -4137,7 +4137,7 @@ namespace Archon {
 
     return error;
   }
-  /** Common::Common::shutter *************************************************/
+  /** Camera::Camera::shutter *************************************************/
 
 
   /**************** Archon::Interface::hdrshift *******************************/
@@ -4167,18 +4167,18 @@ namespace Archon {
       }
       catch ( std::invalid_argument & ) {
         message.str(""); message << "converting hdrshift: " << bits_in << " to integer";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
       catch ( std::out_of_range & ) {
         message.str(""); message << "hdrshift: " << bits_in << " is outside integer range";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
     }
 
     if ( hdrshift_req < 0 || hdrshift_req > 31 ) {
-      this->common.log_error( function, "hdrshift outside range {0:31}" );
+      this->camera.log_error( function, "hdrshift outside range {0:31}" );
       return( ERROR );
     }
     else this->n_hdrshift = hdrshift_req;
@@ -4234,7 +4234,7 @@ namespace Archon {
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
     if ( ! this->modeselected ) {
-      this->common.log_error( function, "no mode selected" );
+      this->camera.log_error( function, "no mode selected" );
       return ERROR;
     }
 
@@ -4246,7 +4246,7 @@ namespace Archon {
     //
     if ( tokens.size() < 1 || tokens.size() > 2 ) {
       message.str(""); message << "requested trigin state: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       error = ERROR;
     }
 
@@ -4272,7 +4272,7 @@ namespace Archon {
 	//
         if ( this->trigin_exposeparam.empty() ) {
           message.str(""); message << "TRIGIN_EXPOSE_PARAM not defined in configuration file " << this->config.filename;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
         if ( tokens.size() == 1 ) {         // no size given so = 1
@@ -4283,7 +4283,7 @@ namespace Archon {
         else {                              // size given so try to set trigin_expose to requested value
           int expnum = std::stoi( tokens.at(1) );
           if ( expnum < 1 ) {
-            this->common.log_error( function, "number of timed exposures must be greater than zero" );
+            this->camera.log_error( function, "number of timed exposures must be greater than zero" );
             error = ERROR;
           }
           else {
@@ -4299,7 +4299,7 @@ namespace Archon {
 	//
         if ( this->trigin_untimedparam.empty() ) {
           message.str(""); message << "TRIGIN_UNTIMED_PARAM not defined in configuration file " << this->config.filename;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
         this->trigin_expose  = 0;
@@ -4312,7 +4312,7 @@ namespace Archon {
 	//
         if ( this->trigin_readoutparam.empty() ) {
           message.str(""); message << "TRIGIN_READOUT_PARAM not defined in configuration file " << this->config.filename;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
         this->trigin_expose  = 0;
@@ -4327,7 +4327,7 @@ namespace Archon {
       }
       else {
         message.str(""); message << "requested trigin state: " << state_in << " is invalid. Expected { expose [N] | untimed | readout | disable }";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         error = ERROR;
       }
 
@@ -4338,17 +4338,17 @@ namespace Archon {
     }
     catch ( std::invalid_argument & ) {
       message.str(""); message << "converting number of timed external-trigger exposures: " << state_in << " to integer";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       error = ERROR;
     }
     catch ( std::out_of_range & ) {
       message.str(""); message << "parsing trigin string: " << state_in;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       error = ERROR;
     }
     catch (...) {
       message.str(""); message << "unknown exception parsing trigin string: " << state_in;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       error = ERROR;
     }
 
@@ -4427,12 +4427,12 @@ namespace Archon {
     if ( error == NO_ERROR && this->trigin_state == "untimed" ) {
       this->camera_info.start_time = get_timestamp();                // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       this->get_timer(&this->start_timer);                           // Archon internal timer (one tick=10 nsec)
-      this->common.set_fitstime(this->camera_info.start_time);       // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-      error=this->common.get_fitsname(this->camera_info.fits_name);  // Assemble the FITS filename
+      this->camera.set_fitstime(this->camera_info.start_time);       // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
+      error=this->camera.get_fitsname(this->camera_info.fits_name);  // Assemble the FITS filename
       this->add_filename_key();                                      // add filename to system keys database
       this->camera_info.systemkeys.keydb = this->systemkeys.keydb;   // copy the systemkeys database into camera_info
-      if (this->common.writekeys_when=="before") this->copy_keydb(); // copy the ACF and userkeys database into camera_info
-      error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+      if (this->camera.writekeys_when=="before") this->copy_keydb(); // copy the ACF and userkeys database into camera_info
+      error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
       logwrite( function, "untimed exposure trigger enabled" );
       return( error );
     }
@@ -4473,23 +4473,23 @@ namespace Archon {
 
       // Save the datacube state in camera_info so that the FITS writer can know about it
       //
-      this->camera_info.iscube = this->common.datacube();
+      this->camera_info.iscube = this->camera.datacube();
 
       this->camera_info.systemkeys.keydb = this->systemkeys.keydb;   // copy systemkeys database object into camera_info
 
-      if (this->common.writekeys_when=="after") this->copy_keydb();  // copy the ACF and userkeys database into camera_info
+      if (this->camera.writekeys_when=="after") this->copy_keydb();  // copy the ACF and userkeys database into camera_info
 
       if (error==NO_ERROR) error = this->wait_for_readout();         // Wait for the readout into frame buffer,
       if (error==NO_ERROR) error = read_frame();                     // then read the frame buffer to host (and write file) when frame ready.
 
-      this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
-      this->common.increment_imnum();                                // increment image_num when fitsnaming == "number"
+      this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+      this->camera.increment_imnum();                                // increment image_num when fitsnaming == "number"
 
       // ASYNC status message on completion of each file
       //
       message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
-      this->common.message.enqueue( message.str() );
-      error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
+      this->camera.async.enqueue( message.str() );
+      error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
 
     }
 
@@ -4511,35 +4511,35 @@ namespace Archon {
       this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
       error = this->get_timer(&this->start_timer);                  // Archon internal timer (one tick=10 nsec)
 
-      this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-      error=this->common.get_fitsname(this->camera_info.fits_name); // assemble the FITS filename
+      this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
+      error=this->camera.get_fitsname(this->camera_info.fits_name); // assemble the FITS filename
       this->add_filename_key();                                     // add filename to system keys database
 
       this->camera_info.systemkeys.keydb = this->systemkeys.keydb;  // copy the systemkeys database into camera_info
-      if (this->common.writekeys_when=="before") this->copy_keydb();// copy the ACF and userkeys database into camera_info
+      if (this->camera.writekeys_when=="before") this->copy_keydb();// copy the ACF and userkeys database into camera_info
 
       // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
       // one extension for the image and a separate extension for raw data.
       //
       if ( (error == NO_ERROR) && (mode != "RAW") && (this->modemap[mode].rawenable) ) {
-        if ( !this->common.datacube() ) {                                   // if datacube not already set then it must be overridden here
-          this->common.message.enqueue( "NOTICE:override datacube true" );  // let everyone know
+        if ( !this->camera.datacube() ) {                                   // if datacube not already set then it must be overridden here
+          this->camera.async.enqueue( "NOTICE:override datacube true" );    // let everyone know
           logwrite( function, "NOTICE:override datacube true" );
-          this->common.datacube(true);
+          this->camera.datacube(true);
         }
         this->camera_info.extension = 0;
       }
 
       // Save the datacube state in camera_info so that the FITS writer can know about it
       //
-      this->camera_info.iscube = this->common.datacube();
+      this->camera_info.iscube = this->camera.datacube();
 
       // Open the FITS file now for cubes
       //
-      if ( this->common.datacube() ) {
-        error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+      if ( this->camera.datacube() ) {
+        error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
         if ( error != NO_ERROR ) {
-          this->common.log_error( function, "couldn't open fits file" );
+          this->camera.log_error( function, "couldn't open fits file" );
           return( error );
         }
       }
@@ -4558,19 +4558,19 @@ namespace Archon {
 
           // Open a new FITS file for each frame when not using datacubes
           //
-          if ( !this->common.datacube() ) {
+          if ( !this->camera.datacube() ) {
             this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
             this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
-            this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-            error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
+            this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
+            error=this->camera.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
             if ( error != NO_ERROR ) {
-              this->common.log_error( function, "couldn't validate fits filename" );
+              this->camera.log_error( function, "couldn't validate fits filename" );
               return( error );
             }
             this->add_filename_key();                                     // add filename to system keys database
-            error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+            error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
             if ( error != NO_ERROR ) {
-              this->common.log_error( function, "couldn't open fits file" );
+              this->camera.log_error( function, "couldn't open fits file" );
               return( error );
             }
           }
@@ -4582,15 +4582,15 @@ namespace Archon {
           if (error==NO_ERROR) error = this->wait_for_readout();      // Wait for the readout into frame buffer,
           if (error==NO_ERROR) error = read_frame();                  // then read the frame buffer to host (and write file) when frame ready.
 
-          if ( !this->common.datacube() ) {                           // Error or not, close the file.
-            this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
-            this->common.increment_imnum();                           // increment image_num when fitsnaming == "number"
+          if ( !this->camera.datacube() ) {                           // Error or not, close the file.
+            this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+            this->camera.increment_imnum();                           // increment image_num when fitsnaming == "number"
 
             // ASYNC status message on completion of each file
             //
             message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
-            this->common.message.enqueue( message.str() );
-            error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
+            this->camera.async.enqueue( message.str() );
+            error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
           }
 
           if (error != NO_ERROR) break;                               // don't try additional sequences if there were errors
@@ -4598,24 +4598,24 @@ namespace Archon {
       }
       else if ( (error == NO_ERROR) && (mode == "RAW") ) {
         error = this->get_frame_status();                             // Get the current frame buffer status
-        if (error==NO_ERROR) error = this->common.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
+        if (error==NO_ERROR) error = this->camera.get_fitsname( this->camera_info.fits_name ); // Assemble the FITS filename
         this->add_filename_key();                                     // add filename to system keys database
-        if (error==NO_ERROR) error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+        if (error==NO_ERROR) error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
         if (error==NO_ERROR) error = read_frame();                    // For raw mode just read immediately
-        this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
-        this->common.increment_imnum();                               // increment image_num when fitsnaming == "number"
+        this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+        this->camera.increment_imnum();                               // increment image_num when fitsnaming == "number"
       }
       // for cubes, close the FITS file now that they've all been written
       //
-      if ( this->common.datacube() ) {
-        this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
-        this->common.increment_imnum();                               // increment image_num when fitsnaming == "number"
+      if ( this->camera.datacube() ) {
+        this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+        this->camera.increment_imnum();                               // increment image_num when fitsnaming == "number"
 
         // ASYNC status message on completion of each file
         //
         message.str(""); message << "FILE:" << this->camera_info.fits_name << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
-        this->common.message.enqueue( message.str() );
-        error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
+        this->camera.async.enqueue( message.str() );
+        error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
       }
     }  // end if ( this->trigin_state == "expose" )
 
@@ -4628,7 +4628,7 @@ namespace Archon {
     //
     {
       message.str(""); message << "unexpected error processing trigin state " << this->trigin_state;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       error = ERROR;
     }
 
@@ -4698,13 +4698,13 @@ namespace Archon {
         if ( state_in == "TRUE" || state_in == "1" ) this->is_longexposure = true;
         else {
           message.str(""); message << "longexposure state " << state_in << " is invalid. Expecting {true,false,0,1}";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
       }
       catch (...) {
         message.str(""); message << "unknown exception converting longexposure state " << state_in << " to uppercase";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -4774,7 +4774,7 @@ namespace Archon {
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->firmwareloaded ) {
-      this->common.log_error( function, "firmware not loaded" );
+      this->camera.log_error( function, "firmware not loaded" );
       return( ERROR );
     }
 
@@ -4791,7 +4791,7 @@ namespace Archon {
         message << "requires backplane version " << REV_RAMP << " or newer. ("
                 << this->backplaneversion << " detected)";
       }
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -4800,7 +4800,7 @@ namespace Archon {
     // At minimum there must be two tokens, <module> A|B
     //
     if ( tokens.size() < 2 ) {
-      this->common.log_error( function, "expected at least two arguments: <module> A|B" );
+      this->camera.log_error( function, "expected at least two arguments: <module> A|B" );
       return ERROR;
     }
 
@@ -4812,18 +4812,18 @@ namespace Archon {
       heaterid = tokens[1];
       if ( heaterid != "A" && heaterid != "B" ) {
         message.str(""); message << "invalid heater " << heaterid << ": expected <module> A|B";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
     }
     catch (std::invalid_argument &) {
       message.str(""); message << "converting heater <module> " << tokens[0] << " to integer";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
     catch (std::out_of_range &) {
       message.str(""); message << "heater <module>: " << tokens[0] << " is outside integer range";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -4832,14 +4832,14 @@ namespace Archon {
     switch ( this->modtype[ module-1 ] ) {
       case 0:
         message.str(""); message << "module " << module << " not installed";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       case 5:  // Heater
       case 11: // HeaterX
         break;
       default:
         message.str(""); message << "module " << module << " not a heater board";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
     }
 
@@ -4852,7 +4852,7 @@ namespace Archon {
     ret = compare_versions( this->backplaneversion, REV_HEATERTARGET );
     if ( ret == -999 ) {
       message.str(""); message << "comparing backplane version " << this->backplaneversion << " to " << REV_HEATERTARGET;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
     else if ( ret == -1 ) {
@@ -4932,18 +4932,18 @@ namespace Archon {
          if ( target < this->heater_target_min || target > this->heater_target_max ) {
            message.str(""); message << "requested heater target " << target << " outside range {" 
                                     << this->heater_target_min << ":" << this->heater_target_max << "}";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "converting heater <target>=" << tokens[2] << " to float";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
           message.str(""); message << "heater <target>: " << tokens[2] << " outside range of float";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         // ...if target is OK then push into the config, value vectors
@@ -4969,18 +4969,18 @@ namespace Archon {
          if ( target < this->heater_target_min || target > this->heater_target_max ) {
            message.str(""); message << "requested heater target " << target << " outside range {" 
                                     << this->heater_target_min << ":" << this->heater_target_max << "}";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "converting heater <target> " << tokens[3] << " to float";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
           message.str(""); message << "heater <target>: " << tokens[3] << " outside range of float";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         // ...if target is OK then push into the config, value vectors
@@ -5003,18 +5003,18 @@ namespace Archon {
             ramprate = std::stoi( tokens[3] );
             if ( ramprate < 1 || ramprate > 32767 ) {
               message.str(""); message << "heater ramprate " << ramprate << " outside range {1:32767}";
-              this->common.log_error( function, message.str() );
+              this->camera.log_error( function, message.str() );
               return( ERROR );
             }
           }
           catch (std::invalid_argument &) {
             message.str(""); message << "converting RAMP <ramprate> " << tokens[3] << " to integer";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             return(ERROR);
           }
           catch (std::out_of_range &) {
             message.str(""); message << "RAMP <ramprate>: " << tokens[3] << " outside range of integer";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             return(ERROR);
           }
           ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMPRATE"; heaterconfig.push_back( ss.str() );
@@ -5028,18 +5028,18 @@ namespace Archon {
           il_value = std::stoi( tokens[3] );
           if ( il_value < 0 || il_value > 10000 ) {
             message.str(""); message << "heater ilim " << il_value << " outside range {0:10000}";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "converting ILIM <value> " << tokens[3] << " to integer";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
           message.str(""); message << "ILIM <value>: " << tokens[3] << " outside range of integer";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "IL"; heaterconfig.push_back( ss.str() );
@@ -5054,13 +5054,13 @@ namespace Archon {
           // input C supported only on HeaterX cards
           if ( this->modtype[ module-1 ] != 11 ) {
             message.str(""); message << "sensor C not supported on module " << module << ": HeaterX module required";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             return( ERROR );
           }
         }
         else {
           message.str(""); message << "invalid sensor " << tokens.at(3) << ": expected <module> A|B INPUT A|B|C";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "SENSOR"; heaterconfig.push_back( ss.str() );
@@ -5068,7 +5068,7 @@ namespace Archon {
       }
       else {
         message.str(""); message << "expected heater <" << module << "> ON | RAMP for 3rd argument but got " << tokens[2];
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -5079,7 +5079,7 @@ namespace Archon {
     if ( tokens.size() == 5 ) {        // RAMP ON <ramprate>
       if ( tokens[2] != "RAMP" && tokens[3] != "ON" ) {
         message.str(""); message << "expected RAMP ON <ramprate> but got"; for (int i=2; i<5; i++) message << " " << tokens[i];
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
       else {  // got "<module> A|B RAMP ON" now check that the last (5th) token is a number
@@ -5087,18 +5087,18 @@ namespace Archon {
           ramprate = std::stoi( tokens[4] );
           if ( ramprate < 1 || ramprate > 32767 ) {
             message.str(""); message << "heater ramprate " << ramprate << " outside range {1:32767}";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "expected RAMP ON <ramprate> but unable to convert <ramprate>=" << tokens[4] << " to integer";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
           message.str(""); message << "expected RAMP ON <ramprate> but <ramprate>=" << tokens[4] << " outside range of integer";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "RAMP";     heaterconfig.push_back( ss.str() );
@@ -5114,7 +5114,7 @@ namespace Archon {
     if ( tokens.size() == 6 ) {
       if ( tokens[2] != "PID" ) {
         message.str(""); message << "expected PID <p> <i> <d> but got"; for (int i=2; i<6; i++) message << " " << tokens[i];
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
       else {  // got "<module> A|B PID <p> <i> <d>" now check that the last 3 tokens are numbers
@@ -5124,7 +5124,7 @@ namespace Archon {
         ret = compare_versions( this->backplaneversion, REV_FRACTIONALPID );
         if ( ret == -999 ) {
           message.str(""); message << "comparing backplane version " << this->backplaneversion << " to " << REV_FRACTIONALPID;
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
         else if ( ret == -1 ) fractionalpid_ok = false;
@@ -5143,12 +5143,12 @@ namespace Archon {
 
             message.str(""); message << "NOTICE:fractional heater PID requires backplane version " << REV_FRACTIONALPID << " or newer";
             logwrite( function, message.str() );
-            this->common.message.enqueue( message.str() );
+            this->camera.async.enqueue( message.str() );
             message.str(""); message << "NOTICE:backplane version " << this->backplaneversion << " detected";
             logwrite( function, message.str() );
-            this->common.message.enqueue( message.str() );
+            this->camera.async.enqueue( message.str() );
             message.str(""); message << "NOTICE:PIDs converted to: " << tokens[3] << " " << tokens[4] << " " << tokens[5];
-            this->common.message.enqueue( message.str() );
+            this->camera.async.enqueue( message.str() );
             logwrite( function, message.str() );
 
           }
@@ -5157,20 +5157,20 @@ namespace Archon {
           pid_d = std::stof( tokens[5] );
           if ( pid_p < 0 || pid_p > 10000 || pid_i < 0 || pid_i > 10000 || pid_d < 0 || pid_d > 10000 ) {
             message.str(""); message << "one or more heater PID values outside range {0:10000}";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             return( ERROR );
           }
         }
         catch (std::invalid_argument &) {
           message.str(""); message << "converting one or more heater PID values to numbers:";
           for (int i=3; i<6; i++) message << " " << tokens[i];
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         catch (std::out_of_range &) {
           message.str(""); message << "heater PID exception: one or more values outside range:";
           for (int i=3; i<6; i++) message << " " << tokens[i];
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         ss.str(""); ss << "MOD" << module << "/HEATER" << heaterid << "P"; heaterconfig.push_back( ss.str() );
@@ -5185,7 +5185,7 @@ namespace Archon {
     //
     else {
       message.str(""); message << "received " << tokens.size() << " arguments but expected 2, 3, 4, 5, or 6";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5200,7 +5200,7 @@ namespace Archon {
         message.str("");
         message << "BUG DETECTED: heaterconfig (" << heaterconfig.size() 
                 << ") - heatervalue (" << heatervalue.size() << ") vector size mismatch";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
 
@@ -5221,7 +5221,7 @@ namespace Archon {
         else {
           message << "updated heater configuration: " << heaterconfig[i] << "=" << heatervalue[i];
         }
-        error == NO_ERROR ? logwrite( function, message.str() ) : this->common.log_error( function, message.str() );
+        error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
       }
 
       // send the APPLMODxx command which parses and applies the configuration for module xx
@@ -5277,7 +5277,7 @@ namespace Archon {
           if ( value == "1" ) value = "ON";
           else {
             message.str(""); message << "bad value " << value << " from configuration. expected 0 or 1";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             error = ERROR;
           }
         }
@@ -5290,7 +5290,7 @@ namespace Archon {
           if ( value == "2" ) value = "C"; 
           else {
             message.str(""); message << "bad value " << value << " from configuration. expected 0,1,2";
-            this->common.log_error( function, message.str() );
+            this->camera.log_error( function, message.str() );
             error = ERROR;
           }
         }
@@ -5342,7 +5342,7 @@ namespace Archon {
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->firmwareloaded ) {
-      this->common.log_error( function, "firmware not loaded" );
+      this->camera.log_error( function, "firmware not loaded" );
       return( ERROR );
     }
 
@@ -5357,7 +5357,7 @@ namespace Archon {
         message << "requires backplane version " << REV_SENSORCURRENT << " or newer. ("
                 << this->backplaneversion << " detected)";
       }
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5368,7 +5368,7 @@ namespace Archon {
     // At minimum there must be two tokens, <module> <sensorid>
     //
     if ( tokens.size() < 2 ) {
-      this->common.log_error( function, "expected at least two arguments: <module> A|B" );
+      this->camera.log_error( function, "expected at least two arguments: <module> A|B" );
       return ERROR;
     }
 
@@ -5380,18 +5380,18 @@ namespace Archon {
 
       if ( sensorid != "A" && sensorid != "B" && sensorid != "C" ) {
         message.str(""); message << "invalid sensor " << sensorid << ": expected <module#> <A|B|C> [ current | AVG [N] ]";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
     }
     catch ( std::invalid_argument & ) {
       message.str(""); message << "parsing argument: " << args << ": expected <module#> <A|B|C> [ current | AVG [N] ]";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
     catch ( std::out_of_range & ) {
       message.str(""); message << "argument outside range in " << args << ": expected <module#> <A|B|C> [ current | AVG [N] ]";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5400,21 +5400,21 @@ namespace Archon {
     switch ( this->modtype[ module-1 ] ) {
       case 0:
         message.str(""); message << "module " << module << " not installed";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       case 5:  // Heater
       case 11: // HeaterX
         break;
       default:
         message.str(""); message << "module " << module << " is not a heater board";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
     }
 
     // input C supported only on HeaterX cards
     if ( sensorid == "C" && this->modtype[ module-1 ] != 11 ) {
       message.str(""); message << "sensor C not supported on module " << module << ": HeaterX module required";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5450,12 +5450,12 @@ namespace Archon {
         }
         catch ( std::invalid_argument & ) {
           message.str(""); message << "parsing \"" << args << "\" : expected \"AVG\" or integer for arg 3";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
         catch ( std::out_of_range & ) {
           message.str(""); message << "parsing \"" << args << "\" : arg 3 outside integer range";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
 
@@ -5463,7 +5463,7 @@ namespace Archon {
         //
         if ( current_val < 0 || current_val > 1600000 ) {
           message.str(""); message << "requested current " << current_val << " outside range {0:1600000}";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return( ERROR );
         }
 
@@ -5493,12 +5493,12 @@ namespace Archon {
       }
       catch ( std::invalid_argument & ) {
         message.str(""); message << "parsing \"" << args << "\" : expected integer for arg 4";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
       catch ( std::out_of_range & ) {
         message.str(""); message << "parsing \"" << args << "\" : arg 4 outside integer range";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
 
@@ -5520,7 +5520,7 @@ namespace Archon {
           break;
         default:
           message.str(""); message << "requested average " << filter_val << " outside range {1,2,4,8,16,32,64,128,256}";
-          this->common.log_error( function, message.str() );
+          this->camera.log_error( function, message.str() );
           return ( ERROR );
       }
     }
@@ -5529,7 +5529,7 @@ namespace Archon {
     //
     else {
       message.str(""); message << "received " << tokens.size() << " arguments but expected 2, 3, or 4";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5548,7 +5548,7 @@ namespace Archon {
       // should be impossible but just make sure these aren't empty because they're needed
       //
       if ( sensorconfig.rdbuf()->in_avail() == 0 || sensorvalue=="" ) {
-        this->common.log_error( function, "BUG DETECTED: sensorconfig and sensorvalue cannot be empty" );
+        this->camera.log_error( function, "BUG DETECTED: sensorconfig and sensorvalue cannot be empty" );
         return ( ERROR );
       }
 
@@ -5615,12 +5615,12 @@ namespace Archon {
       }
       catch ( std::invalid_argument & ) {
         message.str(""); message << "bad value: " << value << " read back from configuration. expected integer";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
       catch ( std::out_of_range & ) {
         message.str(""); message << "value: " << value << " read back from configuration outside integer range";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
       try {
@@ -5628,7 +5628,7 @@ namespace Archon {
       }
       catch ( std::out_of_range & ) {
         message.str(""); message << "filter index " << findex << " outside range: {0:" << filter.size()-1 << "}";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
       }
     }
@@ -5663,7 +5663,7 @@ namespace Archon {
     // must have loaded firmware
     //
     if ( ! this->firmwareloaded ) {
-      this->common.log_error( function, "firmware not loaded" );
+      this->camera.log_error( function, "firmware not loaded" );
       return( ERROR );
     }
 
@@ -5677,7 +5677,7 @@ namespace Archon {
     }
     else {
       message.str(""); message << "incorrect number of arguments: " << args << ": expected module channel [voltage]";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return ERROR;
     }
 
@@ -5690,12 +5690,12 @@ namespace Archon {
     }
     catch (std::invalid_argument &) {
       message.str(""); message << "parsing bias arguments: " << args << ": expected <module> <channel> [ voltage ]";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
     catch (std::out_of_range &) {
       message.str(""); message << "argument range: " << args << ": expected <module> <channel> [ voltage ]";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -5703,7 +5703,7 @@ namespace Archon {
     //
     if ( (module < 0) || (module > nmods) ) {
       message.str(""); message << "module " << module << ": outside range {0:" << nmods << "}";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -5713,7 +5713,7 @@ namespace Archon {
     switch ( this->modtype[ module-1 ] ) {
       case 0:
         message.str(""); message << "module " << module << " not installed";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
         break;
       case 3:  // LVBias
@@ -5730,7 +5730,7 @@ namespace Archon {
         break;
       default:
         message.str(""); message << "module " << module << " not a bias board";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
         break;
     }
@@ -5740,7 +5740,7 @@ namespace Archon {
     //
     if ( (channel < 1) || (channel > 30) ) {
       message.str(""); message << "bias channel " << module << ": outside range {1:30}";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
     if ( (channel > 0) && (channel < 25) ) {
@@ -5753,7 +5753,7 @@ namespace Archon {
 
     if ( (voltage < vmin) || (voltage > vmax) ) {
       message.str(""); message << "bias voltage " << voltage << ": outside range {" << vmin << ":" << vmax << "}";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return(ERROR);
     }
 
@@ -5829,7 +5829,7 @@ namespace Archon {
     long error = ERROR;
 
     if ( args.empty() ) {
-      this->common.log_error( function, "no argument: expected cds <configkey> [ value ]" );
+      this->camera.log_error( function, "no argument: expected cds <configkey> [ value ]" );
       return( ERROR );
     }
 
@@ -5861,18 +5861,18 @@ namespace Archon {
       // More than two tokens is an error
       //
       else {
-        this->common.log_error( function, "Too many arguments. Expected cds <configkey> [ value ]" );
+        this->camera.log_error( function, "Too many arguments. Expected cds <configkey> [ value ]" );
         return( ERROR );
       }
     }
     catch(std::out_of_range &) {
       message << "parsing cds arguments: " << args << ": Expected cds <configkey> [ value ]";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
     catch(...) {
       message << "unknown exception parsing cds arguments: " << args << ": Expected cds <configkey> [ value ]";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5899,7 +5899,7 @@ namespace Archon {
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->firmwareloaded ) {
-      this->common.log_error( function, "firmware not loaded" );
+      this->camera.log_error( function, "firmware not loaded" );
       return( ERROR );
     }
 
@@ -5914,7 +5914,7 @@ namespace Archon {
         message << "requires backplane version " << REV_VCPU << " or newer. ("
                 << this->backplaneversion << " detected)";
       }
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5923,7 +5923,7 @@ namespace Archon {
     // There must be three tokens, <module> <reg> <value>
     //
     if ( tokens.size() != 3 ) {
-      this->common.log_error( function, "expected three arguments: <module> <reg> <value>" );
+      this->camera.log_error( function, "expected three arguments: <module> <reg> <value>" );
       return ERROR;
     }
 
@@ -5937,12 +5937,12 @@ namespace Archon {
     }
     catch (std::invalid_argument &) {
       message.str(""); message << "unable to convert one of \"" << args << "\" to integer";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
     catch (std::out_of_range &) {
       message.str(""); message << "one of \"" << args << "\" is outside integer range";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5951,7 +5951,7 @@ namespace Archon {
     switch ( this->modtype[ module-1 ] ) {
       case 0:
         message.str(""); message << "requested module " << module << " not installed";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       case 3:  // LVBias
       case 5:  // Heater
@@ -5962,7 +5962,7 @@ namespace Archon {
         break;
       default:
         message.str(""); message << "requested module " << module << " does not contain a VCPU";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return( ERROR );
     }
 
@@ -5970,7 +5970,7 @@ namespace Archon {
     //
     if ( reg < 0 || reg > 15 ) {
       message.str(""); message << "requested register " << reg << " outside range {0:15}";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -5978,7 +5978,7 @@ namespace Archon {
     //
     if ( value < 0 || value > 65535 ) {
       message.str(""); message << "requested value " << value << " outside range {0:65535}";
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       return( ERROR );
     }
 
@@ -6014,7 +6014,7 @@ namespace Archon {
    * @return ERROR or NO_ERROR
    *
    * This is the place to put various debugging and system testing tools.
-   * It is placed here, rather than in common, to allow for controller-
+   * It is placed here, rather than in camera, to allow for controller-
    * specific tests. This means some common tests may need to be duplicated
    * for each controller.
    *
@@ -6051,13 +6051,13 @@ namespace Archon {
     Tokenize(args, tokens, " ");
 
     if (tokens.size() < 1) {
-      this->common.log_error( function, "no test name provided" );
+      this->camera.log_error( function, "no test name provided" );
       return ERROR;
     }
 
     std::string testname;
     try { testname = tokens.at(0); }                                 // the first token is the test name
-    catch ( std::out_of_range & ) { this->common.log_error( function, "testname token out of range" ); return( ERROR ); }
+    catch ( std::out_of_range & ) { this->camera.log_error( function, "testname token out of range" ); return( ERROR ); }
 
     // ----------------------------------------------------
     // ampinfo
@@ -6127,14 +6127,14 @@ namespace Archon {
       }
       else if ( tokens.size() == 2 ) {
         try { this->archon_busy = ( tokens.at(1)=="yes" ? true : false ); }
-        catch ( std::out_of_range & ) { this->common.log_error( function, "tokens out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->camera.log_error( function, "tokens out of range" ); error=ERROR; }
         message.str(""); message << "archon_busy=" << this->archon_busy;
         logwrite( function, message.str() );
         error = NO_ERROR;
       }
       else {
         message.str(""); message << "expected one argument, yes or no";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         error = ERROR;
       }
       retstring = this->archon_busy ? "true" : "false";
@@ -6151,13 +6151,13 @@ namespace Archon {
     else
     if (testname == "fitsname") {
       std::string msg;
-      this->common.set_fitstime( get_timestamp() );                  // must set common.fitstime first
-      error = this->common.get_fitsname(msg);                        // get the fitsname (by reference)
+      this->camera.set_fitstime( get_timestamp() );                  // must set camera.fitstime first
+      error = this->camera.get_fitsname(msg);                        // get the fitsname (by reference)
       retstring = msg;
       message.str(""); message << "NOTICE:" << msg;
-      this->common.message.enqueue( message.str() );                 // queue the fitsname
+      this->camera.async.enqueue( message.str() );                   // queue the fitsname
       logwrite(function, msg);                                       // log the fitsname
-      if (error!=NO_ERROR) { this->common.log_error( function, "couldn't validate fits filename" ); }
+      if (error!=NO_ERROR) { this->camera.log_error( function, "couldn't validate fits filename" ); }
     } // end if (testname == fitsname)
 
     // ----------------------------------------------------
@@ -6187,13 +6187,13 @@ namespace Archon {
         }
         try { message.str(""); message << "NOTICE:" << tokens.at(1);
               logwrite( function, message.str() );
-              this->common.message.enqueue( message.str() );
+              this->camera.async.enqueue( message.str() );
         }
-        catch ( std::out_of_range & ) { this->common.log_error( function, "tokens out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->camera.log_error( function, "tokens out of range" ); error=ERROR; }
       }
       else {                                // if no string passed then queue a simple test message
         logwrite(function, "NOTICE:test");
-        this->common.message.enqueue("NOTICE:test");
+        this->camera.async.enqueue("NOTICE:test");
       }
       error = NO_ERROR;
     } // end if (testname == async)
@@ -6242,7 +6242,7 @@ namespace Archon {
         keycount++;
         message.str(""); message << param_it->first << "=" << param_it->second.value;
         logwrite(function, message.str());
-        this->common.message.enqueue( "NOTICE:"+message.str() );
+        this->camera.async.enqueue( "NOTICE:"+message.str() );
       }
       message.str(""); message << "found " << keycount << " parammap entries";
       logwrite(function, message.str());
@@ -6276,7 +6276,7 @@ namespace Archon {
           std::string configkey = tokens.at(1);
           error = this->get_configmap_value(configkey, retstring);
         }
-        catch ( std::out_of_range & ) { this->common.log_error( function, "configkey token out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->camera.log_error( function, "configkey token out of range" ); error=ERROR; }
       }
 
       // if a third argument was passed then set this configkey
@@ -6288,7 +6288,7 @@ namespace Archon {
               error = this->write_config_key( key.c_str(), value.c_str(), configchanged );
               if (error == NO_ERROR) error = this->archon_cmd(APPLYCDS);
         }
-        catch ( std::out_of_range & ) { this->common.log_error( function, "key,value tokens out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->camera.log_error( function, "key,value tokens out of range" ); error=ERROR; }
       }
 
       int keycount=0;
@@ -6311,7 +6311,7 @@ namespace Archon {
     if (testname == "bw") {
 
       if ( ! this->modeselected ) {
-        this->common.log_error( function, "no mode selected" );
+        this->camera.log_error( function, "no mode selected" );
         return ERROR;
       }
 
@@ -6322,10 +6322,10 @@ namespace Archon {
 
       if (tokens.size() > 1) {
         try { nseqstr = tokens.at(1); }
-        catch ( std::out_of_range & ) { this->common.log_error( function, "nseqstr token out of range" ); return(ERROR); }
+        catch ( std::out_of_range & ) { this->camera.log_error( function, "nseqstr token out of range" ); return(ERROR); }
       }
       else {
-        this->common.log_error( function, "usage: test bw <nseq> [ rw | ro ]");
+        this->camera.log_error( function, "usage: test bw <nseq> [ rw | ro ]");
         return ERROR;
       }
 
@@ -6333,7 +6333,7 @@ namespace Archon {
         try { if (tokens.at(2) == "rw") rw=true; else rw=false;
               if (tokens.at(2) == "ro") ro=true; else ro=false;
         }
-        catch ( std::out_of_range & ) { this->common.log_error( function, "rw tokens out of range" ); error=ERROR; }
+        catch ( std::out_of_range & ) { this->camera.log_error( function, "rw tokens out of range" ); error=ERROR; }
       }
 
       try {
@@ -6341,12 +6341,12 @@ namespace Archon {
       }
       catch (std::invalid_argument &) {
         message.str(""); message << "unable to convert sequences: " << nseqstr << " to integer";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
       catch (std::out_of_range &) {
         message.str(""); message << "sequences " << nseqstr << " outside integer range";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
 
@@ -6355,7 +6355,7 @@ namespace Archon {
       //
       if (this->exposeparam.empty()) {
         message.str(""); message << "EXPOSE_PARAM not defined in configuration file " << this->config.filename;
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
       error = this->get_frame_status();  // TODO is this needed here?
@@ -6381,12 +6381,12 @@ namespace Archon {
           logwrite( function, "ERROR: couldn't get start time" );
           return( error );
         }
-        this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
+        this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
         // If read-write selected then need to do some FITS stuff
         //
         if ( rw ) {
           this->camera_info.extension = 0;                            // always initialize extension
-          error = this->common.get_fitsname( this->camera_info.fits_name ); // assemble the FITS filename if rw selected
+          error = this->camera.get_fitsname( this->camera_info.fits_name ); // assemble the FITS filename if rw selected
           if ( error != NO_ERROR ) {
             logwrite( function, "ERROR: couldn't validate fits filename" );
             return( error );
@@ -6402,14 +6402,14 @@ namespace Archon {
             this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
           }
 
-          this->camera_info.iscube = this->common.datacube();
+          this->camera_info.iscube = this->camera.datacube();
 
           // open the file now for datacubes
           //
-          if ( this->common.datacube() ) {
-            error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+          if ( this->camera.datacube() ) {
+            error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
             if ( error != NO_ERROR ) {
-              this->common.log_error( function, "couldn't open fits file" );
+              this->camera.log_error( function, "couldn't open fits file" );
               return( error );
             }
           }
@@ -6428,23 +6428,23 @@ namespace Archon {
         // If read-write selected,
         // Open a new FITS file for each frame when not using datacubes
         //
-        if ( rw && !this->common.datacube() ) {
+        if ( rw && !this->camera.datacube() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
           if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
             logwrite( function, "ERROR: couldn't get start time" );
             return( error );
           }
-          this->common.set_fitstime(this->camera_info.start_time);      // sets common.fitstime (YYYYMMDDHHMMSS) used for filename
-          error=this->common.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
+          this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
+          error=this->camera.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
           if ( error != NO_ERROR ) {
             logwrite( function, "ERROR: couldn't validate fits filename" );
             return( error );
           }
           this->add_filename_key();                                     // add filename to system keys database
 
-          error = this->fits_file.open_file( (this->common.writekeys_when=="before"?true:false), this->camera_info );
+          error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
           if ( error != NO_ERROR ) {
-            this->common.log_error( function, "couldn't open fits file" );
+            this->camera.log_error( function, "couldn't open fits file" );
             return( error );
           }
         }
@@ -6461,11 +6461,11 @@ namespace Archon {
         }
 
         if (error==NO_ERROR) error = this->wait_for_readout();                     // wait for the readout into frame buffer,
-        if (error==NO_ERROR && ro) error = this->read_frame(Common::FRAME_IMAGE);  // read image frame directly with no write
+        if (error==NO_ERROR && ro) error = this->read_frame(Camera::FRAME_IMAGE);  // read image frame directly with no write
         if (error==NO_ERROR && rw) error = this->read_frame();                     // read image frame directly with no write
-        if (error==NO_ERROR && rw && !this->common.datacube()) {
-          this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
-          this->common.increment_imnum();                                          // increment image_num when fitsnaming == "number"
+        if (error==NO_ERROR && rw && !this->camera.datacube()) {
+          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+          this->camera.increment_imnum();                                          // increment image_num when fitsnaming == "number"
         }
         if (error==NO_ERROR) frames_read++;
       }
@@ -6474,9 +6474,9 @@ namespace Archon {
       // for cubes, close the FITS file now that they've all been written
       // (or any time there is an error)
       //
-      if ( rw && ( this->common.datacube() || (error==ERROR) ) ) {
-        this->fits_file.close_file( (this->common.writekeys_when=="after"?true:false), this->camera_info );
-        this->common.increment_imnum();                                            // increment image_num when fitsnaming == "number"
+      if ( rw && ( this->camera.datacube() || (error==ERROR) ) ) {
+        this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+        this->camera.increment_imnum();                                            // increment image_num when fitsnaming == "number"
       }
 
       logwrite( function, (error==ERROR ? "ERROR" : "complete") );
@@ -6502,7 +6502,7 @@ namespace Archon {
       int delta_archon, delta_system;
 
       if (tokens.size() < 3) {
-        this->common.log_error( function, "expected test timer <cycles> <sleepus>" );
+        this->camera.log_error( function, "expected test timer <cycles> <sleepus>" );
         return ERROR;
       }
 
@@ -6512,12 +6512,12 @@ namespace Archon {
       }
       catch (std::invalid_argument &) {
         message.str(""); message << "unable to convert one or more args to an integer";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
       catch (std::out_of_range &) {
         message.str(""); message << "nseq, sleepus tokens outside range";
-        this->common.log_error( function, message.str() );
+        this->camera.log_error( function, message.str() );
         return(ERROR);
       }
 
@@ -6546,7 +6546,7 @@ namespace Archon {
         // enque each line to the async message port
         //
         message.str(""); message << "TEST_TIMER: " << nseqsave-nseq << ", " << delta_archon << ", " << delta_system;
-        this->common.message.enqueue( message.str() );
+        this->camera.async.enqueue( message.str() );
 
         // save the difference between 
         //
@@ -6585,7 +6585,7 @@ namespace Archon {
     //
     else {
       message.str(""); message << "unknown test: " << testname;
-      this->common.log_error( function, message.str() );
+      this->camera.log_error( function, message.str() );
       error = ERROR;
     }
 

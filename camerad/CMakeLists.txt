@@ -7,6 +7,7 @@ cmake_minimum_required( VERSION 3.12 )
 set( CAMERA_DIR ${PROJECT_BASE_DIR}/camerad )
 
 include_directories( ${PROJECT_BASE_DIR}/utils )
+include_directories( ${PROJECT_BASE_DIR}/common )
 link_directories( ${PROJECT_BASE_DIR}/lib )
 
 # ----------------------------------------------------------------------------
@@ -88,8 +89,8 @@ add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 
-add_library(commonCamera STATIC
-        ${CAMERA_DIR}/common.cpp
+add_library(camera STATIC
+        ${CAMERA_DIR}/camera.cpp
         )
 
 # ----------------------------------------------------------------------------
@@ -111,9 +112,10 @@ add_executable(camerad
 # ----------------------------------------------------------------------------
 
 target_link_libraries(camerad
-        commonCamera
+        camera
         network
         logentry
+        common
         utilities
         ${INTERFACE_TARGET}
         ${CMAKE_THREAD_LIBS_INIT}

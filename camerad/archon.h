@@ -16,6 +16,7 @@
 
 #include "utilities.h"
 #include "common.h"
+#include "camera.h"
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
@@ -88,11 +89,12 @@ namespace Archon {
       // Class Objects
       //
       Network::TcpSocket archon;
-      Common::Information camera_info;       //!< this is the main camera_info object
-      Common::Information fits_info;         //!< used to copy the camera_info object to preserve info for FITS writing
-      Common::Common common;                 //!< instantiate a Common object
+      Camera::Information camera_info;       /// this is the main camera_info object
+      Camera::Information fits_info;         /// used to copy the camera_info object to preserve info for FITS writing
+      Camera::Camera camera;                 /// instantiate a Camera object
       Common::FitsKeys userkeys;             //!< instantiate a Common object
       Common::FitsKeys systemkeys;           //!< instantiate a Common object
+
       Config config;
 
       FITS_file fits_file;                   //!< instantiate a FITS container object
@@ -169,7 +171,7 @@ namespace Archon {
       long get_timer(unsigned long int *timer);
       long fetch(uint64_t bufaddr, uint32_t bufblocks);
       long read_frame();                     //!< read Archon frame buffer into host memory
-      long read_frame(Common::frame_type_t frame_type); //!< read Archon frame buffer into host memory
+      long read_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
       long write_raw();                      //!< write raw 16 bit data to a FITS file
       long write_config_key( const char *key, const char *newvalue, bool &changed );
