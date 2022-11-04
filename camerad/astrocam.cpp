@@ -529,6 +529,24 @@ namespace AstroCam {
         applied++;
       }
 
+      if (config.param[entry].compare(0, 7, "DIRMODE")==0) {
+        mode_t mode;
+        try {
+          mode = (mode_t)std::stoi( config.arg[entry] );
+        }
+        catch (std::invalid_argument &) {
+          this->camera.log_error( function, "unable to convert dirmode to integer" );
+          return(ERROR);
+        }
+        catch (std::out_of_range &) {
+          this->camera.log_error( function, "dirmode out of integer range" );
+          return(ERROR);
+        }
+
+        this->camera.set_dirmode( mode );
+        applied++;
+      }
+
       if (this->config.param[entry].compare(0, 6, "BASENAME")==0) {
         this->camera.basename( config.arg[entry] );
         applied++;

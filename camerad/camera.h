@@ -34,6 +34,7 @@ namespace Camera {
       std::string base_name;
       std::string fits_naming;
       std::string fitstime;                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
+      mode_t dirmode;                        //!< user specified mode to OR with 0700 for imdir creation
       int image_num;
       bool is_datacube;
       bool is_longerror;                     //!< set to return error message on command port
@@ -53,6 +54,8 @@ namespace Camera {
 
       void set_abortstate(bool state);
       bool get_abortstate();
+
+      void set_dirmode( mode_t mode_in ) { this->dirmode = mode_in; }
 
       std::map<int, std::string> firmware;   //!< firmware file for given controller device number, read from .cfg file
       std::map<int, int> readout_time;       //!< readout time in msec for given controller device number, read from .cfg file
