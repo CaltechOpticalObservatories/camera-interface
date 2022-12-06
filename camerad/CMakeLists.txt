@@ -73,12 +73,36 @@ elseif(${INTERFACE_TYPE} STREQUAL "Archon")
         list(APPEND INTERFACE_INCLUDES
                 "${ARCHON_INCLUDE}"
                 )
-        add_library(interface STATIC
-                ${CAMERA_DIR}/archon.cpp
-                )
+        add_library( interface STATIC "${INTERFACE_SOURCE}" )
 else()
         message(FATAL_ERROR " unknown interface type: " ${INTERFACE_TYPE})
 endif()
+
+# ----------------------------------------------------------------------------
+# Add appropriate instrument library here.
+# The user adds a "-DINSTR=<instr>" to the cmake command line.
+# Currently supported <instr> names are: nirc2 generic
+# ----------------------------------------------------------------------------
+
+if ( NOT DEFINED INSTR )
+    set( INSTR "undefined" )
+else()
+    if ( ${INSTR} STREQUAL "nirc2" )
+        message( STATUS "building for nirc2 instrument" )
+        list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/nirc2.cpp" )
+    elseif( ${INSTR} STREQUAL "generic" )
+        message( STATUS "building for generic instrument" )
+        list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
+    elseif( ${INSTR} STREQUAL "undefined" )
+        message( STATUS "no INSTR defined. using generic but other options are:" )
+        message( STATUS "cmake -DINSTR=nirc2,generic .." )
+        list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
+    else()
+        message( STATUS "unknown instrument " ${INSTR} ": using generic" )
+        list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
+    endif()
+endif()
+
 # ----------------------------------------------------------------------------
 # End interface setup
 # ----------------------------------------------------------------------------

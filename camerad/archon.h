@@ -199,6 +199,7 @@ namespace Archon {
       long bias(std::string args, std::string &retstring);
       long cds(std::string args, std::string &retstring);
       long inreg( std::string args );
+      long region_of_interest( std::string args, std::string &retstring );
       long test(std::string args, std::string &retstring);
 
       /**

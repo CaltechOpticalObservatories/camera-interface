@@ -34,6 +34,7 @@ namespace Archon {
     this->image_data_allocated = 0;
     this->is_longexposure = false;
     this->n_hdrshift = 16;
+    this->backplaneversion="";
 
     this->trigin_state="disabled";
     this->trigin_expose = 0;
@@ -1070,6 +1071,8 @@ namespace Archon {
     // Detector power will be off after this.
     //
     if (error == NO_ERROR) error = this->archon_cmd(APPLYALL);
+
+    if ( error != NO_ERROR ) this->fetchlog();
 
     // If no errors then automatically set the mode to DEFAULT.
     // This should come after APPLYALL in case any new parameters need to be written,
@@ -2349,16 +2352,16 @@ namespace Archon {
     std::string function = "Archon::Interface::fetch";
     std::stringstream message;
     uint32_t maxblocks = (uint32_t)(1.5E9 / this->camera_info.activebufs / 1024 );
-    uint64_t maxoffset = this->camera_info.activebufs==2 ? 0xD0000000 : 0xE0000000;
+    uint64_t maxoffset = this->frame.bufbase[this->frame.index];
     uint64_t maxaddr = maxoffset + maxblocks;
 
-    if (bufaddr < 0xA0000000 || bufaddr > maxaddr) {
-      message.str(""); message << "fetch Archon buffer requested address 0x" << std::hex << bufaddr << " outside range {0xA0000000:0x" << maxaddr << "}";
+    if ( bufaddr > maxaddr ) {
+      message.str(""); message << "fetch Archon buffer requested address 0x" << std::hex << bufaddr << " exceeds 0x" << maxaddr;
       this->camera.log_error( function, message.str() );
       return(ERROR);
     }
-    if (bufblocks > maxblocks) {
-      message.str(""); message << "fetch Archon buffer requested blocks 0x" << std::hex << bufblocks << " outside range {0:0x" << maxblocks << "}";
+    if ( bufblocks > maxblocks ) {
+      message.str(""); message << "fetch Archon buffer requested blocks 0x" << std::hex << bufblocks << " exceeds 0x" << maxblocks;
       this->camera.log_error( function, message.str() );
       return(ERROR);
     }
