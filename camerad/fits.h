@@ -32,7 +32,7 @@ class FITS_file {
     std::atomic<bool> error;                        /// indicates an error occured in a file writing thread
     std::atomic<bool> file_open;                    /// semaphore indicates file is open
     std::atomic<int> threadcount;                   /// keep track of number of write_image_thread threads
-    std::atomic<int> framen;                        /// internal frame counter for data cubes
+    std::atomic<int> framen;                        /// internal frame counter for multi-extensions
     CCfits::ExtHDU* imageExt;                       /// image extension header unit
     std::string fits_name;
 
@@ -66,8 +66,8 @@ class FITS_file {
       std::string function = "FITS_file::open_file";
       std::stringstream message;
 
-      long axes[2];          // local variable of image axes size
-      int num_axis;          // local variable for number of axes
+      int num_axis = ( info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes
+      long axes[num_axis];                            // local variable of image axes size
 
       const std::lock_guard<std::mutex> lock(this->fits_mutex);
 
@@ -92,16 +92,20 @@ class FITS_file {
         return(ERROR);
       }
 
-      if (info.iscube) {     // special num_axis, axes for data cube
+      if (info.ismex) {      // special num_axis, axes for multi-extensions, no data associated with primary header
+        for ( int i=0; i < num_axis; i++ ) axes[i]=0;
         num_axis = 0;
-        axes[0] = 0;
-        axes[1] = 0;
       }
       else {                 // or regular for flat fits files
-        num_axis = 2;
-        axes[0] = info.axes[0];
-        axes[1] = info.axes[1];
+        for ( int i=0; i < num_axis; i++ ) axes[i]=info.axes[i];
       }
+
+#ifdef LOGLEVEL_DEBUG
+      message.str(""); message << "[DEBUG] cubedepth=" << info.cubedepth << " num_axis=" << num_axis
+                               << " axes=";
+      for ( auto aa : axes ) message << aa << " ";
+      logwrite( function, message.str() );
+#endif
 
       if (!info.type_set) { // This is a programming error, means datatype is uninitialized.
         logwrite(function, "ERROR: FITS datatype is uninitialized. Call set_axes()");
@@ -272,13 +276,14 @@ class FITS_file {
 
 #ifdef LOGLEVEL_DEBUG
       message.str("");
-      message << "[DEBUG] threadcount=" << this->threadcount << " iscube=" << info.iscube << " section_size=" << info.section_size 
+      message << "[DEBUG] threadcount=" << this->threadcount << " ismex=" << info.ismex << " section_size=" << info.section_size 
+              << " cubedepth=" << info.cubedepth
               << ". spawning image writing thread for frame " << this->framen << " of " << info.fits_name;
       logwrite(function, message.str());
 #endif
       std::thread([&]() {                                    // create the detached thread here
-        if (info.iscube) {
-          this->write_cube_thread(array, info, this);
+        if (info.ismex) {
+          this->write_mex_thread(array, info, this);
         }
         else {
           this->write_image_thread(array, info, this);
@@ -398,10 +403,10 @@ class FITS_file {
     /**************** FITS_file::write_image_thread ***************************/
 
 
-    /**************** FITS_file::write_cube_thread ****************************/
+    /**************** FITS_file::write_mex_thread *****************************/
     /**
-     * @fn         write_cube_thread
-     * @brief      This is where the data are actually written for datacubes
+     * @fn         write_mex_thread
+     * @brief      This is where the data are actually written for multi-extensions
      * @param[in]  T &data, reference to the data
      * @param[in]  Camera::Information &info, reference to the info structure
      * @param[in]  FITS_file *self, pointer to this-> object
@@ -412,8 +417,8 @@ class FITS_file {
      *
      */
     template <class T>
-    void write_cube_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
-      std::string function = "FITS_file::write_cube_thread";
+    void write_mex_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
+      std::string function = "FITS_file::write_mex_thread";
       std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
@@ -460,18 +465,22 @@ class FITS_file {
       // write the primary image into the FITS file
       //
       try {
-        long fpixel(1);              // start with the first pixel always
-        std::vector<long> axes(2);   // addImage() wants a vector
-        axes[0]=info.axes[0];
-        axes[1]=info.axes[1];
+        long fpixel(1);                     // start with the first pixel always
+
+        long num_axis = ( info.cubedepth > 1 ? 3 : 2 );
+
+        std::vector<long> axes(num_axis);   // addImage() wants a vector, which has the size of the number of axes
+
+        for ( int i=0; i < num_axis; i++ ) axes[i]=info.axes[i];
 
         // create the extension name
         // This shows up as keyword EXTNAME and in DS9's "display header"
         //
         std::string extname = std::to_string( info.extension+1 );
 
-        message.str(""); message << "adding " << axes[0] << " x " << axes[1] 
-                                 << " frame to extension " << extname << " in file " << info.fits_name;
+        message.str("");     message << "adding " << axes[0] << " x " << axes[1];
+        if ( num_axis==3 ) { message << " x " << axes[2]; }
+                             message << " frame to extension " << extname << " in file " << info.fits_name;
         logwrite(function, message.str());
 
         // Add the extension here
@@ -487,6 +496,7 @@ class FITS_file {
 
         // Add AMPSEC keys
         //
+/*
         if ( info.amp_section.size() > 0 ) {
           try {
             int x1 = info.amp_section.at( info.extension ).at( 0 );
@@ -504,6 +514,7 @@ class FITS_file {
         else {
           logwrite( function, "no AMPSEC key: missing amplifier section information" );
         }
+*/
 
         // Write and flush to make sure image is written to disk
         //
@@ -523,7 +534,7 @@ class FITS_file {
       this->framen++;
       self->writing_file = false;
     }
-    /**************** FITS_file::write_cube_thread ****************************/
+    /**************** FITS_file::write_mex_thread *****************************/
 
 
     /**************** FITS_file::make_camera_header ***************************/

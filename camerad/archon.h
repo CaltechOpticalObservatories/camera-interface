@@ -77,6 +77,135 @@ namespace Archon {
   const int DEF_SHUTENABLE_ENABLE      = 1;
   const int DEF_SHUTENABLE_DISABLE     = 0;
 
+
+  /***** Archon::DeInterlace **************************************************/
+  /**
+   * @class DeInterlace
+   * @brief This is the deinterlacing class
+   *
+   */
+  template <typename T>
+  class DeInterlace {
+    private:
+      T* imbuf;
+      T* workbuf;
+      long bufsize;
+      int cols;
+      int rows;
+      int readout_type;
+
+      /***** Archon::DeInterlace::none ****************************************/
+      /**
+       * @brief     no deinterlacing -- copy imbuf to workbuf
+       * @param[in] row_start
+       * @param[in] row_stop
+       * @param[in] index
+       * @details 
+       *
+       * ~~~
+       *    +-------------------+
+       *    |                   |
+       *    |                   |
+       *    |         0         |
+       *    | <---------------- |
+       * L1 +-------------------+
+       * ~~~
+       *
+       */
+      void none( int row_start, int row_stop, int index ) {
+std::string function = "Archon::DeInterlace::none";
+std::stringstream message;
+message << "[TEST] workbuf=" << std::hex << (void*)this->workbuf << " imbuf=" << std::hex << (void*)this->imbuf;
+logwrite( function, message.str() );
+
+for (long pix=0; pix < 32768; pix++) {
+  *( this->workbuf + pix ) = *( this->imbuf + pix );
+}
+return;
+        for ( int r=row_start; r<row_stop; r++ ) {
+          for ( int c=0; c<this->cols; c++ ) {
+            int loc = (r * this->cols) + c ;
+            *( this->workbuf + loc ) = *( this->imbuf + (index++) );
+          }
+        }
+      }
+      /***** Archon::DeInterlace::none ****************************************/
+
+
+    public:
+
+      /***** Archon::DeInterlace::DeInterlace *********************************/
+      /**
+       * @brief  class constructor
+       *
+       */
+      DeInterlace( T* buf1, T* buf2, long bufsz, int cols, int rows, int readout_type ) {
+        this->imbuf = buf1;
+        this->workbuf = buf2;
+        this->cols = cols;
+        this->rows = rows;
+        this->readout_type = readout_type;
+      }
+      /***** Archon::DeInterlace::DeInterlace *********************************/
+
+
+      /***** Archon::DeInterlace::info ****************************************/
+      /**
+       * @brief returns some info, just for debugging
+       *
+       */
+      std::string info() {
+        std::stringstream ret;
+        ret << " imbuf=" << std::hex << this->imbuf << " this->workbuf=" << std::hex << this->workbuf
+            << " bufsize=" << std::dec << this->bufsize << " cols=" << this->cols << " rows=" << this->rows
+            << " readout_type=" << this->readout_type;
+        return ( ret.str() );
+      }
+      /***** Archon::DeInterlace::info ****************************************/
+
+
+      /***** Archon::DeInterlace::do_deinterlace ******************************/
+      /**
+       * @brief
+       *
+       * This calls the appropriate deinterlacing function based on the readout
+       * type, which is an enum that was given to the class constructor when
+       * this DeInterlace object was constructed.
+       *
+       * The deinterlacing is performed from "row_start" to "row_stop" of the
+       * final image, using the pixel "index" of the raw image buffer.
+       *
+       */
+      void do_deinterlace( int row_start, int row_stop, int index, int index_flip ) {
+        std::string function = "Archon::DeInterlace::do_deinterlace";
+        std::stringstream message;
+
+message << "[TEST] row_start=" << row_start << " row_stop=" << row_stop << " index=" << index;
+logwrite( function, message.str() );
+
+        this->none( row_start, row_stop, index );
+
+/****
+        int index_ud = ( this->rows * this->cols ) - index;   // index from end of buffer, backwards
+
+        switch( this->readout_type ) {
+          case U1:
+            this->flip_lr( row_start, row_stop, index );
+            break;
+          default:
+            message.str(""); message << "ERROR: unknown readout type: " << this->readout_type;
+            logwrite( function, message.str() );
+        }
+****/
+        return;
+      }
+      /***** Archon::DeInterlace::do_deinterlace ******************************/
+
+
+  };
+  /***** Archon::DeInterlace **************************************************/
+
+
   class Interface {
     private:
       unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
@@ -108,7 +237,7 @@ namespace Archon {
       bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
       bool is_longexposure;                  //!< true for long exposure mode (exptime in sec), false for exptime in msec
 
-      bool lastcubeamps;
+      bool lastmexamps;
 
       std::string trigin_state;              //!< for external triggering of exposures
 
@@ -132,6 +261,8 @@ namespace Archon {
       float heater_target_max;               //!< maximum heater target temperature
 
       char *image_data;                      //!< image data buffer
+      void *workbuf;                         //!< pointer to workspace for performing deinterlacing
+      long workbuf_size;
       uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
       uint32_t image_data_allocated;         //!< allocated number of bytes for image_data
 
@@ -139,6 +270,9 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
+      std::string mcdspairs_param;           //!< param name to set MCDS samples
+      std::string mcdsmode_param;            //!< param name to set MCDS mode
+      std::string utrmode_param;             //!< param name to set UTR mode
 
       std::string shutenableparam;           //!< param name to enable shutter open on expose
       int shutenable_enable;                 //!< the value which enables shutter enable
@@ -172,6 +306,7 @@ namespace Archon {
       long fetch(uint64_t bufaddr, uint32_t bufblocks);
       long read_frame();                     //!< read Archon frame buffer into host memory
       long read_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory
+      long read_frame(Camera::frame_type_t frame_type, char* &ptr);
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
       long write_raw();                      //!< write raw 16 bit data to a FITS file
       long write_config_key( const char *key, const char *newvalue, bool &changed );
@@ -186,6 +321,7 @@ namespace Archon {
       long wait_for_exposure();
       long wait_for_readout();
       long get_parameter(std::string parameter, std::string &retstring);
+      long get_parammap_value( std::string param_in, long& value_out );
       long set_parameter( std::string parameter, long value );
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
@@ -199,8 +335,16 @@ namespace Archon {
       long bias(std::string args, std::string &retstring);
       long cds(std::string args, std::string &retstring);
       long inreg( std::string args );
+      long coadd( std::string coadds_in, std::string &retstring );
       long region_of_interest( std::string args, std::string &retstring );
+      long multi_cds( std::string args, std::string &retstring );
       long test(std::string args, std::string &retstring);
+
+      long alloc_workbuf();
+      template <class T> void* alloc_workbuf(T* buf);
+      template <class T> void free_workbuf(T* buf);
+      template <class T> T* deinterlace( T* imbuf );
+      template <class T> static void dothread_deinterlace( DeInterlace<T> &deinterlace, int cols, int rows, int section, int nthreads );
 
       /**
        * @var     struct geometry_t geometry[]
@@ -343,6 +487,50 @@ namespace Archon {
 
   };
 
+
 }
+
+  /***** Archon::DeInterlace **************************************************/
+  /**
+   * @class DeInterlace
+   * @brief This is the deinterlacing class
+   *
+   */
+  template <typename T>
+  class DeInterlace {
+    private:
+      T* imbuf;
+      T* workbuf;
+      long bufsize;
+      int cols;
+      int rows;
+      int readout_type;
+
+    public:
+
+      /***** Archon::DeInterlace::DeInterlace *********************************/
+      /**
+       * @brief  class constructor
+       *
+       */
+      DeInterlace( T* buf1, T* buf2, long bufsz, int cols, int rows, int readout_type ) {
+        this->imbuf = buf1;
+        this->workbuf = buf2;
+        this->cols = cols;
+        this->rows = rows;
+        this->readout_type = readout_type;
+      }
+      /***** Archon::DeInterlace::DeInterlace *********************************/
+
+
+      /***** Archon::DeInterlace::nirc2 ***************************************/
+      void nirc2() {
+        *( this->workbuf ) = *( this->imbuf );
+      }
+      /***** Archon::DeInterlace::nirc2 ***************************************/
+
+  };
+  /***** Archon::DeInterlace **************************************************/
+
 
 #endif

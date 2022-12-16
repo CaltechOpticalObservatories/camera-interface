@@ -23,7 +23,6 @@ namespace Archon {
 
       /**************** Archon::Interface::region_of_interest *****************/
       /**
-       * @fn         region_of_interest
        * @brief      define a region of interest for NIRC2
        * @param[in]  args string which must contain width and height
        * @param[out] retstring, reference to string which contains the width and height
@@ -231,11 +230,11 @@ namespace Archon {
 
         // regardless of args empty or not, check and return the current width and height
         //
-        int check_npp=0;
-        int check_nrq=0;
+        long check_npp=0;
+        long check_nrq=0;
 
-        if (error==NO_ERROR) error = get_configmap_value( "NPP", check_npp );
-        if (error==NO_ERROR) error = get_configmap_value( "NRQ", check_nrq );
+        if (error==NO_ERROR) error = get_parammap_value( "nPixelsPair", check_npp );
+        if (error==NO_ERROR) error = get_parammap_value( "nRowsQuad", check_nrq );
 
         int width  = 32 * check_npp;
         int height =  8 * check_nrq;
@@ -246,5 +245,128 @@ namespace Archon {
         return( error );
       }
       /**************** Archon::Interface::region_of_interest *****************/
+
+
+      /**************** Archon::Interface::multi_cds **************************/
+      /**
+       * @brief      
+       * @param[in]  args string which must contain width and height
+       * @param[out] retstring, reference to string which contains the width and height
+       * @return     ERROR or NO_ERROR
+       *
+       */
+      long Interface::multi_cds( std::string args, std::string &retstring ) {
+        std::string function = "Archon::Instrument::multi_cds";
+        std::stringstream message;
+        std::vector<std::string> tokens;
+        long error = NO_ERROR;
+        long trymcds = 0;
+
+        // Firmware must be loaded and a mode must have been selected
+        //
+        if ( ! this->firmwareloaded ) {
+          this->camera.log_error( function, "no firmware loaded" );
+          error = ERROR;
+        }
+
+        if ( ! this->modeselected ) {
+          this->camera.log_error( function, "no mode selected" );
+          error = ERROR;
+        }
+
+        if ( this->mcdspairs_param.empty() ) {
+          this->camera.log_error( function, "missing definition for MCDS pairs parameter" );
+          error = ERROR;
+        }
+
+        if ( this->mcdsmode_param.empty() ) {
+          this->camera.log_error( function, "missing definition for MCDS mode parameter" );
+          error = ERROR;
+        }
+
+        if ( this->utrmode_param.empty() ) {
+          this->camera.log_error( function, "missing definition for UTR mode parameter" );
+          error = ERROR;
+        }
+
+        // Any of the above errors will prevent reading the current value so return an error immediately
+        //
+        if ( error == ERROR ) { retstring="-1"; return error; }
+
+        // process args only if not empty
+        //
+        if ( not args.empty() ) {
+
+          Tokenize( args, tokens, " " );
+
+          if ( tokens.size() != 1 ) {
+            message.str(""); message << "incorrect number of arguments " << tokens.size() << ": expected <num>";
+            this->camera.log_error( function, message.str() );
+            return( ERROR );
+          }
+
+          // extract and convert the <num> token
+          //
+          try {
+            trymcds  = std::stoi( tokens.at(0) );
+          }
+          catch( std::invalid_argument const &e ) {
+            message << "invalid argument parsing MCDS value " << args << ": " << e.what();
+            this->camera.log_error( function, message.str() );
+            return( ERROR );
+          }
+          catch( std::out_of_range const &e ) {
+            message << "out of range parsing MCDS value " << args << ": " << e.what();
+            this->camera.log_error( function, message.str() );
+            return( ERROR );
+          }
+
+          // check that num is valid
+          //
+          if ( trymcds < 0 ) {
+            message.str(""); message << "requested MCDS value " << trymcds << " must be >= 0";
+            this->camera.log_error( function, message.str() );
+            error = ERROR;
+          }
+          else {
+            // write the parameters to Archon
+            //
+            std::stringstream cmd;
+
+            cmd.str(""); cmd << this->mcdspairs_param << " " << trymcds;
+            if (error==NO_ERROR) error = this->set_parameter( cmd.str() );
+
+            cmd.str(""); cmd << this->mcdsmode_param << " " << ( trymcds==0 ? 0 : 1 );
+            if (error==NO_ERROR) error = this->set_parameter( cmd.str() );
+
+            cmd.str(""); cmd << this->utrmode_param << " " << ( trymcds==0 ? 1 : 0 );
+            if (error==NO_ERROR) error = this->set_parameter( cmd.str() );
+          }
+
+        } // end if args not empty
+
+        // regardless of args empty or not, check and return the current width and height
+        //
+        long check_mcds=0;
+
+        long mcds_error = get_parammap_value( this->mcdspairs_param, check_mcds );
+
+        if ( mcds_error == NO_ERROR ) {
+          this->camera_info.mcds_pairs = check_mcds;
+          this->camera_info.cubedepth = ( check_mcds==0 ? 1 : 2 * check_mcds );
+          this->camera_info.set_axes();
+        }
+
+        error |= mcds_error;
+
+        message.str(""); message << check_mcds;
+        retstring = message.str();
+
+        message.str(""); message << "MCDS pairs = " << retstring;
+        logwrite( function, message.str() );
+
+        return error;
+      }
+      /**************** Archon::Interface::multi_cds **************************/
 
 }

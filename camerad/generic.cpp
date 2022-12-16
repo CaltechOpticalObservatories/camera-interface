@@ -27,7 +27,6 @@ namespace Archon {
 
       /**************** Archon::Interface::region_of_interest *****************/
       /**
-       * @fn         region_of_interest
        * @brief      define a region of interest
        * @param[in]  args
        * @param[out] retstring
@@ -41,5 +40,40 @@ namespace Archon {
         return( ERROR );
       }
       /**************** Archon::Interface::region_of_interest *****************/
+
+
+      /**************** Archon::Interface::multi_cds **************************/
+      /**
+       * @brief      
+       * @param[in]  args
+       * @param[out] retstring
+       * @return     
+       *
+       */
+      long Interface::multi_cds( std::string args, std::string &retstring ) {
+        std::string function = "Archon::Interface::multi_cds";
+        std::stringstream message;
+        this->common.log_error( function, "ROI not supported" );
+        return( ERROR );
+      }
+      /**************** Archon::Interface::multi_cds **************************/
+
+
+      /**************** Archon::Interface::deinterlace ************************/
+      /**
+       * @brief      deinterlace
+       * @param[in]  
+       * @param[out] 
+       * @return     
+       *
+       */
+      template <class T>
+      T* Interface::deinterlace(T* imbuf) {
+        std::string function = "Archon::Instrument::deinterlace";
+        this->common.log_error( function, "deinterlacing not supported" );
+        return( (T*)NULL );
+      }
+      /**************** Archon::Interface::deinterlace ************************/
+
 
 }

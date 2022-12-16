@@ -41,7 +41,7 @@ namespace Archon {
     this->trigin_untimed = 0;
     this->trigin_readout = 0;
 
-    this->lastcubeamps = this->camera.cubeamps();
+    this->lastmexamps = this->camera.mexamps();
 
     this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
     this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
@@ -122,6 +122,9 @@ namespace Archon {
 
     this->camera.firmware[0] = "";
 
+    this->mcdspairs_param = "";
+    this->mcdsmode_param = "";
+    this->utrmode_param = "";
     this->exposeparam = "";
     this->trigin_exposeparam = "";
     this->trigin_untimedparam = "";
@@ -167,10 +170,25 @@ namespace Archon {
 
       if (config.param[entry].compare(0, 12, "AMPS_AS_CUBE")==0) {
         std::string dontcare;
-        if ( this->camera.cubeamps( config.arg[entry], dontcare ) == ERROR ) {
-          this->camera.log_error( function, "setting cubeamps" );
+        if ( this->camera.mexamps( config.arg[entry], dontcare ) == ERROR ) {
+          this->camera.log_error( function, "setting mexamps" );
           return( ERROR );
         }
+      }
+
+      if (config.param[entry].compare(0, 15, "MCDSPAIRS_PARAM")==0) {          // MCDSPAIRS_PARAM
+        this->mcdspairs_param = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 14, "MCDSMODE_PARAM")==0) {           // MCDSMODE_PARAM
+        this->mcdsmode_param = config.arg[entry];
+        applied++;
+      }
+
+      if (config.param[entry].compare(0, 13, "UTRMODE_PARAM")==0) {            // UTRMODE_PARAM
+        this->utrmode_param = config.arg[entry];
+        applied++;
       }
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {             // EXPOSE_PARAM
@@ -422,14 +440,26 @@ namespace Archon {
     std::string function = "Archon::Interface::prepare_image_buffer";
     std::stringstream message;
 
+    // This is the amount of memory to allocate for each fits write.
+    // If this is multi-extension (mex) then this is memory per extension.
+    // If this is a 3D data cube then this includes the total cube depth.
+    //
+    uint32_t expected_allocation = this->image_data_bytes * this->camera_info.cubedepth;
+
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] expected allocation " << this->image_data_bytes << " bytes/frame for "
+                             << this->camera_info.cubedepth << " cubes = " << expected_allocation;
+    logwrite( function, message.str() );
+#endif
+
     // If there is already a correctly-sized buffer allocated,
     // then don't do anything except initialize that space to zero.
     //
-    if ( (this->image_data != NULL)     &&
-         (this->image_data_bytes != 0) &&
-         (this->image_data_allocated == this->image_data_bytes) ) {
-      memset(this->image_data, 0, this->image_data_bytes);
-      message.str(""); message << "initialized " << this->image_data_bytes << " bytes of image_data memory";
+    if ( (this->image_data != NULL)  &&
+         (expected_allocation != 0)  &&
+         (this->image_data_allocated == expected_allocation) ) {
+      memset(this->image_data, 0, expected_allocation);
+      message.str(""); message << "initialized " << expected_allocation << " bytes of image_data memory at " << (void*)this->image_data;
       logwrite(function, message.str());
     }
 
@@ -443,10 +473,10 @@ namespace Archon {
       }
       // Allocate new memory
       //
-      if (this->image_data_bytes != 0) {
-        this->image_data = new char[this->image_data_bytes];
-        this->image_data_allocated=this->image_data_bytes;
-        message.str(""); message << "allocated " << this->image_data_bytes << " bytes for image_data";
+      if (expected_allocation != 0) {
+        this->image_data = new char[expected_allocation];
+        this->image_data_allocated=expected_allocation;
+        message.str(""); message << "allocated " << expected_allocation << " bytes for image_data at " << (void*)this->image_data;
         logwrite(function, message.str());
       }
       else {
@@ -1728,7 +1758,8 @@ namespace Archon {
       return (ERROR);
     }
 
-    // allocate image_data in blocks because the controller outputs data in units of blocks
+    // Allocate image_data in blocks because the controller outputs data in units of blocks.
+    // If there are multiple slices (cubes) then this is the memory per slice, just one image read.
     //
     this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
 
@@ -2046,6 +2077,7 @@ namespace Archon {
     std::stringstream message;
     int   newestframe, newestbuf;
     int   error=NO_ERROR;
+//logwrite( function, "[TIMESTAMP] start" );
 
     // send FRAME command to get frame buffer status
     //
@@ -2200,6 +2232,7 @@ namespace Archon {
       this->frame.next_index = 0;
     }
 
+//logwrite( function, "[TIMESTAMP] stop" );
     return(error);
   }
   /**************** Archon::Interface::get_frame_status ***********************/
@@ -2449,7 +2482,7 @@ namespace Archon {
     }
 
     // IMAGE, or IMAGE+RAW
-    // datacube was already set = true in the expose function
+    // mex was already set = true in the expose function
     //
     else {
       error = this->read_frame(Camera::FRAME_IMAGE);                              // read image frame
@@ -2496,10 +2529,9 @@ namespace Archon {
 
   /**************** Archon::Interface::read_frame *****************************/
   /**
-   * @fn     read_frame
-   * @brief  read latest Archon frame buffer
-   * @param  frame_type
-   * @return ERROR or NO_ERROR
+   * @brief      read latest Archon frame buffer
+   * @param[in]  frame_type
+   * @return     ERROR or NO_ERROR
    *
    * This is the overloaded read_frame function which accepts the frame_type argument.
    * This is called only by this->read_frame() to perform the actual read of the
@@ -2509,12 +2541,33 @@ namespace Archon {
    *
    */
   long Interface::read_frame(Camera::frame_type_t frame_type) {
+    char *ptr=this->image_data;
+    return this->read_frame(frame_type, ptr);
+  }
+  /**************** Archon::Interface::read_frame *****************************/
+
+
+  /**************** Archon::Interface::read_frame *****************************/
+  /**
+   * @brief      read latest Archon frame buffer
+   * @param[in]  frame_type camera frame type is FRAME_RAW or FRAME_IMAGE
+   * @param[out] ptr_in     char pointer of where to put data, returned for multiple calls
+   * @return     ERROR or NO_ERROR
+   *
+   * This is the overloaded read_frame function for data cubes because it accepts
+   * a pointer. This is required because each slice of a data cube is a separate read,
+   * so we want to keep track of where the last frame ended. The pointer is returned
+   * and passed back in for repeated calls.
+   *
+   * No write takes place here!
+   *
+   */
+  long Interface::read_frame(Camera::frame_type_t frame_type, char* &ptr_in) {
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
     int retval;
     int bufready;
     char check[5], header[5];
-    char *ptr_image;
     int bytesread, totalbytesread, toread;
     uint64_t bufaddr;
     unsigned int block, bufblocks=0;
@@ -2523,38 +2576,23 @@ namespace Archon {
 
     this->camera_info.frame_type = frame_type;
 
-/***
-    // Check that image buffer is prepared  //TODO should I call prepare_image_buffer() here, automatically?
+    // Check that image buffer is prepared
     //
-    if ( (this->image_data == NULL)    ||
-         (this->image_data_bytes == 0) ) {
-      this->camera.log_error( function, "image buffer not ready" );
-//    return(ERROR);
-    }
-
-    if ( this->image_data_allocated != this->image_data_bytes ) {
-      message.str(""); message << "incorrect image buffer size: " 
-                               << this->image_data_allocated << " bytes allocated but " << this->image_data_bytes << " needed";
-      this->camera.log_error( function, message.str() );
-//    return(ERROR);
-    }
-***/
-
-    error = this->prepare_image_buffer();
-    if (error == ERROR) {
-      logwrite( function, "ERROR: unable to allocate an image buffer" );
+    if ( (this->image_data == NULL)        ||
+         (this->image_data_allocated == 0) ||
+         (this->image_data_allocated != this->image_data_bytes * this->camera_info.cubedepth) ) {
+      message.str(""); message << "image buffer not ready."
+                               << " image_data_allocated=" << this->image_data_allocated
+                               << " image_data_bytes=" << this->image_data_bytes
+                               << " cubedepth=" << this->camera_info.cubedepth;
+      this->camera.log_error(function, message.str());
       return(ERROR);
     }
 
-// TODO removed 2021-Jun-09
-// This shouldn't be needed since wait_for_readout() was called previously.
-//  // Get the current frame buffer status
-//  //
-//  error = this->get_frame_status();
-//
-//  if (error != NO_ERROR) {
-//    this->camera.log_error( function, "unable to get frame status");
-//    return(error);
+//  error = this->prepare_image_buffer();
+//  if (error == ERROR) {
+//    logwrite( function, "ERROR: unable to allocate an image buffer" );
+//    return(ERROR);
 //  }
 
     // Archon buffer number of the last frame read into memory
@@ -2619,7 +2657,6 @@ namespace Archon {
 
     // Read the data from the connected socket into memory, one block at a time
     //
-    ptr_image = this->image_data;
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
@@ -2678,11 +2715,11 @@ namespace Archon {
       bytesread = 0;
       do {
         toread = BLOCK_LEN - bytesread;
-        if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+        if ( (retval=this->archon.Read(ptr_in, (size_t)toread)) > 0 ) {
           bytesread += retval;         // this will get zeroed after each block
           totalbytesread += retval;    // this won't (used only for info purposes)
           std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-          ptr_image += retval;         // advance pointer
+          ptr_in += retval;            // advance pointer
         }
       } while (bytesread < BLOCK_LEN);
 
@@ -2770,7 +2807,10 @@ namespace Archon {
 
         // Write each amplifier as a separate extension
         //
-        if ( this->camera.cubeamps() ) {
+        if ( this->camera.mexamps() ) {
+#ifdef LOGLEVEL_DEBUG
+          logwrite( function, "[DEBUG] will write each amplifier as a separate extension" );
+#endif
           float *fext = NULL;
 
           for ( int ext=0; ext < (int)this->camera_info.amp_section.size(); ext++ ) {
@@ -2828,7 +2868,7 @@ namespace Archon {
 #endif
 
               error = this->fits_file.write_image(fext, this->camera_info); // write the image to disk
-              this->camera_info.extension++;                                // increment extension for cubes
+              this->camera_info.extension++;                                // increment extension for multi-extension files
               if ( fext != NULL ) { delete [] fext; fext=NULL; }            // dynamic object not automatic so must be destroyed
             }
             catch( std::out_of_range & ) {
@@ -2838,7 +2878,7 @@ namespace Archon {
               return( ERROR );
             }
           }
-        }  // end if this->camera.cubeamps()
+        }  // end if this->camera.mexamps()
 
         // Write all amplifiers to the same extension
         //
@@ -2865,6 +2905,9 @@ namespace Archon {
       // convert four 8-bit values into 16 bit values
       //
       case 16: {
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] datatype=" << this->camera_info.datatype; logwrite( function, message.str() );
+#endif
         if (this->camera_info.datatype == USHORT_IMG) {                   // raw
           cbuf16 = (uint16_t *)this->image_data;                          // cast to 16b unsigned int
 //        error = fits_file.write_image(cbuf16, this->fits_info);         // write the image to disk //TODO
@@ -2874,12 +2917,16 @@ namespace Archon {
         else
         if (this->camera_info.datatype == SHORT_IMG) {
           cbuf16s = (int16_t *)this->image_data;                          // cast to 16b signed int
+//        cbuf16s = (int16_t *)this->workbuf;
           int16_t *ibuf = NULL;
           ibuf = new int16_t[ this->camera_info.section_size ];
+logwrite(function, "11111111111111111111 START SUBTRACTION");
           for (long pix=0; pix < this->camera_info.section_size; pix++) {
             ibuf[pix] = cbuf16s[pix] - 32768;                             // subtract 2^15 from every pixel
           }
+logwrite(function, "22222222222222222222 END SUBTRACTION");
           error = this->fits_file.write_image(ibuf, this->camera_info);   // write the image to disk
+logwrite(function, "33333333333333333333 END WRITE");
           if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 16-bit image to disk" ); }
           if (ibuf != NULL) { delete [] ibuf; }
         }
@@ -2904,8 +2951,8 @@ namespace Archon {
     // Things to do after successful write
     //
     if ( error == NO_ERROR ) {
-      if ( this->camera.datacube() ) {
-        this->camera_info.extension++;                                // increment extension for cubes
+      if ( this->camera.mex() ) {
+        this->camera_info.extension++;                                // increment extension for multi-extension files
         message.str(""); message << "DATACUBE:" << this->camera_info.extension << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
         this->camera.async.enqueue( message.str() );
         error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
@@ -3187,6 +3234,46 @@ namespace Archon {
   /**************** Archon::Interface::write_parameter ************************/
 
 
+  /***** Archon::Interface::get_parammap_value ********************************/
+  /**
+   * @brief      get the VALUE of a given parameter
+   * @param[in]  param_in   parameter name to read
+   * @param[out] value_out  reference to value out
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::get_parammap_value( std::string param_in, long& value_out ) {
+    std::string function = "Archon::Interface::get_parammap_value";
+    std::stringstream message;
+    std::string retstring;
+    long error = NO_ERROR;
+
+    if ( this->parammap.find( param_in ) == this->parammap.end() ) {
+      error = ERROR;
+      message.str(""); message << "parameter \"" <<  param_in << "\" not found in parammap";
+      this->camera.log_error( function, message.str() );
+    }
+    else {
+      try {
+        value_out = std::stol( this->parammap[param_in].value );
+      }
+      catch (std::invalid_argument &) {
+        message.str(""); message << "ERROR invalid argument converting value for " << param_in << " to long integer";
+        this->camera.log_error( function, message.str() );
+        return(ERROR);
+      }
+      catch (std::out_of_range &) {
+        message.str(""); message << "ERROR out of range converting value for " << param_in << " to long integer";
+        this->camera.log_error( function, message.str() );
+        return(ERROR);
+      }
+    }
+
+    return error;
+  }
+  /***** Archon::Interface::get_parammap_value ********************************/
+
+
   /**************** Archon::Interface::get_configmap_value ********************/
   /**
    * @fn     get_configmap_value
@@ -3267,6 +3354,7 @@ namespace Archon {
     long error = NO_ERROR;
     std::string nseqstr;
     int nseq;
+    char *ptr_image;
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
@@ -3275,14 +3363,14 @@ namespace Archon {
       return ERROR;
     }
 
-    // When switching from cubeamps=true to cubeamps=false,
+    // When switching from mexamps=true to mexamps=false,
     // simply reset the mode to the current mode in order to
     // reset the image size. 
     //
     // This will need to be revisited once ROI is implemented. // TODO
     //
-    if ( !this->camera.cubeamps() && ( this->lastcubeamps != this->camera.cubeamps() ) ) {
-      message.str(""); message << "detected change in cubeamps -- resetting camera mode to " << mode;
+    if ( !this->camera.mexamps() && ( this->lastmexamps != this->camera.mexamps() ) ) {
+      message.str(""); message << "detected change in mexamps -- resetting camera mode to " << mode;
       logwrite( function, message.str() );
       this->set_camera_mode( mode );
     }
@@ -3356,7 +3444,7 @@ namespace Archon {
     }
 
     // Always initialize the extension number because someone could
-    // set datacube true and then send "expose" without a number.
+    // set mex true and then send "expose" without a number.
     //
     this->camera_info.extension = 0;
 
@@ -3396,31 +3484,33 @@ namespace Archon {
 
     logwrite(function, "exposure started");
 
+    error = this->alloc_workbuf();
+
     this->camera_info.systemkeys.keydb = this->systemkeys.keydb;    // copy the systemkeys database object into camera_info
 
     if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF and userkeys database into camera_info
 
-    // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
+    // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension format
     // one extension for the image and a separate extension for raw data.
     //
     if ( (mode != "RAW") && (this->modemap[mode].rawenable) ) {
-      if ( !this->camera.datacube() ) {                                   // if datacube not already set then it must be overridden here
-        this->camera.async.enqueue( "NOTICE:override datacube true" );  // let everyone know
-        logwrite( function, "NOTICE:override datacube true" );
-        this->camera.datacube(true);
+      if ( !this->camera.mex() ) {                                  // if mex not already set then it must be overridden here
+        this->camera.async.enqueue( "NOTICE:override mex true" );   // let everyone know
+        logwrite( function, "NOTICE:override mex true" );
+        this->camera.mex(true);
       }
       this->camera_info.extension = 0;
     }
 
-    // Save the datacube state in camera_info so that the FITS writer can know about it
+    // Save the mex state in camera_info so that the FITS writer can know about it
     //
-    this->camera_info.iscube = this->camera.datacube();
+    this->camera_info.ismex = this->camera.mex();
 
-    // Open the FITS file now for cubes
+    // Open the FITS file now for multi-extensions
     //
-    if ( this->camera.datacube() && !this->camera.cubeamps() ) {
+    if ( this->camera.mex() && !this->camera.mexamps() ) {
 #ifdef LOGLEVEL_DEBUG
-      logwrite( function, "[DEBUG] opening fits file for multi-exposure sequence data cube" );
+      logwrite( function, "[DEBUG] opening fits file for multi-exposure sequence using multi-extensions" );
 #endif
       error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
       if ( error != NO_ERROR ) {
@@ -3477,13 +3567,13 @@ namespace Archon {
           continue;
         }
 
-        // Open a new FITS file for each frame when not using datacubes
+        // Open a new FITS file for each frame when not using multi-extensions (mex)
         //
 #ifdef LOGLEVEL_DEBUG
-        message.str(""); message << "[DEBUG] datacube=" << this->camera.datacube() << " cubeamps=" << this->camera.cubeamps();
+        message.str(""); message << "[DEBUG] mex=" << this->camera.mex() << " mexamps=" << this->camera.mexamps();
         logwrite( function, message.str() );
 #endif
-        if ( !this->camera.datacube() || this->camera.cubeamps() ) {
+        if ( !this->camera.mex() || this->camera.mexamps() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
           if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
             logwrite( function, "ERROR: could not get start time" );
@@ -3520,28 +3610,74 @@ namespace Archon {
 
         if (this->camera.writekeys_when=="after") this->copy_keydb();   // copy the ACF and userkeys database into camera_info
 
-        error = this->wait_for_readout();                               // Wait for the readout into frame buffer,
-
-        if ( error != NO_ERROR ) {
-          logwrite( function, "ERROR: waiting for readout" );
-          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
-          return error;
-        }
-
-        error = read_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
-        if ( error != NO_ERROR ) {
-          logwrite( function, "ERROR: reading frame buffer" );
-          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
-          return error;
-        }
-
-        // For non-sequence multiple exposures, including cubeamps, close the fits file here
+        // prepare image_data buffer, allocating memory as needed
         //
-        if ( !this->camera.datacube() || this->camera.cubeamps() ) {    // Error or not, close the file.
+        error = this->prepare_image_buffer();
+        if (error == ERROR) {
+          logwrite( function, "ERROR: unable to allocate an image buffer" );
+          return(ERROR);
+        }
+
+        ptr_image = this->image_data;
+
+        // Read each frame into the image buffer pointed to by ptr_image.
+        // For data cubes this will loop over cubedepth and all frames go into the same buffer.
+        // For single-frame reads, cubedepth=1 so this happens only once.
+        //
+        for ( int slice=0; slice < this->camera_info.cubedepth; slice++ ) {
+          message.str(""); message << "waiting for slice " << slice; logwrite( function, message.str() );
+
+          error = this->wait_for_readout();                             // Wait for the readout into Archon frame buffer,
+
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: waiting for readout" );
+            this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+            return error;
+          }
+
+          error = this->read_frame( Camera::FRAME_IMAGE, ptr_image );   // read image frame buffer to host, no write
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: reading frame buffer" );
+            this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+            return error;
+          }
+        }
+
+        // After reading the Archon frame buffers, or
+        // after reading all of the multiple frame buffers for a data cube,
+        // deinterlace and then write the frame to FITS file.
+        //
+        void* buf = ptr_image;
+logwrite( function, "[TEST] calling deinterlace" );
+        switch ( this->camera_info.datatype ) {
+          case USHORT_IMG: {
+            this->deinterlace( (uint16_t *)buf );
+            break;
+          }
+          case SHORT_IMG: {
+            this->deinterlace( (int16_t *)buf );
+            break;
+          }
+          case FLOAT_IMG: {
+            this->deinterlace( (uint32_t *)buf );
+            break;
+          }
+          default:
+            message.str(""); message << "unknown datatype " << this->camera_info.datatype;
+            this->camera.log_error( function, message.str() );
+            return ERROR;
+            break;
+        }
+logwrite( function, "[TEST] calling write_frame" );
+        error = this->write_frame();                                    // write image frame
+
+        // For non-sequence multiple exposures, including mexamps, close the fits file here
+        //
+        if ( !this->camera.mex() || this->camera.mexamps() ) {          // Error or not, close the file.
 #ifdef LOGLEVEL_DEBUG
           logwrite( function, "[DEBUG] closing fits file (1)" );
 #endif
-          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using multi-extensions
           this->camera.increment_imnum();                           // increment image_num when fitsnaming == "number"
 
           // ASYNC status message on completion of each file
@@ -3551,6 +3687,10 @@ namespace Archon {
           logwrite( function, message.str() );
         }
 
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] exposures remaining in sequence: " << nseq;
+        logwrite( function, message.str() );
+#endif
         if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
 
       }  // end of sequence loop, while (nseq-- > 0)
@@ -3583,9 +3723,9 @@ namespace Archon {
       this->camera.increment_imnum();          // increment image_num when fitsnaming == "number"
     }
 
-    // for multi-exposure (non-cubeamp) cubes, close the FITS file now that they've all been written
+    // for multi-exposure (non-mexamps) multi-extension files, close the FITS file now that they've all been written
     //
-    if ( this->camera.datacube() && !this->camera.cubeamps() ) {
+    if ( this->camera.mex() && !this->camera.mexamps() ) {
 #ifdef LOGLEVEL_DEBUG
       logwrite( function, "[DEBUG] closing fits file (2)" );
 #endif
@@ -3599,10 +3739,10 @@ namespace Archon {
       error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
     }
 
-    // remember the cubeamps setting used for the last completed exposure
+    // remember the mexamps setting used for the last completed exposure
     // TODO revisit once region-of-interest is implemented
     //
-    this->lastcubeamps = this->camera.cubeamps();
+    this->lastmexamps = this->camera.mexamps();
 
     return (error);
   }
@@ -3797,14 +3937,14 @@ namespace Archon {
     //
     while (done == false && this->abort == false) {
 
-      usleep( 10000 );  // reduces polling frequency
+      usleep( 100 );    // reduces polling frequency
       error = this->get_frame_status();
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
-      // (300 attempts, ~10000us between attempts)
+      // (30000 attempts, ~100us between attempts)
       //
       if (error == BUSY) {
-        if ( ++busycount > 300 ) {
+        if ( ++busycount > 30000 ) {
 	  done = true;
 	  this->camera.log_error( function, "received BUSY from Archon too many times trying to get frame status" );
 	  break;
@@ -3941,15 +4081,31 @@ namespace Archon {
 
     Tokenize(parameter, tokens, " ");
 
+    // Check that the input string contains two tokens, "paramname value"
+    //
     if (tokens.size() != 2) {
       message.str(""); message << "param expected 2 arguments (paramname and value) but got " << tokens.size();
       this->camera.log_error( function, message.str() );
       ret=ERROR;
     }
     else {
+      // Correct number of tokens so send PREPPARAM, LOADPARAM here
+      //
       ret = this->prep_parameter(tokens[0], tokens[1]);
       if (ret == NO_ERROR) ret = this->load_parameter(tokens[0], tokens[1]);
+
+      // Change the value in the parammap
+      //
+      if ( this->parammap.find(tokens[0]) == this->parammap.end() ) {
+        ret = ERROR;
+        message.str(""); message << "parameter \"" << tokens[0] << "\" not found in parammap";
+        this->camera.log_error( function, message.str() );
+      }
+      else {
+        this->parammap[tokens[0]].value = tokens[1];
+      }
     }
+
     return(ret);
   }
   /**************** Archon::Interface::set_parameter **************************/
@@ -4478,7 +4634,7 @@ namespace Archon {
     // ------------------------------------------------------------------------
 
     // Always initialize the extension number because someone could
-    // set datacube true and then send "expose" without a number.
+    // set mex true and then send "expose" without a number.
     //
     this->camera_info.extension = 0;
 
@@ -4492,9 +4648,9 @@ namespace Archon {
     //
     if ( this->trigin_state == "readout" ) {
 
-      // Save the datacube state in camera_info so that the FITS writer can know about it
+      // Save the mex state in camera_info so that the FITS writer can know about it
       //
-      this->camera_info.iscube = this->camera.datacube();
+      this->camera_info.ismex = this->camera.mex();
 
       this->camera_info.systemkeys.keydb = this->systemkeys.keydb;   // copy systemkeys database object into camera_info
 
@@ -4503,7 +4659,7 @@ namespace Archon {
       if (error==NO_ERROR) error = this->wait_for_readout();         // Wait for the readout into frame buffer,
       if (error==NO_ERROR) error = read_frame();                     // then read the frame buffer to host (and write file) when frame ready.
 
-      this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+      this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using multi-extensions
       this->camera.increment_imnum();                                // increment image_num when fitsnaming == "number"
 
       // ASYNC status message on completion of each file
@@ -4539,25 +4695,25 @@ namespace Archon {
       this->camera_info.systemkeys.keydb = this->systemkeys.keydb;  // copy the systemkeys database into camera_info
       if (this->camera.writekeys_when=="before") this->copy_keydb();// copy the ACF and userkeys database into camera_info
 
-      // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data cube,
+      // If mode is not "RAW" but RAWENABLE is set then we're going to require a multi-extension data file,
       // one extension for the image and a separate extension for raw data.
       //
       if ( (error == NO_ERROR) && (mode != "RAW") && (this->modemap[mode].rawenable) ) {
-        if ( !this->camera.datacube() ) {                                   // if datacube not already set then it must be overridden here
-          this->camera.async.enqueue( "NOTICE:override datacube true" );    // let everyone know
-          logwrite( function, "NOTICE:override datacube true" );
-          this->camera.datacube(true);
+        if ( !this->camera.mex() ) {                                // if mex not already set then it must be overridden here
+          this->camera.async.enqueue( "NOTICE:override mex true" ); // let everyone know
+          logwrite( function, "NOTICE:override mex true" );
+          this->camera.mex(true);
         }
         this->camera_info.extension = 0;
       }
 
-      // Save the datacube state in camera_info so that the FITS writer can know about it
+      // Save the mex state in camera_info so that the FITS writer can know about it
       //
-      this->camera_info.iscube = this->camera.datacube();
+      this->camera_info.ismex = this->camera.mex();
 
-      // Open the FITS file now for cubes
+      // Open the FITS file now for multi-extensions
       //
-      if ( this->camera.datacube() ) {
+      if ( this->camera.mex() ) {
         error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
         if ( error != NO_ERROR ) {
           this->camera.log_error( function, "couldn't open fits file" );
@@ -4577,9 +4733,9 @@ namespace Archon {
       if ( (error == NO_ERROR) && (mode != "RAW") ) {                 // If not raw mode then
         while ( this->trigin_expose-- > 0 ) {
 
-          // Open a new FITS file for each frame when not using datacubes
+          // Open a new FITS file for each frame when not using multi-extensions
           //
-          if ( !this->camera.datacube() ) {
+          if ( !this->camera.mex() ) {
             this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
             this->get_timer(&this->start_timer);                          // Archon internal timer (one tick=10 nsec)
             this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
@@ -4603,8 +4759,8 @@ namespace Archon {
           if (error==NO_ERROR) error = this->wait_for_readout();      // Wait for the readout into frame buffer,
           if (error==NO_ERROR) error = read_frame();                  // then read the frame buffer to host (and write file) when frame ready.
 
-          if ( !this->camera.datacube() ) {                           // Error or not, close the file.
-            this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using datacubes
+          if ( !this->camera.mex() ) {                                // Error or not, close the file.
+            this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using multi-extensions
             this->camera.increment_imnum();                           // increment image_num when fitsnaming == "number"
 
             // ASYNC status message on completion of each file
@@ -4626,9 +4782,9 @@ namespace Archon {
         this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
         this->camera.increment_imnum();                               // increment image_num when fitsnaming == "number"
       }
-      // for cubes, close the FITS file now that they've all been written
+      // for multi-extensions, close the FITS file now that they've all been written
       //
-      if ( this->camera.datacube() ) {
+      if ( this->camera.mex() ) {
         this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
         this->camera.increment_imnum();                               // increment image_num when fitsnaming == "number"
 
@@ -6026,6 +6182,66 @@ namespace Archon {
   /**************** Archon::Interface::inreg **********************************/
 
 
+  /**************** Archon::Interface::coadd **********************************/
+  /**
+   * @brief      set/get the number of coadds
+   * @param[in]  coadds_in
+   * @param[out] retstring
+   * @return     ERROR or NO_ERROR
+   *
+   * Coadds are always placed into their own FITS extension.
+   *
+   */
+  long Interface::coadd( std::string coadds_in, std::string &retstring ) {
+    std::string function = "Archon::Interface::coadd";
+    std::stringstream message;
+    int32_t coadds = -1;
+
+    if ( !coadds_in.empty() ) {
+      // Convert to integer to check the value
+      //
+      try {
+        coadds = std::stoi( coadds_in );
+      }
+      catch (std::invalid_argument &) {
+        message.str(""); message << "converting coadds: " << coadds_in << " to integer";
+        this->camera.log_error( function, message.str() );
+        return(ERROR);
+      }
+      catch (std::out_of_range &) {
+        message.str(""); message << "requested coadds: " << coadds_in << " outside integer range";
+        this->camera.log_error( function, message.str() );
+        return(ERROR);
+      }
+
+      if ( coadds < 1 ) {
+        message.str(""); message << "requested coadds " << coadds << " must be > 0";
+        this->camera.log_error( function, message.str() );
+        return( ERROR );
+      }
+      else {
+        this->camera_info.num_coadds = coadds;
+      }
+    }
+
+    // add coadds to system keys db
+    //
+    message.str(""); message << "COADDS=" << this->camera_info.num_coadds << " // number of coadds";
+    this->systemkeys.addkey( message.str() );
+
+    // prepare the return value
+    //
+    message.str(""); message << this->camera_info.num_coadds;
+    retstring = message.str();
+
+    message.str(""); message << "coadds = " << retstring;
+    logwrite( function, message.str() );
+
+    return( NO_ERROR );
+  }
+  /**************** Archon::Interface::coadd **********************************/
+
+
   /**************** Archon::Interface::test ***********************************/
   /**
    * @fn     test
@@ -6423,11 +6639,11 @@ namespace Archon {
             this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
           }
 
-          this->camera_info.iscube = this->camera.datacube();
+          this->camera_info.ismex = this->camera.mex();
 
-          // open the file now for datacubes
+          // open the file now for multi-extensions
           //
-          if ( this->camera.datacube() ) {
+          if ( this->camera.mex() ) {
             error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
             if ( error != NO_ERROR ) {
               this->camera.log_error( function, "couldn't open fits file" );
@@ -6447,9 +6663,9 @@ namespace Archon {
       while (nseq-- > 0) {
 
         // If read-write selected,
-        // Open a new FITS file for each frame when not using datacubes
+        // Open a new FITS file for each frame when not using multi-extensions
         //
-        if ( rw && !this->camera.datacube() ) {
+        if ( rw && !this->camera.mex() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
           if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
             logwrite( function, "ERROR: couldn't get start time" );
@@ -6484,7 +6700,7 @@ namespace Archon {
         if (error==NO_ERROR) error = this->wait_for_readout();                     // wait for the readout into frame buffer,
         if (error==NO_ERROR && ro) error = this->read_frame(Camera::FRAME_IMAGE);  // read image frame directly with no write
         if (error==NO_ERROR && rw) error = this->read_frame();                     // read image frame directly with no write
-        if (error==NO_ERROR && rw && !this->camera.datacube()) {
+        if (error==NO_ERROR && rw && !this->camera.mex()) {
           this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
           this->camera.increment_imnum();                                          // increment image_num when fitsnaming == "number"
         }
@@ -6492,10 +6708,10 @@ namespace Archon {
       }
       retstring = std::to_string( frames_read );
 
-      // for cubes, close the FITS file now that they've all been written
+      // for multi-extensions, close the FITS file now that they've all been written
       // (or any time there is an error)
       //
-      if ( rw && ( this->camera.datacube() || (error==ERROR) ) ) {
+      if ( rw && ( this->camera.mex() || (error==ERROR) ) ) {
         this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
         this->camera.increment_imnum();                                            // increment image_num when fitsnaming == "number"
       }
@@ -6613,5 +6829,188 @@ namespace Archon {
     return error;
   }
   /**************** Archon::Interface::test ***********************************/
+
+
+  /***** Archon::Interface::alloc_workbuf *************************************/
+  /**
+   * @brief      allocate workspace memory for deinterlacing
+   * @return     ERROR or NO_ERROR
+   *
+   * This function calls an overloaded template class version with 
+   * a generic pointer cast to the correct type.
+   *
+   */
+  long Interface::alloc_workbuf() {
+    std::string function = "Archon::Interface::alloc_workbuf";
+    std::stringstream message;
+    long retval = NO_ERROR;
+    void* ptr=NULL;
+
+    switch ( this->camera_info.datatype ) {
+      case USHORT_IMG: {
+        this->alloc_workbuf( (uint16_t *)ptr );
+        break;
+      }
+      case SHORT_IMG: {
+        this->alloc_workbuf( (int16_t *)ptr );
+        break;
+      }
+      case FLOAT_IMG: {
+        this->alloc_workbuf( (uint32_t *)ptr );
+        break;
+      }
+      default:
+        message.str(""); message << "unknown datatype: " << this->camera_info.datatype;
+        this->camera.log_error(function, message.str());
+        retval = ERROR;
+        break;
+    }
+
+message << "[TEST] allocated workbuf=" << std::hex << (void*)this->workbuf;
+logwrite(function, message.str());
+
+    return( retval );
+  }
+  /***** Archon::Interface::alloc_workbuf *************************************/
+
+
+  /***** Archon::Interface::alloc_workbuf *************************************/
+  /**
+   * @brief      allocate workspace memory for deinterlacing
+   * @param[in]  buf, pointer to template type T
+   * @return     pointer to the allocated space
+   *
+   * The actual allocation occurs in here, based on the template class pointer type.
+   *
+   */
+  template <class T>
+  void* Interface::alloc_workbuf(T* buf) {
+    std::string function = "Archon::Interface::alloc_workbuf";
+    std::stringstream message;
+
+    // Maybe the size of the existing buffer is already just right
+    //
+    if ( this->camera_info.section_size == this->workbuf_size ) return( (void*)this->workbuf );
+
+    // But if it's not, then free whatever space is allocated, ...
+    //
+    if ( this->workbuf != NULL ) this->free_workbuf(buf);
+
+    // ...and then allocate new space.
+    //
+    this->workbuf = (T*) new T [ this->camera_info.section_size ];
+    this->workbuf_size = this->camera_info.section_size;
+
+    message << "allocated " << this->workbuf_size << " pixels for deinterlacing buffer " << std::hex << (void*)this->workbuf;
+    logwrite(function, message.str());
+    return( (void*)this->workbuf );
+  }
+  /***** Archon::Interface::alloc_workbuf *************************************/
+
+
+  /***** Archon::Interface::free_workbuf **************************************/
+  /**
+   * @brief      free (delete) memory allocated by alloc_workbuf
+   * @param[in]  buf, pointer to template type T
+   *
+   * Must pass a pointer of the correct type because delete doesn't work on void.
+   *
+   */
+  template <class T>
+  void Interface::free_workbuf(T* buf) {
+    std::string function = "Archon::Interface::free_workbuf";
+    std::stringstream message;
+    if (this->workbuf != NULL) {
+      delete [] (T*)this->workbuf;
+      this->workbuf = NULL;
+      this->workbuf_size = 0;
+      message << "deleted old deinterlacing buffer " << std::hex << (void*)this->workbuf;
+      logwrite(function, message.str());
+    }
+  }
+  /***** Archon::Interface::free_workbuf **************************************/
+
+
+  /***** Archon::Interface::deinterlace ***************************************/
+  /**
+   * @brief      deinterlace
+   * @param[in]  imbuf  pointer to buffer which contains the original image
+   * @return     
+   *
+   */
+  template <class T>
+  T* Interface::deinterlace(T* imbuf) {
+    std::string function = "Archon::Instrument::deinterlace";
+    std::stringstream message;
+
+message << "[TEST] imbuf=" << std::hex << imbuf << " workbuf=" << std::hex << (void*)this->workbuf;
+logwrite(function, message.str());
+
+    DeInterlace<T> deinterlace( imbuf, (T*)this->workbuf, 1, 2, 3, this->camera_info.datatype );
+
+    logwrite( function, "[TEST] spawning dothread_deinterlace thread" );
+
+    {
+    std::vector<std::thread> threads;
+    std::thread thr( std::ref( Archon::Interface::dothread_deinterlace<T> ),
+                     std::ref( deinterlace ),
+                     2048,
+                     512,
+                     1,
+                     1 );
+    threads.push_back( std::move(thr) );
+
+    try {
+      for (std::thread & thr : threads) {   // loop through the vector of threads
+        if ( thr.joinable() ) thr.join();   // if thread object is joinable then join to this function. (not to each other)
+      }
+    }
+    catch(const std::exception &e) {
+      message.str(""); message << "ERROR joining threads: " << e.what();
+      logwrite(function, message.str());
+    }
+    catch(...) { logwrite(function, "unknown error joining threads"); }
+
+    threads.clear();                        // deconstruct the threads vector
+    }
+
+    return( (T*)this->workbuf );
+  }
+  /***** Archon::Interface::deinterlace ***************************************/
+
+
+  /***** Archon::Interface::dothread_deinterlace ******************************/
+  /**
+   * @brief      
+   * @param[in]  
+   * @param[out] 
+   *
+   */
+  template <class T> void Interface::dothread_deinterlace( DeInterlace<T> &deinterlace, int cols, int rows, int section, int nthreads ) {
+    std::string function = "Archon::Interface::dothread_deinterlace";
+    std::stringstream message;
+    message << "[TEST] rows=" << rows << " cols=" << cols << " section=" << section << " nthreads=" << nthreads;
+    logwrite( function, message.str() );
+
+    int rows_per_section = (int)( rows / nthreads );                         // whole number of rows per thread
+    int index            = rows_per_section * cols * ( section - 1);         // index from start of buffer, forward
+    int index_flip       = rows_per_section * cols * ( nthreads - section + 1);         // index from start of buffer, forward
+    int row_start        = rows_per_section * (section-1);                   // first row this thread will deinterlace
+    int row_stop         = rows_per_section * section;                       // last row this thread will deinterlace
+    int modrows          = rows % nthreads;                                  // are the rows evenly divisible by the number of threads?
+    if ( ( modrows != 0 ) && ( section == nthreads ) ) row_stop += modrows;  // add any leftover rows to the last thread if not evenly divisible
+
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] section=" << section << " " << deinterlace.info()
+                             << " row_start=" << row_start << " row_stop=" << row_stop
+                             << " modrows=" << modrows << " index=" << index;
+    logwrite(function, message.str());
+#endif
+
+    deinterlace.do_deinterlace( row_start, row_stop, index, index_flip );
+
+    return;
+  }
+  /***** Archon::Interface::dothread_deinterlace ******************************/
 
 }

@@ -36,9 +36,9 @@ namespace Camera {
       std::string fitstime;                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
       mode_t dirmode;                        //!< user specified mode to OR with 0700 for imdir creation
       int image_num;
-      bool is_datacube;
+      bool is_mex;
       bool is_longerror;                     //!< set to return error message on command port
-      bool is_cubeamps;                      //!< should amplifiers be written as multi-extension data cubes?
+      bool is_mexamps;                       //!< should amplifiers be written as multi-extension?
       std::atomic<bool> _abortstate;;
       std::mutex abort_mutex;
       std::stringstream lasterrorstring;     //!< a place to preserve an error message
@@ -77,15 +77,15 @@ namespace Camera {
       long get_fitsname(std::string &name_out);
       long get_fitsname(std::string controllerid, std::string &name_out);
       void abort();
-      void datacube(bool state_in);
-      bool datacube();
-      long datacube(std::string state_in, std::string &state_out);
+      void mex(bool state_in);
+      bool mex();
+      long mex(std::string state_in, std::string &state_out);
       void longerror(bool state_in);
       bool longerror();
       long longerror(std::string state_in, std::string &state_out);
-      void cubeamps(bool state_in);
-      bool cubeamps();
-      long cubeamps(std::string state_in, std::string &state_out);
+      void mexamps(bool state_in);
+      bool mexamps();
+      long mexamps(std::string state_in, std::string &state_out);
   };
   /**************** Camera::Camera ********************************************/
 
@@ -113,20 +113,20 @@ namespace Camera {
       bool          type_set;                //!< set when FITS data type has been defined
       frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
       long          detector_pixels[2];      //!< element 0=cols (pixels), 1=rows (lines)
-      long          section_size;            //!< pixels to write for this section (could be less than full sensor size)
+      long          section_size;            //!< pixels to write for this section (could be less than full sensor size but accounts for cubedepth)
       long          image_memory;            //!< bytes per image sensor
       std::string   current_observing_mode;  //!< the current mode
       std::string   readout_name;            //!< name of the readout source
       int           readout_type;            //!< type of the readout source is an enum
-      long          naxis;
-      long          axes[2];
+      long          axes[3];
+      long          cubedepth;               //!< depth, or number of slices for 3D data cubes
       int           binning[2];
       long          axis_pixels[2];
       long          region_of_interest[4];
       long          image_center[2];
       bool          abortexposure;
-      bool          iscube;                  //!< the info object given to the FITS writer will need to know cube status
-      int           extension;               //!< extension number for data cubes
+      bool          ismex;                   //!< the info object given to the FITS writer will need to know multi-extension status
+      int           extension;               //!< extension number for multi-extension files
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
       std::string   shutteractivate;         //!< shutter activation state
       int32_t       exposure_time;           //!< exposure time in exposure_unit
@@ -134,6 +134,8 @@ namespace Camera {
       int           exposure_factor;         //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
       double        exposure_progress;       //!< exposure progress (fraction)
       int           num_pre_exposures;       //!< pre-exposures are exposures taken but not saved
+      int           num_coadds;              //!< number of coadds
+      int           mcds_pairs;              //!< number of MCDS read-pairs
       std::string   fits_name;               //!< contatenation of Camera's image_dir + image_name + image_num
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
 
@@ -146,6 +148,8 @@ namespace Camera {
   Information() {
         this->axes[0] = 1;
         this->axes[1] = 1;
+        this->axes[2] = 1;
+        this->cubedepth = 1;
         this->binning[0] = 1;
         this->binning[1] = 1;
         this->region_of_interest[0] = 1;
@@ -154,7 +158,7 @@ namespace Camera {
         this->region_of_interest[3] = 1;
         this->image_center[0] = 1;
         this->image_center[1] = 1;
-        this->iscube = false;
+        this->ismex = false;
         this->datatype = -1;
         this->type_set = false;              //!< set true when datatype has been defined
         this->exposure_time = -1;            //!< default exposure time is undefined
@@ -162,6 +166,8 @@ namespace Camera {
         this->exposure_factor = -1;          //!< default factor is undefined
         this->shutteractivate = "";
         this->num_pre_exposures = 0;         //!< default is no pre-exposures
+        this->num_coadds = 1;                //!< default num of coadds
+        this->mcds_pairs = 0 ;               //!< default num of mcds read-pairs
       }
 
       long pre_exposures( std::string num_in, std::string &num_out );
@@ -193,19 +199,26 @@ namespace Camera {
         }
         this->type_set = true;         // datatype has been set
 
-        this->naxis = 2;
-
         this->axis_pixels[0] = this->region_of_interest[1] -
                                this->region_of_interest[0] + 1;
         this->axis_pixels[1] = this->region_of_interest[3] -
                                this->region_of_interest[2] + 1;
 
-        this->axes[0] = this->axis_pixels[0] / this->binning[0];
-        this->axes[1] = this->axis_pixels[1] / this->binning[1];
+        if ( this->cubedepth > 1 ) {
+          this->axes[0] = this->axis_pixels[0] / this->binning[0];
+          this->axes[1] = this->axis_pixels[1] / this->binning[1];
+          this->axes[2] = this->cubedepth;
+        }
+        else {
+          this->axes[0] = this->axis_pixels[0] / this->binning[0];
+          this->axes[1] = this->axis_pixels[1] / this->binning[1];
+          this->axes[2] = 1;
+        }
 
-        this->section_size = this->axes[0] * this->axes[1];                    // Pixels to write for this image section
+        this->section_size = this->axes[0] * this->axes[1] * this->axes[2];    // Pixels to write for this image section, includes depth for 3D data cubes
+
         this->image_memory = this->detector_pixels[0] 
-                           * this->detector_pixels[1] * bytes_per_pixel;       // Bytes per detector
+                           * this->detector_pixels[1] * bytes_per_pixel;       // Bytes per detector, single frame read
 
 #ifdef LOGLEVEL_DEBUG
         message << "[DEBUG] region_of_interest[1]=" << this->region_of_interest[1]
@@ -213,7 +226,8 @@ namespace Camera {
                 << " region_of_interest[3]=" << this->region_of_interest[3]
                 << " region_of_interest[2]=" << this->region_of_interest[2]
                 << " axes[0]=" << this->axes[0]
-                << " axes[1]=" << this->axes[1];
+                << " axes[1]=" << this->axes[1]
+                << " axes[2]=" << this->axes[2];
         logwrite( function, message.str() );
 #endif
 

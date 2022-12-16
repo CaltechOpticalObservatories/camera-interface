@@ -487,8 +487,8 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("datacube")==0) {
-                    ret = server.camera.datacube(args, retstring);
+    if (cmd.compare("mex")==0) {
+                    ret = server.camera.mex(args, retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
                     }
@@ -505,8 +505,8 @@ void doit(Network::TcpSocket sock) {
                     sock.Write( " " );
                     }
     else
-    if (cmd.compare("cubeamps")==0) {
-                    ret = server.camera.cubeamps(args, retstring);
+    if ( (cmd.compare("mexamps")==0) || (cmd.compare("cubeamps")==0) ) {
+                    ret = server.camera.mexamps(args, retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
                     }
@@ -573,6 +573,16 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("roi")==0) {
                     ret = server.region_of_interest( args, retstring );
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("coadd")==0) {
+                    ret = server.coadd( args, retstring );
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("mcds")==0) {
+                    ret = server.multi_cds( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
@@ -696,21 +706,25 @@ void doit(Network::TcpSocket sock) {
                     ret = server.test(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
-    else {  // if no matching command found then assume it's a native command and send it straight to the controller
+    else
+    if (cmd.compare("native")==0) {
       try {
-        std::transform( sbuf.begin(), sbuf.end(), sbuf.begin(), ::toupper );    // make uppercase
+        std::transform( args.begin(), args.end(), args.begin(), ::toupper );    // make uppercase
       }
       catch (...) {
         logwrite(function, "error converting command to uppercase");
         ret=ERROR;
       }
 #ifdef ASTROCAM
-      ret = server.native(sbuf, retstring);
+      ret = server.native(args, retstring);
       if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
 #endif
 #ifdef STA_ARCHON
-      ret = server.native(sbuf);
+      ret = server.native(args);
 #endif
+    }
+    else {  // if no matching command found
+      ret=ERROR;
     }
 
     if (ret != NOTHING) {
