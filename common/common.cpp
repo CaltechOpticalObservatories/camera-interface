@@ -213,4 +213,38 @@ namespace Common {
   }
   /** Common::FitsKeys::addkey ************************************************/
 
+
+  /***** Common::FitsKeys::delkey *********************************************/
+  /**
+   * @brief      delete FITS keyword from internal database
+   * @param[in]  keyword
+   * @return     ERROR for improper input arg, otherwise NO_ERROR
+   *
+   */
+  long FitsKeys::delkey( std::string keyword ) {
+    std::string function = "Common::FitsKeys::delkey";
+    std::stringstream message;
+
+    try {
+      std::transform( keyword.begin(), keyword.end(), keyword.begin(), ::toupper );    // make uppercase
+    }
+    catch (...) {
+      message.str(""); message << "converting keyword " << keyword << " to uppercase";
+      logwrite( function, message.str() );
+      return(ERROR);
+    }
+
+    // Delete the keydb entry for associated keyword (if found).
+    // Don't report anything if keyword is not found.
+    //
+    fits_key_t::iterator keyit = this->keydb.find( keyword );
+    if ( keyit != this->keydb.end() ) {
+      this->keydb.erase( keyit );
+      message.str(""); message << "keyword " << keyword << " erased";
+      logwrite( function, message.str() );
+    }
+    return(NO_ERROR);
+  }
+  /***** Common::FitsKeys::delkey *********************************************/
+
 }

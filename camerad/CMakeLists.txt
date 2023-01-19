@@ -6,9 +6,12 @@ cmake_minimum_required( VERSION 3.12 )
 
 set( CAMERA_DIR ${PROJECT_BASE_DIR}/camerad )
 
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
 include_directories( ${PROJECT_BASE_DIR}/utils )
 include_directories( ${PROJECT_BASE_DIR}/common )
 link_directories( ${PROJECT_BASE_DIR}/lib )
+
 
 # ----------------------------------------------------------------------------
 # Setup for appropriate hardware interface...
@@ -65,7 +68,7 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 elseif(${INTERFACE_TYPE} STREQUAL "Archon")
         message(STATUS "compiling for STA Archon")
         set(INTERFACE_TARGET archon)
-        add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 -ggdb )
+        add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb )
         add_definitions(-DSTA_ARCHON)
         list(APPEND INTERFACE_SOURCE
                 "${CAMERA_DIR}/archon.cpp"
@@ -86,21 +89,20 @@ endif()
 
 if ( NOT DEFINED INSTR )
     set( INSTR "undefined" )
+endif()
+if ( ${INSTR} STREQUAL "nirc2" )
+    message( STATUS "building for nirc2 instrument" )
+    list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/nirc2.cpp" )
+elseif( ${INSTR} STREQUAL "generic" )
+    message( STATUS "building for generic instrument" )
+    list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
+elseif( ${INSTR} STREQUAL "undefined" )
+    message( STATUS "no INSTR defined. using generic but other options are:" )
+    message( STATUS "cmake -DINSTR={nirc2,generic} .." )
+    list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
 else()
-    if ( ${INSTR} STREQUAL "nirc2" )
-        message( STATUS "building for nirc2 instrument" )
-        list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/nirc2.cpp" )
-    elseif( ${INSTR} STREQUAL "generic" )
-        message( STATUS "building for generic instrument" )
-        list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
-    elseif( ${INSTR} STREQUAL "undefined" )
-        message( STATUS "no INSTR defined. using generic but other options are:" )
-        message( STATUS "cmake -DINSTR=nirc2,generic .." )
-        list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
-    else()
-        message( STATUS "unknown instrument " ${INSTR} ": using generic" )
-        list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
-    endif()
+    message( STATUS "unknown instrument " ${INSTR} ": using generic" )
+    list( APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp" )
 endif()
 
 # ----------------------------------------------------------------------------
@@ -145,6 +147,7 @@ target_link_libraries(camerad
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
         ${CFITS_LIB}
+        ${OpenCV_LIBS}
         )
 
 target_link_libraries(camerad ${CARC_BASE})

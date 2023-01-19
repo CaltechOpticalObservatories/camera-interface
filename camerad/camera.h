@@ -118,12 +118,14 @@ namespace Camera {
       std::string   current_observing_mode;  //!< the current mode
       std::string   readout_name;            //!< name of the readout source
       int           readout_type;            //!< type of the readout source is an enum
-      long          axes[3];
+      long          axes[3];                 //!< element 0=cols, 1=cols, 2=cubedepth
       long          cubedepth;               //!< depth, or number of slices for 3D data cubes
       int           binning[2];
       long          axis_pixels[2];
       long          region_of_interest[4];
       long          image_center[2];
+      long          imwidth;
+      long          imheight;
       bool          abortexposure;
       bool          ismex;                   //!< the info object given to the FITS writer will need to know multi-extension status
       int           extension;               //!< extension number for multi-extension files
@@ -134,10 +136,16 @@ namespace Camera {
       int           exposure_factor;         //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
       double        exposure_progress;       //!< exposure progress (fraction)
       int           num_pre_exposures;       //!< pre-exposures are exposures taken but not saved
+      bool          is_cds;                  //!< is this a CDS exposure? (subtraction will be done)
+      int           nseq;                    //!< number of exposure sequences
+      int           nexp;                    //!< the number to be passed to do_expose (not all instruments use this)
       int           num_coadds;              //!< number of coadds
-      int           mcds_pairs;              //!< number of MCDS read-pairs
+      int           sampmode;                //!< sample mode (NIRC2)
+      int           sampmode_ext;            //!< sample mode number of extensions (NIRC2)
+      int           sampmode_frames;         //!< sample mode number of frames (NIRC2)
       std::string   fits_name;               //!< contatenation of Camera's image_dir + image_name + image_num
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
+      std::string   stop_time;               //!< system time when the exposure stopped (YYYY-MM-DDTHH:MM:SS.sss)
 
       std::vector< std::vector<long> > amp_section;
 
@@ -166,8 +174,13 @@ namespace Camera {
         this->exposure_factor = -1;          //!< default factor is undefined
         this->shutteractivate = "";
         this->num_pre_exposures = 0;         //!< default is no pre-exposures
+        this->is_cds = false;
+        this->nseq = 1;
+        this->nexp = -1;
         this->num_coadds = 1;                //!< default num of coadds
-        this->mcds_pairs = 0 ;               //!< default num of mcds read-pairs
+        this->sampmode = -1;
+        this->sampmode_ext = -1;
+        this->sampmode_frames = -1;
       }
 
       long pre_exposures( std::string num_in, std::string &num_out );
@@ -185,7 +198,7 @@ namespace Camera {
           switch ( this->bitpix ) {
             case 16:
               bytes_per_pixel = 2;
-              this->datatype = SHORT_IMG;
+              this->datatype = USHORT_IMG;
               break;
             case 32:
               bytes_per_pixel = 4;
@@ -205,14 +218,14 @@ namespace Camera {
                                this->region_of_interest[2] + 1;
 
         if ( this->cubedepth > 1 ) {
-          this->axes[0] = this->axis_pixels[0] / this->binning[0];
-          this->axes[1] = this->axis_pixels[1] / this->binning[1];
-          this->axes[2] = this->cubedepth;
+          this->axes[0] = this->axis_pixels[0] / this->binning[0];  // cols
+          this->axes[1] = this->axis_pixels[1] / this->binning[1];  // rows
+          this->axes[2] = this->cubedepth;                          // cubedepth
         }
         else {
-          this->axes[0] = this->axis_pixels[0] / this->binning[0];
-          this->axes[1] = this->axis_pixels[1] / this->binning[1];
-          this->axes[2] = 1;
+          this->axes[0] = this->axis_pixels[0] / this->binning[0];  // cols
+          this->axes[1] = this->axis_pixels[1] / this->binning[1];  // rows
+          this->axes[2] = 1;                                        // (no cube)
         }
 
         this->section_size = this->axes[0] * this->axes[1] * this->axes[2];    // Pixels to write for this image section, includes depth for 3D data cubes

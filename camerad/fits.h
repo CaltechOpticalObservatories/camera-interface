@@ -117,7 +117,7 @@ class FITS_file {
         //
         this->pFits.reset( new CCfits::FITS(info.fits_name, info.datatype, num_axis, axes) );
         this->file_open = true;    // file is open now
-        this->make_camera_header(info);
+//      this->make_camera_header(info); /// TODO this call might be obsolete
 
         // Iterate through the system-defined FITS keyword databases and add them to the primary header.
         //
@@ -205,8 +205,10 @@ class FITS_file {
       }
 
       try {
-        // Add a header keyword for the time the file was written (right now!)
+        // Add a few final system keywords
         //
+        this->pFits->pHDU().addKey("EXPSTART", info.start_time, "exposure start time" );
+        this->pFits->pHDU().addKey("EXPSTOP", info.stop_time, "exposure stop time" );
         this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write time");
 
         // Write the checksum
@@ -247,7 +249,7 @@ class FITS_file {
      */
     template <class T>
     long write_image(T* data, Camera::Information& info) {
-      std::string function = "FITS::write_image";
+      std::string function = "FITS_file::write_image";
       std::stringstream message;
 
       // The file must have been opened first
@@ -275,10 +277,15 @@ class FITS_file {
       this->threadcount++;                                   // increment threadcount for each thread spawned
 
 #ifdef LOGLEVEL_DEBUG
+      long num_axis = ( info.cubedepth > 1 ? 3 : 2 );
+      long axes[num_axis];
+      for ( int i=0; i < num_axis; i++ ) axes[i] = info.axes[i];
       message.str("");
       message << "[DEBUG] threadcount=" << this->threadcount << " ismex=" << info.ismex << " section_size=" << info.section_size 
               << " cubedepth=" << info.cubedepth
-              << ". spawning image writing thread for frame " << this->framen << " of " << info.fits_name;
+              << " axes=";
+      for ( auto aa : axes ) message << aa << " ";
+      message << ". spawning image writing thread for frame " << this->framen << " of " << info.fits_name;
       logwrite(function, message.str());
 #endif
       std::thread([&]() {                                    // create the detached thread here
@@ -553,9 +560,6 @@ class FITS_file {
       std::string function = "FITS_file::make_camera_header";
       std::stringstream message;
       try {
-        // To put just the filename into the header (and not the path), find the last slash
-        // and substring from there to the end.
-        //
       }
       catch (CCfits::FitsError & err) {
         message.str(""); message << "error creating FITS header: " << err.message();
@@ -580,6 +584,11 @@ class FITS_file {
     void add_key(std::string keyword, std::string type, std::string value, std::string comment) {
       std::string function = "FITS_file::add_key";
       std::stringstream message;
+
+#ifdef LOGLEVEL_DEBUG
+      message << "[DEBUG] keyword=" << keyword << " type=" << type << " value=" << value << " comment=" << comment;
+      logwrite( function, message.str() );
+#endif
 
       // The file must have been opened first
       //

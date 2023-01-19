@@ -563,13 +563,13 @@ void doit(Network::TcpSocket sock) {
                     ret = server.buffer(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
+#endif
+#ifdef STA_ARCHON
     else
     if (cmd.compare("readout")==0) {
                     ret = server.readout(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
-#endif
-#ifdef STA_ARCHON
     else
     if (cmd.compare("roi")==0) {
                     ret = server.region_of_interest( args, retstring );
@@ -581,8 +581,8 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("mcds")==0) {
-                    ret = server.multi_cds( args, retstring );
+    if (cmd.compare("sampmode")==0) {
+                    ret = server.sample_mode( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else

@@ -21,6 +21,134 @@
 
 namespace Archon {
 
+      const int SAMPMODE_UTR     = 1;  const std::string SAMPSTR_UTR     = "UTR";
+      const int SAMPMODE_CDS     = 2;  const std::string SAMPSTR_CDS     = "CDS";
+      const int SAMPMODE_MCDS    = 3;  const std::string SAMPSTR_MCDS    = "MCDS";
+      const int SAMPMODE_NONCDSV = 4;  const std::string SAMPSTR_NONCDSV = "NONCDSV";
+      const int SAMPMODE_CDSV    = 5;  const std::string SAMPSTR_CDSV    = "CDSV";
+
+      const std::vector<std::string> SAMPMODE_NAME { SAMPSTR_UTR,
+                                                     SAMPSTR_CDS,
+                                                     SAMPSTR_MCDS,
+                                                     SAMPSTR_NONCDSV,
+                                                     SAMPSTR_CDSV,
+                                                   };
+
+      /**************** Archon::Interface::expose *****************************/
+      /**
+       * @brief      calls do_expose
+       * @param[in]  nseq_in  string which must contain width and height
+       * @return     ERROR or NO_ERROR
+       *
+       */
+      long Interface::expose( std::string nseq_in ) {
+        std::string function = "Archon::Instrument::expose";
+        std::stringstream message;
+
+        int nseq = 1;  // default number of sequences if not otherwise specified by nseq_in
+        long ret;
+
+        // must have specified sampmode first (set to -1 in constructor)
+        //
+        if ( this->camera_info.sampmode == -1 ) {
+          this->camera.log_error( function, "sampmode has not been set" );
+          return ERROR;
+        }
+
+        // must have specified sampmode first (set to -1 in constructor)
+        //
+        if ( this->camera_info.nexp == -1 ) {
+          this->camera.log_error( function, "nexp undefined (error in sampmode?)" );
+          return ERROR;
+        }
+
+        // If nseq_in is supplied then try to use that to set nseq, number of exposures (files)
+        //
+        if ( not nseq_in.empty() ) {
+          try {
+            nseq = std::stoi( nseq_in );    // test that nseq_in is an integer
+          }
+          catch (std::invalid_argument &) {
+            message.str(""); message << "unable to convert requested number of sequences: " << nseq_in << " to integer";
+            this->camera.log_error( function, message.str() );
+            return(ERROR);
+          }
+          catch (std::out_of_range &) {
+            message.str(""); message << "requested number of sequences  " << nseq_in << " outside integer range";
+            this->camera.log_error( function, message.str() );
+            return(ERROR);
+          }
+        }
+
+        // Add NIRC2 system headers
+        //
+        this->make_camera_header();
+
+        message.str(""); message << "beginning " << nseq << " sequence" << ( nseq > 1 ? "s" : "" );
+        logwrite( function, message.str() );
+
+        // Loop over nseq.
+        // This is like sending the "expose" command nseq times,
+        // so each of these generates a separate FITS file.
+        //
+        while( nseq-- > 0 ) {
+          ret = this->do_expose( std::to_string( this->camera_info.nexp ) );
+          if ( ret != NO_ERROR ) return( ret );
+          message.str(""); message << nseq << " sequence" << ( nseq > 1 ? "s" : "" ) << " remaining";
+          logwrite( function, message.str() );
+        }
+
+        return( ret );
+      }
+      /**************** Archon::Interface::expose *****************************/
+
+
+      /***** Archon::Interface::make_camera_header ****************************/
+      /**
+       * @brief      adds header keywords to the systemkeys database
+       *
+       */
+      void Interface::make_camera_header( ) {
+        std::stringstream keystr;
+
+        keystr.str("");
+        keystr << "ITIME=" << this->camera_info.exposure_time/1000.0 << " // integration time per coadd in sec";
+        this->systemkeys.addkey( keystr.str() );
+
+        keystr.str("");
+        keystr << "SAMPMODE=" << this->camera_info.sampmode << " //";
+        for ( int i=0; i < (int)SAMPMODE_NAME.size(); i++ ) keystr << " " << i+1 << ":" << SAMPMODE_NAME[i];
+        this->systemkeys.addkey( keystr.str() );
+
+        switch ( this->camera_info.sampmode ) {
+
+          case SAMPMODE_MCDS:
+            keystr.str("");
+            keystr << "MULTISAM=" << this->camera_info.sampmode_frames/2; // number of MCDS read pairs
+            this->systemkeys.addkey( keystr.str() );
+            break;
+
+          case SAMPMODE_CDS:
+          case SAMPMODE_UTR:
+            keystr.str("");
+            keystr << "MULTISAM=" << this->camera_info.sampmode_frames;   // number of UTR samples
+            this->systemkeys.addkey( keystr.str() );
+            break;
+
+          default:
+            this->systemkeys.delkey( "MULTISAM" );                        // remove the MULTISAM keyword
+            break;
+        }
+
+        keystr.str("");
+        keystr << "COADDS=" << this->camera_info.sampmode_ext << " // number of coadds";
+        this->systemkeys.addkey( keystr.str() );
+
+        return;
+      }
+      /***** Archon::Interface::make_camera_header ****************************/
+
+
       /**************** Archon::Interface::region_of_interest *****************/
       /**
        * @brief      define a region of interest for NIRC2
@@ -236,10 +364,14 @@ namespace Archon {
         if (error==NO_ERROR) error = get_parammap_value( "nPixelsPair", check_npp );
         if (error==NO_ERROR) error = get_parammap_value( "nRowsQuad", check_nrq );
 
-        int width  = 32 * check_npp;
-        int height =  8 * check_nrq;
+//      this->camera_info.axes[0]  = 32 * check_npp;
+//      this->camera_info.axes[1] =  8 * check_nrq;
+//      message.str(""); message << this->camera_info.axes[0] << " " << this->camera_info.axes[1];
 
-        message.str(""); message << width << " " << height;
+        this->camera_info.imwidth  = 32 * check_npp;
+        this->camera_info.imheight =  8 * check_nrq;
+        message.str(""); message << this->camera_info.imwidth << " " << this->camera_info.imheight;
+
         retstring = message.str();
 
         return( error );
@@ -247,51 +379,43 @@ namespace Archon {
       /**************** Archon::Interface::region_of_interest *****************/
 
 
-      /**************** Archon::Interface::multi_cds **************************/
+      /**************** Archon::Interface::sample_mode ************************/
       /**
-       * @brief      
-       * @param[in]  args string which must contain width and height
-       * @param[out] retstring, reference to string which contains the width and height
+       * @brief      set the sample mode
+       * @param[in]  args
+       * @param[out] retstring
        * @return     ERROR or NO_ERROR
        *
+       * Input args string contains sample mode and a count for that mode.
+       * valid strings for each mode are as follows:
+       *  UTR:     1 <samples> <ramps>
+       *  CDS:     2
+       *  MCDS:    3 <pairs> <ext>
+       *  nonCDSV: 4
+       *  CDSV:    5
+       *
+       * Modes 1 (UTR) and 3 (MCDS) require a count value
+       *
        */
-      long Interface::multi_cds( std::string args, std::string &retstring ) {
-        std::string function = "Archon::Instrument::multi_cds";
+      long Interface::sample_mode( std::string args, std::string &retstring ) {
+        std::string function = "Archon::Interface::sample_mode";
         std::stringstream message;
         std::vector<std::string> tokens;
         long error = NO_ERROR;
-        long trymcds = 0;
 
-        // Firmware must be loaded and a mode must have been selected
+        // Firmware must be loaded before selecting a mode because this will write to the controller
         //
         if ( ! this->firmwareloaded ) {
           this->camera.log_error( function, "no firmware loaded" );
-          error = ERROR;
+          return ERROR;
         }
 
-        if ( ! this->modeselected ) {
-          this->camera.log_error( function, "no mode selected" );
-          error = ERROR;
-        }
-
-        if ( this->mcdspairs_param.empty() ) {
-          this->camera.log_error( function, "missing definition for MCDS pairs parameter" );
-          error = ERROR;
-        }
-
-        if ( this->mcdsmode_param.empty() ) {
-          this->camera.log_error( function, "missing definition for MCDS mode parameter" );
-          error = ERROR;
-        }
-
-        if ( this->utrmode_param.empty() ) {
-          this->camera.log_error( function, "missing definition for UTR mode parameter" );
-          error = ERROR;
-        }
-
-        // Any of the above errors will prevent reading the current value so return an error immediately
-        //
-        if ( error == ERROR ) { retstring="-1"; return error; }
+        int tryframes=-1;
+        int tryext=-1;
+        int trynexp=-1;
+        int mode_in=-1;
+        int argin_i=-1;
+        int argin_j=-1;
 
         // process args only if not empty
         //
@@ -299,74 +423,176 @@ namespace Archon {
 
           Tokenize( args, tokens, " " );
 
-          if ( tokens.size() != 1 ) {
-            message.str(""); message << "incorrect number of arguments " << tokens.size() << ": expected <num>";
-            this->camera.log_error( function, message.str() );
-            return( ERROR );
-          }
-
-          // extract and convert the <num> token
+          // extract and convert the mode and value tokens from the input arg string
           //
           try {
-            trymcds  = std::stoi( tokens.at(0) );
+            if ( tokens.size() > 0 ) mode_in = std::stoi( tokens.at(0) );
+            if ( tokens.size() > 1 ) argin_i = std::stoi( tokens.at(1) );
+            if ( tokens.size() > 2 ) argin_j = std::stoi( tokens.at(2) );
+            if ( tokens.size() > 3 ) {
+              message << "received " << tokens.size() << " arguments";
+              this->camera.log_error( function, message.str() );
+              return( ERROR );
+            }
           }
           catch( std::invalid_argument const &e ) {
-            message << "invalid argument parsing MCDS value " << args << ": " << e.what();
+            message << "invalid argument parsing args " << args << ": " << e.what();
             this->camera.log_error( function, message.str() );
             return( ERROR );
           }
           catch( std::out_of_range const &e ) {
-            message << "out of range parsing MCDS value " << args << ": " << e.what();
+            message << "out of range parsing args " << args << ": " << e.what();
             this->camera.log_error( function, message.str() );
             return( ERROR );
           }
 
-          // check that num is valid
+          // Check the values of the additional args for the requested mode.
+          // Each mode will have its own requirements on the accompanying values.
           //
-          if ( trymcds < 0 ) {
-            message.str(""); message << "requested MCDS value " << trymcds << " must be >= 0";
-            this->camera.log_error( function, message.str() );
-            error = ERROR;
+          switch( mode_in ) {
+
+            // For UTR, the first argument i is the number of frames (cubedepth).
+            //
+            case SAMPMODE_UTR:
+              tryframes = argin_i;
+              tryext    = argin_j;
+              trynexp   = argin_j;
+              if ( tryframes < 0 ) {
+                this->camera.log_error( function, "no UTR samples were specified" );
+                return( ERROR );
+              }
+              if ( tryframes < 1 ) {
+                message.str(""); message << "requested UTR samples " << tryframes << " must be > 0";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              if ( tryext < 1 ) {
+                message.str(""); message << "requested UTR ramps " << tryext << " must be > 0";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              // write the parameters to Archon to set UTR and clear the other modes
+              //
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, tryframes );
+              this->camera_info.cubedepth = tryframes;
+              break;
+
+            case SAMPMODE_CDS:
+              tryframes = 2;
+              tryext    = argin_i;
+              trynexp   = argin_i;
+              if ( tryext < 1 ) {
+                message.str(""); message << "must specify a non-zero number of extensions";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              if ( argin_j != -1 ) {
+                this->camera.log_error( function, "too many arguments for this mode" );
+                return( ERROR );
+              }
+              // write the parameters to Archon to set CDS (a special form of MCDS) and clear the other modes
+              //
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
+              this->camera_info.cubedepth = 2;
+              break;
+
+            // For MCDS, tryframes will be the total number of frames per extension (=cubedepth)
+            // but only tryframes/2 MCDS pairs, so tryframes must be a multiple of 2.
+            //
+            case SAMPMODE_MCDS:
+              tryframes = argin_i;
+              tryext    = argin_j;
+              trynexp   = argin_j;
+              if ( tryframes < 1 ) {
+                message.str(""); message << "must specify a non-zero number of frames";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              if ( tryext == -1 ) {
+                this->camera.log_error( function, "must specify number of extensions" );
+                return( ERROR );
+              }
+              if ( tryext < 1 ) {
+                this->camera.log_error( function, "must specify non-zero number of extensions" );
+                return( ERROR );
+              }
+              if ( tryframes % 2  != 0 ) {
+                message.str(""); message << "requested MCDS frames " << tryframes << " must be a multiple of 2";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              // write the parameters to Archon to set MCDS and clear the other modes
+              //
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, tryframes/2 );  // number of pairs is tryframes/2
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
+              this->camera_info.cubedepth = tryframes;
+              break;
+
+            case SAMPMODE_NONCDSV:
+              this->camera.log_error( function, "nonCDS video not yet supported" );
+              return( ERROR );
+              break;
+
+            case SAMPMODE_CDSV:
+              this->camera.log_error( function, "CDS video not yet supported" );
+              return( ERROR );
+              break;
+
+            default:
+              message.str(""); message << "unrecognized sample mode: " << mode_in;
+              this->camera.log_error( function, message.str() );
+              return( ERROR );
+          }
+
+          // Enable/disable multi-extensions as appropriate
+          //
+          this->camera.mex( ( tryext > 1 ? true : false ) );
+
+          // One last error check.
+          // Do not allow camera_info to set a value less than 1 for either frames or extensions.
+          //
+          if ( tryframes < 1 || tryext < 1 ) error = ERROR;
+
+          if ( error == NO_ERROR ) {
+            this->camera_info.sampmode        = mode_in;
+            this->camera_info.sampmode_ext    = tryext;
+            this->camera_info.sampmode_frames = tryframes;
+            this->camera_info.nexp            = trynexp;
+            this->camera_info.set_axes();
           }
           else {
-            // write the parameters to Archon
-            //
-            std::stringstream cmd;
-
-            cmd.str(""); cmd << this->mcdspairs_param << " " << trymcds;
-            if (error==NO_ERROR) error = this->set_parameter( cmd.str() );
-
-            cmd.str(""); cmd << this->mcdsmode_param << " " << ( trymcds==0 ? 0 : 1 );
-            if (error==NO_ERROR) error = this->set_parameter( cmd.str() );
-
-            cmd.str(""); cmd << this->utrmode_param << " " << ( trymcds==0 ? 1 : 0 );
-            if (error==NO_ERROR) error = this->set_parameter( cmd.str() );
+            message.str(""); message << "tryframes=" << tryframes << " tryext=" << tryext;
+            this->camera.log_error( function, message.str() );
           }
-
-        } // end if args not empty
-
-        // regardless of args empty or not, check and return the current width and height
-        //
-        long check_mcds=0;
-
-        long mcds_error = get_parammap_value( this->mcdspairs_param, check_mcds );
-
-        if ( mcds_error == NO_ERROR ) {
-          this->camera_info.mcds_pairs = check_mcds;
-          this->camera_info.cubedepth = ( check_mcds==0 ? 1 : 2 * check_mcds );
-          this->camera_info.set_axes();
         }
 
-        error |= mcds_error;
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] sampmode=" << this->camera_info.sampmode
+                                 << " sampmode_ext=" << this->camera_info.sampmode_ext
+                                 << " sampmode_frames=" << this->camera_info.sampmode_frames
+                                 << " nexp=" << this->camera_info.nexp
+                                 << " mex=" << ( this->camera.mex() ? true : false );
+        logwrite( function, message.str() );
+#endif
 
-        message.str(""); message << check_mcds;
+        message.str(""); message << this->camera_info.sampmode
+                                 << " " << this->camera_info.sampmode_frames
+                                 << " " << this->camera_info.sampmode_ext;
         retstring = message.str();
 
-        message.str(""); message << "MCDS pairs = " << retstring;
+        message.str(""); message << "sample mode = " << retstring;
         logwrite( function, message.str() );
 
-        return error;
+        return( error );
       }
-      /**************** Archon::Interface::multi_cds **************************/
+      /**************** Archon::Interface::sample_mode ************************/
 
 }

@@ -40,6 +40,7 @@ namespace Common {
       std::string get_keytype(std::string keyvalue);         /// return type of keyword based on value
       long listkeys();                                       /// list FITS keys in the internal database
       long addkey(std::string arg);                          /// add FITS key to the internal database
+      long delkey(std::string arg);                          /// delete FITS key from the internal database
 
       typedef struct {                                       /// structure of FITS keyword internal database
         std::string keyword;

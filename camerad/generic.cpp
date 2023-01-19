@@ -25,18 +25,44 @@
 
 namespace Archon {
 
+      /***** Archon::Interface::make_camera_header ****************************/
+      /**
+       * @brief      adds header keywords to the systemkeys database
+       * @param[in]  
+       * @param[out] 
+       * @return     
+       *
+       */
+      void Interface::make_camera_header( ) {
+        std::stringstream keystr;
+
+        keystr.str("");
+        keystr << "EXPTIME=" << this->camera_info.exposure_time << " // exposure time in " << ( this->is_longexposure ? "sec" : "msec" );
+        this->systemkeys.addkey( keystr.str() );
+
+        keystr.str("");
+        keystr << "NSEQ=" << this->camera_info.nseq << " // number of exposure sequences";
+        this->systemkeys.addkey( keystr.str() );
+
+        return;
+      }
+      /***** Archon::Interface::make_camera_header ****************************/
+
+
       /**************** Archon::Interface::region_of_interest *****************/
       /**
        * @brief      define a region of interest
        * @param[in]  args
        * @param[out] retstring
-       * @return     
+       * @return     ERROR
+       *
+       * ROI is not currently supported for generic instruments.
        *
        */
       long Interface::region_of_interest( std::string args, std::string &retstring ) {
         std::string function = "Archon::Interface::region_of_interest";
         std::stringstream message;
-        this->common.log_error( function, "ROI not supported" );
+        this->camera.log_error( function, "ROI not supported" );
         return( ERROR );
       }
       /**************** Archon::Interface::region_of_interest *****************/
@@ -49,14 +75,35 @@ namespace Archon {
        * @param[out] retstring
        * @return     
        *
+       * MCDS is not supported for generic instruments.
+       *
        */
       long Interface::multi_cds( std::string args, std::string &retstring ) {
         std::string function = "Archon::Interface::multi_cds";
         std::stringstream message;
-        this->common.log_error( function, "ROI not supported" );
+        this->camera.log_error( function, "MCDS not supported" );
         return( ERROR );
       }
       /**************** Archon::Interface::multi_cds **************************/
+
+
+      /**************** Archon::Interface::sample_mode ************************/
+      /**
+       * @brief      
+       * @param[in]  args
+       * @param[out] retstring
+       * @return     
+       *
+       * sample_mode is not supported for generic instruments.
+       *
+       */
+      long Interface::sample_mode( std::string args, std::string &retstring ) {
+        std::string function = "Archon::Interface::sample_mode";
+        std::stringstream message;
+        this->camera.log_error( function, "sample_mode command not supported" );
+        return( ERROR );
+      }
+      /**************** Archon::Interface::sample_mode ************************/
 
 
       /**************** Archon::Interface::deinterlace ************************/
@@ -66,11 +113,15 @@ namespace Archon {
        * @param[out] 
        * @return     
        *
+       * Deinterlacing is not supported for generic instruments.
+       *
        */
       template <class T>
       T* Interface::deinterlace(T* imbuf) {
         std::string function = "Archon::Instrument::deinterlace";
-        this->common.log_error( function, "deinterlacing not supported" );
+#ifdef LOGLEVEL_DEBUG
+        logwrite( function, "deinterlacing not supported" );
+#endif
         return( (T*)NULL );
       }
       /**************** Archon::Interface::deinterlace ************************/
