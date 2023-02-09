@@ -91,13 +91,33 @@ namespace Common {
         ++pos;
     }
 
+    std::string check_type;
+
     if (pos == keyvalue.size()) {
+      // If it's an INT or FLOAT, don't return that type until it has been checked, below
+      //
       if (keyvalue.find(".") == std::string::npos)    // all numbers and no decimals, it's an integer
-        return std::string("INT");
+        check_type = "INT";
       else                                            // otherwise numbers with a decimal, it's a float
-        return std::string("FLOAT");
+        check_type = "FLOAT";
     }
     else return std::string("STRING");                // lastly, must be a string
+
+    // If it's an INT or a FLOAT then try to convert the value to INT or FLOAT.
+    // If that conversion fails then set the type to STRING.
+    //
+    try {
+      if ( check_type == "INT"   ) std::stoi( keyvalue );
+      if ( check_type == "FLOAT" ) std::stof( keyvalue );
+    }
+    catch ( std::invalid_argument & ) {
+      return std::string( "STRING" );
+    }
+    catch ( std::out_of_range & ) {
+      return std::string( "STRING" );
+    }
+    return( check_type );
+
   }
   /** Common::FitsKeys::get_keytype *******************************************/
 

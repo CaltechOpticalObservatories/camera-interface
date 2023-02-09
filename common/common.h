@@ -41,6 +41,7 @@ namespace Common {
       long listkeys();                                       /// list FITS keys in the internal database
       long addkey(std::string arg);                          /// add FITS key to the internal database
       long delkey(std::string arg);                          /// delete FITS key from the internal database
+      void erasedb() { this->keydb.clear(); };               /// erase the entire contents of the internal database
 
       typedef struct {                                       /// structure of FITS keyword internal database
         std::string keyword;

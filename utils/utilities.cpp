@@ -351,12 +351,13 @@ std::string zone="";
   /** get_time ****************************************************************/
 
 
-  /** get_timestamp ***********************************************************/
+  /***** get_timestamp ********************************************************/
   /**
-   * @fn         get_timestamp
-   * @brief      return a string of the current time "YYYY-MM-DDTHH:MM:SS.ssssss"
-   * @param[in]  none
-   * @return     string
+   * @brief      return a string of the current time
+   * @return     std::string formatted as "YYYY-MM-DDTHH:MM:SS.ssssss"
+   *
+   * The time will be in UTC unless the global zone is set to "local".
+   * This function is overloaded.
    *
    */
   std::string get_timestamp() {
@@ -387,7 +388,44 @@ std::string zone="";
 
     return(current_time.str());
   }
-  /** get_timestamp ***********************************************************/
+  /***** get_timestamp ********************************************************/
+
+
+  /***** get_timestamp ********************************************************/
+  /**
+   * @brief      return a string of the time specified in the time_in struct
+   * @param[in]  time_in  timespec struct
+   * @return     std::string formatted as "YYYY-MM-DDTHH:MM:SS.ssssss"
+   *
+   * Formats the time specified in the timespec time_in structure
+   * and returns it as a string.
+   * This function is overloaded.
+   *
+   */
+  std::string get_timestamp( struct timespec time_in ) {
+    std::stringstream current_time;  // String to contain the time
+    time_t t;                        // Container for system time
+    struct tm mytime;                // GMT time container
+
+    // Convert the input time to local or GMT
+    //
+    t = time_in.tv_sec;
+    if ( zone == "local" ) { if ( localtime_r( &t, &mytime ) == NULL ) return( "9999-99-99T99:99:99.999999" ); }
+    else                   { if ( gmtime_r( &t, &mytime ) == NULL )    return( "9999-99-99T99:99:99.999999" ); }
+
+    current_time.setf(std::ios_base::right);
+    current_time << std::setfill('0') << std::setprecision(0)
+                 << std::setw(4) << mytime.tm_year + 1900   << "-"
+                 << std::setw(2) << mytime.tm_mon + 1 << "-"
+                 << std::setw(2) << mytime.tm_mday    << "T"
+                 << std::setw(2) << mytime.tm_hour  << ":"
+                 << std::setw(2) << mytime.tm_min << ":"
+                 << std::setw(2) << mytime.tm_sec
+                 << "." << std::setw(6) << time_in.tv_nsec/1000;
+
+    return(current_time.str());
+  }
+  /***** get_timestamp ********************************************************/
 
 
   /** get_system_date *********************************************************/

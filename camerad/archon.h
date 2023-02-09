@@ -84,6 +84,7 @@ namespace Archon {
   enum ReadoutType {
     NONE,
     NIRC2,
+    NIRC2VIDEO,
     TEST,
     NUM_READOUT_TYPES
     };
@@ -91,10 +92,11 @@ namespace Archon {
 
   const int IMAGE_RING_BUFFER_SIZE = 5;
 
+
   /***** Archon::DeInterlace **************************************************/
   /**
-   * @class DeInterlace
-   * @brief This is the deinterlacing class
+   * @class  DeInterlace
+   * @brief  This is the deinterlacing class
    *
    */
   template <typename T>
@@ -115,13 +117,11 @@ namespace Archon {
       /***** Archon::DeInterlace::test ****************************************/
       /**
        * @brief     test
-       * @param[in] row_start
-       * @param[in] row_stop
-       * @param[in] index
+       * @param[in] bufrows
        * @details 
        *
        */
-      void test( int row_start, int row_stop, int index ) {
+      void test( int bufrows ) {
 
         for (long pix=0; pix < 256*256; pix++) {
           this->imbuf[pix] = pix % 65535;
@@ -136,12 +136,64 @@ namespace Archon {
       /***** Archon::DeInterlace::test ****************************************/
 
 
+      /***** Archon::DeInterlace::nirc2_video *********************************/
+      /**
+       * @brief      
+       * @param[in]  bufrows
+       * @details 
+       *
+       */
+      void nirc2_video( int bufrows ) {
+#ifdef LOGLEVEL_DEBUG
+        std::stringstream message;
+        message.str(""); message << "[DEBUG] bufrows=" << bufrows << " this->rows=" << this->rows 
+                                 << " this->cols=" << this->cols;
+        logwrite( "Archon::DeInterlace::nirc2", message.str() );
+#endif
+
+        cv::Mat raw    = cv::Mat( bufrows,   this->cols, CV_16U, this->imbuf   );
+        cv::Mat signal = cv::Mat( bufrows/2, this->cols, CV_16U, cv::Scalar(0) );
+        cv::Mat reset  = cv::Mat( bufrows/2, this->cols, CV_16U, cv::Scalar(0) );
+
+        cv::Mat deinter_reset  = cv::Mat( this->frame_rows, this->frame_cols, CV_16U, cv::Scalar(0) );
+        cv::Mat deinter_signal = cv::Mat( this->frame_rows, this->frame_cols, CV_16U, cv::Scalar(0) );
+
+        // Copy pairs of rows from the raw to the reset and signal frames
+        //
+        for ( int rawrow=0, newrow=0; rawrow < bufrows-4; rawrow+=4, newrow+=2 ) {
+          raw.row( rawrow+0 ).copyTo(  reset.row(newrow+0) );
+          raw.row( rawrow+1 ).copyTo(  reset.row(newrow+1) );
+          raw.row( rawrow+2 ).copyTo( signal.row(newrow+0) );
+          raw.row( rawrow+3 ).copyTo( signal.row(newrow+1) );
+        }
+
+        int workindex=0;
+        this->nirc2( workindex, reset, deinter_reset );
+        this->nirc2( workindex, signal, deinter_signal );
+
+/***
+        // Display live video of subtracted image
+        //
+        cv::Mat diff = deinter_reset - deinter_signal;
+        cv::imshow( "image", diff );
+        cv::waitKey(1);
+
+        std::stringstream message;
+        for ( int row=0; row<10; row++ ) {
+          message.str(""); message << "reset:" << reset.at<uint16_t>(row,0) << " signal:" << signal.at<uint16_t>(row,0) << " diff:" << diff.at<uint16_t>(row,0);
+          logwrite( "Archon::DeInterlace::nirc2_video", message.str() );
+        }
+***/
+
+        return;
+      }
+      /***** Archon::DeInterlace::nirc2_video *********************************/
+
+
       /***** Archon::DeInterlace::nirc2 ***************************************/
       /**
-       * @brief     NIRC2 deinterlacing
-       * @param[in] row_start
-       * @param[in] row_stop
-       * @param[in] index
+       * @brief      NIRC2 deinterlacing
+       * @param[in]  bufrows  rows in raw buffer, which is detector_pixels[1] * depth
        * @details 
        *
        * ~~~
@@ -151,14 +203,35 @@ namespace Archon {
        * |   Q1    |   Q2    |   Q3    |   Q4    | ===>   +---------+---------+
        * |         |         |         |         |        |       v | v       |
        * +---------+---------+---------+---------+        | <------ | ------> |
-       *                                               Q3 +---------+---------+ Q4
+       * :         :         :         :         :     Q3 +---------+---------+ Q4
+       * :         :         :         :         :
+       * (for multiple frames, this raw buf is   
+       *  extended in this dimension for each frame)
+       *                                         
        * ~~~
        *
        */
-      void nirc2( int row_start, int row_stop, int index, int ringcount_in ) {
+      void nirc2( int bufrows ) {
 #ifdef LOGLEVEL_DEBUG
         std::stringstream message;
-        message.str(""); message << "[DEBUG] row_start=" << row_start << " row_stop=" << row_stop << " this->rows=" << this->rows << " this->cols=" << this->cols << " rincount_in=" << ringcount_in;
+        message.str(""); message << "[DEBUG] bufrows=" << bufrows << " this->rows=" << this->rows 
+                                 << " this->cols=" << this->cols;
+        logwrite( "Archon::DeInterlace::nirc2", message.str() );
+#endif
+        // Create openCV image to hold entire imbuf (all cubes)
+        //
+        cv::Mat image = cv::Mat( bufrows, this->cols, CV_16U, this->imbuf );
+        int workindex=0;
+        this->nirc2( workindex, image, image );
+      }
+      /***** Archon::DeInterlace::nirc2 ***************************************/
+
+/****
+      void nirc2( int bufrows ) {
+#ifdef LOGLEVEL_DEBUG
+        std::stringstream message;
+        message.str(""); message << "[DEBUG] bufrows=" << bufrows << " this->rows=" << this->rows 
+                                 << " this->cols=" << this->cols;
         logwrite( "Archon::DeInterlace::nirc2", message.str() );
 #endif
 
@@ -169,7 +242,7 @@ namespace Archon {
 
         // Create openCV image to hold entire imbuf (all cubes)
         //
-        cv::Mat image = cv::Mat( row_stop, this->cols, CV_16U, this->imbuf );
+        cv::Mat image = cv::Mat( bufrows, this->cols, CV_16U, this->imbuf );
 
         // Create an empty openCV image to hold the final, deinterlaced, re-assembled image
         //
@@ -249,15 +322,137 @@ namespace Archon {
 
         return;
       }
+***/
+      /***** Archon::DeInterlace::nirc2 ***************************************/
+
+
+      /***** Archon::DeInterlace::nirc2 ***************************************/
+      /**
+       * @brief      NIRC2 deinterlacing
+       * @param[in]  workindex      reference to index counter (where in deinterlacing)
+       * @param[in]  image          reference to cv::Mat array of raw image
+       * @param[out] deinter_image  reference to cv::Mat array to return deinterlaced image
+       * @details 
+       *
+       * This function is overloaded.
+       * This format is used for processing NIRC2 video. The deinterlacing is the
+       * same but it operates on a cv::Mat image and returns a deinterlaced cv::Mat image.
+       *
+       * TODO maybe the other one can be replaced by this one
+       *
+       * ~~~
+       *                                               Q1 +---------+---------+ Q2
+       * +---------+---------+---------+---------+        | <------ | ------> |
+       * |         |         |         |         |        |       ^ | ^       |
+       * |   Q1    |   Q2    |   Q3    |   Q4    | ===>   +---------+---------+
+       * |         |         |         |         |        |       v | v       |
+       * +---------+---------+---------+---------+        | <------ | ------> |
+       * :         :         :         :         :     Q3 +---------+---------+ Q4
+       * :         :         :         :         :
+       * (for multiple frames, this raw buf is   
+       *  extended in this dimension for each frame)
+       * ~~~
+       *
+       */
+      void nirc2( int &workindex, cv::Mat &image, cv::Mat &deinter_image ) {
+#ifdef LOGLEVEL_DEBUG
+        std::stringstream message;
+        message.str(""); message << "[DEBUG] this->rows=" << this->rows << " this->cols=" << this->cols;
+        logwrite( "Archon::DeInterlace::nirc2", message.str() );
+#endif
+
+        int taps=8;
+
+        int quad_rows  = this->frame_rows / 2;
+        int quad_cols  = this->frame_cols / 2;
+
+        // Create an empty openCV image to hold the final, deinterlaced, re-assembled image
+        //
+        cv::Mat work = cv::Mat( this->frame_rows, this->frame_cols, CV_16U, cv::Scalar(0) );
+
+        // Define images for each quadrant
+        //
+        cv::Mat Q1, Q2, Q3, Q4;
+
+        // Define images for the de-interlaced quadrants
+        //
+        cv::Mat Q1d = cv::Mat::zeros( quad_rows, quad_cols, CV_16U );
+        cv::Mat Q2d = cv::Mat::zeros( quad_rows, quad_cols, CV_16U );
+        cv::Mat Q3d = cv::Mat::zeros( quad_rows, quad_cols, CV_16U );
+        cv::Mat Q4d = cv::Mat::zeros( quad_rows, quad_cols, CV_16U );
+
+        // Define images for the quadrants that need to be flipped
+        //
+        cv::Mat Q2f, Q3f, Q4f;
+
+        // Loop through each cube,
+        // cutting each from the main image buffer, deinterlacing and
+        // performing needed flips before copying into the buffer that is passed to the FITS writer.
+        //
+        for ( int i=0, j=1; i < this->cubedepth; i++, j++ ) {
+          // Cut the quadrants out of the image
+          //
+          Q1 = image( cv::Range( i * quad_rows, j * quad_rows), cv::Range( 0 * quad_cols, 1 * quad_cols ) );
+          Q2 = image( cv::Range( i * quad_rows, j * quad_rows), cv::Range( 1 * quad_cols, 2 * quad_cols ) );
+          Q3 = image( cv::Range( i * quad_rows, j * quad_rows), cv::Range( 2 * quad_cols, 3 * quad_cols ) );
+          Q4 = image( cv::Range( i * quad_rows, j * quad_rows), cv::Range( 3 * quad_cols, 4 * quad_cols ) );
+
+          // Perform the deinterlacing here
+          //
+          for ( int row=0, idx=0; row < quad_rows; row++ ) {
+            for ( int tap=0; tap < taps; tap++ ) {
+              for ( int col=0; col < quad_cols; col+=8 ) {
+                int loc = row*quad_cols + col + tap;
+                int r   = (int) (loc/quad_rows);
+                int c   = (int) (loc%quad_cols);
+                int R   = (int) (idx/quad_rows);
+                int C   = (int) (idx%quad_cols);
+                idx++;
+                Q1d.at<uint16_t>(r,c) = Q1.at<uint16_t>(R,C);
+                Q2d.at<uint16_t>(r,c) = Q2.at<uint16_t>(R,C);
+                Q3d.at<uint16_t>(r,c) = Q3.at<uint16_t>(R,C);
+                Q4d.at<uint16_t>(r,c) = Q4.at<uint16_t>(R,C);
+              }
+            }
+          }
+
+          // Perform the quadrant flips here
+          //
+          cv::flip( Q2d, Q2f,  1 );  // flip horizontally
+          cv::flip( Q3d, Q3f,  0 );  // flip vertically
+          cv::flip( Q4d, Q4f, -1 );  // flip horizontally and vertically
+
+          // Copy the modified quadrant images into a work image
+          //
+          for ( int row=0, R0=0, R1=quad_rows; row<quad_rows; row++, R0++, R1++ ) {
+            for ( int col=0, C0=0, C1=quad_cols; col<quad_cols; col++, C0++, C1++ ) {
+              work.at<uint16_t>(R1,C0) = (uint16_t)Q1d.at<uint16_t>(row,col);
+              work.at<uint16_t>(R1,C1) = (uint16_t)Q2f.at<uint16_t>(row,col);
+              work.at<uint16_t>(R0,C1) = (uint16_t)Q4f.at<uint16_t>(row,col);
+              work.at<uint16_t>(R0,C0) = (uint16_t)Q3f.at<uint16_t>(row,col);
+            }
+          }
+
+          // Copy assembled image into the FITS buffer, this->workbuf
+          //
+          for ( int row=0; row<this->frame_rows; row++ ) {
+            for ( int col=0; col<this->frame_cols; col++ ) {
+              *( this->workbuf + workindex++ ) = 65535 - (uint16_t)(work.at<uint16_t>(row,col) - 0);
+            }
+          }
+        }
+
+        deinter_image = work;
+
+        return;
+      }
       /***** Archon::DeInterlace::nirc2 ***************************************/
 
 
       /***** Archon::DeInterlace::none ****************************************/
       /**
-       * @brief     no deinterlacing -- copy imbuf to workbuf
-       * @param[in] row_start
-       * @param[in] row_stop
-       * @param[in] index
+       * @brief      no deinterlacing -- copy imbuf to workbuf
+       * @param[in]  bufrows
        * @details 
        *
        * ~~~
@@ -270,15 +465,17 @@ namespace Archon {
        * ~~~
        *
        */
-      void none( int row_start, int row_stop, int index ) {
+      void none( int bufrows ) {
         std::string function = "Archon::DeInterlace::none";
         std::stringstream message;
 
-        for ( int r=row_start; r<row_stop; r++ ) {
+        for ( int r=0, index=0; r<bufrows; r++ ) {
           for ( int c=0; c<this->cols; c++ ) {
             int loc = (r * this->cols) + c ;
             *( this->workbuf + loc ) = *( this->imbuf + (index++) );
 /***
+            // Store some special pixels for debugging
+            //
             if ( loc == (2048*511) +    0          ) *( this->workbuf + loc ) = 20111;
             if ( loc == (2048*511) +  512          ) *( this->workbuf + loc ) = 20222;
             if ( loc == (2048*511) + 1024          ) *( this->workbuf + loc ) = 20333;
@@ -345,23 +542,23 @@ namespace Archon {
        * type, which is an enum that was given to the class constructor when
        * this DeInterlace object was constructed.
        *
-       * The deinterlacing is performed from "row_start" to "row_stop" of the
-       * final image, using the pixel "index" of the raw image buffer.
-       *
        */
-      void do_deinterlace( int row_start, int row_stop, int index, int index_flip, int ringcount_in ) {
+      void do_deinterlace( int bufrows ) {
         std::string function = "Archon::DeInterlace::do_deinterlace";
         std::stringstream message;
 
         switch( this->readout_type ) {
           case Archon::NONE:
-            this->none( row_start, row_stop, index );
+            this->none( bufrows );
             break;
           case Archon::NIRC2:
-            this->nirc2( row_start, row_stop, index, ringcount_in );
+            this->nirc2( bufrows );
+            break;
+          case Archon::NIRC2VIDEO:
+            this->nirc2_video( bufrows );
             break;
           case Archon::TEST:
-            this->test( row_start, row_stop, index );
+            this->test( bufrows );
             break;
           default:
             message.str(""); message << "ERROR: unknown readout type: " << this->readout_type;
@@ -377,10 +574,18 @@ namespace Archon {
   /***** Archon::DeInterlace **************************************************/
 
 
+  /***** Archon::Interface ****************************************************/
+  /**
+   * @class  Interface
+   * @brief  This class defines the interface to the Archon controller
+   *
+   */
   class Interface {
     private:
       unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
       int n_hdrshift;                               //!< number of right-shift bits for Archon buffer in HDR mode
+      struct timespec cal_systime;
+      unsigned long int cal_archontime;
 
     public:
       Interface();
@@ -388,12 +593,13 @@ namespace Archon {
 
       // Class Objects
       //
-      Network::TcpSocket archon;
+      Network::TcpSocket archon;             /// this is how we talk to the Archon
       Camera::Information camera_info;       /// this is the main camera_info object
-      Camera::Information fits_info;         /// used to copy the camera_info object to preserve info for FITS writing
+//    Camera::Information fits_info;         /// used to copy the camera_info object to preserve info for FITS writing  //TODO @todo obsolete?
       Camera::Camera camera;                 /// instantiate a Camera object
-      Common::FitsKeys userkeys;             //!< instantiate a Common object
-      Common::FitsKeys systemkeys;           //!< instantiate a Common object
+      Common::FitsKeys userkeys;             /// instantiate a FitsKeys object for user-defined keywords
+      Common::FitsKeys systemkeys;           /// instantiate a FitsKeys object for system-defined keywords
+      Common::FitsKeys extkeys;              /// instantiate a FitsKeys object for extension-only keywords
 
       Config config;
 
@@ -406,11 +612,22 @@ namespace Archon {
 
       std::map< std::string, readout_info_t > readout_source;  //!< STL map of readout sources indexed by readout name
 
-std::mutex mtx;
-std::condition_variable cv;
-std::vector<bool> ringbuf_deinterlaced;
-// can't have a vector of atomics but you can have a vector of unique_ptrs that point to atomic
-std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
+      std::atomic<int> deinterlace_count;     /// number of times deinterlace has been called when mex=true
+      std::atomic<int> write_frame_count;     /// number of times write_frame() has been called when mex=true
+
+      std::mutex deinter_mtx;                 /// deinterlacing mutex
+      std::condition_variable deinter_cv;     /// deinterlacing condition variable
+      std::vector<bool> ringbuf_deinterlaced; /// set if this ring buffer been deinterlaced
+
+      /**
+       * @var     ringlock
+       * @brief   vector of flags which indicate if the ring buffer is locked for writing
+       * @details The ring buffer is flagged as locked while read_frame() is reading the Archon
+       *          frame buffer into it.  Note that you can't have a vector of atomics but you
+       *          can have a vector of unique_ptrs that point to atomic.
+       */
+      std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
+
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
       bool abort;
       int  taplines;
@@ -444,13 +661,13 @@ std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
       float heater_target_min;               //!< minimum heater target temperature
       float heater_target_max;               //!< maximum heater target temperature
 
-      char *image_data;                      //!< image data buffer
+      char *image_data;                      //!< image data buffer //TODO @todo obsolete?
       int ringcount;
       std::vector<char*> image_ring;
       std::vector<void*> work_ring;
       std::vector<uint32_t> ringdata_allocated;
 
-      void *workbuf;                         //!< pointer to workspace for performing deinterlacing
+      void *workbuf;                         //!< pointer to workspace for performing deinterlacing //TODO @todo obsolete?
       long workbuf_size;
       uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
       uint32_t image_data_allocated;         //!< allocated number of bytes for image_data
@@ -462,6 +679,9 @@ std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
       std::string exposeparam;               //!< param name to trigger exposure when set =1
       std::string mcdspairs_param;           //!< param name to set MCDS samples
       std::string mcdsmode_param;            //!< param name to set MCDS mode
+      std::string rxmode_param;              //!< param name to set RX mode (read-reset video)
+      std::string rxrmode_param;             //!< param name to set RXR mode (read-reset-read video)
+      std::string videosamples_param;        //!< param name to set video samples for RX, RXR modes
       std::string utrmode_param;             //!< param name to set UTR mode
       std::string utrsamples_param;          //!< param name to set UTR samples
 
@@ -473,12 +693,14 @@ std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
 
       // Functions
       //
+      long caltimer();                       //!< calibrate Archon timer
       long interface(std::string &iface);    //!< get interface type
       long configure_controller();           //!< get configuration parameters
       long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
       long prepare_ring_buffer();            //!< prepare image_data, allocating memory as needed
       long connect_controller(std::string devices_in);  //!< open connection to archon controller
       long disconnect_controller();          //!< disconnect from archon controller
+      long cleanup_memory();                 //!< free allocated memory
       long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING
       long load_timing(std::string acffile, std::string &retstring);
       long load_firmware(std::string acffile); //!< load specified acf then APPLYALL
@@ -513,6 +735,8 @@ std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
       long write_parameter( const char *paramname, int newvalue );
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
       void add_filename_key();
+      long poweron();
+      long poweroff();
       long expose( std::string nseq_in );
       long do_expose(std::string nseq_in);
       long wait_for_exposure();
@@ -534,25 +758,26 @@ std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
       long inreg( std::string args );
       long coadd( std::string coadds_in, std::string &retstring );
       void make_camera_header();
+      long recalc_geometry();
       long region_of_interest( std::string args, std::string &retstring );
       long sample_mode( std::string args, std::string &retstring );
       long readout( std::string readout_in, std::string &readout_out );
       long test(std::string args, std::string &retstring);
 
-      static void dothread_openfits( Interface *self );
-//    static void dothread_openfits( Interface *self, FITS_file &fits_file, Camera::Information &info, Camera::Camera &camera );
-//    static void dothread_writeframe( Interface *self, FITS_file &fits_file, Camera::Information &info, Camera::Camera &camera );
-//    static void dothread_writeframe( Interface *self );
-      static void dothread_writeframe( Interface *self, int ringcount_in );
-      static void dothread_start_deinterlace( Interface *self, int ringcount_in );
+      static void dothread_openfits( Interface *self );                             /// this is run in a thread to open a fits file for flat (non-mex) files only
+      static void dothread_writeframe( Interface *self, int ringcount_in );         /// this is run in a thread to write a frame after it is deinterlaced
+      static void dothread_start_deinterlace( Interface *self, int ringcount_in );  /// calls the appropriate deinterlacer based on camera_info.datatype
 
       long alloc_workbuf();
       template <class T> void* alloc_workbuf(T* buf);
-      template <class T> void  alloc_workring(T* buf);
       template <class T> void free_workbuf(T* buf);
+
+      long alloc_workring();
+      template <class T> void  alloc_workring( T* buf );
+      template <class T> void  free_workring( T* buf );
+
       template <class T> T* deinterlace( T* imbuf, T* workbuf, int ringcount_in );
-//    template <class T> static void dothread_deinterlace( DeInterlace<T> &deinterlace, Interface *self, int bufcols, int bufrows, int section, int nthreads );
-      template <class T> static void dothread_deinterlace( Interface *self, DeInterlace<T> &deinterlace, int bufcols, int bufrows, int section, int ringcount, int nthreads );
+      template <class T> static void dothread_deinterlace( Interface *self, DeInterlace<T> &deinterlace, int bufcols, int bufrows, int ringcount );
 
       /**
        * @var     struct geometry_t geometry[]
@@ -694,6 +919,7 @@ std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
       map_t statusmap;
 
   };
+  /***** Archon::Interface ****************************************************/
 
 
 }

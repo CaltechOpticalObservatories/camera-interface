@@ -45,7 +45,8 @@ void string_replace_char(std::string &str, const char *oldchar, const char *newc
 
 long get_time( int &year, int &mon, int &mday, int &hour, int &min, int &sec, int &usec );
 
-std::string get_timestamp();                        /// return current time in formatted string "YYYY-MM-DDTHH:MM:SS.ssssss"
+std::string get_timestamp();                        /// return a string of the current time, formatted as "YYYY-MM-DDTHH:MM:SS.ssssss"
+std::string get_timestamp(struct timespec time_in); /// return a string of the time specified in the time_in struct as "YYYY-MM-DDTHH:MM:SS.ssssss"
 std::string get_system_date();                      /// return current date in formatted string "YYYYMMDD"
 std::string get_file_time();                        /// return current time in formatted string "YYYYMMDDHHMMSS" used for filenames
 

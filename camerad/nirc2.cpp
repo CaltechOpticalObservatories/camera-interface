@@ -34,6 +34,41 @@ namespace Archon {
                                                      SAMPSTR_CDSV,
                                                    };
 
+      /**************** Archon::Interface::poweron ****************************/
+      /**
+       * @brief      turn off the power
+       * @return     ERROR or NO_ERROR
+       *
+       * After applying the power, must wait 2 sec before setting Start=1
+       *
+       */
+      long Interface::poweron( ) {
+        std::string function = "Archon::Instrument::poweron";
+        std::stringstream message;
+	long error = this->native( "POWERON" );
+        usleep( 2000000 );
+        if ( error == NO_ERROR ) error = this->set_parameter( "Start", 1 );
+        if ( error == NO_ERROR ) logwrite( function, "Archon powered on ok" );
+        else                     logwrite( function, "ERROR powering on Archon" );
+        return( error );
+      }
+      /**************** Archon::Interface::poweron ****************************/
+
+
+      /**************** Archon::Interface::poweroff ***************************/
+      /**
+       * @brief      turn off the power
+       * @return     ERROR or NO_ERROR
+       *
+       */
+      long Interface::poweroff( ) {
+        std::string function = "Archon::Instrument::poweroff";
+        std::stringstream message;
+	return this->native("POWEROFF");
+      }
+      /**************** Archon::Interface::poweroff ***************************/
+
+
       /**************** Archon::Interface::expose *****************************/
       /**
        * @brief      calls do_expose
@@ -149,6 +184,91 @@ namespace Archon {
       /***** Archon::Interface::make_camera_header ****************************/
 
 
+      /***** Archon::Interface::recalc_geometry *******************************/
+      /**
+       * @brief      recalculate geometry
+       * @returns    ERROR or NO_ERROR
+       *
+       */
+      long Interface::recalc_geometry( ) {
+        std::string function = "Archon::Instrument::recalc_geometry";
+        std::stringstream message;
+        long error = NO_ERROR;
+        std::string mode = this->camera_info.current_observing_mode;
+
+        this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps[0];
+        this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps[1];
+        this->camera_info.frame_type = Camera::FRAME_IMAGE;
+
+        // ROI is the full detector
+        this->camera_info.region_of_interest[0] = 1;
+        this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
+        this->camera_info.region_of_interest[2] = 1;
+        this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
+        // Binning factor (no binning)
+        this->camera_info.binning[0] = 1;
+        this->camera_info.binning[1] = 1;
+
+        error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
+
+        // allocate image_data in blocks because the controller outputs data in units of blocks
+        //
+        int num_detect = this->modemap[mode].geometry.num_detect;
+        this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
+
+        if (this->image_data_bytes == 0) {
+          this->camera.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
+          error = ERROR;
+        }
+
+        this->camera_info.current_observing_mode = mode;       // identify the newly selected mode in the camera_info class object
+        this->modeselected = true;                             // a valid mode has been selected
+
+        message.str(""); message << "new mode: " << mode << " will use " << this->camera_info.bitpix << " bits per pixel";
+        logwrite(function, message.str());
+
+        // Calculate amplifier sections
+        //
+        int rows = this->modemap[mode].geometry.linecount;     // rows per section
+        int cols = this->modemap[mode].geometry.pixelcount;    // cols per section
+
+        int hamps = this->modemap[mode].geometry.amps[0];      // horizontal amplifiers
+        int vamps = this->modemap[mode].geometry.amps[1];      // vertical amplifiers
+
+        int x0=-1, x1, y0, y1;                                 // for indexing
+        std::vector<long> coords;                              // vector of coordinates, convention is x0,x1,y0,y1
+        int framemode = this->modemap[mode].geometry.framemode;
+
+        this->camera_info.amp_section.clear();                 // vector of coords vectors, one set of coords per extension
+
+        for ( int y=0; y<vamps; y++ ) {
+          for ( int x=0; x<hamps; x++ ) {
+            if ( framemode == 2 ) {
+              x0 = x; x1=x+1;
+              y0 = y; y1=y+1;
+            }
+            else {
+              x0++;   x1=x0+1;
+              y0 = 0; y1=1;
+            }
+            coords.clear();
+            coords.push_back( (x0*cols + 1) );                 // x0 is xstart
+            coords.push_back( (x1)*cols );                     // x1 is xstop, xrange = x0:x1
+            coords.push_back( (y0*rows + 1) );                 // y0 is ystart
+            coords.push_back( (y1)*rows );                     // y1 is ystop, yrange = y0:y1
+
+            this->camera_info.amp_section.push_back( coords ); // (x0,x1,y0,y1) for this extension
+
+          }
+        }
+        message.str(""); message << "identified " << this->camera_info.amp_section.size() << " amplifier sections";
+        logwrite( function, message.str() );
+
+        return( error );
+      }
+      /***** Archon::Interface::recalc_geometry *******************************/
+
+
       /**************** Archon::Interface::region_of_interest *****************/
       /**
        * @brief      define a region of interest for NIRC2
@@ -240,7 +360,7 @@ namespace Archon {
           //
           int NRQ = tryheight / 8;  /// nRowsQuad
           int SRQ = 128 - NRQ;      /// SkippedRowsQuad
-          int LC  = NRQ * 4;        /// LINECOUNT
+          int LC  = NRQ * 4;        /// LINECOUNT **overwritten below! depends on sampmode
 
           int NPP = trywidth / 32;  /// nPixelsPair
           int SCQ = 32 - NPP;       /// SkippedColumnsQuad
@@ -264,6 +384,14 @@ namespace Archon {
 
           std::string dontcare;
 
+          // LINECOUNT must be doubled for CDS Video mode
+          //
+          if ( this->camera_info.sampmode == SAMPMODE_CDSV ) {
+            LC = NRQ * 8;
+          }
+          else {
+            LC = NRQ * 4;
+          }
           cmd.str(""); cmd << "LINECOUNT " << LC;
           if (error==NO_ERROR) error = this->cds( cmd.str(), dontcare );
 
@@ -287,6 +415,9 @@ namespace Archon {
           if (error==NO_ERROR) error = get_configmap_value( "PIXELCOUNT", this->camera_info.detector_pixels[0] );
           if (error==NO_ERROR) error = get_configmap_value( "LINECOUNT", this->camera_info.detector_pixels[1] );
 
+          if (error==NO_ERROR) error = this->recalc_geometry();
+
+/*****
           this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps[0];
           this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps[1];
           this->camera_info.frame_type = Camera::FRAME_IMAGE;
@@ -354,6 +485,7 @@ namespace Archon {
           }
           message.str(""); message << "identified " << this->camera_info.amp_section.size() << " amplifier sections";
           logwrite( function, message.str() );
+*****/
         } // end if args not empty
 
         // regardless of args empty or not, check and return the current width and height
@@ -391,8 +523,8 @@ namespace Archon {
        *  UTR:     1 <samples> <ramps>
        *  CDS:     2
        *  MCDS:    3 <pairs> <ext>
-       *  nonCDSV: 4
-       *  CDSV:    5
+       *  nonCDSV: 4 <frames>
+       *  CDSV:    5 <frames>
        *
        * Modes 1 (UTR) and 3 (MCDS) require a count value
        *
@@ -475,9 +607,12 @@ namespace Archon {
               //
               if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 1 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, tryframes );
               this->camera_info.cubedepth = tryframes;
+              this->camera_info.fitscubed = tryframes;
               break;
 
             case SAMPMODE_CDS:
@@ -497,9 +632,12 @@ namespace Archon {
               //
               if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, 1 );
               if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = 2;
+              this->camera_info.fitscubed = 2;
               break;
 
             // For MCDS, tryframes will be the total number of frames per extension (=cubedepth)
@@ -531,19 +669,66 @@ namespace Archon {
               //
               if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, tryframes/2 );  // number of pairs is tryframes/2
               if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = tryframes;
+              this->camera_info.fitscubed = tryframes;
               break;
 
             case SAMPMODE_NONCDSV:
-              this->camera.log_error( function, "nonCDS video not yet supported" );
-              return( ERROR );
+              //
+              // For non-CDS video (Rx mode) the single argument specifies
+              // the number of extensions. There will always be 1 frame per extension
+              // with N extensions, so this N will be passed to do_expose( trynexp ).
+              //
+              tryframes = 1;
+              tryext    = argin_i;
+              trynexp   = argin_i;
+              if ( tryext < 1 ) {
+                message.str(""); message << "must specify a non-zero number of frames";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              // write the parameters to Archon to set RX and clear the other modes
+              //
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxmode_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
+              this->camera_info.cubedepth = 1;
+              this->camera_info.fitscubed = 1;
               break;
 
             case SAMPMODE_CDSV:
-              this->camera.log_error( function, "CDS video not yet supported" );
-              return( ERROR );
+              //
+              // For CDS video (RxR mode) the single argument specifies
+              // the number of extensions. There will always be 1 frame per extension
+              // with N extensions, so this N will be passed to do_expose( trynexp ).
+              //
+              // This differs from Rx mode in that each frame is 2x the size.
+              //
+              tryframes = 1;
+              tryext    = argin_i;
+              trynexp   = argin_i;
+              if ( tryext < 1 ) {
+                message.str(""); message << "must specify a non-zero number of frames";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              // write the parameters to Archon to set RX and clear the other modes
+              //
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
+              this->camera_info.cubedepth = 1;
+              this->camera_info.fitscubed = 2;
               break;
 
             default:
@@ -552,9 +737,9 @@ namespace Archon {
               return( ERROR );
           }
 
-          // Enable/disable multi-extensions as appropriate
+          // Enable multi-extensions always, for consistency
           //
-          this->camera.mex( ( tryext > 1 ? true : false ) );
+          this->camera.mex( true );
 
           // One last error check.
           // Do not allow camera_info to set a value less than 1 for either frames or extensions.
@@ -569,9 +754,52 @@ namespace Archon {
             this->camera_info.set_axes();
           }
           else {
-            message.str(""); message << "tryframes=" << tryframes << " tryext=" << tryext;
+            message.str(""); message << "frames, extensions can't be <1: tryframes=" << tryframes << " tryext=" << tryext;
             this->camera.log_error( function, message.str() );
           }
+
+          // Now LINECOUNT must be set because CDSV is x2 the size.
+          // It will always be a multiple of nRowsQuad.
+          // Also set the readout mode here, either NIRC2 or NIRC2VIDEO,
+          // which is required for descrambling.
+          //
+          long nRowsQuad=0;
+          long LINECOUNT=0;
+          std::string dontcare;
+          std::stringstream cmd;
+
+          if (error==NO_ERROR) error = get_parammap_value( "nRowsQuad", nRowsQuad );
+
+          switch( mode_in ) {
+            case SAMPMODE_CDSV:
+              this->readout( "NIRC2VIDEO", dontcare );
+              LINECOUNT = nRowsQuad * 8;
+              break;
+            case SAMPMODE_UTR:
+            case SAMPMODE_CDS:
+            case SAMPMODE_MCDS:
+            case SAMPMODE_NONCDSV:
+              this->readout( "NIRC2", dontcare );
+              LINECOUNT = nRowsQuad * 4;
+              break;
+            default:
+              message.str(""); message << "unrecognized sample mode: " << mode_in;
+              this->camera.log_error( function, message.str() );
+              error = ERROR;
+              break;
+          }
+
+          cmd << "LINECOUNT " << LINECOUNT;
+          if (error==NO_ERROR) error = this->cds( cmd.str(), dontcare );
+
+          // update the modemap, in case someone asks again
+          //
+          this->modemap[ this->camera_info.current_observing_mode ].geometry.linecount  = LINECOUNT;
+
+          if (error==NO_ERROR) error = get_configmap_value( "PIXELCOUNT", this->camera_info.detector_pixels[0] );
+          if (error==NO_ERROR) error = get_configmap_value( "LINECOUNT", this->camera_info.detector_pixels[1] );
+
+          if (error==NO_ERROR) error = this->recalc_geometry();
         }
 
 #ifdef LOGLEVEL_DEBUG

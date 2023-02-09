@@ -66,7 +66,8 @@ class FITS_file {
       std::string function = "FITS_file::open_file";
       std::stringstream message;
 
-      int num_axis = ( info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes
+//    int num_axis = ( info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes
+      int num_axis = ( info.fitscubed > 1 ? 3 : 2 );  // local variable for number of axes
       long axes[num_axis];                            // local variable of image axes size
 
       const std::lock_guard<std::mutex> lock(this->fits_mutex);
@@ -101,7 +102,7 @@ class FITS_file {
       }
 
 #ifdef LOGLEVEL_DEBUG
-      message.str(""); message << "[DEBUG] cubedepth=" << info.cubedepth << " num_axis=" << num_axis
+      message.str(""); message << "[DEBUG] cubedepth=" << info.cubedepth << " fitscubed=" << info.fitscubed << " num_axis=" << num_axis
                                << " axes=";
       for ( auto aa : axes ) message << aa << " ";
       logwrite( function, message.str() );
@@ -125,7 +126,7 @@ class FITS_file {
         for (keyit  = info.systemkeys.keydb.begin();
              keyit != info.systemkeys.keydb.end();
              keyit++) {
-          this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
+          this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
         }
 
         // If specified, iterate through the user-defined FITS keyword databases and add them to the primary header.
@@ -135,7 +136,7 @@ class FITS_file {
           for (keyit  = info.userkeys.keydb.begin();
                keyit != info.userkeys.keydb.end();
                keyit++) {
-            this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
+            this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
           }
         }
       }
@@ -200,7 +201,7 @@ class FITS_file {
         for (keyit  = info.userkeys.keydb.begin();
              keyit != info.userkeys.keydb.end();
              keyit++) {
-          this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment);
+          this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
         }
       }
 
@@ -474,7 +475,8 @@ class FITS_file {
       try {
         long fpixel(1);                     // start with the first pixel always
 
-        long num_axis = ( info.cubedepth > 1 ? 3 : 2 );
+//      long num_axis = ( info.cubedepth > 1 ? 3 : 2 );
+        long num_axis = ( info.fitscubed > 1 ? 3 : 2 );
 
         std::vector<long> axes(num_axis);   // addImage() wants a vector, which has the size of the number of axes
 
@@ -499,6 +501,13 @@ class FITS_file {
         if (info.datatype == SHORT_IMG) {
           this->imageExt->addKey("BZERO", 32768, "offset for signed short int");
           this->imageExt->addKey("BSCALE", 1, "scaling factor");
+        }
+
+        Common::FitsKeys::fits_key_t::iterator keyit;
+        for ( keyit  = info.extkeys.keydb.begin();
+              keyit != info.extkeys.keydb.end();
+              keyit++ ) {
+          this->add_key( false, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
         }
 
         // Add AMPSEC keys
@@ -569,19 +578,19 @@ class FITS_file {
     /**************** FITS_file::make_camera_header ***************************/
 
 
-    /**************** FITS_file::add_key **************************************/
+    /***** FITS_file::add_key *************************************************/
     /**
-     * @fn         add_key
      * @brief      wrapper to write keywords to the FITS file header
-     * @param[in]  std::string keyword
-     * @param[in]  std::string type
-     * @param[in]  std::string value
-     * @param[in]  std::string comment
-     * @return     nothing
+     * @param[in]  primary  boolean is true for primary, false for extension
+     * @param[in]  keyword
+     * @param[in]  type
+     * @param[in]  value
+     * @param[in]  comment
      *
-     * Uses CCFits
+     * Uses CCFits addKey template function, this wrapper ensures the correct type is passed.
+     * 
      */
-    void add_key(std::string keyword, std::string type, std::string value, std::string comment) {
+    void add_key( bool primary, std::string keyword, std::string type, std::string value, std::string comment ) {
       std::string function = "FITS_file::add_key";
       std::stringstream message;
 
@@ -600,16 +609,20 @@ class FITS_file {
       try {
         if (type.compare("BOOL") == 0) {
           bool boolvalue = ( value == "T" ? true : false );
-          this->pFits->pHDU().addKey( keyword, boolvalue, comment );
+          ( primary ? this->pFits->pHDU().addKey( keyword, boolvalue, comment )
+                    : this->imageExt->addKey( keyword, boolvalue, comment ) );
         }
         else if (type.compare("INT") == 0) {
-          this->pFits->pHDU().addKey(keyword, std::stoi(value), comment);
+          ( primary ? this->pFits->pHDU().addKey(keyword, std::stoi(value), comment)
+                    : this->imageExt->addKey( keyword, std::stoi(value), comment ) );
         }
         else if (type.compare("FLOAT") == 0) {
-          this->pFits->pHDU().addKey(keyword, std::stof(value), comment);
+          ( primary ? this->pFits->pHDU().addKey(keyword, std::stof(value), comment)
+                    : this->imageExt->addKey( keyword, std::stof(value), comment ) );
         }
         else if (type.compare("STRING") == 0) {
-          this->pFits->pHDU().addKey(keyword, value, comment);
+          ( primary ? this->pFits->pHDU().addKey(keyword, value, comment)
+                    : this->imageExt->addKey( keyword, value, comment ) );
         }
         else {
           message.str(""); message << "ERROR unknown type: " << type << " for user keyword: " << keyword << "=" << value
@@ -617,13 +630,33 @@ class FITS_file {
           logwrite(function, message.str());
         }
       }
+      // There could be an error converting a value to INT or FLOAT with stoi or stof,
+      // in which case save the keyword as a STRING.
+      //
+      catch ( std::invalid_argument & ) {
+        message.str(""); message << "ERROR: unable to convert value " << value;
+        logwrite( function, message.str() );
+        if (type.compare("STRING") != 0) {
+          ( primary ? this->pFits->pHDU().addKey(keyword, value, comment)
+                    : this->imageExt->addKey( keyword, value, comment ) );
+        }
+      }
+      catch ( std::out_of_range & ) {
+        message.str(""); message << "ERROR: value " << value << " out of range";
+        logwrite( function, message.str() );
+        if (type.compare("STRING") != 0) {
+          ( primary ? this->pFits->pHDU().addKey(keyword, value, comment)
+                    : this->imageExt->addKey( keyword, value, comment ) );
+        }
+      }
       catch (CCfits::FitsError & err) {
-        message.str(""); message << "ERROR adding key " << keyword << "=" << value << " / " << comment << " (" << type << ") : "
+        message.str(""); message << "ERROR adding key " << keyword << "=" << value << " / " << comment << " (" << type << ")"
+                                 << " to " << ( primary ? "primary" : "extension" ) << " :"
                                  << err.message();
         logwrite(function, message.str());
       }
     }
-    /**************** FITS_file::add_key **************************************/
+    /***** FITS_file::add_key *************************************************/
 
 };
 #endif

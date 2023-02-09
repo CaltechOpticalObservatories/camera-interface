@@ -78,21 +78,21 @@ namespace Camera {
 
       std::mutex conn_mutex;             //!< mutex to protect against simultaneous access to Accept()
 
-      /** Camera::Server::exit_cleanly *********************************************/
+
+      /***** Camera::Server::exit_cleanly *************************************/
       /**
-       * @fn     signal_handler
-       * @brief  handles ctrl-C and exits
-       * @param  int signo
-       * @return nothing
+       * @brief      handles ctrl-C and exits
        *
        */
       void exit_cleanly(void) {
         std::string function = "Camera::Server::exit_cleanly";
         this->disconnect_controller();
+        this->cleanup_memory();
         logwrite(function, "server exiting");
         exit(EXIT_SUCCESS);
       }
-      /** Camera::Server::exit_cleanly *********************************************/
+      /***** Camera::Server::exit_cleanly *************************************/
+
 
       /** Camera::Server::configure_server *****************************************/
       /**

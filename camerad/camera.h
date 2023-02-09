@@ -119,7 +119,24 @@ namespace Camera {
       std::string   readout_name;            //!< name of the readout source
       int           readout_type;            //!< type of the readout source is an enum
       long          axes[3];                 //!< element 0=cols, 1=cols, 2=cubedepth
-      long          cubedepth;               //!< depth, or number of slices for 3D data cubes
+
+      /**
+       * @var     cubedepth
+       * @brief   depth, or number of slices for 3D data cubes
+       * @details cubedepth is used to calculate memory allocation and is not necessarily the
+       *          same as fitscubed, which is used to force the fits writer to create a cube.
+       *
+       */
+      long          cubedepth;
+
+      /**
+       * @var     fitscubed
+       * @brief   depth, or number of slices for 3D data cubes
+       * @details fitscubed is used to tell the fitswriter to create a file with a 3rd axis or not
+       *
+       */
+      long          fitscubed;
+
       int           binning[2];
       long          axis_pixels[2];
       long          region_of_interest[4];
@@ -151,6 +168,7 @@ namespace Camera {
 
       Common::FitsKeys userkeys;     /// create a FitsKeys object for FITS keys specified by the user
       Common::FitsKeys systemkeys;   /// create a FitsKeys object for FITS keys imposed by the software
+      Common::FitsKeys extkeys;      /// create a FitsKeys object for FITS keys imposed by the software
 
 
   Information() {
@@ -158,6 +176,7 @@ namespace Camera {
         this->axes[1] = 1;
         this->axes[2] = 1;
         this->cubedepth = 1;
+        this->fitscubed = 1;
         this->binning[0] = 1;
         this->binning[1] = 1;
         this->region_of_interest[0] = 1;

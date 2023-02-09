@@ -566,6 +566,11 @@ void doit(Network::TcpSocket sock) {
 #endif
 #ifdef STA_ARCHON
     else
+    if (cmd.compare("caltimer")==0) {
+                    ret = server.caltimer();
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
     if (cmd.compare("readout")==0) {
                     ret = server.readout(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
@@ -702,10 +707,21 @@ void doit(Network::TcpSocket sock) {
                     sock.Write(" ");
                     }
     else
+    if (cmd.compare("poweron")==0) {
+                    ret = server.poweron();
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("poweroff")==0) {
+                    ret = server.poweroff();
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
     if (cmd.compare("test")==0) {
                     ret = server.test(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
+#ifdef ENGINEERING_USER
     else
     if (cmd.compare("native")==0) {
       try {
@@ -723,7 +739,10 @@ void doit(Network::TcpSocket sock) {
       ret = server.native(args);
 #endif
     }
+#endif
     else {  // if no matching command found
+      message.str(""); message << "ERROR unrecognized command: " << cmd;
+      logwrite( function, message.str() );
       ret=ERROR;
     }
 
