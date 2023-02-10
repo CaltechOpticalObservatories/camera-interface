@@ -3680,7 +3680,6 @@ namespace Archon {
     error = this->get_frame_status();  // TODO is this needed here?
 
     error = this->prepare_ring_buffer();
-//  error = this->alloc_workbuf();
     error = this->alloc_workring();
 
     if (error != NO_ERROR) {
@@ -3762,6 +3761,20 @@ namespace Archon {
     logwrite( function, "[DEBUG] opened fits file for multi-exposure sequence using multi-extensions" );
 #endif
 
+    // If CDS is requested then spawn a thread that will handle this
+    //
+/***
+    if ( this->camera_info.iscds ) {
+      this->cds_info = this->camera_info;
+      this->cds_info.fitscubed = 1;
+      this->cds_info.cubedepth = 1;
+      this->cds_info.axes[2] = 1;
+      this->cds_info.fits_name = "/tmp/cds.fits";
+      error = this->cds_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->cds_info );
+      std::thread( std::ref( Archon::Interface::dothread_runcds ), this ).detach();
+    }
+***/
+
 //  //TODO only use camera_info -- don't use fits_info -- is this OK? TO BE CONFIRMED
 //  this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer  //TODO
 
@@ -3822,42 +3835,6 @@ namespace Archon {
           this->openfits_error.store( false );
           std::thread( std::ref( Archon::Interface::dothread_openfits ), this ).detach();
         }
-/****
-// >>>>>>>>>>>  add this to a separate thread spawned by dothread_openfits >>>>>
-        // Open a new FITS file for each frame when not using multi-extensions (mex)
-        //
-#ifdef LOGLEVEL_DEBUG
-        message.str(""); message << "[DEBUG] mex=" << this->camera.mex() << " mexamps=" << this->camera.mexamps();
-        logwrite( function, message.str() );
-#endif
-        if ( !this->camera.mex() || this->camera.mexamps() ) {
-          this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-          if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
-            logwrite( function, "ERROR: could not get start time" );
-            return( ERROR );
-          }
-          this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
-          error=this->camera.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
-          if ( error != NO_ERROR ) {
-            logwrite( function, "ERROR: couldn't validate fits filename" );
-            return( error );
-          }
-          this->add_filename_key();                                     // add filename to system keys database
-
-#ifdef LOGLEVEL_DEBUG
-          logwrite( function, "[DEBUG] reset extension=0 and opening new fits file" );
-#endif
-          // reset the extension number and open the fits file
-          //
-          this->camera_info.extension = 0;
-          error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
-          if ( error != NO_ERROR ) {
-            this->camera.log_error( function, "couldn't open fits file" );
-            return( error );
-          }
-        }
-// <<<<<<<<<<<  add this to a separate thread spawned by dothread_openfits <<<<<
-****/
 
         if ( this->camera_info.exposure_time != 0 ) {                   // wait for the exposure delay to complete (if there is one)
           error = this->wait_for_exposure();
@@ -3869,22 +3846,11 @@ namespace Archon {
 
         if (this->camera.writekeys_when=="after") this->copy_keydb();   // copy the ACF and userkeys database into camera_info
 
-        // prepare image_data buffer, allocating memory as needed
-        //
-//      error = this->prepare_image_buffer(); DDSH
-//      error = this->prepare_ring_buffer();  // TODO MOVED ABOVE 20230117
-        if (error == ERROR) {
-          logwrite( function, "ERROR: unable to allocate an image buffer" );
-          return(ERROR);
-        }
-
-//      ptr_image = this->image_data; DDSH
         {
         char *ptr_image;
         try {
           ptr_image = this->image_ring.at(this->ringcount);
 #ifdef LOGLEVEL_DEBUG
-//        message.str(""); message << "[DEBUG] this->image_data = " << std::hex << (void*)this->image_data; DDSH
           message.str(""); message << "[DEBUG] this->image_ring[" << this->ringcount << "] = " << std::hex << (void*)this->image_ring.at(this->ringcount)
                                    << " ptr_image=" << std::hex << (void*)ptr_image;
           logwrite(function, message.str());
@@ -7198,6 +7164,7 @@ if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF 
       //
       if ( rw && ( this->camera.mex() || (error==ERROR) ) ) {
         this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+//      this->cds_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->cds_info );
         this->camera.increment_imnum();                                            // increment image_num when fitsnaming == "number"
       }
 
@@ -7333,17 +7300,14 @@ if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF 
 
     switch ( this->camera_info.datatype ) {
       case USHORT_IMG: {
-//DDSH  this->alloc_workbuf( (uint16_t *)ptr );
         this->alloc_workring( (uint16_t *)ptr );
         break;
       }
       case SHORT_IMG: {
-//DDSH  this->alloc_workbuf( (int16_t *)ptr );
         this->alloc_workring( (int16_t *)ptr );
         break;
       }
       case FLOAT_IMG: {
-//DDSH  this->alloc_workbuf( (uint32_t *)ptr );
         this->alloc_workring( (uint32_t *)ptr );
         break;
       }
@@ -7517,7 +7481,7 @@ if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF 
   /**
    * @brief      spawns the deinterlacing threads
    * @param[in]  imbuf         pointer to buffer which contains the original image
-   * @param[in]  workbuf       pointer to 
+   * @param[in]  workbuf       pointer to buffer that contains the deinterlaced image
    * @param[in]  ringcount_in  the current ring buffer to deinterlace
    * @return     T* pointer to workbuf
    *
@@ -7532,15 +7496,16 @@ if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF 
     // This object contains the functions needed for the deinterlacing,
     // which will get called by the threads created here.
     //
-    DeInterlace<T> deinterlace( (T*)imbuf,
-                                (T*)workbuf,
-                                this->workbuf_size,
+    DeInterlace<T> deinterlace( (T*)imbuf,                             // pointer to buffer that contains the raw image
+                                (T*)workbuf,                           // pointer to buffer that contains the deinterlaced image
+                                this->workbuf_size,                    // probably not used anymore
                                 this->camera_info.detector_pixels[0],  // cols
                                 this->camera_info.detector_pixels[1],  // rows
-                                this->camera_info.readout_type,
-                                this->camera_info.imheight,
-                                this->camera_info.imwidth,
-                                this->camera_info.cubedepth );
+                                this->camera_info.readout_type,        // selects type of deinterlacing
+                                this->camera_info.imheight,            // frame_rows
+                                this->camera_info.imwidth,             // frame_cols
+                                this->camera_info.cubedepth
+                              );
 
     {
 #ifdef LOGLEVEL_DEBUG
@@ -7553,14 +7518,12 @@ if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF 
     std::vector<std::thread> threads;
     std::thread( std::ref( Archon::Interface::dothread_deinterlace<T> ),
                  this,
-                 std::ref( deinterlace ),
+                 std::ref( deinterlace ),                                           // reference to the DeInterlace object just created above
                  this->camera_info.detector_pixels[0],                              // cols
                  this->camera_info.detector_pixels[1] * this->camera_info.axes[2],  // rows*depth
-                 ringcount_in
+                 ringcount_in                                                       // selects the ringbuffer to deinterlace
                ).detach();
     }
-
-    ++this->deinterlace_count;
 
     return( (T*)this->workbuf );
   }
@@ -7570,6 +7533,7 @@ if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF 
   /***** Archon::Interface::dothread_deinterlace ******************************/
   /**
    * @brief      this is run in a thread to do the deinterlacing
+   * @param[in]  self          pointer to this-> (Archon::Interface object)
    * @param[in]  deinterlace   address of DeInterlace object
    * @param[in]  bufcols       number of cols in raw image buffer
    * @param[in]  bufrows       number of rows in raw image buffer
@@ -7587,9 +7551,38 @@ if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF 
     logwrite(function, message.str());
 #endif
 
+    // Create appropriately-sized cv::Mat arrays for the reset and read frames in the DeInterlace object.
+    // The deinterlace function will copy the appropriate frames into these objects.
+    //
+    deinterlace.resetframe = cv::Mat( self->camera_info.imheight, self->camera_info.imwidth, CV_16U, cv::Scalar(0) );
+    deinterlace.readframe  = cv::Mat( self->camera_info.imheight, self->camera_info.imwidth, CV_16U, cv::Scalar(0) );
+
     // The DeInterlace object contains the actual de-interlacing functions
     //
     deinterlace.do_deinterlace( bufrows );
+
+    cv::Mat diff = deinterlace.readframe  - deinterlace.resetframe;
+
+/***
+    message.str(""); message << "deinterlace.resetframe.rows=" << deinterlace.resetframe.rows << " deinterlace.resetframe.cols=" << deinterlace.resetframe.cols;
+    logwrite( function, message.str() );
+
+    message.str(""); message << "diff=";
+    for ( int col=0; col<5; col++ ) message << " " << diff.at<uint16_t>(0,col);
+    logwrite( function, message.str() );
+
+    uint16_t* buf;
+    int index=0;
+    buf = new uint16_t[ 2 * deinterlace.resetframe.rows * deinterlace.resetframe.cols ];
+    for ( int row=0; row<deinterlace.resetframe.rows; row++ ) {
+      for ( int col=0; col<deinterlace.resetframe.cols; col++ ) {
+        *( buf + index++ ) = (uint16_t)(diff.at<uint16_t>(row,col));
+      }
+    }
+
+    self->cds_file.write_image( buf, self->cds_info );     // write the image to disk
+    delete [] buf;
+***/
 
 #ifdef LOGLEVEL_DEBUG
     message.str(""); message << "[DEBUG] deinterlace for ring " << ringcount_in << " is done -- notify the FITS writer";
@@ -7599,11 +7592,39 @@ if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF 
     std::unique_lock<std::mutex> lk( self->deinter_mtx );
     self->ringbuf_deinterlaced.at( ringcount_in )=true;
     }
-    self->deinter_cv.notify_one();
+    ++self->deinterlace_count;
+    self->deinter_cv.notify_all();
 
     return;
   }
   /***** Archon::Interface::dothread_deinterlace ******************************/
+
+
+  /***** Archon::Interface::dothread_runcds ***********************************/
+  /**
+   * @brief      
+   * @param[in]  self  pointer to Archon::Interface object
+   *
+   */
+  void Interface::dothread_runcds( Interface *self ) {
+    std::string function = "Archon::Interface::dothread_runcds";
+    std::stringstream message;
+
+    message << "waiting for all CDS frames: self->deinterlace_count.load()=" << self->deinterlace_count.load() << " self->camera_info.nseq=" << self->camera_info.nseq;
+    logwrite( function, message.str() );
+
+    // Wait for something
+    {
+    std::unique_lock<std::mutex> lk( self->deinter_mtx );
+    while ( self->deinterlace_count.load() < self->camera_info.nseq ) {
+      self->deinter_cv.wait( lk );
+      message.str(""); message << "just got word that something was deinterlaced. deinterlace_count=" << self->deinterlace_count.load();
+      logwrite( function, message.str() );
+    }
+    }
+    logwrite( function, "exiting CDS thread" );
+  }
+  /***** Archon::Interface::dothread_runcds ***********************************/
 
 
   /***** Archon::Interface::dothread_openfits *********************************/

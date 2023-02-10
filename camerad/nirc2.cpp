@@ -613,6 +613,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, tryframes );
               this->camera_info.cubedepth = tryframes;
               this->camera_info.fitscubed = tryframes;
+              this->camera_info.iscds = false;
               break;
 
             case SAMPMODE_CDS:
@@ -638,6 +639,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = 2;
               this->camera_info.fitscubed = 2;
+              this->camera_info.iscds = true;
               break;
 
             // For MCDS, tryframes will be the total number of frames per extension (=cubedepth)
@@ -675,6 +677,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = tryframes;
               this->camera_info.fitscubed = tryframes;
+              this->camera_info.iscds = false;
               break;
 
             case SAMPMODE_NONCDSV:
@@ -701,6 +704,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = 1;
               this->camera_info.fitscubed = 1;
+              this->camera_info.iscds = false;
               break;
 
             case SAMPMODE_CDSV:
@@ -729,6 +733,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = 1;
               this->camera_info.fitscubed = 2;
+              this->camera_info.iscds = false;
               break;
 
             default:

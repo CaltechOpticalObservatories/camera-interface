@@ -144,6 +144,7 @@ namespace Camera {
       long          imwidth;
       long          imheight;
       bool          abortexposure;
+      bool          iscds;                   //!< is CDS subtraction requested?
       bool          ismex;                   //!< the info object given to the FITS writer will need to know multi-extension status
       int           extension;               //!< extension number for multi-extension files
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
@@ -185,6 +186,7 @@ namespace Camera {
         this->region_of_interest[3] = 1;
         this->image_center[0] = 1;
         this->image_center[1] = 1;
+        this->iscds = false;
         this->ismex = false;
         this->datatype = -1;
         this->type_set = false;              //!< set true when datatype has been defined
