@@ -39,8 +39,7 @@ namespace Camera {
       bool is_mex;
       bool is_longerror;                     //!< set to return error message on command port
       bool is_mexamps;                       //!< should amplifiers be written as multi-extension?
-      std::atomic<bool> _abortstate;;
-      std::mutex abort_mutex;
+      std::atomic<bool> abortstate;          /// set true to abort the current operation (exposure, readout, etc.)
       std::stringstream lasterrorstring;     //!< a place to preserve an error message
 
     public:
@@ -48,12 +47,12 @@ namespace Camera {
       ~Camera() {}
 
       bool          autodir_state;           //!< if true then images are saved in a date subdir below image_dir, i.e. image_dir/YYYYMMDD/
-      bool          abortstate;              //!< set true to abort the current operation (exposure, readout, etc.)
       std::string   writekeys_when;          //!< when to write fits keys "before" or "after" exposure
       Common::Queue async;                   /// message queue object
 
-      void set_abortstate(bool state);
-      bool get_abortstate();
+      inline void set_abort()   { this->abortstate = true;  };
+      inline void clear_abort() { this->abortstate = false; };
+      inline bool is_aborted()  { return this->abortstate;  };
 
       void set_dirmode( mode_t mode_in ) { this->dirmode = mode_in; }
 
@@ -76,7 +75,6 @@ namespace Camera {
       void set_fitstime(std::string time_in);
       long get_fitsname(std::string &name_out);
       long get_fitsname(std::string controllerid, std::string &name_out);
-      void abort();
       void mex(bool state_in);
       bool mex();
       long mex(std::string state_in, std::string &state_out);

@@ -14,7 +14,9 @@
 #include <numeric>
 #include <fenv.h>
 #include <memory>                  // for std::unique and friends (c++17)
+#include <Python.h>
 
+#include "pyhelper.h"
 #include "utilities.h"
 #include "common.h"
 #include "camera.h"
@@ -92,6 +94,27 @@ namespace Archon {
 
   const int IMAGE_RING_BUFFER_SIZE = 5;
 
+  const int CDS_OFFS = 100;  /// offset to add to read frame for cds images before subtraction
+
+  /***** Archon::PythonProc ***************************************************/
+  /**
+   * @class  PythonProc
+   * @brief  This is the class for external Python processors
+   *
+   */
+  class PythonProc {
+    private:
+    public:
+      PythonProc();
+      ~PythonProc();
+
+      CPyInstance hInstance;
+      CPyObject pName;
+      CPyObject pModule;
+
+  };
+  /***** Archon::PythonProc ***************************************************/
+
 
   /***** Archon::DeInterlace **************************************************/
   /**
@@ -105,8 +128,10 @@ namespace Archon {
       cv::Mat resetframe;
       cv::Mat readframe;
     private:
+      T* cdsbuf;
       T* workbuf;
       T* imbuf;
+      bool iscds;
       long bufsize;
       int cols;
       int rows;
@@ -360,14 +385,26 @@ namespace Archon {
               *( this->workbuf + workindex++ ) = (uint16_t)(work.at<uint16_t>(row,col));
             }
           }
-          if ( i==0 ) work.copyTo( this->resetframe );  // this is the reset frame
-          if ( i==1 ) work.copyTo( this->readframe  );  // this is the read frame
+          if ( this->iscds && i==0 ) work.copyTo( this->resetframe );  // this is the reset frame
+          if ( this->iscds && i==1 ) work.copyTo( this->readframe  );  // this is the read frame
 
         } // end of loop over cubes
 
-        // Add 100 to the read frame to ensure that it is always greater than the reset frame
+        if ( !this->iscds ) return;
+
+        // Add CDS_OFFS to the read frame to ensure that it is always greater than the reset frame
         //
-        cv::add( 100, this->readframe, this->readframe );
+        cv::add( CDS_OFFS, this->readframe, this->readframe );
+
+        // Copy assembled image into the FITS buffer, this->cdsbuf
+        //
+        cv::Mat diff = this->readframe - this->resetframe;
+        unsigned long index=0;
+        for ( int row=0; row<this->frame_rows; row++ ) {
+          for ( int col=0; col<this->frame_cols; col++ ) {
+            *( this->cdsbuf + index++ ) = (uint16_t)(diff.at<uint16_t>(row,col));
+          }
+        }
 
         return;
       }
@@ -430,9 +467,11 @@ namespace Archon {
        * @param[in]  readout_type  
        *
        */
-      DeInterlace( T* imbuf_in, T* workbuf_in, long bufsize, int cols, int rows, int readout_type, long height, long width, long depth ) {
+      DeInterlace( T* imbuf_in, T* workbuf_in, T* cdsbuf_in, bool iscds, long bufsize, int cols, int rows, int readout_type, long height, long width, long depth ) {
         this->imbuf = imbuf_in;
         this->workbuf = workbuf_in;
+        this->cdsbuf = cdsbuf_in;
+        this->iscds = iscds;
         this->bufsize = bufsize;
         this->cols = cols;
         this->rows = rows;
@@ -592,10 +631,12 @@ namespace Archon {
       int ringcount;
       std::vector<char*> image_ring;
       std::vector<void*> work_ring;
+      std::vector<void*> cds_ring;
       std::vector<uint32_t> ringdata_allocated;
 
       void *workbuf;                         //!< pointer to workspace for performing deinterlacing //TODO @todo obsolete?
       long workbuf_size;
+      long cdsbuf_size;
       uint32_t image_data_bytes;             //!< requested number of bytes allocated for image_data rounded up to block size
       uint32_t image_data_allocated;         //!< allocated number of bytes for image_data
 
@@ -604,6 +645,7 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
+      std::string abortparam;                //!< param name to trigger an abort when set =1
       std::string mcdspairs_param;           //!< param name to set MCDS samples
       std::string mcdsmode_param;            //!< param name to set MCDS mode
       std::string rxmode_param;              //!< param name to set RX mode (read-reset video)
@@ -620,6 +662,7 @@ namespace Archon {
 
       // Functions
       //
+      long abort_archon();                   //!< set the abort parameter on the Archon
       long caltimer();                       //!< calibrate Archon timer
       long interface(std::string &iface);    //!< get interface type
       long configure_controller();           //!< get configuration parameters
@@ -662,6 +705,7 @@ namespace Archon {
       long write_parameter( const char *paramname, int newvalue );
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
       void add_filename_key();
+      void add_filename_key( Camera::Information &info );  /// adds the current filename to the systemkeys database
       long poweron();
       long poweroff();
       long expose( std::string nseq_in );
@@ -691,6 +735,7 @@ namespace Archon {
       long readout( std::string readout_in, std::string &readout_out );
       long test(std::string args, std::string &retstring);
 
+      static void dothread_runmcdsproc( Interface *self );
       static void dothread_runcds( Interface *self );                             /// this is run in a thread to open a fits file for flat (non-mex) files only
       static void dothread_openfits( Interface *self );                             /// this is run in a thread to open a fits file for flat (non-mex) files only
       static void dothread_writeframe( Interface *self, int ringcount_in );         /// this is run in a thread to write a frame after it is deinterlaced
@@ -704,7 +749,7 @@ namespace Archon {
       template <class T> void  alloc_workring( T* buf );
       template <class T> void  free_workring( T* buf );
 
-      template <class T> T* deinterlace( T* imbuf, T* workbuf, int ringcount_in );
+      template <class T> T* deinterlace( T* imbuf, T* workbuf, T* cdsbuf, int ringcount_in );
       template <class T> static void dothread_deinterlace( Interface *self, DeInterlace<T> &deinterlace, int bufcols, int bufrows, int ringcount );
 
       /**

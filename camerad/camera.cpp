@@ -35,43 +35,9 @@ namespace Camera {
     this->fits_naming = "time";
     this->fitstime = "";
     this->abortstate = false;
-    this->_abortstate = false;
     this->writekeys_when = "before";
     this->autodir_state = true;
   }
-
-
-  /** Camera::Camera::abort ***************************************************/
-  /**
-   * @fn     abort
-   * @brief  abort the current operation (exposure, readout, etc.)
-   * @param  none
-   * @return none
-   *
-   */
-  void Camera::abort() {
-    std::string function = "Camera::Camera::abort";
-    std::stringstream message;
-    this->abortstate = true;
-    logwrite(function, "received abort");
-    return;
-  }
-  /** Camera::Camera::abort ***************************************************/
-
-void Camera::set_abortstate(bool state) {
-  this->abort_mutex.lock();
-  this->abortstate = state;
-  this->_abortstate = state;
-  this->abort_mutex.unlock();
-}
-
-bool Camera::get_abortstate() {
-  bool state;
-  this->abort_mutex.lock();
-  state = this->abortstate;
-  this->abort_mutex.unlock();
-  return( state );
-}
 
 
   /** Camera::Camera::log_error ***********************************************/

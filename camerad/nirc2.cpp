@@ -34,6 +34,33 @@ namespace Archon {
                                                      SAMPSTR_CDSV,
                                                    };
 
+      /***** PythonProc::PythonProc *******************************************/
+      /**
+       * @brief      
+       *
+       */
+      PythonProc::PythonProc() {
+        this->pName   = PyUnicode_FromString( "calcmcds" );
+        this->pModule = PyImport_Import( this->pName );
+        logwrite( "PythonProc::PythonProc", "constructed" );
+      }
+      /***** PythonProc::PythonProc *******************************************/
+
+
+      /***** PythonProc::~PythonProc ******************************************/
+      /**
+       * @brief      
+       *
+       */
+      PythonProc::~PythonProc() {
+        logwrite( "PythonProc::~PythonProc", "de-constructed" );
+      }
+      /***** PythonProc::~PythonProc ******************************************/
+
+
+      PythonProc pp;
+
+
       /**************** Archon::Interface::poweron ****************************/
       /**
        * @brief      turn off the power

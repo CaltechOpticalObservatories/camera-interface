@@ -430,7 +430,8 @@ class FITS_file {
       std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
-      message.str(""); message << "[DEBUG] info.extension=" << info.extension << " this->framen=" << this->framen;
+      message.str(""); message << "[DEBUG] " << info.fits_name << ": info.extension=" << info.extension << " this->framen=" << this->framen << " axes=";
+      for ( auto aa : info.axes ) message << aa << " ";
       logwrite( function, message.str() );
 #endif
 

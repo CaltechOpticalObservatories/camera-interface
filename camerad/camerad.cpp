@@ -538,7 +538,7 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("abort")==0) {
-                    server.camera.abort();
+                    server.camera.set_abort();
                     ret = 0;
                     }
 #ifdef ASTROCAM
