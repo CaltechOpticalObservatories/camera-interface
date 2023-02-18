@@ -39,11 +39,13 @@ namespace Archon {
        * @brief      
        *
        */
+/***
       PythonProc::PythonProc() {
         this->pName   = PyUnicode_FromString( "calcmcds" );
         this->pModule = PyImport_Import( this->pName );
         logwrite( "PythonProc::PythonProc", "constructed" );
       }
+***/
       /***** PythonProc::PythonProc *******************************************/
 
 
@@ -52,13 +54,15 @@ namespace Archon {
        * @brief      
        *
        */
+/***
       PythonProc::~PythonProc() {
         logwrite( "PythonProc::~PythonProc", "de-constructed" );
       }
+***/
       /***** PythonProc::~PythonProc ******************************************/
 
 
-      PythonProc pp;
+//    PythonProc pp;
 
 
       /**************** Archon::Interface::poweron ****************************/
@@ -223,20 +227,28 @@ namespace Archon {
         long error = NO_ERROR;
         std::string mode = this->camera_info.current_observing_mode;
 
+        // Prior to this, detector_pixels[0] = PIXELCOUNT
+	//                detector_pixels[1] = LINECOUNT
+	// multiply them here by the number of amplifiers to get the detector pixel geometry.
+	//
         this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps[0];
         this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps[1];
         this->camera_info.frame_type = Camera::FRAME_IMAGE;
 
         // ROI is the full detector
+	//
         this->camera_info.region_of_interest[0] = 1;
         this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
         this->camera_info.region_of_interest[2] = 1;
         this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
+
         // Binning factor (no binning)
+	//
         this->camera_info.binning[0] = 1;
         this->camera_info.binning[1] = 1;
 
         error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
+        this->camera_info.section_size = this->camera_info.imwidth * this->camera_info.imheight * this->camera_info.axes[2];
 
         // allocate image_data in blocks because the controller outputs data in units of blocks
         //
@@ -385,13 +397,13 @@ namespace Archon {
 
           // compute the parameters required for the ACF to realize this width and height
           //
-          int NRQ = tryheight / 8;  /// nRowsQuad
-          int SRQ = 128 - NRQ;      /// SkippedRowsQuad
-          int LC  = NRQ * 4;        /// LINECOUNT **overwritten below! depends on sampmode
+          int NRQ = (tryheight / 8) + 1;   /// nRowsQuad, add +1 for Aladdin III
+          int SRQ = (128 - NRQ) + 1;       /// SkippedRowsQuad, add +1 for Aladdin III
+          int LC  = NRQ * 4;               /// LINECOUNT **overwritten below! depends on sampmode
 
-          int NPP = trywidth / 32;  /// nPixelsPair
-          int SCQ = 32 - NPP;       /// SkippedColumnsQuad
-          int PC  = NPP * 2;        /// PIXELCOUNT
+          int NPP = trywidth / 32;         /// nPixelsPair
+          int SCQ = 32 - NPP;              /// SkippedColumnsQuad
+          int PC  = NPP * 2;               /// PIXELCOUNT
 
           // write the parameters to Archon
           //
@@ -444,75 +456,6 @@ namespace Archon {
 
           if (error==NO_ERROR) error = this->recalc_geometry();
 
-/*****
-          this->camera_info.detector_pixels[0] *= this->modemap[mode].geometry.amps[0];
-          this->camera_info.detector_pixels[1] *= this->modemap[mode].geometry.amps[1];
-          this->camera_info.frame_type = Camera::FRAME_IMAGE;
-
-          // ROI is the full detector
-          this->camera_info.region_of_interest[0] = 1;
-          this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
-          this->camera_info.region_of_interest[2] = 1;
-          this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
-          // Binning factor (no binning)
-          this->camera_info.binning[0] = 1;
-          this->camera_info.binning[1] = 1;
-
-          error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
-
-          // allocate image_data in blocks because the controller outputs data in units of blocks
-          //
-          int num_detect = this->modemap[mode].geometry.num_detect;
-          this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
-
-          if (this->image_data_bytes == 0) {
-            this->camera.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
-            error = ERROR;
-          }
-
-          this->camera_info.current_observing_mode = mode;       // identify the newly selected mode in the camera_info class object
-          this->modeselected = true;                             // a valid mode has been selected
-
-          message.str(""); message << "new mode: " << mode << " will use " << this->camera_info.bitpix << " bits per pixel";
-          logwrite(function, message.str());
-
-          // Calculate amplifier sections
-          //
-          int rows = this->modemap[mode].geometry.linecount;     // rows per section
-          int cols = this->modemap[mode].geometry.pixelcount;    // cols per section
-
-          int hamps = this->modemap[mode].geometry.amps[0];      // horizontal amplifiers
-          int vamps = this->modemap[mode].geometry.amps[1];      // vertical amplifiers
-
-          int x0=-1, x1, y0, y1;                                 // for indexing
-          std::vector<long> coords;                              // vector of coordinates, convention is x0,x1,y0,y1
-          int framemode = this->modemap[mode].geometry.framemode;
-
-          this->camera_info.amp_section.clear();                 // vector of coords vectors, one set of coords per extension
-
-          for ( int y=0; y<vamps; y++ ) {
-            for ( int x=0; x<hamps; x++ ) {
-              if ( framemode == 2 ) {
-                x0 = x; x1=x+1;
-                y0 = y; y1=y+1;
-              }
-              else {
-                x0++;   x1=x0+1;
-                y0 = 0; y1=1;
-              }
-              coords.clear();
-              coords.push_back( (x0*cols + 1) );                 // x0 is xstart
-              coords.push_back( (x1)*cols );                     // x1 is xstop, xrange = x0:x1
-              coords.push_back( (y0*rows + 1) );                 // y0 is ystart
-              coords.push_back( (y1)*rows );                     // y1 is ystop, yrange = y0:y1
-
-              this->camera_info.amp_section.push_back( coords ); // (x0,x1,y0,y1) for this extension
-
-            }
-          }
-          message.str(""); message << "identified " << this->camera_info.amp_section.size() << " amplifier sections";
-          logwrite( function, message.str() );
-*****/
         } // end if args not empty
 
         // regardless of args empty or not, check and return the current width and height
@@ -527,8 +470,10 @@ namespace Archon {
 //      this->camera_info.axes[1] =  8 * check_nrq;
 //      message.str(""); message << this->camera_info.axes[0] << " " << this->camera_info.axes[1];
 
-        this->camera_info.imwidth  = 32 * check_npp;
-        this->camera_info.imheight =  8 * check_nrq;
+        this->camera_info.imwidth_read  = 32 * check_npp;
+        this->camera_info.imheight_read =  8 * check_nrq;
+        this->camera_info.imwidth       = this->camera_info.imwidth_read;
+        this->camera_info.imheight      = this->camera_info.imheight_read - 8;
         message.str(""); message << this->camera_info.imwidth << " " << this->camera_info.imheight;
 
         retstring = message.str();
@@ -548,7 +493,7 @@ namespace Archon {
        * Input args string contains sample mode and a count for that mode.
        * valid strings for each mode are as follows:
        *  UTR:     1 <samples> <ramps>
-       *  CDS:     2
+       *  CDS:     2 <ext>
        *  MCDS:    3 <pairs> <ext>
        *  nonCDSV: 4 <frames>
        *  CDSV:    5 <frames>
@@ -640,6 +585,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, tryframes );
               this->camera_info.cubedepth = tryframes;
               this->camera_info.fitscubed = tryframes;
+              this->camera_info.nmcds = 0;
               this->camera_info.iscds = false;
               break;
 
@@ -666,6 +612,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = 2;
               this->camera_info.fitscubed = 2;
+              this->camera_info.nmcds = 0;
               this->camera_info.iscds = true;
               break;
 
@@ -704,7 +651,8 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = tryframes;
               this->camera_info.fitscubed = tryframes;
-              this->camera_info.iscds = false;
+              this->camera_info.nmcds = tryframes;
+              this->camera_info.iscds = true;
               break;
 
             case SAMPMODE_NONCDSV:
@@ -731,6 +679,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = 1;
               this->camera_info.fitscubed = 1;
+              this->camera_info.nmcds = 0;
               this->camera_info.iscds = false;
               break;
 
@@ -760,6 +709,7 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
               this->camera_info.cubedepth = 1;
               this->camera_info.fitscubed = 2;
+              this->camera_info.nmcds = 0;
               this->camera_info.iscds = false;
               break;
 
@@ -773,6 +723,10 @@ namespace Archon {
           //
           this->camera.mex( true );
 
+          // Enable co-adding
+          //
+          this->camera.coadd( true );
+
           // One last error check.
           // Do not allow camera_info to set a value less than 1 for either frames or extensions.
           //
@@ -784,6 +738,7 @@ namespace Archon {
             this->camera_info.sampmode_frames = tryframes;
             this->camera_info.nexp            = trynexp;
             this->camera_info.set_axes();
+            this->camera_info.section_size = this->camera_info.imwidth * this->camera_info.imheight * this->camera_info.axes[2];
           }
           else {
             message.str(""); message << "frames, extensions can't be <1: tryframes=" << tryframes << " tryext=" << tryext;

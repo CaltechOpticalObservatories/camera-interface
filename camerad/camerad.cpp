@@ -582,7 +582,7 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("coadd")==0) {
-                    ret = server.coadd( args, retstring );
+                    ret = server.camera.coadd( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else

@@ -27,6 +27,7 @@ namespace Camera {
   Camera::Camera() {
     this->is_mexamps = false;           // don't force amplifiers to be written as multi-extension cubes
     this->is_longerror = false;
+    this->is_coadd = false;
     this->is_mex = false;
     this->image_dir = "/tmp";
     this->dirmode = 0;                   // user specified mode to OR with 0700 for imdir creation
@@ -563,6 +564,58 @@ namespace Camera {
     return(NO_ERROR);
   }
   /** Camera::Camera:get_fitsname *********************************************/
+
+
+  /***** Camera::Camera::coadd ************************************************/
+  /**
+   * @brief      set or get the coadd state
+   * @param[in]  state_in
+   * @param[out] state_out
+   * @return     true or false
+   *
+   * The state_in string should be "True" or "False", case-insensitive.
+   * This function is here to handle a coadd command from the user interface;
+   * internally, use the inline function instead.
+   *
+   */
+  long Camera::coadd( std::string state_in, std::string &state_out ) {
+    std::string function = "Camera::Camera::coadd";
+    std::stringstream message;
+    int error = NO_ERROR;
+
+    // If something is passed then try to use it to set the multi-extension state
+    //
+    if ( !state_in.empty() ) {
+      try {
+        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::tolower );    // make lowercase
+        if (state_in == "false" ) this->is_coadd = false;
+        else
+        if (state_in == "true"  ) this->is_coadd = true;
+        else {
+          message.str(""); message << state_in << " is invalid. Expecting true or false";
+          this->log_error( function, message.str() );
+          error = ERROR;
+        }
+      }
+      catch (...) {
+        message.str(""); message << "unknown exception parsing argument: " << state_in;
+        this->log_error( function, message.str() );
+        error = ERROR;
+      }
+    }
+
+    // error or not, the state reported is whatever was last successfully set
+    //
+    state_out = (this->is_coadd ? "true" : "false");
+    logwrite( function, state_out );
+    message.str(""); message << "NOTICE:coadd=" << state_out;
+    this->async.enqueue( message.str() );
+
+    // and this lets the server know if it was set or not
+    //
+    return( error );
+  }
+  /***** Camera::Camera::coadd ************************************************/
 
 
   /** Camera::Camera::mex *****************************************************/

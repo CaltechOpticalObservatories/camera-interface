@@ -13,11 +13,11 @@ include_directories( ${PROJECT_BASE_DIR}/utils )
 include_directories( ${PROJECT_BASE_DIR}/common )
 link_directories( ${PROJECT_BASE_DIR}/lib )
 
-set( ENV{PYTHONPATH} ${PROJECT_BASE_DIR}/Python )
-find_path( PYTHON_DEV "Python.h" PATHS "/usr/local/anaconda/include/python3.9" )
-find_path( PYTHON_HLP "pyhelper.h" PATHS ${PROJECT_BASE_DIR}/Python )
-include_directories( ${PYTHON_DEV} )
-include_directories( ${PYTHON_HLP} )
+## set( ENV{PYTHONPATH} ${PROJECT_BASE_DIR}/Python )
+## find_path( PYTHON_DEV "Python.h" PATHS "/usr/local/anaconda/include/python3.9" )
+## find_path( PYTHON_HLP "pyhelper.h" PATHS ${PROJECT_BASE_DIR}/Python )
+## include_directories( ${PYTHON_DEV} )
+## include_directories( ${PYTHON_HLP} )
 
 # ----------------------------------------------------------------------------
 # Setup for appropriate hardware interface...
@@ -130,7 +130,7 @@ add_library(camera STATIC
 # ----------------------------------------------------------------------------
 
 #find_library(PYTHON_LIB python3.9 NAMES libpython3.9 PATHS /usr/local/anaconda/lib)
-find_library(PYTHON_LIB python3.9 NAMES libpython3.9 PATHS /usr/lib/x86_64-linux-gnu)
+## find_library(PYTHON_LIB python3.9 NAMES libpython3.9 PATHS /usr/lib/x86_64-linux-gnu)
 find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/lib/x86_64-linux-gnu)
 find_library(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/lib/x86_64-linux-gnu)
 
@@ -139,8 +139,8 @@ find_package(Threads)
 add_executable(camerad 
         ${CAMERA_DIR}/camerad.cpp 
         ${INTERFACE_INCLUDES}
-        ${PYTHON_DEV}
-        ${PYTHON_HLP}
+##      ${PYTHON_DEV}
+##      ${PYTHON_HLP}
         )
 
 # ----------------------------------------------------------------------------
@@ -157,7 +157,7 @@ target_link_libraries(camerad
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
         ${CFITS_LIB}
-        ${PYTHON_LIB}
+##      ${PYTHON_LIB}
         ${OpenCV_LIBS}
         )
 

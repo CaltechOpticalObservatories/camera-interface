@@ -36,7 +36,8 @@ namespace Camera {
       std::string fitstime;                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
       mode_t dirmode;                        //!< user specified mode to OR with 0700 for imdir creation
       int image_num;
-      bool is_mex;
+      bool is_coadd;                         /// set true to co-add any processed cds frames
+      bool is_mex;                           /// set true for multi-extensions
       bool is_longerror;                     //!< set to return error message on command port
       bool is_mexamps;                       //!< should amplifiers be written as multi-extension?
       std::atomic<bool> abortstate;          /// set true to abort the current operation (exposure, readout, etc.)
@@ -53,6 +54,9 @@ namespace Camera {
       inline void set_abort()   { this->abortstate = true;  };
       inline void clear_abort() { this->abortstate = false; };
       inline bool is_aborted()  { return this->abortstate;  };
+
+      inline bool coadd()       { return this->is_coadd;    };
+      inline void coadd(bool in){ this->is_coadd = in;      };
 
       void set_dirmode( mode_t mode_in ) { this->dirmode = mode_in; }
 
@@ -78,6 +82,7 @@ namespace Camera {
       void mex(bool state_in);
       bool mex();
       long mex(std::string state_in, std::string &state_out);
+      long coadd(std::string state_in, std::string &state_out);
       void longerror(bool state_in);
       bool longerror();
       long longerror(std::string state_in, std::string &state_out);
@@ -139,10 +144,13 @@ namespace Camera {
       long          axis_pixels[2];
       long          region_of_interest[4];
       long          image_center[2];
-      long          imwidth;
-      long          imheight;
+      long          imwidth;                 /// image width displayed (written to FITS)
+      long          imheight;                /// image height displayed (written to FITS)
+      long          imwidth_read;            /// image width read from controller
+      long          imheight_read;           /// image height read from controller
       bool          abortexposure;
       bool          iscds;                   //!< is CDS subtraction requested?
+      int           nmcds;                   ///  number of MCDS samples
       bool          ismex;                   //!< the info object given to the FITS writer will need to know multi-extension status
       int           extension;               //!< extension number for multi-extension files
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
@@ -185,6 +193,7 @@ namespace Camera {
         this->image_center[0] = 1;
         this->image_center[1] = 1;
         this->iscds = false;
+        this->nmcds = 0;
         this->ismex = false;
         this->datatype = -1;
         this->type_set = false;              //!< set true when datatype has been defined

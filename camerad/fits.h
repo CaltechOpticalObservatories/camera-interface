@@ -253,6 +253,7 @@ class FITS_file {
       std::string function = "FITS_file::write_image";
       std::stringstream message;
 
+message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; logwrite( function, message.str() );
       // The file must have been opened first
       //
       if ( !this->file_open ) {
