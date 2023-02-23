@@ -195,7 +195,7 @@ namespace Camera {
         this->iscds = false;
         this->nmcds = 0;
         this->ismex = false;
-        this->datatype = -1;
+        this->datatype = 0;
         this->type_set = false;              //!< set true when datatype has been defined
         this->exposure_time = -1;            //!< default exposure time is undefined
         this->exposure_unit = "";            //!< default exposure unit is undefined

@@ -111,6 +111,8 @@ namespace Archon {
         std::string function = "Archon::Instrument::expose";
         std::stringstream message;
 
+        this->camera.clear_abort();                                   // clear the abort state
+
         int nseq = 1;  // default number of sequences if not otherwise specified by nseq_in
         long ret;
 
@@ -157,7 +159,7 @@ namespace Archon {
         // This is like sending the "expose" command nseq times,
         // so each of these generates a separate FITS file.
         //
-        while( nseq-- > 0 ) {
+        while( not this->camera.is_aborted() && ( nseq-- > 0 ) ) {
           ret = this->do_expose( std::to_string( this->camera_info.nexp ) );
           if ( ret != NO_ERROR ) return( ret );
           message.str(""); message << nseq << " sequence" << ( nseq > 1 ? "s" : "" ) << " remaining";
@@ -326,7 +328,7 @@ namespace Archon {
         std::stringstream message;
         std::vector<std::string> tokens;
         long error = NO_ERROR;
-        int trywidth, tryheight;
+        int trywidth=0, tryheight=0;
 
         // Firmware must be loaded and a mode must have been selected
         //
@@ -346,25 +348,20 @@ namespace Archon {
 
           Tokenize( args, tokens, " " );
 
-          if ( tokens.size() != 2 ) {
-            message.str(""); message << "incorrect number of arguments " << tokens.size() << ": expected <width> <height>";
-            this->camera.log_error( function, message.str() );
-            return( ERROR );
-          }
-
-          // extract and convert the width and height tokens
+          // Extract and convert the width and height tokens.
+          // If only one value is specified then force a square ROI (width=height).
           //
           try {
-            trywidth  = std::stoi( tokens.at(0) );
-            tryheight = std::stoi( tokens.at(1) );
+            if ( tokens.size() > 0 ) trywidth  = std::stoi( tokens.at(0) );
+            if ( tokens.size() > 1 ) tryheight = std::stoi( tokens.at(1) ); else tryheight = trywidth;
           }
           catch( std::invalid_argument const &e ) {
-            message << "parsing <width> <height> " << args << ": " << e.what();
+            message << "invalid argument parsing " << args << ": " << e.what();
             this->camera.log_error( function, message.str() );
             return( ERROR );
           }
           catch( std::out_of_range const &e ) {
-            message << "parsing <width> <height> " << args << ": " << e.what();
+            message << "out of range parsing " << args << ": " << e.what();
             this->camera.log_error( function, message.str() );
             return( ERROR );
           }
@@ -474,6 +471,8 @@ namespace Archon {
         this->camera_info.imheight_read =  8 * check_nrq;
         this->camera_info.imwidth       = this->camera_info.imwidth_read;
         this->camera_info.imheight      = this->camera_info.imheight_read - 8;
+        this->camera_info.set_axes();
+        this->camera_info.section_size  = this->camera_info.imwidth * this->camera_info.imheight * this->camera_info.axes[2];
         message.str(""); message << this->camera_info.imwidth << " " << this->camera_info.imheight;
 
         retstring = message.str();

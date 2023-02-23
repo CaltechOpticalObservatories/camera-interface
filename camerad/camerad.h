@@ -87,7 +87,7 @@ namespace Camera {
       void exit_cleanly(void) {
         std::string function = "Camera::Server::exit_cleanly";
         this->disconnect_controller();
-        this->cleanup_memory();
+//      this->cleanup_memory();
         logwrite(function, "server exiting");
         exit(EXIT_SUCCESS);
       }
