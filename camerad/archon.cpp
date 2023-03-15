@@ -371,19 +371,24 @@ namespace Archon {
       }
 
       if (config.param[entry].compare(0, 7, "DIRMODE")==0) {
-        mode_t mode;
-        try {
-          mode = (mode_t)std::stoi( config.arg[entry] );
+        std::string s( config.arg[entry] );
+        std::stringstream mode_bit;
+        mode_t mode=0;
+        for ( size_t i=0; i < s.length(); i++ ) {
+          try {
+            mode = (mode << 3);
+            mode_bit.str(""); mode_bit << s.at(i);
+            mode |= std::stoi( mode_bit.str() );
+          }
+          catch (std::invalid_argument &) {
+            this->camera.log_error( function, "unable to convert mode bit to integer" );
+            return(ERROR);
+          }
+          catch (std::out_of_range &) {
+            this->camera.log_error( function, "out of range converting dirmode bit" );
+            return(ERROR);
+          }
         }
-        catch (std::invalid_argument &) {
-          this->camera.log_error( function, "unable to convert dirmode to integer" );
-          return(ERROR);
-        }
-        catch (std::out_of_range &) {
-          this->camera.log_error( function, "dirmode out of integer range" );
-          return(ERROR);
-        }
-
         this->camera.set_dirmode( mode );
         applied++;
       }

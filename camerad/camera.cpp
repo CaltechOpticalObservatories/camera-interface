@@ -338,7 +338,7 @@ bool Camera::get_abortstate() {
       if ( (dirp = opendir(nextdir.str().c_str())) == NULL ) {
         // If directory doesn't exist then try to create it.
         //
-        if ( ( mkdir( nextdir.str().c_str(), S_IRWXU | this->dirmode ) ) == 0 ) {
+        if ( ( mkdir( nextdir.str().c_str(), (S_IRWXU | this->dirmode) ) ) == 0 ) {
           message.str(""); message << "created directory " << nextdir.str();
           logwrite(function, message.str());
         }
@@ -522,7 +522,7 @@ bool Camera::get_abortstate() {
       // Note that this only creates the bottom-level directory, the added date part.
       // The base directory has to exist.
       //
-      if ( ( mkdir( basedir.str().c_str(), S_IRWXU | this->dirmode ) ) == 0 ) {
+      if ( ( mkdir( basedir.str().c_str(), (S_IRWXU | this->dirmode) ) ) == 0 ) {
         message.str(""); message << "created directory " << basedir.str();
         logwrite(function, message.str());
       }

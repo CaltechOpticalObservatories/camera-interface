@@ -37,7 +37,7 @@ namespace Archon {
       long Interface::region_of_interest( std::string args, std::string &retstring ) {
         std::string function = "Archon::Interface::region_of_interest";
         std::stringstream message;
-        this->common.log_error( function, "ROI not supported" );
+        this->camera.log_error( function, "ROI not supported" );
         return( ERROR );
       }
       /**************** Archon::Interface::region_of_interest *****************/

@@ -11,6 +11,8 @@ set(PROJECT_UTILS_DIR ${PROJECT_BASE_DIR}/common)
 include_directories( ${PROJECT_BASE_DIR}/common )
 include_directories( ${PROJECT_BASE_DIR}/utils )    # needed for logentry
 
+add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++11 -ggdb )
+
 add_library(common STATIC
         ${PROJECT_UTILS_DIR}/common.cpp
         )
