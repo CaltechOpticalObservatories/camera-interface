@@ -49,7 +49,7 @@ void signal_handler(int signo) {
 
 
 int  main(int argc, char **argv);           // main thread (just gets things started)
-void new_log_day( );                        // create a new log each day
+void new_log_day( bool logstderr );         // create a new log each day
 void block_main(Network::TcpSocket sock);   // this thread handles requests on blocking port
 void thread_main(Network::TcpSocket sock);  // this thread handles requests on non-blocking port
 void async_main(Network::UdpSocket sock);   // this thread handles the asyncrhonous UDP message port
@@ -70,6 +70,7 @@ int main(int argc, char **argv) {
   long ret=NO_ERROR;
   std::string daemon_in;     // daemon setting read from config file
   bool start_daemon = false; // don't start as daemon unless specifically requested
+  bool logstderr = true;     // log also to stderr
 
   // capture these signals
   //
@@ -103,15 +104,34 @@ int main(int argc, char **argv) {
     server.exit_cleanly();
   }
 
+  // camerad would like a few configuration keys before the daemon starts up
+  //
   for (int entry=0; entry < server.config.n_entries; entry++) {
-    if (server.config.param[entry] == "LOGPATH") logpath = server.config.arg[entry];
-    if (server.config.param[entry] == "TM_ZONE") zone = server.config.arg[entry];
-    if (server.config.param[entry] == "DAEMON")  daemon_in = server.config.arg[entry];
+    if (server.config.param[entry] == "LOGPATH") logpath = server.config.arg[entry];    // where to write log files
+    if (server.config.param[entry] == "TM_ZONE") zone = server.config.arg[entry];       // time zone for time stamps
+    if (server.config.param[entry] == "DAEMON")  daemon_in = server.config.arg[entry];  // am I starting as a daemon or not?
+    if (server.config.param[entry] == "LOGSTDERR") {                                    // should I log also to stderr?
+      std::string stderrstr = server.config.arg[entry];
+      std::transform( stderrstr.begin(), stderrstr.end(), stderrstr.begin(), ::tolower );
+      if ( stderrstr.empty() )    { continue; }          else
+      if ( stderrstr == "true"  ) { logstderr = true;  } else
+      if ( stderrstr == "false" ) { logstderr = false; } else {
+        message.str(""); message << "unrecognized value for LOGSTDERR=" << stderrstr << ": expected {True:False}";
+        logwrite( function, message.str() );
+      }
+    }
   }
+
   if (logpath.empty()) {
-    logwrite(function, "ERROR: LOGPATH not specified in configuration file");
+    std::cerr << get_timestamp() << "(" << function << ") ERROR: LOGPATH not specified in configuration file\n";
     server.exit_cleanly();
   }
+
+  if ( ( init_log( logpath, Camera::DAEMON_NAME, logstderr ) != 0 ) ) {  // initialize the logging system
+    std::cerr << get_timestamp() << "(" << function << ") ERROR: unable to initialize logging system\n";
+    server.exit_cleanly();
+  }
+
   if ( zone == "local" ) {
     logwrite( function, "using local time zone" );
     server.systemkeys.addkey( "TM_ZONE=local//time zone" );
@@ -141,11 +161,6 @@ int main(int argc, char **argv) {
   if ( start_daemon ) {
     logwrite( function, "starting daemon" );
     Daemon::daemonize( Camera::DAEMON_NAME, "/tmp", "", "", "" );
-  }
-
-  if ( ( init_log( logpath, Camera::DAEMON_NAME ) != 0 ) ) {         // initialize the logging system
-    logwrite(function, "ERROR: unable to initialize logging system");
-    server.exit_cleanly();
   }
 
   // log and add server build date to system keys db
@@ -213,7 +228,7 @@ int main(int argc, char **argv) {
 
   // thread to start a new logbook each day
   //
-  std::thread( new_log_day ).detach();
+  std::thread( new_log_day, logstderr ).detach();
 
   for (;;) pause();                                  // main thread suspends
   return 0;
@@ -223,9 +238,8 @@ int main(int argc, char **argv) {
 
 /** new_log_day **************************************************************/
 /**
- * @fn     new_log_day
- * @brief  creates a new logbook each day
- * @return nothing
+ * @brief      creates a new logbook each day
+ * @param[in]  logstderr  true to also log to stderr
  *
  * This thread is started by main and never terminates.
  * It sleeps for the number of seconds that logentry determines
@@ -235,11 +249,11 @@ int main(int argc, char **argv) {
  * is set by init_log.
  *
  */
-void new_log_day( ) { 
+void new_log_day( bool logstderr ) { 
   while (1) {
     std::this_thread::sleep_for( std::chrono::seconds( nextday ) );
     close_log();
-    init_log( logpath, Camera::DAEMON_NAME );
+    init_log( logpath, Camera::DAEMON_NAME, logstderr );
   }
 }
 /** new_log_day **************************************************************/
