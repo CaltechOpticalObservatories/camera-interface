@@ -465,6 +465,15 @@ void doit(Network::TcpSocket sock) {
                     server.exit_cleanly();                  // shutdown the server
                     }
     else
+    if (cmd.compare("config")==0) {                         // report the config file used for camerad
+                    std::stringstream cfg;
+                    cfg << "CONFIG:" << server.config.filename;
+                    server.camera.async.enqueue( cfg.str() );
+                    sock.Write( server.config.filename );
+                    sock.Write( " " );
+                    ret = NO_ERROR;
+                    }
+    else
     if (cmd.compare("open")==0) {
                     ret = server.connect_controller(args);
                     }
