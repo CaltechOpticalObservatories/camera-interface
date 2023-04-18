@@ -208,9 +208,11 @@ class FITS_file {
       try {
         // Add a few final system keywords
         //
-        this->pFits->pHDU().addKey("EXPSTART", info.start_time, "exposure start time" );
-        this->pFits->pHDU().addKey("EXPSTOP", info.stop_time, "exposure stop time" );
+        this->pFits->pHDU().addKey("DATE-BEG", info.start_time, "exposure start time" );
+        this->pFits->pHDU().addKey("DATE-END", info.stop_time, "exposure stop time" );
         this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write time");
+        this->pFits->pHDU().addKey("COMPSTAT", ( info.exposure_aborted ? "aborted" : "completed" ) , "exposure completion status");
+        this->pFits->pHDU().addKey("DATE-OBS", info.cmd_start_time, "time of expose command" );
 
         // Write the checksum
         //
@@ -395,6 +397,15 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
       // write the primary image into the FITS file
       //
       try {
+        if (info.datatype == SHORT_IMG) {
+          this->pFits->pHDU().addKey("BZERO", 32768, "offset for signed short int" );
+          this->pFits->pHDU().addKey("BSCALE", 1, "scaling factor");
+        }
+        else {
+          this->pFits->pHDU().addKey("BZERO", 0.0, "offset");
+          this->pFits->pHDU().addKey("BSCALE", 1, "scaling factor");
+        }
+
         long fpixel(1);        // start with the first pixel always
         self->pFits->pHDU().write( fpixel, info.section_size, data );
         self->pFits->flush();  // make sure the image is written to disk
@@ -502,6 +513,10 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
         //
         if (info.datatype == SHORT_IMG) {
           this->imageExt->addKey("BZERO", 32768, "offset for signed short int");
+          this->imageExt->addKey("BSCALE", 1, "scaling factor");
+        }
+        else {
+          this->imageExt->addKey("BZERO", 0.0, "offset");
           this->imageExt->addKey("BSCALE", 1, "scaling factor");
         }
 

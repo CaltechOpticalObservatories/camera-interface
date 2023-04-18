@@ -12,8 +12,17 @@
 #include <atomic>
 #include <chrono>
 #include <numeric>
+#include <cmath>
 #include <fenv.h>
 #include <memory>                  // for std::unique and friends (c++17)
+#include <sstream>                 // for std::stringstream
+#include <iomanip>                 // for setfil, setw, etc.
+#include <iostream>                // for hex, uppercase, etc.
+#include <algorithm>
+#include <cctype>
+#include <string>
+#include <fstream>
+
 // #include <Python.h>
 
 // #include "pyhelper.h"
@@ -24,6 +33,7 @@
 #include "logentry.h"
 #include "network.h"
 #include "fits.h"
+#include "nirc2.h"
 #include "opencv2/opencv.hpp"
 
 #define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
@@ -171,8 +181,11 @@ namespace Archon {
 
       /***** Archon::DeInterlace::nirc2_video *********************************/
       /**
-       * @brief      
-       * @details 
+       * @brief      deinterlacing for video modes
+       * @details    Video modes contain two frames per image buffer,
+       *             which are split here into two separate buffers,
+       *             then the regular deinterlacing function can be called
+       *             on each of those buffers.
        *
        */
       void nirc2_video() {
@@ -184,14 +197,18 @@ namespace Archon {
         logwrite( "Archon::DeInterlace::nirc2", message.str() );
 #endif
 
+        // These Mat objects are the input frames
+        //
         cv::Mat raw    = cv::Mat( bufrows,   this->cols, CV_16U, this->imbuf   );
         cv::Mat signal = cv::Mat( bufrows/2, this->cols, CV_16U, cv::Scalar(0) );
         cv::Mat reset  = cv::Mat( bufrows/2, this->cols, CV_16U, cv::Scalar(0) );
 
+        // These Mat objects hold the deinterlaced frames
+        //
         cv::Mat deinter_reset  = cv::Mat( this->frame_rows, this->frame_cols, CV_16U, cv::Scalar(0) );
         cv::Mat deinter_signal = cv::Mat( this->frame_rows, this->frame_cols, CV_16U, cv::Scalar(0) );
 
-        // Copy pairs of rows from the raw to the reset and signal frames
+        // Copy pairs of rows from the raw to the reset and signal frame Mat objects
         //
         for ( int rawrow=0, newrow=0; rawrow < bufrows-4; rawrow+=4, newrow+=2 ) {
           raw.row( rawrow+0 ).copyTo(  reset.row(newrow+0) );
@@ -200,30 +217,37 @@ namespace Archon {
           raw.row( rawrow+3 ).copyTo( signal.row(newrow+1) );
         }
 
-logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] extracted reset/read pairs from video frame" );
-message.str(""); message << "[DEBUG] deinter_reset.rows=" << deinter_reset.rows << " deinter_reset.cols=" << deinter_reset.cols
-	                 << " deinter_signal.rows=" << deinter_signal.rows << " deinter_signal.cols=" << deinter_signal.cols;
-logwrite( "Archon::DeInterlace::nirc2", message.str() );
-        int workindex=0;
-logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling reset" );
-        this->nirc2( workindex, reset, deinter_reset );
-logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling read" );
-        this->nirc2( workindex, signal, deinter_signal );
-logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
+#ifdef LOGLEVEL_DEBUG
+        logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] extracted reset/read pairs from video frame" );
+        message.str(""); message << "[DEBUG] deinter_reset.rows=" << deinter_reset.rows << " deinter_reset.cols=" << deinter_reset.cols
+	                         << " deinter_signal.rows=" << deinter_signal.rows << " deinter_signal.cols=" << deinter_signal.cols;
+        logwrite( "Archon::DeInterlace::nirc2", message.str() );
+#endif
 
-/***
+        // Now that the video frame has been split into separate buffers (for reset and signal frames)
+        // the regular deinterlacing function can be used on each, individually.
+        //
+        int workindex=0;
+        this->nirc2( workindex, reset, deinter_reset );    // deinterlace here, reset --> deinter_reset
+        this->nirc2( workindex, signal, deinter_signal );  // deinterlace here, signal --> deinter_signal
+
+/**
         // Display live video of subtracted image
         //
         cv::Mat diff = deinter_reset - deinter_signal;
+        cv::namedWindow( "image", cv::WINDOW_AUTOSIZE );
         cv::imshow( "image", diff );
-        cv::waitKey(1);
+        cv::waitKey(30);
 
-        std::stringstream message;
+#ifdef LOGLEVEL_DEBUG
         for ( int row=0; row<10; row++ ) {
-          message.str(""); message << "reset:" << reset.at<uint16_t>(row,0) << " signal:" << signal.at<uint16_t>(row,0) << " diff:" << diff.at<uint16_t>(row,0);
+          message.str(""); message << "[DEBUG] reset:" << reset.at<uint16_t>(row,0) 
+                                   << " signal:" << signal.at<uint16_t>(row,0) 
+                                   << " diff:" << diff.at<uint16_t>(row,0);
           logwrite( "Archon::DeInterlace::nirc2_video", message.str() );
         }
-***/
+#endif
+**/
 
         return;
       }
@@ -233,7 +257,7 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
       /***** Archon::DeInterlace::nirc2 ***************************************/
       /**
        * @brief      NIRC2 deinterlacing
-       * @details 
+       * @details    This function is overloaded.
        *
        * ~~~
        *                                               Q1 +---------+---------+ Q2
@@ -271,7 +295,7 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
         cv::Mat work  = cv::Mat( this->frame_rows, this->frame_cols, CV_16U, cv::Scalar(0) );
 
         int workindex=0;
-        this->nirc2( workindex, image, work );
+        this->nirc2( workindex, image, work );  // this is where the actual deinterlacing takes place
 
         return;
       }
@@ -296,13 +320,13 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
        * before this function finishes. Consider "work" a temporary workspace only.
        *
        * ~~~
-       *                                               Q1 +---------+---------+ Q2
+       *                                               Q2 +---------+---------+ Q1
        * +---------+---------+---------+---------+        | <------ | ------> |
        * |         |         |         |         |        |       ^ | ^       |
        * |   Q1    |   Q2    |   Q3    |   Q4    | ===>   +---------+---------+
        * |         |         |         |         |        |       v | v       |
        * +---------+---------+---------+---------+        | <------ | ------> |
-       * :         :         :         :         :     Q3 +---------+---------+ Q4
+       * :         :         :         :         :     Q4 +---------+---------+ Q3
        * :         :         :         :         :
        * (for multiple frames, this raw buf is   
        *  extended in this dimension for each frame)
@@ -310,8 +334,9 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
        *
        */
       void nirc2( int &workindex, cv::Mat &image, cv::Mat &work ) {
-#ifdef LOGLEVEL_DEBUG
         std::stringstream message;
+        std::string function = "Archon::DeInterlace::nirc2";
+#ifdef LOGLEVEL_DEBUG
         message.str(""); message << "[DEBUG] this->rows=" << this->rows << " this->cols=" << this->cols
                                  << " this->frame_rows=" << this->frame_rows << " this->frame_cols=" << this->frame_cols;
         logwrite( "Archon::DeInterlace::nirc2", message.str() );
@@ -344,13 +369,15 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
 
         // Define images for the quadrants that need to be flipped
         //
-        cv::Mat Q2f, Q3f, Q4f;
+        cv::Mat Q1f, Q3f, Q4f;
 
         // Loop through each cube,
         // cutting each from the main image buffer, deinterlacing and
         // performing needed flips before copying into the buffer that is passed to the FITS writer.
         //
-        for ( int slicen=0; slicen < this->depth; slicen++ ) {
+        int slicen;
+        try {
+        for ( slicen=0; slicen < this->depth; slicen++ ) {
           // Cut the quadrants out of the image
           //
           Q1 = image( cv::Range( slicen * quad_rows, (slicen+1) * quad_rows), cv::Range( 0 * quad_cols, 1 * quad_cols ) );
@@ -386,7 +413,8 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
 //          logwrite( "", message.str() );
 //        }
 //        for ( int r=10; r>0; r-- ) {
-//          message.str(""); message << "\t\t\t   Q1d.row " << Q1d.rows-r << ": " << Q1d.at<uint16_t>(Q1d.rows-r,0) << "\t\t Q3d.row " << Q3d.rows-r << ": " << Q3d.at<uint16_t>(Q3d.rows-r,0);
+//          message.str(""); message << "\t\t\t   Q1d.row " << Q1d.rows-r << ": " << Q1d.at<uint16_t>(Q1d.rows-r,0)
+//                                   << "\t\t Q3d.row " << Q3d.rows-r << ": " << Q3d.at<uint16_t>(Q3d.rows-r,0);
 //          logwrite( "", message.str() );
 //        }
 #endif
@@ -410,7 +438,8 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
 //          logwrite( "", message.str() );
 //        }
 //        for ( int r=10; r>0; r-- ) {
-//          message.str(""); message << "\t\t\t   Q1c.row " << Q1c.rows-r << ": " << Q1c.at<uint16_t>(Q1c.rows-r,0) << "\t\t Q3d.row " << Q3d.rows-r << ": " << Q3d.at<uint16_t>(Q3d.rows-r,0);
+//          message.str(""); message << "\t\t\t   Q1c.row " << Q1c.rows-r << ": " << Q1c.at<uint16_t>(Q1c.rows-r,0)
+//                                   << "\t\t Q3d.row " << Q3d.rows-r << ": " << Q3d.at<uint16_t>(Q3d.rows-r,0);
 //          logwrite( "", message.str() );
 //        }
 #endif
@@ -427,19 +456,20 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
 //          logwrite( "", message.str() );
 //        }
 //        for ( int r=10; r>0; r-- ) {
-//          message.str(""); message << "\t\t\t   Q1c.row " << Q1c.rows-r << ": " << Q1c.at<uint16_t>(Q1c.rows-r,0) << "\t\t Q3c.row " << Q3c.rows-r << ": " << Q3c.at<uint16_t>(Q3c.rows-r,0);
+//          message.str(""); message << "\t\t\t   Q1c.row " << Q1c.rows-r << ": " << Q1c.at<uint16_t>(Q1c.rows-r,0)
+//                                   << "\t\t Q3c.row " << Q3c.rows-r << ": " << Q3c.at<uint16_t>(Q3c.rows-r,0);
 //          logwrite( "", message.str() );
 //        }
 #endif
 
-          // Perform the quadrant flips here
+          // Perform the quadrant flips here (Q2c is not changed)
           //
-          cv::flip( Q2c, Q2f,  1 );  // flip horizontally
-          cv::flip( Q3c, Q3f,  0 );  // flip vertically
-          cv::flip( Q4c, Q4f, -1 );  // flip horizontally and vertically
+          cv::flip( Q1c, Q1f,  1 );  // flip horizontally
+          cv::flip( Q3c, Q3f, -1 );  // flip vertically and vertically
+          cv::flip( Q4c, Q4f,  0 );  // flip horizontally
 
 #ifdef LOGLEVEL_DEBUG
-//        message.str(""); message << "[DEBUG] after: Q1c.rows=" << Q1c.rows << " Q2f.rows=" << Q2f.rows << " Q3f.rows="<< Q3f.rows<<" Q4f.rows="<<Q4f.rows;
+//        message.str(""); message << "[DEBUG] after: Q1f.rows=" << Q1f.rows << " Q2c.rows=" << Q2c.rows << " Q3f.rows="<< Q3f.rows<<" Q4f.rows="<<Q4f.rows;
 //        logwrite( "Archon::DeInterlace::nirc2", message.str() );
 //        logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] copying quadrants to work frame" );
 //        message.str(""); message << "[DEBUG] work.rows=" << work.rows << " work.cols=" << work.cols;
@@ -449,12 +479,9 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
           {
           cv::Mat uppers;
           cv::Mat lowers;
-          cv::hconcat( Q1c, Q2f, uppers );      // concatenate the two upper quadrants together, horizontally
-          cv::hconcat( Q3f, Q4f, lowers );      // concatenate the two lower quadrants together, horizontally
+          cv::hconcat( Q2c, Q1f, uppers );      // concatenate the two upper quadrants together, horizontally
+          cv::hconcat( Q4f, Q3f, lowers );      // concatenate the two lower quadrants together, horizontally
           cv::vconcat( lowers, uppers, work );  // concatenate the uppers and lowers together, vertically
-//        uppers.release();
-//        lowers.release();
-
 #ifdef LOGLEVEL_DEBUG
           message.str(""); message << "[DEBUG] uppers.rows=" << uppers.rows
 	                           << " lowers.rows=" << lowers.rows
@@ -470,17 +497,22 @@ logwrite( "Archon::DeInterlace::nirc2", "[DEBUG] descrambling done" );
 
           // Copy assembled image into the FITS buffer, this->workbuf
           //
-message.str(""); message << "[DEBUG] copying " << this->frame_rows << " from work to fits buffer";
-logwrite( "Archon::DeInterlace::nirc2", message.str() );
+#ifdef LOGLEVEL_DEBUG
+          message.str(""); message << "[DEBUG] copying " << this->frame_rows << " from work to fits buffer";
+          logwrite( "Archon::DeInterlace::nirc2", message.str() );
+#endif
           for ( int row=0; row<this->frame_rows; row++ ) {
             for ( int col=0; col<this->frame_cols; col++ ) {
               *( this->workbuf + workindex++ ) = (uint16_t)(work.at<uint16_t>(row,col));
             }
           }
-message.str(""); message << "[DEBUG] work.rows="<<work.rows<<" work.cols="<<work.cols<<" resetframe.rows="<<this->resetframe.rows
-	                 << " resetframe.cols="<<this->resetframe.cols
-			 << " readframe.rows="<<this->readframe.rows << " readframe.cols="<< this->readframe.cols;
-logwrite( "Archon::DeInterlace::nirc2", message.str() );
+#ifdef LOGLEVEL_DEBUG
+          message.str(""); message << "[DEBUG] work.rows=" << work.rows << " work.cols=" << work.cols 
+                                   << " resetframe.rows=" << this->resetframe.rows
+	                           << " resetframe.cols=" << this->resetframe.cols
+			           << " readframe.rows=" << this->readframe.rows << " readframe.cols=" << this->readframe.cols;
+          logwrite( "Archon::DeInterlace::nirc2", message.str() );
+#endif
 
           // For CDS mode, copy the work buffer to the appropriate frame buffer
 	  //
@@ -511,22 +543,26 @@ logwrite( "Archon::DeInterlace::nirc2", message.str() );
                 *( ptr + index++ ) = (int32_t)(coadd.at<int32_t>(row,col));
               }
             }
-//          coadd.release();
 	  }
 
-//        Q1.release();
-//        Q2.release();
-//        Q3.release();
-//        Q4.release();
         } // end of loop over cubes
-
-//      Q1c.release();
-//      Q2c.release();
-//      Q3c.release();
-//      Q4c.release();
-//      Q2f.release();
-//      Q3f.release();
-//      Q4f.release();
+        }
+        catch ( const cv::Exception& ex ) {
+          message.str(""); message << "ERROR OpenCV exception in deinterlacing for slicen " << slicen << " and nmcds " << this->nmcds << ": " << ex.what();
+          logwrite( function, message.str() );
+          return;
+        }
+        catch ( const std::exception& ex ) {
+          message.str(""); message << "ERROR in deinterlacing: " << ex.what();
+          logwrite( function, message.str() );
+          message.str(""); message << "ERROR slicen=" << slicen << " nmcds=" << this->nmcds;
+          logwrite( function, message.str() );
+          return;
+        }
+        catch ( ... ) {
+          logwrite( function, "unknown exception in deinterlacing" );
+          return;
+        }
 
         if ( !this->iscds ) return;
 
@@ -539,29 +575,67 @@ logwrite( "Archon::DeInterlace::nirc2", message.str() );
 	  return;
 	}
 
-        // Add CDS_OFFS to the read frame to ensure that it is always greater than the reset frame
+        // Perform the CDS subtraction, read-reset into a 32b type Mat array,
+        // which will take care of any cases where reset > read.
         //
-//      cv::add( CDS_OFFS, this->readframe, this->readframe );
-
-        // Perform the CDS subtraction, read-reset
-        //
-        cv::Mat diff ; //= cv::Mat::zeros( this->frame_rows, this->frame_cols, CV_32S );
-        cv::subtract( this->readframe, this->resetframe, diff, cv::noArray(), CV_32S );
-//      diff = this->readframe - this->resetframe;
+        cv::Mat diff;
+        try {
+          cv::subtract( this->readframe, this->resetframe, diff, cv::noArray(), CV_32S );
+        }
+        catch ( const cv::Exception& ex ) {
+          message.str(""); message << "ERROR subtracting readframe-resetframe: " << ex.what();
+          logwrite( function, message.str() );
+          message.str(""); message << "ERROR readframe.rows=" << this->readframe.rows << " .cols=" << this->readframe.cols
+                                   << " resetframe.rows=" << this->resetframe.rows << " .cols=" << this->resetframe.cols
+                                   << " iscds=" << this->iscds << " nmcds=" << this->nmcds << " workbuf=" << std::hex << this->workbuf;
+          logwrite( function, message.str() );
+          return;
+        }
+        catch ( const std::exception& ex ) {
+          message.str(""); message << "ERROR subtracting readframe-resetframe: " << ex.what();
+          logwrite( function, message.str() );
+          message.str(""); message << "ERROR readframe.rows=" << this->readframe.rows << " .cols=" << this->readframe.cols
+                                   << " resetframe.rows=" << this->resetframe.rows << " .cols=" << this->resetframe.cols
+                                   << " iscds=" << this->iscds << " nmcds=" << this->nmcds << " workbuf=" << std::hex << this->workbuf;
+          logwrite( function, message.str() );
+          return;
+        }
+        catch ( ... ) {
+          logwrite( function, "unknown exception subtracting readframe-resetframe" );
+          return;
+        }
 
         // Create openCV image from the coadd buffer
         //
         cv::Mat coadd = cv::Mat( this->frame_rows, this->frame_cols, CV_32S, this->coaddbuf );
 
-double minVal, maxVal;
-int minIdx, maxIdx;
-cv::minMaxIdx( coadd, &minVal, &maxVal, &minIdx, &maxIdx, cv::noArray() );
-message.str(""); message << "[DEBUG] coadd minVal=" << minVal << " maxVal=" << maxVal;
-logwrite("", message.str() );
+#ifdef LOGLEVEL_DEBUG
+        double minVal, maxVal;
+        int minIdx, maxIdx;
+        cv::minMaxIdx( coadd, &minVal, &maxVal, &minIdx, &maxIdx, cv::noArray() );
+        message.str(""); message << "[DEBUG] coadd minVal=" << minVal << " maxVal=" << maxVal;
+        logwrite( function, message.str() );
+#endif
 
         // perform the coadd, this current pair plus whatever is already there
         //
-        coadd += diff;
+        try {
+          coadd += diff;
+        }
+        catch ( const cv::Exception& ex ) {
+          message.str(""); message << "ERROR coadding CDS frame: " << ex.what();
+          logwrite( function, message.str() );
+          return;
+        }
+        catch ( const std::exception& ex ) {
+          message.str(""); message << "ERROR coadding CDS frame: " << ex.what();
+          logwrite( function, message.str() );
+          return;
+        }
+        catch ( ... ) {
+          logwrite( function, "unknown exception coadding CDS frame" );
+          return;
+        }
 
         // Copy assembled image into the FITS buffer, this->cdsbuf
         //
@@ -573,9 +647,6 @@ logwrite("", message.str() );
             index++;
           }
         }
-
-//      diff.release();
-//      coadd.release();
 
         return;
       }
@@ -735,6 +806,7 @@ logwrite("", message.str() );
   class Interface {
     private:
       unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
+      unsigned long int last_frame_timer;           /// Archon timer of last frame
       int n_hdrshift;                               //!< number of right-shift bits for Archon buffer in HDR mode
       struct timespec cal_systime;
       unsigned long int cal_archontime;
@@ -783,7 +855,6 @@ logwrite("", message.str() );
       std::vector<std::unique_ptr<std::atomic<bool>>> ringlock;
 
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
-      bool abort;
       int  taplines;
       std::vector<int> gain;                 //!< digital CDS gain (from TAPLINE definition)
       std::vector<int> offset;               //!< digital CDS offset (from TAPLINE definition)
@@ -854,7 +925,8 @@ logwrite("", message.str() );
 
       // Functions
       //
-      long abort_archon();                   //!< set the abort parameter on the Archon
+      long abort();                          ///  abort an exposure
+      long abort_archon();                   ///  set abort parameter(s) on Archon
       long caltimer();                       //!< calibrate Archon timer
       long interface(std::string &iface);    //!< get interface type
       long configure_controller();           //!< get configuration parameters
@@ -909,6 +981,8 @@ logwrite("", message.str() );
       long set_parameter( std::string parameter, long value );
       long set_parameter(std::string parameter);
       long exptime(std::string exptime_in, std::string &retstring);
+      long exptime(std::string exptime_in);
+      long exptime(int32_t exptime_in);
       void copy_keydb();                                                /// copy user keyword database into camera_info
       long longexposure(std::string state_in, std::string &state_out);
       long shutter(std::string shutter_in, std::string& shutter_out);
@@ -921,7 +995,10 @@ logwrite("", message.str() );
       long inreg( std::string args );
       void make_camera_header();
       long recalc_geometry();
+      long region_of_interest( std::string args );
       long region_of_interest( std::string args, std::string &retstring );
+      long calc_readouttime();
+      long sample_mode( std::string args );
       long sample_mode( std::string args, std::string &retstring );
       long readout( std::string readout_in, std::string &readout_out );
       long test(std::string args, std::string &retstring);

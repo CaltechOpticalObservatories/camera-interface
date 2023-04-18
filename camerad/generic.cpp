@@ -49,7 +49,23 @@ namespace Archon {
       /***** Archon::Interface::make_camera_header ****************************/
 
 
-      /**************** Archon::Interface::region_of_interest *****************/
+      /***** Archon::Interface::calc_readouttime ******************************/
+      /**
+       * @brief      
+       * @return     ERROR
+       *
+       * not currently supported for generic instruments.
+       *
+       */
+      long Interface::calc_readouttime( ) {
+        std::string function = "Archon::Interface::calc_readouttime";
+        this->camera.log_error( function, "not supported" );
+        return( ERROR );
+      }
+      /***** Archon::Interface::calc_readouttime ******************************/
+
+
+      /***** Archon::Interface::region_of_interest ****************************/
       /**
        * @brief      define a region of interest
        * @param[in]  args
@@ -58,14 +74,20 @@ namespace Archon {
        *
        * ROI is not currently supported for generic instruments.
        *
+       * Includes an overloaded version which has no return value
+       *
        */
+      long Interface::region_of_interest( std::string args ) {
+        std::string dontcare;
+        return this->region_of_interest( args, dontcare );
+      }
       long Interface::region_of_interest( std::string args, std::string &retstring ) {
         std::string function = "Archon::Interface::region_of_interest";
         std::stringstream message;
         this->camera.log_error( function, "ROI not supported" );
         return( ERROR );
       }
-      /**************** Archon::Interface::region_of_interest *****************/
+      /***** Archon::Interface::region_of_interest ****************************/
 
 
       /**************** Archon::Interface::multi_cds **************************/
@@ -87,7 +109,7 @@ namespace Archon {
       /**************** Archon::Interface::multi_cds **************************/
 
 
-      /**************** Archon::Interface::sample_mode ************************/
+      /***** Archon::Interface::sample_mode ***********************************/
       /**
        * @brief      
        * @param[in]  args
@@ -96,14 +118,20 @@ namespace Archon {
        *
        * sample_mode is not supported for generic instruments.
        *
+       * Includes an overloaded version which has no return value
+       *
        */
+      long Interface::sample_mode( std::string args ) {
+        std::string dontcare;
+        return this->sample_mode( args, dontcare );
+      }
       long Interface::sample_mode( std::string args, std::string &retstring ) {
         std::string function = "Archon::Interface::sample_mode";
         std::stringstream message;
         this->camera.log_error( function, "sample_mode command not supported" );
         return( ERROR );
       }
-      /**************** Archon::Interface::sample_mode ************************/
+      /***** Archon::Interface::sample_mode ***********************************/
 
 
       /**************** Archon::Interface::deinterlace ************************/

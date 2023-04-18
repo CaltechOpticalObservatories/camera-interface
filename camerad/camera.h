@@ -45,7 +45,7 @@ namespace Camera {
 
     public:
       Camera();
-      ~Camera() {}
+      ~Camera();
 
       bool          autodir_state;           //!< if true then images are saved in a date subdir below image_dir, i.e. image_dir/YYYYMMDD/
       std::string   writekeys_when;          //!< when to write fits keys "before" or "after" exposure
@@ -62,6 +62,10 @@ namespace Camera {
 
       std::map<int, std::string> firmware;   //!< firmware file for given controller device number, read from .cfg file
       std::map<int, int> readout_time;       //!< readout time in msec for given controller device number, read from .cfg file
+
+      std::string default_sampmode;          //!< optional default samplemode can be set in .cfg file
+      std::string default_exptime;           //!< optional default exptime can be set in .cfg file
+      std::string default_roi;               //!< optional default roi can be set in .cfg file
 
       void log_error( std::string function, std::string message );
 
@@ -123,6 +127,15 @@ namespace Camera {
       int           readout_type;            //!< type of the readout source is an enum
       long          axes[3];                 //!< element 0=cols, 1=cols, 2=cubedepth
 
+      // these break the STL map paradigm but it's simpler, and all that NIRC2 needs
+      //
+      double pixel_time;                     //!< pixel time in usec
+      double pixel_skip_time;                //!< pixel skip time in usec
+      double row_overhead_time;              //!< row overhead time in usec
+      double row_skip_time;                  //!< row skip time in usec
+      double frame_start_time;               //!< frame start time in usec
+      double fs_pulse_time;                  //!< fs pulse time in usec
+
       /**
        * @var     cubedepth
        * @brief   depth, or number of slices for 3D data cubes
@@ -140,6 +153,8 @@ namespace Camera {
        */
       long          fitscubed;
 
+      int           ncoadd;                  /// current count of completed number of coadds
+      int           nslice;                  /// current count of completed number of slices
       int           binning[2];
       long          axis_pixels[2];
       long          region_of_interest[4];
@@ -148,14 +163,17 @@ namespace Camera {
       long          imheight;                /// image height displayed (written to FITS)
       long          imwidth_read;            /// image width read from controller
       long          imheight_read;           /// image height read from controller
-      bool          abortexposure;
+      bool          exposure_aborted;        /// was this exposure aborted?
       bool          iscds;                   //!< is CDS subtraction requested?
       int           nmcds;                   ///  number of MCDS samples
       bool          ismex;                   //!< the info object given to the FITS writer will need to know multi-extension status
       int           extension;               //!< extension number for multi-extension files
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
       std::string   shutteractivate;         //!< shutter activation state
-      int32_t       exposure_time;           //!< exposure time in exposure_unit
+      int32_t       exposure_time;           //!< requested exposure time in exposure_unit
+      int32_t       exposure_delay;          //!< exposure delay given to controller in exposure_unit
+      int32_t       requested_exptime;       //!< user-requested exposure time
+      int32_t       readouttime;             //!< readout time, or minimum exposure time
       std::string   exposure_unit;           //!< exposure time unit
       int           exposure_factor;         //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
       double        exposure_progress;       //!< exposure progress (fraction)
@@ -168,6 +186,7 @@ namespace Camera {
       int           sampmode_ext;            //!< sample mode number of extensions (NIRC2)
       int           sampmode_frames;         //!< sample mode number of frames (NIRC2)
       std::string   fits_name;               //!< contatenation of Camera's image_dir + image_name + image_num
+      std::string   cmd_start_time;          //!< system time when the expose command arrived (YYYY-MM-DDTHH:MM:SS.sss)
       std::string   start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
       std::string   stop_time;               //!< system time when the exposure stopped (YYYY-MM-DDTHH:MM:SS.sss)
 
@@ -193,10 +212,13 @@ namespace Camera {
         this->image_center[0] = 1;
         this->image_center[1] = 1;
         this->iscds = false;
+        this->exposure_aborted = false;
         this->nmcds = 0;
         this->ismex = false;
         this->datatype = 0;
         this->type_set = false;              //!< set true when datatype has been defined
+        this->requested_exptime = 0;         //!< default requested exposure time
+        this->readouttime = -1;              //!< default readout time is undefined
         this->exposure_time = -1;            //!< default exposure time is undefined
         this->exposure_unit = "";            //!< default exposure unit is undefined
         this->exposure_factor = -1;          //!< default factor is undefined
@@ -209,6 +231,14 @@ namespace Camera {
         this->sampmode = -1;
         this->sampmode_ext = -1;
         this->sampmode_frames = -1;
+        this->pixel_time=0;
+        this->pixel_skip_time=0;
+        this->row_overhead_time=0;
+        this->row_skip_time=0;
+        this->frame_start_time=0;
+        this->fs_pulse_time=0;
+        this->nslice=0;
+        this->ncoadd=0;
       }
 
       long pre_exposures( std::string num_in, std::string &num_out );

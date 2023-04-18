@@ -25,7 +25,7 @@
 namespace Camera {
 
   Camera::Camera() {
-    this->is_mexamps = false;           // don't force amplifiers to be written as multi-extension cubes
+    this->is_mexamps = false;            // don't force amplifiers to be written as multi-extension cubes
     this->is_longerror = false;
     this->is_coadd = false;
     this->is_mex = false;
@@ -38,8 +38,13 @@ namespace Camera {
     this->abortstate = false;
     this->writekeys_when = "before";
     this->autodir_state = true;
+    this->default_roi = "1024 1024";
+    this->default_sampmode = "2 2 1";
+    this->default_exptime = "0";
   }
 
+  Camera::~Camera() {
+  }
 
   /** Camera::Camera::log_error ***********************************************/
   /**
@@ -305,7 +310,7 @@ namespace Camera {
       if ( (dirp = opendir(nextdir.str().c_str())) == NULL ) {
         // If directory doesn't exist then try to create it.
         //
-        if ( ( mkdir( nextdir.str().c_str(), S_IRWXU | this->dirmode ) ) == 0 ) {
+        if ( ( mkdir( nextdir.str().c_str(), (S_IRWXU | this->dirmode) ) ) == 0 ) {
           message.str(""); message << "created directory " << nextdir.str();
           logwrite(function, message.str());
         }
@@ -489,7 +494,7 @@ namespace Camera {
       // Note that this only creates the bottom-level directory, the added date part.
       // The base directory has to exist.
       //
-      if ( ( mkdir( basedir.str().c_str(), S_IRWXU | this->dirmode ) ) == 0 ) {
+      if ( ( mkdir( basedir.str().c_str(), (S_IRWXU | this->dirmode ) ) ) == 0 ) {
         message.str(""); message << "created directory " << basedir.str();
         logwrite(function, message.str());
       }
@@ -515,7 +520,7 @@ namespace Camera {
     // where "basedir" was just assembled above
     //
     fitsname.str("");
-    fitsname << basedir.str() << "/" << this->base_name << "_";
+    fitsname << basedir.str() << "/" << this->base_name;
 
     // add the controllerid if one is given
     //

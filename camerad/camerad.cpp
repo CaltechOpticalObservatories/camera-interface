@@ -538,7 +538,7 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("abort")==0) {
-                    server.camera.set_abort();
+                    server.abort();
                     ret = 0;
                     }
 #ifdef ASTROCAM
@@ -578,6 +578,7 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("roi")==0) {
                     ret = server.region_of_interest( args, retstring );
+                    if ( ret == NO_ERROR ) ret = server.calc_readouttime();
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
@@ -588,6 +589,7 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("sampmode")==0) {
                     ret = server.sample_mode( args, retstring );
+                    if ( ret == NO_ERROR ) ret = server.calc_readouttime();
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else

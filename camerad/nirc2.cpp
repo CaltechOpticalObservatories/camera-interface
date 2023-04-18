@@ -21,19 +21,6 @@
 
 namespace Archon {
 
-      const int SAMPMODE_UTR     = 1;  const std::string SAMPSTR_UTR     = "UTR";
-      const int SAMPMODE_CDS     = 2;  const std::string SAMPSTR_CDS     = "CDS";
-      const int SAMPMODE_MCDS    = 3;  const std::string SAMPSTR_MCDS    = "MCDS";
-      const int SAMPMODE_NONCDSV = 4;  const std::string SAMPSTR_NONCDSV = "NONCDSV";
-      const int SAMPMODE_CDSV    = 5;  const std::string SAMPSTR_CDSV    = "CDSV";
-
-      const std::vector<std::string> SAMPMODE_NAME { SAMPSTR_UTR,
-                                                     SAMPSTR_CDS,
-                                                     SAMPSTR_MCDS,
-                                                     SAMPSTR_NONCDSV,
-                                                     SAMPSTR_CDSV,
-                                                   };
-
       /***** PythonProc::PythonProc *******************************************/
       /**
        * @brief      
@@ -112,6 +99,7 @@ namespace Archon {
         std::stringstream message;
 
         this->camera.clear_abort();                                   // clear the abort state
+        this->camera_info.exposure_aborted = false;
 
         int nseq = 1;  // default number of sequences if not otherwise specified by nseq_in
         long ret;
@@ -159,8 +147,11 @@ namespace Archon {
         // This is like sending the "expose" command nseq times,
         // so each of these generates a separate FITS file.
         //
+        int totseq = nseq;
         while( not this->camera.is_aborted() && ( nseq-- > 0 ) ) {
           ret = this->do_expose( std::to_string( this->camera_info.nexp ) );
+          message.str(""); message << "NSEQ:" << (totseq-nseq);
+          this->camera.async.enqueue( message.str() );
           if ( ret != NO_ERROR ) return( ret );
           message.str(""); message << nseq << " sequence" << ( nseq > 1 ? "s" : "" ) << " remaining";
           logwrite( function, message.str() );
@@ -180,7 +171,9 @@ namespace Archon {
         std::stringstream keystr;
 
         keystr.str("");
-        keystr << "ITIME=" << this->camera_info.exposure_time/1000.0 << " // integration time per coadd in sec";
+        keystr << "ITIME=" << std::fixed << std::showpoint << std::setprecision(3)
+                           << this->camera_info.exposure_time/1000.0
+                           << " // integration time per coadd in sec";
         this->systemkeys.addkey( keystr.str() );
 
         keystr.str("");
@@ -192,14 +185,19 @@ namespace Archon {
 
           case SAMPMODE_MCDS:
             keystr.str("");
-            keystr << "MULTISAM=" << this->camera_info.sampmode_frames/2; // number of MCDS read pairs
+            keystr << "MULTISAM=" << this->camera_info.sampmode_frames/2 << " // number of MCDS pairs";
             this->systemkeys.addkey( keystr.str() );
             break;
 
           case SAMPMODE_CDS:
+            keystr.str("");
+            keystr << "MULTISAM=" << this->camera_info.sampmode_frames/2 << " // number of pairs";
+            this->systemkeys.addkey( keystr.str() );
+            break;
+
           case SAMPMODE_UTR:
             keystr.str("");
-            keystr << "MULTISAM=" << this->camera_info.sampmode_frames;   // number of UTR samples
+            keystr << "MULTISAM=" << this->camera_info.sampmode_frames << " // number of UTR samples";
             this->systemkeys.addkey( keystr.str() );
             break;
 
@@ -248,6 +246,19 @@ namespace Archon {
 	//
         this->camera_info.binning[0] = 1;
         this->camera_info.binning[1] = 1;
+
+        // The current imwidth and imheight is based on these two parameters
+        //
+        long check_npp=0;
+        long check_nrq=0;
+
+        if (error==NO_ERROR) error = get_parammap_value( "nPixelsPair", check_npp );
+        if (error==NO_ERROR) error = get_parammap_value( "nRowsQuad", check_nrq );
+
+        this->camera_info.imwidth_read  = 32 * check_npp;
+        this->camera_info.imheight_read =  8 * check_nrq;
+        this->camera_info.imwidth       = this->camera_info.imwidth_read;
+        this->camera_info.imheight      = this->camera_info.imheight_read - 8;
 
         error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
         this->camera_info.section_size = this->camera_info.imwidth * this->camera_info.imheight * this->camera_info.axes[2];
@@ -310,12 +321,79 @@ namespace Archon {
       /***** Archon::Interface::recalc_geometry *******************************/
 
 
-      /**************** Archon::Interface::region_of_interest *****************/
+      /***** Archon::Interface::calc_readouttime ******************************/
+      /**
+       * @brief      calculate the readout time
+       * @returns    ERROR or NO_ERROR
+       *
+       * The readout time depends on the ROI geometry and the sampling mode, so 
+       * this function should be called whenever either of those change.
+       *
+       */
+      long Interface::calc_readouttime( ) {
+        std::string function = "Archon::Instrument::calc_readouttime";
+        std::stringstream message;
+
+        double frame_ohead = this->camera_info.frame_start_time + this->camera_info.fs_pulse_time;
+        double row_ohead   = this->camera_info.row_overhead_time;
+        double pixeltime   = this->camera_info.pixel_time;
+        double pixelskip   = this->camera_info.pixel_skip_time;
+        double rowskip     = this->camera_info.row_skip_time;
+
+        int cols           = this->camera_info.imwidth;
+        int rows           = this->camera_info.imheight;
+
+        double rowtime     = (rows/23.) * pixeltime + ( 1024/32. - rows/32. ) * pixelskip + row_ohead;
+
+        long readouttime   = std::lround( (frame_ohead + (cols/2.)*(rowtime + row_ohead) + (1024/2. - cols/2.) * rowskip) / 1000. );
+
+        // The class stores the total readout time, which is this readouttime (per frame)
+        // multiplied by the number of MCDS pairs, or by 1, if not in MCDS mode.
+        //
+        this->camera_info.readouttime = readouttime * ( ( this->camera_info.sampmode == SAMPMODE_MCDS ) ? this->camera_info.nmcds/2 : 1 );
+
+        // Check if the exposure time needs to be updated
+        //
+        long retval = this->exptime( this->camera_info.requested_exptime );
+
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] frame_overhead=" << frame_ohead << " pixel=" << pixeltime
+                                 << " pixel_skip=" << pixelskip << " row_overhead=" << row_ohead
+                                 << " row_skip=" << rowskip << " total row time=" << rowtime << " usec."
+                                 << " frame readouttime=" << readouttime
+                                 << " total readouttime=" << this->camera_info.readouttime << " msec";
+        logwrite( function, message.str() );
+#endif
+        return( retval );
+      }
+      /***** Archon::Interface::calc_readouttime ******************************/
+
+
+      /***** Archon::Interface::region_of_interest ****************************/
+      /**
+       * @brief      define a region of interest for NIRC2
+       * @param[in]  args string which must contain width and height
+       * @return     ERROR or NO_ERROR
+       *
+       * This function is overloaded. This version has no return value.
+       * See the overloaded function for full details.
+       *
+       */
+      long Interface::region_of_interest( std::string args ) {
+        std::string dontcare;
+        return this->region_of_interest( args, dontcare );
+      }
+      /***** Archon::Interface::region_of_interest ****************************/
+
+
+      /***** Archon::Interface::region_of_interest ****************************/
       /**
        * @brief      define a region of interest for NIRC2
        * @param[in]  args string which must contain width and height
        * @param[out] retstring, reference to string which contains the width and height
        * @return     ERROR or NO_ERROR
+       *
+       * This function is overloaded with a version that provides no return value.
        *
        * Specify width and height only.
        * Width must be 32 <= cols <= 1024 and multiple of 32
@@ -422,7 +500,7 @@ namespace Archon {
 
           // LINECOUNT must be doubled for CDS Video mode
           //
-          if ( this->camera_info.sampmode == SAMPMODE_CDSV ) {
+          if ( this->camera_info.sampmode == SAMPMODE_RXRV ) {
             LC = NRQ * 8;
           }
           else {
@@ -451,10 +529,11 @@ namespace Archon {
           if (error==NO_ERROR) error = get_configmap_value( "PIXELCOUNT", this->camera_info.detector_pixels[0] );
           if (error==NO_ERROR) error = get_configmap_value( "LINECOUNT", this->camera_info.detector_pixels[1] );
 
-          if (error==NO_ERROR) error = this->recalc_geometry();
+          if (error==NO_ERROR) error = this->recalc_geometry();  // this sets camera_info.imwidth, .imheight
 
         } // end if args not empty
 
+/***
         // regardless of args empty or not, check and return the current width and height
         //
         long check_npp=0;
@@ -463,41 +542,61 @@ namespace Archon {
         if (error==NO_ERROR) error = get_parammap_value( "nPixelsPair", check_npp );
         if (error==NO_ERROR) error = get_parammap_value( "nRowsQuad", check_nrq );
 
-//      this->camera_info.axes[0]  = 32 * check_npp;
-//      this->camera_info.axes[1] =  8 * check_nrq;
-//      message.str(""); message << this->camera_info.axes[0] << " " << this->camera_info.axes[1];
-
         this->camera_info.imwidth_read  = 32 * check_npp;
         this->camera_info.imheight_read =  8 * check_nrq;
         this->camera_info.imwidth       = this->camera_info.imwidth_read;
         this->camera_info.imheight      = this->camera_info.imheight_read - 8;
         this->camera_info.set_axes();
         this->camera_info.section_size  = this->camera_info.imwidth * this->camera_info.imheight * this->camera_info.axes[2];
+***/
         message.str(""); message << this->camera_info.imwidth << " " << this->camera_info.imheight;
 
         retstring = message.str();
 
         return( error );
       }
-      /**************** Archon::Interface::region_of_interest *****************/
+      /***** Archon::Interface::region_of_interest ****************************/
 
 
-      /**************** Archon::Interface::sample_mode ************************/
+      /***** Archon::Interface::sample_mode ***********************************/
+      /**
+       * @brief      set the sample mode
+       * @param[in]  args
+       * @return     ERROR or NO_ERROR
+       *
+       * This function is overloaded. This version has no return value.
+       * See the overloaded function for full details.
+       *
+       */
+      long Interface::sample_mode( std::string args ) {
+        std::string dontcare;
+        return this->sample_mode( args, dontcare );
+      }
+      /***** Archon::Interface::sample_mode ***********************************/
+
+
+      /***** Archon::Interface::sample_mode ***********************************/
       /**
        * @brief      set the sample mode
        * @param[in]  args
        * @param[out] retstring
        * @return     ERROR or NO_ERROR
        *
+       * This function is overloaded with a version that has no return value.
+       *
+       * General format in NIRC2-terminolgy is: <mode> <j> <k>
+       * where j and k have various meanings.  Use the guide below:
+       *
        * Input args string contains sample mode and a count for that mode.
        * valid strings for each mode are as follows:
-       *  UTR:     1 <samples> <ramps>
-       *  CDS:     2 <ext>
+       * ~~~
+       *  SINGLE:  1 1 1
+       *  CDS:     2 1 <ext>
        *  MCDS:    3 <pairs> <ext>
-       *  nonCDSV: 4 <frames>
-       *  CDSV:    5 <frames>
-       *
-       * Modes 1 (UTR) and 3 (MCDS) require a count value
+       *  UTR:     4 <samples> <ramps>
+       *  RXV:     5 1 <frames>
+       *  RXRV:    6 1 <frames>
+       * ~~~
        *
        */
       long Interface::sample_mode( std::string args, std::string &retstring ) {
@@ -513,30 +612,28 @@ namespace Archon {
           return ERROR;
         }
 
-        int tryframes=-1;
-        int tryext=-1;
-        int trynexp=-1;
         int mode_in=-1;
-        int argin_i=-1;
-        int argin_j=-1;
+        int multisamp=-1;
+        int coadds=-1;
 
         // process args only if not empty
         //
-        if ( not args.empty() ) {
+        if ( ! args.empty() ) {
 
           Tokenize( args, tokens, " " );
 
-          // extract and convert the mode and value tokens from the input arg string
+          if ( tokens.size() != 3 ) {
+            message.str(""); message << "received " << tokens.size() << " but expected 3 arguments: <mode> <j> <k>";
+            this->camera.log_error( function, message.str() );
+            return( ERROR );
+          }
+
+          // extract and convert the mode, multisamp and coadds from the input arg string
           //
           try {
-            if ( tokens.size() > 0 ) mode_in = std::stoi( tokens.at(0) );
-            if ( tokens.size() > 1 ) argin_i = std::stoi( tokens.at(1) );
-            if ( tokens.size() > 2 ) argin_j = std::stoi( tokens.at(2) );
-            if ( tokens.size() > 3 ) {
-              message << "received " << tokens.size() << " arguments";
-              this->camera.log_error( function, message.str() );
-              return( ERROR );
-            }
+            mode_in   = std::stoi( tokens.at(0) );
+            multisamp = std::stoi( tokens.at(1) );
+            coadds    = std::stoi( tokens.at(2) );
           }
           catch( std::invalid_argument const &e ) {
             message << "invalid argument parsing args " << args << ": " << e.what();
@@ -554,23 +651,45 @@ namespace Archon {
           //
           switch( mode_in ) {
 
-            // For UTR, the first argument i is the number of frames (cubedepth).
+            // For SINGLE, everything is setup just like for RXV but with the <frames> parameter = 1 (aka coadds).
             //
-            case SAMPMODE_UTR:
-              tryframes = argin_i;
-              tryext    = argin_j;
-              trynexp   = argin_j;
-              if ( tryframes < 0 ) {
-                this->camera.log_error( function, "no UTR samples were specified" );
-                return( ERROR );
-              }
-              if ( tryframes < 1 ) {
-                message.str(""); message << "requested UTR samples " << tryframes << " must be > 0";
+            case SAMPMODE_SINGLE:
+              if ( multisamp != 1 ) {
+                message.str(""); message << "multisamp " << multisamp << " invalid. must equal 1";
                 this->camera.log_error( function, message.str() );
                 return( ERROR );
               }
-              if ( tryext < 1 ) {
-                message.str(""); message << "requested UTR ramps " << tryext << " must be > 0";
+              if ( coadds != 1 ) {
+                message.str(""); message << "coadds " << coadds << " invalid. must equal 1";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+
+              // write the parameters to Archon to set RX and clear the other modes
+              //
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxmode_param, 1 );
+              if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
+              if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
+              this->camera_info.cubedepth = 1;
+              this->camera_info.fitscubed = 1;
+              this->camera_info.nmcds = 0;
+              this->camera_info.iscds = false;
+              break;
+
+            // For UTR, the first argument <multisamp> is the number of frames (cubedepth),
+            // and the second argument <coadds> is the number of ramps.
+            //
+            case SAMPMODE_UTR:
+              if ( multisamp < 1 ) {
+                message.str(""); message << "requested UTR samples " << multisamp << " must be > 0";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              if ( coadds < 1 ) {
+                message.str(""); message << "requested UTR ramps " << coadds << " must be > 0";
                 this->camera.log_error( function, message.str() );
                 return( ERROR );
               }
@@ -581,24 +700,27 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->rxmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 1 );
-              if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, tryframes );
-              this->camera_info.cubedepth = tryframes;
-              this->camera_info.fitscubed = tryframes;
+              if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, multisamp );
+              this->camera_info.cubedepth = multisamp;
+              this->camera_info.fitscubed = multisamp;
               this->camera_info.nmcds = 0;
               this->camera_info.iscds = false;
               break;
 
+            // For CDS the first argument <multisamp> must = 1 and the second arg <coadds>
+            // is the number of extensions. The NIRC2 user wants to enter a "1" here, but
+            // then change it to a "2".
+            //
             case SAMPMODE_CDS:
-              tryframes = 2;
-              tryext    = argin_i;
-              trynexp   = argin_i;
-              if ( tryext < 1 ) {
-                message.str(""); message << "must specify a non-zero number of extensions";
+              if ( multisamp != 1 ) {
+                message.str(""); message << "multisamp " << multisamp << " invalid. must equal 1";
                 this->camera.log_error( function, message.str() );
                 return( ERROR );
               }
-              if ( argin_j != -1 ) {
-                this->camera.log_error( function, "too many arguments for this mode" );
+              multisamp = 2;  // convert back to common sense
+              if ( coadds < 1 ) {
+                message.str(""); message << "coadds " << coadds << " invalid. must specify a non-zero number of extensions";
+                this->camera.log_error( function, message.str() );
                 return( ERROR );
               }
               // write the parameters to Archon to set CDS (a special form of MCDS) and clear the other modes
@@ -615,56 +737,52 @@ namespace Archon {
               this->camera_info.iscds = true;
               break;
 
-            // For MCDS, tryframes will be the total number of frames per extension (=cubedepth)
-            // but only tryframes/2 MCDS pairs, so tryframes must be a multiple of 2.
+            // For MCDS, multisamp will be the total number of frames per extension (=cubedepth)
+            // but only multisamp/2 MCDS pairs. The NIRC2 user wants to enter number of pairs.
+            // Accept pairs, but then multiply by 2 to remain consistent with everything else which
+            // is in number of frames.
             //
             case SAMPMODE_MCDS:
-              tryframes = argin_i;
-              tryext    = argin_j;
-              trynexp   = argin_j;
-              if ( tryframes < 1 ) {
-                message.str(""); message << "must specify a non-zero number of frames";
+              if ( coadds < 1 ) {
+                message.str(""); message << "coadds " << coadds << " invalid. must specify non-zero number of extensions";
                 this->camera.log_error( function, message.str() );
                 return( ERROR );
               }
-              if ( tryext == -1 ) {
-                this->camera.log_error( function, "must specify number of extensions" );
-                return( ERROR );
-              }
-              if ( tryext < 1 ) {
-                this->camera.log_error( function, "must specify non-zero number of extensions" );
-                return( ERROR );
-              }
-              if ( tryframes % 2  != 0 ) {
-                message.str(""); message << "requested MCDS frames " << tryframes << " must be a multiple of 2";
+              if ( multisamp < 1 ) {
+                message.str(""); message << "requested MCDS pairs " << multisamp << " must be a non-zero";
                 this->camera.log_error( function, message.str() );
                 return( ERROR );
               }
+              multisamp *= 2;  // convert back to common sense
+
               // write the parameters to Archon to set MCDS and clear the other modes
               //
-              if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, tryframes/2 );  // number of pairs is tryframes/2
+              if (error==NO_ERROR) error = this->set_parameter( this->mcdspairs_param, multisamp/2 );  // number of pairs is multisamp/2
               if (error==NO_ERROR) error = this->set_parameter( this->mcdsmode_param, 1 );
               if (error==NO_ERROR) error = this->set_parameter( this->rxmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
-              this->camera_info.cubedepth = tryframes;
-              this->camera_info.fitscubed = tryframes;
-              this->camera_info.nmcds = tryframes;
+              this->camera_info.cubedepth = multisamp;
+              this->camera_info.fitscubed = multisamp;
+              this->camera_info.nmcds = multisamp;
               this->camera_info.iscds = true;
               break;
 
-            case SAMPMODE_NONCDSV:
+            case SAMPMODE_RXV:
               //
-              // For non-CDS video (Rx mode) the single argument specifies
-              // the number of extensions. There will always be 1 frame per extension
-              // with N extensions, so this N will be passed to do_expose( trynexp ).
+              // For non-CDS video (Rx mode) the first argument must be = 1 and the
+              // second argument specifies the number of extensions. There will always
+              // be 1 frame per extension with N extensions, so this N will be passed 
+              // to do_expose( coadds ).
               //
-              tryframes = 1;
-              tryext    = argin_i;
-              trynexp   = argin_i;
-              if ( tryext < 1 ) {
-                message.str(""); message << "must specify a non-zero number of frames";
+              if ( multisamp != 1 ) {
+                message.str(""); message << "multisamp " << multisamp << " invalid. must equal 1";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              if ( coadds < 1 ) {
+                message.str(""); message << "coadds " << coadds << " invalid. must specify a non-zero number of frames";
                 this->camera.log_error( function, message.str() );
                 return( ERROR );
               }
@@ -682,19 +800,22 @@ namespace Archon {
               this->camera_info.iscds = false;
               break;
 
-            case SAMPMODE_CDSV:
+            case SAMPMODE_RXRV:
               //
-              // For CDS video (RxR mode) the single argument specifies
-              // the number of extensions. There will always be 1 frame per extension
-              // with N extensions, so this N will be passed to do_expose( trynexp ).
+              // For CDS video (RxR mode) the first argument must be = 1 and the
+              // second argument specifies the number of extensions. There will always 
+              // be 1 frame per extension with N extensions, so this N will be passed 
+              // to do_expose( coadds ).
               //
               // This differs from Rx mode in that each frame is 2x the size.
               //
-              tryframes = 1;
-              tryext    = argin_i;
-              trynexp   = argin_i;
-              if ( tryext < 1 ) {
-                message.str(""); message << "must specify a non-zero number of frames";
+              if ( multisamp != 1 ) {
+                message.str(""); message << "multisamp " << multisamp << " invalid. must equal 1";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+              }
+              if ( coadds < 1 ) {
+                message.str(""); message << "coadds " << coadds << " invalid. must specify a non-zero number of frames";
                 this->camera.log_error( function, message.str() );
                 return( ERROR );
               }
@@ -706,8 +827,8 @@ namespace Archon {
               if (error==NO_ERROR) error = this->set_parameter( this->rxrmode_param, 1 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrmode_param, 0 );
               if (error==NO_ERROR) error = this->set_parameter( this->utrsamples_param, 0 );
-              this->camera_info.cubedepth = 1;
-              this->camera_info.fitscubed = 2;
+              this->camera_info.cubedepth = 1;  // don't alter memory allocation
+              this->camera_info.fitscubed = 2;  // but force the fits writer to write a cube
               this->camera_info.nmcds = 0;
               this->camera_info.iscds = false;
               break;
@@ -729,22 +850,23 @@ namespace Archon {
           // One last error check.
           // Do not allow camera_info to set a value less than 1 for either frames or extensions.
           //
-          if ( tryframes < 1 || tryext < 1 ) error = ERROR;
+          if ( multisamp < 1 || coadds < 1 ) error = ERROR;
 
           if ( error == NO_ERROR ) {
             this->camera_info.sampmode        = mode_in;
-            this->camera_info.sampmode_ext    = tryext;
-            this->camera_info.sampmode_frames = tryframes;
-            this->camera_info.nexp            = trynexp;
-            this->camera_info.set_axes();
-            this->camera_info.section_size = this->camera_info.imwidth * this->camera_info.imheight * this->camera_info.axes[2];
+            this->camera_info.sampmode_ext    = coadds;
+            this->camera_info.sampmode_frames = multisamp;
+            this->camera_info.nexp            = coadds;
+// these are done in recalc_geometry
+//          this->camera_info.set_axes();
+//          this->camera_info.section_size = this->camera_info.imwidth * this->camera_info.imheight * this->camera_info.axes[2];
           }
           else {
-            message.str(""); message << "frames, extensions can't be <1: tryframes=" << tryframes << " tryext=" << tryext;
+            message.str(""); message << "frames, extensions can't be <1: multisamp=" << multisamp << " coadds=" << coadds;
             this->camera.log_error( function, message.str() );
           }
 
-          // Now LINECOUNT must be set because CDSV is x2 the size.
+          // Now LINECOUNT must be set because RXRV is x2 the size.
           // It will always be a multiple of nRowsQuad.
           // Also set the readout mode here, either NIRC2 or NIRC2VIDEO,
           // which is required for descrambling.
@@ -757,14 +879,15 @@ namespace Archon {
           if (error==NO_ERROR) error = get_parammap_value( "nRowsQuad", nRowsQuad );
 
           switch( mode_in ) {
-            case SAMPMODE_CDSV:
+            case SAMPMODE_RXRV:
               this->readout( "NIRC2VIDEO", dontcare );
               LINECOUNT = nRowsQuad * 8;
               break;
+            case SAMPMODE_SINGLE:
             case SAMPMODE_UTR:
             case SAMPMODE_CDS:
             case SAMPMODE_MCDS:
-            case SAMPMODE_NONCDSV:
+            case SAMPMODE_RXV:
               this->readout( "NIRC2", dontcare );
               LINECOUNT = nRowsQuad * 4;
               break;
@@ -797,8 +920,14 @@ namespace Archon {
         logwrite( function, message.str() );
 #endif
 
+        // The return message has to be manipulated because the NIRC2 user wants to know frames
+        // for some modes, pairs for others. So for CDS||MCDS return pairs, all else return frames.
+        //
+        int jj = ( ( this->camera_info.sampmode==SAMPMODE_CDS || this->camera_info.sampmode==SAMPMODE_MCDS ) ? 
+                 this->camera_info.sampmode_frames/2 : this->camera_info.sampmode_frames );
+
         message.str(""); message << this->camera_info.sampmode
-                                 << " " << this->camera_info.sampmode_frames
+                                 << " " << jj
                                  << " " << this->camera_info.sampmode_ext;
         retstring = message.str();
 
@@ -807,6 +936,6 @@ namespace Archon {
 
         return( error );
       }
-      /**************** Archon::Interface::sample_mode ************************/
+      /***** Archon::Interface::sample_mode ***********************************/
 
 }

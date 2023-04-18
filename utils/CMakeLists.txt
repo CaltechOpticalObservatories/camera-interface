@@ -18,3 +18,7 @@ add_library(logentry STATIC
 add_library(network STATIC
         ${PROJECT_UTILS_DIR}/network.cpp
         )
+
+add_executable(listener
+        ${PROJECT_UTILS_DIR}/listener.c
+        )
