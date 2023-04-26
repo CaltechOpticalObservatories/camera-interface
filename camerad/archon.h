@@ -93,14 +93,10 @@ namespace Archon {
 
   // ENUM list for each readout type
   //
-  enum ReadoutType {
-    NONE,
-    NIRC2,
-    NIRC2VIDEO,
-    TEST,
-    NUM_READOUT_TYPES
-    };
-
+  const int READOUT_NONE       = 0;
+  const int READOUT_NIRC2      = 1;
+  const int READOUT_NIRC2VIDEO = 2;
+  const int READOUT_TEST       = 3;
 
   const int IMAGE_RING_BUFFER_SIZE = 5;
 
@@ -767,20 +763,20 @@ namespace Archon {
         std::stringstream message;
 
         switch( this->readout_type ) {
-          case Archon::NONE:
+          case Archon::READOUT_NONE:
             this->none();
             break;
-          case Archon::NIRC2:
+          case Archon::READOUT_NIRC2:
             this->resetframe = cv::Mat::zeros( this->frame_rows, this->frame_cols, CV_16U );
             this->readframe  = cv::Mat::zeros( this->frame_rows, this->frame_cols, CV_16U );
             this->nirc2();
             this->resetframe.release();
             this->readframe.release();
             break;
-          case Archon::NIRC2VIDEO:
+          case Archon::READOUT_NIRC2VIDEO:
             this->nirc2_video();
             break;
-          case Archon::TEST:
+          case Archon::READOUT_TEST:
             this->test();
             break;
           default:
@@ -832,7 +828,7 @@ namespace Archon {
       FITS_file cds_file;                    //!< instantiate a FITS container object
 
       typedef struct {
-        ReadoutType readout_type;            //!< enum for readout type
+        int readout_type;                    //!< enum for readout type
         uint32_t    readout_arg;             //!< future use?
       } readout_info_t;
 

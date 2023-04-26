@@ -134,7 +134,7 @@ namespace Archon {
       /***** Archon::Interface::sample_mode ***********************************/
 
 
-      /**************** Archon::Interface::deinterlace ************************/
+      /***** Archon::Interface::deinterlace ***********************************/
       /**
        * @brief      deinterlace
        * @param[in]  
@@ -152,7 +152,59 @@ namespace Archon {
 #endif
         return( (T*)NULL );
       }
-      /**************** Archon::Interface::deinterlace ************************/
+      /***** Archon::Interface::deinterlace ***********************************/
 
+
+      /***** Archon::Interface::longexposure **********************************/
+      /**
+       * @brief      set/get longexposure mode
+       * @param[in]  state_in   string to set long exposure state, can be {0,1,true,false}
+       * @param[out] state_out  reference to string containing the long exposure state
+       * @return     ERROR or NO_ERROR
+       *
+       */
+      long Interface::longexposure(std::string state_in, std::string &state_out) {
+        std::string function = "Archon::Interface::longexposure";
+        std::stringstream message;
+        int error = NO_ERROR;
+
+        // If something is passed then try to use it to set the longexposure state
+        //
+        if ( !state_in.empty() ) {
+          try {
+            std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
+            if ( state_in == "FALSE" || state_in == "0" ) this->is_longexposure = false;
+            else
+            if ( state_in == "TRUE" || state_in == "1" ) this->is_longexposure = true;
+            else {
+              message.str(""); message << "longexposure state " << state_in << " is invalid. Expecting {true,false,0,1}";
+              this->camera.log_error( function, message.str() );
+              return( ERROR );
+            }
+          }
+          catch (...) {
+            message.str(""); message << "unknown exception converting longexposure state " << state_in << " to uppercase";
+            this->camera.log_error( function, message.str() );
+            return( ERROR );
+          }
+        }
+
+        // error or not, the state reported now will be whatever was last successfully set
+        //
+        this->camera_info.exposure_unit   = ( this->is_longexposure ? "sec" : "msec" );
+        this->camera_info.exposure_factor = ( this->is_longexposure ? 1 : 1000 );
+        state_out = ( this->is_longexposure ? "true" : "false" );
+
+        // if no error then set the parameter on the Archon
+        //
+        if ( error==NO_ERROR ) {
+          std::stringstream cmd;
+          cmd << "longexposure " << ( this->is_longexposure ? 1 : 0 );
+          if ( error==NO_ERROR ) error = this->set_parameter( cmd.str() );
+        }
+
+        return( error );
+      }
+      /***** Archon::Interface::longexposure **********************************/
 
 }

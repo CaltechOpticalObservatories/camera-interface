@@ -741,11 +741,11 @@ namespace Camera {
   /** Camera::Camera::longerror ***********************************************/
 
 
-  /** Camera::Camera::mexamps *************************************************/
+  /***** Camera::Camera::mexamps **********************************************/
   /**
-   * @brief  set or get the mexamps state
-   * @param  std::string state_in
-   * @return true or false
+   * @brief      set or get the mexamps state
+   * @param[in]  std::string state_in
+   * @return     true or false
    *
    * The state_in string should be "True" or "False", case-insensitive.
    *
@@ -759,9 +759,37 @@ namespace Camera {
     std::string dontcare;
     this->mexamps( (state_in ? "true" : "false"), dontcare );
   }
+  /***** Camera::Camera::mexamps **********************************************/
+
+
+  /***** Camera::Camera::mexamps **********************************************/
+  /**
+   * @brief      set or get the mexamps state
+   * @details    this version accepts no inputs and returns only the state
+   * @return     true or false
+   *
+   * This function is overloaded.
+   *
+   */
   bool Camera::mexamps() {                                               // read-only boolean
     return ( this->is_mexamps );
   }
+  /***** Camera::Camera::mexamps **********************************************/
+
+
+  /***** Camera::Camera::mexamps **********************************************/
+  /**
+   * @brief      set or get the mexamps state
+   * @details    this function is overloaded
+   * @param[in]  state_in   string containing the requested state
+   * @param[out] state_out  reference to string containing the current state
+   * @return     ERROR or NO_ERROR
+   *
+   * The state_in string should be "True" or "False", case-insensitive.
+   * update: can't allow this to be true for NIRC2 but Keck still wants
+   *         to be able to send the command.
+   *
+   */
   long Camera::mexamps(std::string state_in, std::string &state_out) {   // read-write string, called from server
     std::string function = "Camera::Camera::mexamps";
     std::stringstream message;
@@ -776,13 +804,15 @@ namespace Camera {
           this->is_mexamps = false;
           this->is_mex      = false;
         }
+/** can't allow this to be true for NIRC2
         else
         if (state_in == "true"  ) {
           this->is_mexamps = true;
           this->is_mex      = true;
         }
+**/
         else {
-          message.str(""); message << state_in << " is invalid. Expecting true or false";
+          message.str(""); message << state_in << " is invalid. NIRC2 requires this to be false.";
           this->log_error( function, message.str() );
           error = ERROR;
         }
@@ -805,7 +835,7 @@ namespace Camera {
     //
     return( error );
   }
-  /** Camera::Camera::mexamps *************************************************/
+  /***** Camera::Camera::mexamps **********************************************/
 
 
   /**************** Camera::Information::pre_exposures ************************/

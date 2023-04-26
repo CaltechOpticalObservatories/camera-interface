@@ -83,10 +83,10 @@ namespace Archon {
     // Indexed by amplifier name.
     // The number is the argument for the Arc command to set this amplifier in the firmware.
     //
-    this->readout_source.insert( { "NONE",       { NONE,       0 } } );
-    this->readout_source.insert( { "NIRC2",      { NIRC2,      0 } } );
-    this->readout_source.insert( { "NIRC2VIDEO", { NIRC2VIDEO, 0 } } );
-    this->readout_source.insert( { "TEST",       { TEST,       0 } } );
+    this->readout_source.insert( { "NONE",       { READOUT_NONE,       0 } } );
+    this->readout_source.insert( { "NIRC2",      { READOUT_NIRC2,      0 } } );
+    this->readout_source.insert( { "NIRC2VIDEO", { READOUT_NIRC2VIDEO, 0 } } );
+    this->readout_source.insert( { "TEST",       { READOUT_TEST,       0 } } );
 
     // pre-size the modtype and modversion vectors to hold the max number of modules
     //
@@ -285,6 +285,8 @@ namespace Archon {
         applied++;
       }
 
+/**** mexamps never used with NIRC2 -- don't allow commands that can break it!
+
       if (config.param[entry].compare(0, 12, "AMPS_AS_CUBE")==0) {
         std::string dontcare;
         if ( this->camera.mexamps( config.arg[entry], dontcare ) == ERROR ) {
@@ -292,6 +294,7 @@ namespace Archon {
           return( ERROR );
         }
       }
+****/
 
       if (config.param[entry].compare(0, 15, "MCDSPAIRS_PARAM")==0) {          // MCDSPAIRS_PARAM
         this->mcdspairs_param = config.arg[entry];
@@ -1519,6 +1522,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // and readout time requires ROI and sampmode,
     // so these should be set in this order the first time.
     //
+    logwrite( function, "setting default ROI, sampmode, exptime" );
     if ( error==NO_ERROR ) error = this->region_of_interest( this->camera.default_roi );
     if ( error==NO_ERROR ) error = this->sample_mode( this->camera.default_sampmode );
     if ( error==NO_ERROR ) error = this->calc_readouttime();
@@ -1574,6 +1578,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // and readout time requires ROI and sampmode,
     // so these should be set in this order the first time.
     //
+    logwrite( function, "setting default ROI, sampmode, exptime" );
     if ( error==NO_ERROR ) error = this->region_of_interest( this->camera.default_roi );
     if ( error==NO_ERROR ) error = this->sample_mode( this->camera.default_sampmode );
     if ( error==NO_ERROR ) error = this->calc_readouttime();
@@ -4016,14 +4021,20 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     }
 
     switch( this->camera_info.readout_type ) {
-      case Archon::NIRC2VIDEO:
-      case Archon::NIRC2:
+      case Archon::READOUT_NIRC2VIDEO:
+      case Archon::READOUT_NIRC2:
         this->camera_info.axes[0] = this->camera_info.imwidth;
         this->camera_info.axes[1] = this->camera_info.imheight;
         break;
 
-      case Archon::NONE:
+      case Archon::READOUT_NONE:
         this->camera_info.set_axes();
+        break;
+
+      default:
+        message.str(""); message << "unknown readout_type " << this->camera_info.readout_type;
+        this->camera.log_error( function, message.str() );
+        return(ERROR);
         break;
     }
 #ifdef LOGLEVEL_DEBUG
@@ -5098,6 +5109,10 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     int32_t requested_exptime = -1;  // this is the user-requested total exposure time, extracted from exptime_in
     int32_t exp_delay = 0;           // this is the exposure delay that will be sent to the Archon
 
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] exptime_in=" << exptime_in; logwrite( function, message.str() );
+#endif
+
     if ( !exptime_in.empty() ) {
       // Convert to integer to check the value
       //
@@ -5866,59 +5881,6 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     return;
   }
   /**************** Archon::Interface::copy_keydb *****************************/
-
-
-  /**************** Archon::Interface::longexposure ***************************/
-  /**
-   * @fn     longexposure
-   * @brief  set/get longexposure mode
-   * @param  string
-   * @return ERROR or NO_ERROR
-   *
-   */
-  long Interface::longexposure(std::string state_in, std::string &state_out) {
-    std::string function = "Archon::Interface::longexposure";
-    std::stringstream message;
-    int error = NO_ERROR;
-
-    // If something is passed then try to use it to set the longexposure state
-    //
-    if ( !state_in.empty() ) {
-      try {
-        std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
-        if ( state_in == "FALSE" || state_in == "0" ) this->is_longexposure = false;
-        else
-        if ( state_in == "TRUE" || state_in == "1" ) this->is_longexposure = true;
-        else {
-          message.str(""); message << "longexposure state " << state_in << " is invalid. Expecting {true,false,0,1}";
-          this->camera.log_error( function, message.str() );
-          return( ERROR );
-        }
-      }
-      catch (...) {
-        message.str(""); message << "unknown exception converting longexposure state " << state_in << " to uppercase";
-        this->camera.log_error( function, message.str() );
-        return( ERROR );
-      }
-    }
-
-    // error or not, the state reported now will be whatever was last successfully set
-    //
-    this->camera_info.exposure_unit   = ( this->is_longexposure ? "sec" : "msec" );
-    this->camera_info.exposure_factor = ( this->is_longexposure ? 1 : 1000 );
-    state_out = ( this->is_longexposure ? "true" : "false" );
-
-    // if no error then set the parameter on the Archon
-    //
-    if ( error==NO_ERROR ) {
-      std::stringstream cmd;
-      cmd << "longexposure " << ( this->is_longexposure ? 1 : 0 );
-      if ( error==NO_ERROR ) error = this->set_parameter( cmd.str() );
-    }
-
-    return( error );
-  }
-  /**************** Archon::Interface::longexposure ***************************/
 
 
   /**************** Archon::Interface::heater *********************************/
@@ -7218,7 +7180,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     long error = NO_ERROR;
 
     uint32_t readout_arg;                   // argument associated with requested type
-    ReadoutType readout_type;
+    int readout_type;
     bool readout_name_valid = false;
 
     try {
@@ -8363,7 +8325,8 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     message.str(""); message << "[DEBUG] ringcount_in=" << ringcount_in << " iscds=" << this->camera_info.iscds
                              << " this->camera_info.detector_pixels[0]=" << this->camera_info.detector_pixels[0]
                              << " this->camera_info.detector_pixels[1] * this->camera_info.axes[2]="
-                             << this->camera_info.detector_pixels[1] * this->camera_info.axes[2];
+                             << this->camera_info.detector_pixels[1] * this->camera_info.axes[2]
+                             << " readout_type=" << this->camera_info.readout_type;
     logwrite( function, message.str() );
 #endif
 

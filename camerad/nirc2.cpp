@@ -408,6 +408,10 @@ namespace Archon {
         long error = NO_ERROR;
         int trywidth=0, tryheight=0;
 
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] args=" << args; logwrite( function, message.str() );
+#endif
+
         // Firmware must be loaded and a mode must have been selected
         //
         if ( ! this->firmwareloaded ) {
@@ -604,6 +608,10 @@ namespace Archon {
         std::stringstream message;
         std::vector<std::string> tokens;
         long error = NO_ERROR;
+
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] args=" << args; logwrite( function, message.str() );
+#endif
 
         // Firmware must be loaded before selecting a mode because this will write to the controller
         //
@@ -937,5 +945,46 @@ namespace Archon {
         return( error );
       }
       /***** Archon::Interface::sample_mode ***********************************/
+
+
+      /**************** Archon::Interface::longexposure ***********************/
+      /**
+       * @brief      set/get longexposure mode
+       * @details    NIRC2 doesn't support longexposure but Keck wants to be able to send the command
+       * @param[in]  state_in   string to set long exposure state, can be {0,1,true,false}
+       * @param[out] state_out  reference to string containing the long exposure state
+       *
+       */
+      long Interface::longexposure( std::string state_in, std::string &state_out ) {
+        std::string function = "Archon::Instrument::longexposure";
+        std::stringstream message;
+
+	// If something is passed then make sure it's "0" or "false"
+        //
+        if ( !state_in.empty() ) {
+          try {
+            std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
+            if ( state_in != "FALSE" && state_in != "0" ) {
+              message.str(""); message << "longexposure state " << state_in << " is invalid. NIRC2 supports only {false|0}";
+              this->camera.log_error( function, message.str() );
+              return( ERROR );
+            }
+          }
+          catch (...) {
+            message.str(""); message << "unknown exception converting longexposure state " << state_in << " to uppercase";
+            this->camera.log_error( function, message.str() );
+            return( ERROR );
+          }
+        }
+
+        // error or not, the state reported now will be whatever was last successfully set
+        //
+        this->camera_info.exposure_unit   = "msec";
+        this->camera_info.exposure_factor = 1000;
+        state_out = "false";
+
+        return( NO_ERROR );
+      }
+      /***** Archon::Interface::longexposure **********************************/
 
 }

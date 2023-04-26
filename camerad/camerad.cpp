@@ -578,7 +578,7 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("roi")==0) {
                     ret = server.region_of_interest( args, retstring );
-                    if ( ret == NO_ERROR ) ret = server.calc_readouttime();
+                    if ( !args.empty() && ret == NO_ERROR ) ret = server.calc_readouttime();  // recalc if this wasn't a query
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
@@ -589,7 +589,7 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("sampmode")==0) {
                     ret = server.sample_mode( args, retstring );
-                    if ( ret == NO_ERROR ) ret = server.calc_readouttime();
+                    if ( !args.empty() && ret == NO_ERROR ) ret = server.calc_readouttime();  // recalc if this wasn't a query
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
