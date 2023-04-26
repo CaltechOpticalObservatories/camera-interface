@@ -94,12 +94,12 @@ namespace Camera {
       }
       /** Camera::Server::exit_cleanly *********************************************/
 
-      /** Camera::Server::configure_server *****************************************/
+
+      /***** Camera::Server::configure_server *********************************/
       /**
-       * @fn     configure_server
-       * @brief  
-       * @param  none
-       * @return ERROR or NO_ERROR
+       * @brief      parse server-related keys from the configuration file
+       * @details    the config file was read by server.config.read_config() in main()
+       * @return     ERROR or NO_ERROR
        *
        */
       long configure_server() {
@@ -127,6 +127,9 @@ namespace Camera {
               return(ERROR);
             }
             this->nbport = port;
+            message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+            logwrite( function, message.str() );
+            this->camera.async.enqueue( message.str() );
             applied++;
           }
 
@@ -145,6 +148,9 @@ namespace Camera {
               return(ERROR);
             }
             this->blkport = port;
+            message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+            logwrite( function, message.str() );
+            this->camera.async.enqueue( message.str() );
             applied++;
           }
 
@@ -163,12 +169,18 @@ namespace Camera {
               return(ERROR);
             }
             this->asyncport = port;
+            message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+            logwrite( function, message.str() );
+            this->camera.async.enqueue( message.str() );
             applied++;
           }
 
           // ASYNCGROUP
           if (config.param[entry].compare(0, 10, "ASYNCGROUP")==0) {
             this->asyncgroup = config.arg[entry];
+            message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+            logwrite( function, message.str() );
+            this->camera.async.enqueue( message.str() );
             applied++;
           }
 
@@ -179,6 +191,9 @@ namespace Camera {
               this->camera.log_error( function, "setting longerror" );
               return( ERROR );
             }
+            message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+            logwrite( function, message.str() );
+            this->camera.async.enqueue( message.str() );
             applied++;
           }
 
@@ -196,7 +211,7 @@ namespace Camera {
         error==NO_ERROR ? logwrite(function, message.str()) : this->camera.log_error( function, message.str() );
         return error;
       }
-      /** Camera::Server::configure_server *****************************************/
+      /***** Camera::Server::configure_server *********************************/
 
   };  // end class Server
 

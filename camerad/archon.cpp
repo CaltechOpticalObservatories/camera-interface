@@ -93,12 +93,11 @@ namespace Archon {
   /**************** Archon::Interface::interface ******************************/
 
 
-  /**************** Archon::Interface::configure_controller *******************/
+  /***** Archon::Interface::configure_controller ******************************/
   /**
-   * @fn     configure_controller
-   * @brief  get controller-specific values out of the configuration file
-   * @param  none
-   * @return NO_ERROR if successful or ERROR on error
+   * @brief      parse controller-related keys from the configuration file
+   * @details    the config file was read by server.config.read_config() in main()
+   * @return     ERROR or NO_ERROR
    *
    */
   long Interface::configure_controller() {
@@ -144,6 +143,9 @@ namespace Archon {
       if (config.param[entry].compare(0, 9, "ARCHON_IP")==0) {
         this->camera_info.hostname = config.arg[entry];
         this->archon.sethost( config.arg[entry] );
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -162,6 +164,9 @@ namespace Archon {
         }
         this->camera_info.port = port;
         this->archon.setport(port);
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -175,21 +180,33 @@ namespace Archon {
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {             // EXPOSE_PARAM
         this->exposeparam = config.arg[entry];
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
       if (config.param[entry].compare(0, 19, "TRIGIN_EXPOSE_PARAM")==0) {      // TRIGIN_EXPOSE_PARAM
         this->trigin_exposeparam = config.arg[entry];
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
       if (config.param[entry].compare(0, 20, "TRIGIN_UNTIMED_PARAM")==0) {     // TRIGIN_UNTIMED_PARAM
         this->trigin_untimedparam = config.arg[entry];
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
       if (config.param[entry].compare(0, 20, "TRIGIN_READOUT_PARAM")==0) {     // TRIGIN_READOUT_PARAM
         this->trigin_readoutparam = config.arg[entry];
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -207,6 +224,9 @@ namespace Archon {
           return(ERROR);
         }
         this->trigin_expose_enable = enable;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -224,6 +244,9 @@ namespace Archon {
           return(ERROR);
         }
         this->trigin_expose_disable = disable;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -241,6 +264,9 @@ namespace Archon {
           return(ERROR);
         }
         this->trigin_untimed_enable = enable;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -258,6 +284,9 @@ namespace Archon {
           return(ERROR);
         }
         this->trigin_untimed_disable = disable;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -275,6 +304,9 @@ namespace Archon {
           return(ERROR);
         }
         this->trigin_readout_enable = enable;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -292,11 +324,17 @@ namespace Archon {
           return(ERROR);
         }
         this->trigin_readout_disable = disable;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
       if (config.param[entry].compare(0, 16, "SHUTENABLE_PARAM")==0) {         // SHUTENABLE_PARAM
         this->shutenableparam = config.arg[entry];
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -314,6 +352,9 @@ namespace Archon {
           return(ERROR);
         }
         this->shutenable_enable = enable;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -331,6 +372,9 @@ namespace Archon {
           return(ERROR);
         }
         this->shutenable_disable = disable;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -339,12 +383,18 @@ namespace Archon {
       //
       if (config.param[entry].compare(0, 16, "DEFAULT_FIRMWARE")==0) {
         this->camera.firmware[0] = config.arg[entry];
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
       if (config.param[entry].compare(0, 16, "HDR_SHIFT")==0) {
         std::string dontcare;
         this->hdrshift( config.arg[entry], dontcare );
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -362,11 +412,17 @@ namespace Archon {
           return(ERROR);
         }
         this->camera.readout_time[0] = readtime;
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
       if (config.param[entry].compare(0, 5, "IMDIR")==0) {
         this->camera.imdir( config.arg[entry] );
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -390,11 +446,17 @@ namespace Archon {
           }
         }
         this->camera.set_dirmode( mode );
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
       if (config.param[entry].compare(0, 8, "BASENAME")==0) {
         this->camera.basename( config.arg[entry] );
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -412,7 +474,7 @@ namespace Archon {
     error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() ) ;
     return error;
   }
-  /**************** Archon::Interface::configure_controller *******************/
+  /***** Archon::Interface::configure_controller ******************************/
 
 
   /**************** Archon::Interface::prepare_image_buffer *******************/
