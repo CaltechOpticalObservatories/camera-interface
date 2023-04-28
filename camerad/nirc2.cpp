@@ -52,45 +52,46 @@ namespace Archon {
 //    PythonProc pp;
 
 
-      /**************** Archon::Interface::poweron ****************************/
+      /***** Archon::Interface::power *****************************************/
       /**
-       * @brief      turn off the power
+       * @brief      wrapper for Archon::Interface::do_power()
+       * @details    NIRC2 requires setting a parameter to start the clocks after
+       *             turning on the power and that is done here.
+       * @param[in]  state_in  requested power state
+       * @param[out] restring  return string holds power state
        * @return     ERROR or NO_ERROR
        *
-       * After applying the power, must wait 2 sec before setting Start=1
-       *
        */
-      long Interface::poweron( ) {
-        std::string function = "Archon::Instrument::poweron";
+      long Interface::power( std::string state_in, std::string &retstring ) {
+        std::string function = "Archon::Instrument::power";
         std::stringstream message;
-	long error = this->native( "POWERON" );
-        usleep( 2000000 );
-        if ( error == NO_ERROR ) error = this->set_parameter( "Start", 1 );
-        if ( error == NO_ERROR ) logwrite( function, "Archon powered on ok" );
-        else                     logwrite( function, "ERROR powering on Archon" );
+
+        // First use Archon::Interface::do_power() to set/get the power
+        //
+        long error = this->do_power( state_in, retstring );
+
+        // After turning on the power NIRC2 needs to set this parameter to start the clocks,
+        // which we'll do only if the power was turned on successfully.
+        //
+        if ( error==NO_ERROR && !state_in.empty() ) {               // received something
+          std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
+          if ( state_in == "ON" ) {
+            error = this->set_parameter( "Start", 1 );              // needed to start NIRC2 firmware clocks
+            if ( error != NO_ERROR ) this->camera.log_error( function, "starting clocks" );
+            else
+            logwrite( function, "clocks started" );
+          }
+        }
+
         return( error );
       }
-      /**************** Archon::Interface::poweron ****************************/
+      /***** Archon::Interface::power *****************************************/
 
 
-      /**************** Archon::Interface::poweroff ***************************/
+      /***** Archon::Interface::expose ****************************************/
       /**
-       * @brief      turn off the power
-       * @return     ERROR or NO_ERROR
-       *
-       */
-      long Interface::poweroff( ) {
-        std::string function = "Archon::Instrument::poweroff";
-        std::stringstream message;
-	return this->native("POWEROFF");
-      }
-      /**************** Archon::Interface::poweroff ***************************/
-
-
-      /**************** Archon::Interface::expose *****************************/
-      /**
-       * @brief      calls do_expose
-       * @param[in]  nseq_in  string which must contain width and height
+       * @brief      wrapper for Archon::Interface::do_expose()
+       * @param[in]  nseq_in  string which can (optionally) contain number of sequences
        * @return     ERROR or NO_ERROR
        *
        */
@@ -159,7 +160,7 @@ namespace Archon {
 
         return( ret );
       }
-      /**************** Archon::Interface::expose *****************************/
+      /***** Archon::Interface::expose ****************************************/
 
 
       /***** Archon::Interface::make_camera_header ****************************/

@@ -67,6 +67,8 @@ namespace Camera {
       std::string default_exptime;           //!< optional default exptime can be set in .cfg file
       std::string default_roi;               //!< optional default roi can be set in .cfg file
 
+      std::string power_status;              //!< archon power status
+
       void log_error( std::string function, std::string message );
 
       std::string get_longerror();

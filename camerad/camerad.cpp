@@ -709,13 +709,8 @@ void doit(Network::TcpSocket sock) {
                     sock.Write(" ");
                     }
     else
-    if (cmd.compare("poweron")==0) {
-                    ret = server.poweron();
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-                    }
-    else
-    if (cmd.compare("poweroff")==0) {
-                    ret = server.poweroff();
+    if (cmd.compare("power")==0) {
+                    ret = server.power( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
