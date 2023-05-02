@@ -68,7 +68,7 @@ class FITS_file {
 
 //    int num_axis = ( info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes
       int num_axis = ( info.fitscubed > 1 ? 3 : 2 );  // local variable for number of axes
-      long axes[num_axis];                            // local variable of image axes size
+      long* axes;                                     // local variable of image axes size
 
       const std::lock_guard<std::mutex> lock(this->fits_mutex);
 
@@ -92,6 +92,8 @@ class FITS_file {
         logwrite(function, message.str());
         return(ERROR);
       }
+
+      axes = new long[num_axis];
 
       if (info.ismex) {      // special num_axis, axes for multi-extensions, no data associated with primary header
         for ( int i=0; i < num_axis; i++ ) axes[i]=0;
@@ -143,11 +145,13 @@ class FITS_file {
       catch (CCfits::FITS::CantCreate){
         message.str(""); message << "ERROR: unable to open FITS file \"" << info.fits_name << "\"";
         logwrite(function, message.str());
+        delete [] axes;
         return(ERROR);
       }
       catch (...) {
         message.str(""); message << "unknown error opening FITS file \"" << info.fits_name << "\"";
         logwrite(function, message.str());
+        delete [] axes;
         return(ERROR);
       }
 
@@ -164,6 +168,7 @@ class FITS_file {
 
       this->fits_name = info.fits_name;
 
+      delete [] axes;
       return (0);
     }
     /**************** FITS_file::open_file ************************************/
@@ -206,13 +211,25 @@ class FITS_file {
       }
 
       try {
+        // Get the date- and time-only out of info.start_time into separate keywords
+        //
+        std::vector<std::string> datevec;
+        std::string dateobs, timeobs;
+        Tokenize( info.start_time, datevec, "T" );      // format is "YYYY-MM-DDTHH:MM:SS.s"
+        if ( datevec.size() == 2 ) {
+          dateobs = datevec.at(0);                      // date-only is the first of two tokens
+          timeobs = datevec.at(1);                      // time-only is the second of two tokens
+        }
+
         // Add a few final system keywords
         //
         this->pFits->pHDU().addKey("DATE-BEG", info.start_time, "exposure start time" );
         this->pFits->pHDU().addKey("DATE-END", info.stop_time, "exposure stop time" );
         this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write time");
         this->pFits->pHDU().addKey("COMPSTAT", ( info.exposure_aborted ? "aborted" : "completed" ) , "exposure completion status");
-        this->pFits->pHDU().addKey("DATE-OBS", info.cmd_start_time, "time of expose command" );
+        this->pFits->pHDU().addKey("DATE-CMD", info.cmd_start_time, "time of expose command" );
+        this->pFits->pHDU().addKey("DATE-OBS", dateobs, "exposure start date" );
+        this->pFits->pHDU().addKey("TIME-OBS", timeobs, "exposure start time" );
 
         // Write the checksum
         //
@@ -224,6 +241,11 @@ class FITS_file {
       }
       catch (CCfits::FitsError& error){
         message.str(""); message << "ERROR writing checksum and closing file: " << error.message();
+        logwrite(function, message.str());
+        this->file_open = false;   // must set this false on exception
+      }
+      catch ( std::out_of_range &e ) {
+        message.str(""); message << "ERROR parsing cmd_start_time: " << e.what();
         logwrite(function, message.str());
         this->file_open = false;   // must set this false on exception
       }
