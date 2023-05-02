@@ -104,9 +104,9 @@ class FITS_file {
       }
 
 #ifdef LOGLEVEL_DEBUG
-      message.str(""); message << "[DEBUG] cubedepth=" << info.cubedepth << " fitscubed=" << info.fitscubed << " num_axis=" << num_axis
-                               << " axes=";
-      for ( auto aa : axes ) message << aa << " ";
+      message.str(""); message << "[DEBUG] cubedepth=" << info.cubedepth << " fitscubed=" << info.fitscubed 
+                               << " num_axis=" << num_axis << " axes=";
+      for ( int na=0; na < num_axis; na++ ) message << axes[na] << " ";
       logwrite( function, message.str() );
 #endif
 
