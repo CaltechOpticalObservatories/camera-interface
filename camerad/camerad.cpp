@@ -719,22 +719,30 @@ void doit(Network::TcpSocket sock) {
                     ret = server.test(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
-    else {  // if no matching command found then assume it's a native command and send it straight to the controller
-      try {
-        std::transform( sbuf.begin(), sbuf.end(), sbuf.begin(), ::toupper );    // make uppercase
-      }
-      catch (...) {
-        logwrite(function, "error converting command to uppercase");
-        ret=ERROR;
-      }
+    else
+    if (cmd.compare("native")==0) {
+                    try {
+                      std::transform( sbuf.begin(), sbuf.end(), sbuf.begin(), ::toupper );    // make uppercase
+                    }
+                    catch (...) {
+                      logwrite(function, "error converting command to uppercase");
+                      ret=ERROR;
+                    }
 #ifdef ASTROCAM
-      ret = server.native(sbuf, retstring);
-      if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    ret = server.native(sbuf, retstring);
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
 #endif
 #ifdef STA_ARCHON
-      ret = server.native(sbuf);
+                    ret = server.native(sbuf);
 #endif
-    }
+                  }
+
+    // if no matching command found
+    //
+    else {        message.str(""); message << "ERROR unrecognized command: " << cmd;
+                  logwrite( function, message.str() );
+                  ret=ERROR;
+                  }
 
     if (ret != NOTHING) {
       std::string retstr=(ret==0?"DONE\n":"ERROR\n");
