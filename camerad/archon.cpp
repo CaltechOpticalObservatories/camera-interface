@@ -14,6 +14,7 @@
 #include <cctype>
 #include <string>
 #include <fstream>
+#include <array>
 
 namespace Archon {
 
@@ -1468,11 +1469,11 @@ namespace Archon {
         //
         Tokenize(keystring, tokens, "/");
 
-        if (tokens.size() == 0) {      // no tokens found means no "/" characeter which means no comment
+        if (tokens.empty()) {          // no tokens found means no "/" characeter which means no comment
           keyvalue = keystring;        // therefore the keyvalue is the entire string
         }
 
-        if (tokens.size() > 0) {       // at least one token
+        if (not tokens.empty()) {         // at least one token
           keyvalue = tokens[0];
         }
 
