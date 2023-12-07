@@ -1678,6 +1678,8 @@ namespace Archon {
     //
     next_index = this->frame.next_index;
     if (this->modemap[mode].geometry.linecount != this->frame.buflines[next_index]) {
+        message.str(""); message << "Updating geometry.";
+        logwrite( function, message.str());
         this->modemap[mode].geometry.linecount = this->frame.buflines[next_index];
         this->modemap[mode].geometry.pixelcount = this->frame.bufpixels[next_index];
         this->camera_info.set_axes();
