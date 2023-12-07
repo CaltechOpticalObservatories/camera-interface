@@ -1635,6 +1635,7 @@ namespace Archon {
     bool configchanged = false;
     bool paramchanged = false;
     long error;
+    int next_index;
 
     // No point in trying anything if no firmware has been loaded yet
     //
@@ -1672,6 +1673,15 @@ namespace Archon {
     if (error==NO_ERROR) error = get_configmap_value("RAWSEL", this->rawinfo.adchan);
     if (error==NO_ERROR) error = get_configmap_value("RAWSAMPLES", this->rawinfo.rawsamples);
     if (error==NO_ERROR) error = get_configmap_value("RAWENDLINE", this->rawinfo.rawlines);
+
+    // see if linecount was modified
+    //
+    next_index = this->frame.next_index;
+    if (this->modemap[mode].geometry.linecount != this->frame.buflines[next_index]) {
+        this->modemap[mode].geometry.linecount = this->frame.buflines[next_index];
+        this->modemap[mode].geometry.pixelcount = this->frame.bufpixels[next_index];
+        this->camera_info.set_axes();
+    }
 #ifdef LOGLEVEL_DEBUG
     message.str(""); 
     message << "[DEBUG] mode=" << mode << " RAWENABLE=" << this->modemap[mode].rawenable 
