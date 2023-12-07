@@ -2360,9 +2360,21 @@ namespace Archon {
     long Interface::nlines(std::string nlines_in, std::string &retstring) {
         std::string function = "Archon::Interface::nlines";
         std::stringstream message;
-        long ret=NO_ERROR;
+        long error=NO_ERROR;
         int count = 0;
         int32_t exp_time = -1;
+
+        // Firmware must be loaded and a mode must have been selected
+        //
+        if ( ! this->firmwareloaded ) {
+            this->camera.log_error( function, "no firmware loaded" );
+            return ERROR;
+        }
+
+        if ( ! this->modeselected ) {
+            this->camera.log_error( function, "no mode selected" );
+            return ERROR;
+        }
 
         if ( !nlines_in.empty() ) {
             // Convert to integer to check the value
@@ -2393,32 +2405,47 @@ namespace Archon {
             //
             std::stringstream cmd;
             cmd << "H2RG_rows " << nlines_in;
-            ret = this->set_parameter( cmd.str() );
+            error = this->set_parameter( cmd.str() );
+
+            if ( error != NO_ERROR ) {
+                this->camera.log_error(function, "writing H2RG_rows");
+                return error;
+            }
+
+            std::string dontcare;
             cmd.str("");
             cmd << "LINECOUNT " << nlines_in;
-            ret = this->cds( cmd.str() );
+            error = this->cds( cmd.str(), dontcare );
 
-            // If parameter was set OK then save the new value
+            // get out now if any errors
             //
-            if ( ret==NO_ERROR ) this->camera_info.exposure_time = exp_time;
-        }
+            if (error != NO_ERROR) {
+                this->camera.log_error(function, "writing LINECOUNT");
+                return error;
+            }
 
-        // add exposure time to system keys db
-        //
-        message.str(""); message << "EXPTIME=" << this->camera_info.exposure_time << " // exposure time in " << ( this->is_longexposure ? "sec" : "msec" );
-        this->systemkeys.addkey( message.str() );
+            // update modemap, in case someone asks again
+            //
+            std::string mode = this->camera_info.current_observing_mode;
+
+            this->modemap[mode].geometry.linecount = count;
+            this->camera_info.set_axes();
+
+            if (error==NO_ERROR) error = get_configmap_value( "PIXELCOUNT", this->camera_info.detector_pixels[0]);
+            if (error==NO_ERROR) error = get_configmap_value( "LINECOUNT", this->camera_info.detector_pixels[1]);
+        }
 
         // prepare the return value
         //
-        message.str(""); message << this->camera_info.exposure_time << ( this->is_longexposure ? " sec" : " msec" );
+        message.str(""); message << count;
         retstring = message.str();
 
         message.str(""); message << "nlines is " << retstring;
         logwrite(function, message.str());
 
-        return(ret);
+        return(error);
     }
-    /**************** Archon::Interface::exptime ********************************/
+    /**************** Archon::Interface::nlines *********************************/
 
 
     /**************** Archon::Interface::lock_buffer ****************************/
