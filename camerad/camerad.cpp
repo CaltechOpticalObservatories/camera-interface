@@ -594,6 +594,11 @@ void doit(Network::TcpSocket sock) {
 #endif
 #ifdef STA_ARCHON
     else
+    if (cmd.compare("nlines")==0) {
+        ret = server.nlines(args, retstring);
+        if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+    }
+    else
     if (cmd.compare("roi")==0) {
                     ret = server.region_of_interest( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }

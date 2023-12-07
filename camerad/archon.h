@@ -201,6 +201,7 @@ namespace Archon {
       long inreg( std::string args );
       long region_of_interest( std::string args, std::string &retstring );
       long test(std::string args, std::string &retstring);
+      long nlines(std::string count, std::string &retstring);
 
       /**
        * @var     struct geometry_t geometry[]

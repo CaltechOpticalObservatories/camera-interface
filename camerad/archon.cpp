@@ -1678,11 +1678,17 @@ namespace Archon {
     //
     next_index = this->frame.next_index;
     if (this->modemap[mode].geometry.linecount != this->frame.buflines[next_index]) {
-        message.str(""); message << "Updating geometry.";
-        logwrite( function, message.str());
-        this->modemap[mode].geometry.linecount = this->frame.buflines[next_index];
-        this->modemap[mode].geometry.pixelcount = this->frame.bufpixels[next_index];
-        this->camera_info.set_axes();
+        if (this->frame.buflines[next_index] == 0) {
+            message.str(""); message << "Frame not yet initialized.";
+            logwrite( function, message.str());
+        } else {
+            message.str("");
+            message << "Updating geometry.";
+            logwrite(function, message.str());
+            this->modemap[mode].geometry.linecount = this->frame.buflines[next_index];
+            this->modemap[mode].geometry.pixelcount = this->frame.bufpixels[next_index];
+            this->camera_info.set_axes();
+        }
     }
 #ifdef LOGLEVEL_DEBUG
     message.str(""); 
@@ -2330,7 +2336,8 @@ namespace Archon {
       message << std::setw(5) << this->frame.bufrawblocks[bufn] << " ";                               // rblks
       message << std::setw(5) << this->frame.bufwidth[bufn] << " ";                                   // width
       message << std::setw(6) << this->frame.bufheight[bufn] << " ";                                  // height
-      message << std::setw(5) << statestr[bufn];                                                      // state
+      message << std::setw(5) << statestr[bufn] << " ";                                                      // state
+      message << std::setw(5) << this->frame.bufpixels[bufn];
       logwrite(function, message.str());
       message.str("");
     }
@@ -2339,7 +2346,82 @@ namespace Archon {
   /**************** Archon::Interface::print_frame_status *********************/
 
 
-  /**************** Archon::Interface::lock_buffer ****************************/
+    /**************** Archon::Interface::nlines ********************************/
+    /**
+     * @fn     nlines
+     * @brief  set/get the number of lines
+     * @param  string
+     * @return ERROR or NO_ERROR
+     *
+     * This function calls "set_parameter()" and "get_parameter()" using
+     * the "exptime" parameter (which must already be defined in the ACF file).
+     *
+     */
+    long Interface::nlines(std::string nlines_in, std::string &retstring) {
+        std::string function = "Archon::Interface::nlines";
+        std::stringstream message;
+        long ret=NO_ERROR;
+        int count = 0;
+        int32_t exp_time = -1;
+
+        if ( !nlines_in.empty() ) {
+            // Convert to integer to check the value
+            //
+            try {
+                count = std::stoi( nlines_in );
+            }
+            catch (std::invalid_argument &) {
+                message.str(""); message << "converting nlines: " << nlines_in << " to integer";
+                this->camera.log_error( function, message.str() );
+                return(ERROR);
+            }
+            catch (std::out_of_range &) {
+                message.str(""); message << "requested nlines: " << nlines_in << " outside integer range";
+                this->camera.log_error( function, message.str() );
+                return(ERROR);
+            }
+
+            // Archon allows only 20 bit parameters
+            //
+            if ( count < 0 || count > 0xFFFFF ) {
+                message.str(""); message << "requested nlines: " << nlines_in << " out of range {0:1048575}";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+            }
+
+            // Now that the value is OK set the parameter on the Archon
+            //
+            std::stringstream cmd;
+            cmd << "H2RG_rows " << nlines_in;
+            ret = this->set_parameter( cmd.str() );
+            cmd.str("");
+            cmd << "LINECOUNT " << nlines_in;
+            ret = this->cds( cmd.str() );
+
+            // If parameter was set OK then save the new value
+            //
+            if ( ret==NO_ERROR ) this->camera_info.exposure_time = exp_time;
+        }
+
+        // add exposure time to system keys db
+        //
+        message.str(""); message << "EXPTIME=" << this->camera_info.exposure_time << " // exposure time in " << ( this->is_longexposure ? "sec" : "msec" );
+        this->systemkeys.addkey( message.str() );
+
+        // prepare the return value
+        //
+        message.str(""); message << this->camera_info.exposure_time << ( this->is_longexposure ? " sec" : " msec" );
+        retstring = message.str();
+
+        message.str(""); message << "nlines is " << retstring;
+        logwrite(function, message.str());
+
+        return(ret);
+    }
+    /**************** Archon::Interface::exptime ********************************/
+
+
+    /**************** Archon::Interface::lock_buffer ****************************/
   /**
    * @fn     lock_buffer
    * @brief  lock Archon frame buffer
