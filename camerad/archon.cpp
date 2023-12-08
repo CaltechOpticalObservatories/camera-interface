@@ -1635,7 +1635,6 @@ namespace Archon {
     bool configchanged = false;
     bool paramchanged = false;
     long error;
-    int next_index;
 
     // No point in trying anything if no firmware has been loaded yet
     //
@@ -1674,22 +1673,6 @@ namespace Archon {
     if (error==NO_ERROR) error = get_configmap_value("RAWSAMPLES", this->rawinfo.rawsamples);
     if (error==NO_ERROR) error = get_configmap_value("RAWENDLINE", this->rawinfo.rawlines);
 
-    // see if linecount was modified
-    //
-    next_index = this->frame.next_index;
-    if (this->modemap[mode].geometry.linecount != this->frame.buflines[next_index]) {
-        if (this->frame.buflines[next_index] == 0) {
-            message.str(""); message << "Frame not yet initialized.";
-            logwrite( function, message.str());
-        } else {
-            message.str("");
-            message << "Updating geometry.";
-            logwrite(function, message.str());
-            this->modemap[mode].geometry.linecount = this->frame.buflines[next_index];
-            this->modemap[mode].geometry.pixelcount = this->frame.bufpixels[next_index];
-            this->camera_info.set_axes();
-        }
-    }
 #ifdef LOGLEVEL_DEBUG
     message.str(""); 
     message << "[DEBUG] mode=" << mode << " RAWENABLE=" << this->modemap[mode].rawenable 
@@ -2362,7 +2345,6 @@ namespace Archon {
         std::stringstream message;
         long error=NO_ERROR;
         int count = 0;
-        int32_t exp_time = -1;
 
         // Firmware must be loaded and a mode must have been selected
         //
@@ -2429,11 +2411,14 @@ namespace Archon {
             std::string mode = this->camera_info.current_observing_mode;
 
             this->modemap[mode].geometry.linecount = count;
+            this->camera_info.region_of_interest[3] = count;
             this->camera_info.set_axes();
 
             if (error==NO_ERROR) error = get_configmap_value( "PIXELCOUNT", this->camera_info.detector_pixels[0]);
             if (error==NO_ERROR) error = get_configmap_value( "LINECOUNT", this->camera_info.detector_pixels[1]);
         }
+
+        count = this->camera_info.detector_pixels[1];
 
         // prepare the return value
         //
