@@ -198,6 +198,17 @@ class FITS_file {
         return;
       }
 
+/**
+      // Iterate through the system-defined FITS keyword databases and add them to the primary header.
+      //
+      Common::FitsKeys::fits_key_t::iterator keyit;
+      for (keyit  = info.systemkeys.keydb.begin();
+           keyit != info.systemkeys.keydb.end();
+           keyit++) {
+        this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+      }
+**/
+
       // Write the user keys on close, if specified
       //
       if ( writekeys ) {
@@ -655,9 +666,17 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
           ( primary ? this->pFits->pHDU().addKey(keyword, std::stoi(value), comment)
                     : this->imageExt->addKey( keyword, std::stoi(value), comment ) );
         }
+        else if (type.compare("LONG") == 0) {
+          ( primary ? this->pFits->pHDU().addKey(keyword, std::stol(value), comment)
+                    : this->imageExt->addKey( keyword, std::stol(value), comment ) );
+        }
         else if (type.compare("FLOAT") == 0) {
           ( primary ? this->pFits->pHDU().addKey(keyword, std::stof(value), comment)
                     : this->imageExt->addKey( keyword, std::stof(value), comment ) );
+        }
+        else if (type.compare("DOUBLE") == 0) {
+          ( primary ? this->pFits->pHDU().addKey(keyword, std::stod(value), comment)
+                    : this->imageExt->addKey( keyword, std::stod(value), comment ) );
         }
         else if (type.compare("STRING") == 0) {
           ( primary ? this->pFits->pHDU().addKey(keyword, value, comment)
@@ -665,7 +684,7 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
         }
         else {
           message.str(""); message << "ERROR unknown type: " << type << " for user keyword: " << keyword << "=" << value
-                                   << ": expected {INT,FLOAT,STRING,BOOL}";
+                                   << ": expected {INT,LONG,FLOAT,DOUBLE,STRING,BOOL}";
           logwrite(function, message.str());
         }
       }

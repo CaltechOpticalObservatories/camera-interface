@@ -140,8 +140,8 @@ namespace Archon {
       cv::Mat resetframe;
       cv::Mat readframe;
       int32_t* coaddbuf;    /// final coadd buffer written to FITS
-      int32_t* coaddbuf_0;  /// first group of MCDS coadds (baseline)
-      int32_t* coaddbuf_1;  /// second group of MCDS coadds (signal)
+      int32_t* mcdsbuf_0;   /// first group of MCDS coadds (baseline)
+      int32_t* mcdsbuf_1;   /// second group of MCDS coadds (signal)
       bool iscds;
       int nmcds;            /// number of MCDS samples
       int cols;
@@ -520,7 +520,7 @@ namespace Archon {
           if ( this->nmcds > 0 ) {
             // For the first half of num MCDS point to buffer0, second half point to buffer1
 	    //
-            int32_t* ptr = ( (slicen < this->nmcds/2) ? this->coaddbuf_0 : this->coaddbuf_1 );
+            int32_t* ptr = ( (slicen < this->nmcds/2) ? this->mcdsbuf_0 : this->mcdsbuf_1 );
 #ifdef LOGLEVEL_DEBUG
             message.str(""); message << "[DEBUG] " << ( (slicen < this->nmcds/2) ? "first" : "second" ) << " half of MCDS";
             logwrite( "Archon::DeInterlace::nirc2", message.str() );
@@ -529,7 +529,8 @@ namespace Archon {
 	    // and add the work buffer to it.
             //
             cv::Mat coadd = cv::Mat( this->frame_rows, this->frame_cols, CV_32S, ptr );
-            coadd += work;
+//          coadd += work;  2023-11-25
+            cv::add( coadd, work, coadd, cv::noArray(), coadd.type() );
 
             // Copy coadded image into the FITS buffer pointed to by ptr
             //
@@ -613,10 +614,11 @@ namespace Archon {
         logwrite( function, message.str() );
 #endif
 
-        // perform the coadd, this current pair plus whatever is already there
+        // Perform the coadd, this current pair plus whatever is already there.
+        // This form of the cv::add() function will properly convert the type.
         //
         try {
-          coadd += diff;
+          cv::add( coadd, diff, coadd, cv::noArray(), coadd.type() );
         }
         catch ( const cv::Exception& ex ) {
           message.str(""); message << "ERROR coadding CDS frame: " << ex.what();
@@ -705,14 +707,14 @@ namespace Archon {
        * @param[in]  readout_type  
        *
        */
-      DeInterlace( T* imbuf_in, T* workbuf_in, T* cdsbuf_in, int32_t* coaddbuf, int32_t* coaddbuf_0, int32_t* coaddbuf_1,
+      DeInterlace( T* imbuf_in, T* workbuf_in, T* cdsbuf_in, int32_t* coaddbuf, int32_t* mcdsbuf_0, int32_t* mcdsbuf_1,
                    bool iscds, int nmcds, int cols, int rows, int readout_type, long height, long width, long depth ) {
         this->imbuf = imbuf_in;
         this->workbuf = workbuf_in;
         this->cdsbuf = cdsbuf_in;
         this->coaddbuf = coaddbuf;
-        this->coaddbuf_0 = coaddbuf_0;
-        this->coaddbuf_1 = coaddbuf_1;
+        this->mcdsbuf_0 = mcdsbuf_0;
+        this->mcdsbuf_1 = mcdsbuf_1;
         this->iscds = iscds;
         this->nmcds = nmcds;
         this->cols = cols;
@@ -890,8 +892,8 @@ namespace Archon {
       std::vector<uint32_t> ringdata_allocated;
 
       int32_t* coaddbuf;                     /// final coadd buffer written to FITS
-      int32_t* coaddbuf_0;                   /// first group of MCDS coadds (baseline)
-      int32_t* coaddbuf_1;                   /// second group of MCDS coadds (signal)
+      int32_t* mcdsbuf_0;                    /// first group of MCDS coadds (baseline)
+      int32_t* mcdsbuf_1;                    /// second group of MCDS coadds (signal)
 
       void *workbuf;                         //!< pointer to workspace for performing deinterlacing //TODO @todo obsolete?
       long workbuf_size;

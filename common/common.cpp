@@ -54,10 +54,10 @@ namespace Common {
    * @fn     get_keytype
    * @brief  return the keyword type based on the keyvalue
    * @param  std::string value
-   * @return std::string type: "BOOL", "STRING", "FLOAT", "INT"
+   * @return std::string type: "BOOL", "STRING", "DOUBLE", "INT"
    *
    * This function looks at the contents of the value string to determine if it
-   * contains an INT, FLOAT, BOOL or STRING, and returns a string identifying the type.
+   * contains an INT, DOUBLE, BOOL or STRING, and returns a string identifying the type.
    * That type is used in FITS_file::add_user_key() for adding keywords to the header.
    *
    */
@@ -94,21 +94,21 @@ namespace Common {
     std::string check_type;
 
     if (pos == keyvalue.size()) {
-      // If it's an INT or FLOAT, don't return that type until it has been checked, below
+      // If it's an INT or DOUBLE, don't return that type until it has been checked, below
       //
       if (keyvalue.find(".") == std::string::npos)    // all numbers and no decimals, it's an integer
         check_type = "INT";
       else                                            // otherwise numbers with a decimal, it's a float
-        check_type = "FLOAT";
+        check_type = "DOUBLE";
     }
     else return std::string("STRING");                // lastly, must be a string
 
-    // If it's an INT or a FLOAT then try to convert the value to INT or FLOAT.
+    // If it's an INT or a DOUBLE then try to convert the value to INT or DOUBLE.
     // If that conversion fails then set the type to STRING.
     //
     try {
-      if ( check_type == "INT"   ) std::stoi( keyvalue );
-      if ( check_type == "FLOAT" ) std::stof( keyvalue );
+      if ( check_type == "INT"    ) std::stoi( keyvalue );
+      if ( check_type == "DOUBLE" ) std::stod( keyvalue );
     }
     catch ( std::invalid_argument & ) {
       return std::string( "STRING" );

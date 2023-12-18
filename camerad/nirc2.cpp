@@ -344,9 +344,9 @@ namespace Archon {
         int cols           = this->camera_info.imwidth;
         int rows           = this->camera_info.imheight;
 
-        double rowtime     = (rows/23.) * pixeltime + ( 1024/32. - rows/32. ) * pixelskip + row_ohead;
+        double rowtime     = (cols/32.) * pixeltime + ( 1024/32. - cols/32. ) * pixelskip + row_ohead;
 
-        long readouttime   = std::lround( (frame_ohead + (cols/2.)*(rowtime + row_ohead) + (1024/2. - cols/2.) * rowskip) / 1000. );
+        long readouttime   = std::lround( ( frame_ohead + (4 + rows/2.)*rowtime + rowskip * ( 516 - rows/2 - 4 ) ) / 1000. );
 
         // The class stores the total readout time, which is this readouttime (per frame)
         // multiplied by the number of MCDS pairs, or by 1, if not in MCDS mode.

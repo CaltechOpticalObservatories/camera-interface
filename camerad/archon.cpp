@@ -50,8 +50,8 @@ namespace Archon {
     }
 
     this->coaddbuf = NULL;
-    this->coaddbuf_0 = NULL;
-    this->coaddbuf_1 = NULL;
+    this->mcdsbuf_0 = NULL;
+    this->mcdsbuf_1 = NULL;
     this->image_data = NULL;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
@@ -3164,7 +3164,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // Read the data from the connected socket into memory, one block at a time
     //
     totalbytesread = 0;
-    std::cerr << "reading bytes: ";
+//  std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
 
       // Are there data to read?
@@ -3184,7 +3184,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         auto now = std::chrono::steady_clock::now();             // check the time again
         std::chrono::duration<double> diff = now-start;          // calculate the duration
         if (diff.count() > 1) {                                  // break while loop if duration > 1 second
-          std::cerr << "\n";
+//        std::cerr << "\n";
           this->camera.log_error( function, "timeout waiting for data from Archon" );
           error = ERROR;
           break;                       // breaks out of while loop
@@ -3224,7 +3224,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         if ( (retval=this->archon.Read(ptr_in, (size_t)toread)) > 0 ) {
           bytesread += retval;         // this will get zeroed after each block
           totalbytesread += retval;    // this won't (used only for info purposes)
-          std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+//        std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
           ptr_in += retval;            // advance pointer
         }
       } while (bytesread < BLOCK_LEN);
@@ -3242,7 +3242,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     this->archon_busy = false;
     this->archon_mutex.unlock();
 
-    std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
+//  std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
 
     // If we broke out of the for loop for an error then report incomplete read
     //
@@ -4240,7 +4240,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     }
     this->last_frame_timer = this->start_timer;                             // initialize timer, used as reference for wait_for_exposure
     this->camera.set_fitstime(this->camera_info.start_time);                // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
-    error=this->camera.get_fitsname( "_raw", this->camera_info.fits_name);  // assemble the FITS filename with added "raw"tag
+    error=this->camera.get_fitsname( "_unp", this->camera_info.fits_name);  // assemble the FITS filename with added "raw"tag
     if ( error != NO_ERROR ) {
       logwrite( function, "ERROR: couldn't validate fits filename" );
       this->cleanup_memory();
@@ -4481,6 +4481,16 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
           dts = (this->frame.buftimestamp[this->frame.index]-ts0);      // delta time stamp is change in BUFnTIMESTAMP since the first frame
 
           if ( this->camera_info.sampmode == SAMPMODE_SINGLE ) dts=0;   // no delta timestamp for single
+
+	  // At the halfway point, use this dts to add a header keyword for TRUITIME
+	  //
+          if ( ( slicecounter%2 == 0 ) && ( slice == slicecounter/2 ) ) {
+            double truitime = dts/100000000.;
+            std::stringstream truitimestr;
+            truitimestr << truitime;
+            this->cds_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
+            this->fits_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
+          }
 
           // Add Archon TIMESTAMP for this frame buffer to the extkeys database.
           // This keyword database is erased with each exposure and will be written
@@ -4835,14 +4845,14 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     logwrite( function, message.str() );
 #endif
 
-    std::cerr << "exposure progress: ";
+//  std::cerr << "exposure progress: ";
     while ( (now - (waittime + start_time) < 0) && not this->camera.is_aborted() ) {
       timeout(0.010);  // sleep 10 msec = 1e6 Archon ticks
       increment += 1000000;
       now = get_clock_time();
       this->camera_info.exposure_progress = (double)increment / (double)(prediction - this->last_frame_timer);
       if (this->camera_info.exposure_progress < 0 || this->camera_info.exposure_progress > 1) this->camera_info.exposure_progress=1;
-      std::cerr << std::setw(3) << (int)(this->camera_info.exposure_progress*100) << "\b\b\b";
+//    std::cerr << std::setw(3) << (int)(this->camera_info.exposure_progress*100) << "\b\b\b";
 
       // ASYNC status message reports the elapsed time in the chosen unit
       //
@@ -4851,7 +4861,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     }
 
     if ( this->camera.is_aborted() ) {
-      std::cerr << "\n";
+//    std::cerr << "\n";
       error = this->abort_archon();
       message.str(""); message << ( error==ERROR ? "ERROR aborting exposure" : "exposure aborted" );
       logwrite( function, message.str() );
@@ -4876,7 +4886,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       // Poll Archon's internal timer
       //
       if ( (error=this->get_timer(&timer)) == ERROR ) {
-        std::cerr << "\n";
+//      std::cerr << "\n";
         logwrite( function, "ERROR: could not get Archon timer" );
         break;
       }
@@ -4891,7 +4901,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       message.str(""); message << "EXPOSURE:" << (int)(this->camera_info.exposure_delay - (this->camera_info.exposure_progress * this->camera_info.exposure_delay));
       this->camera.async.enqueue( message.str() );
 
-      std::cerr << std::setw(3) << (int)(this->camera_info.exposure_progress*100) << "\b\b\b";  // send to stderr in case anyone is watching
+//    std::cerr << std::setw(3) << (int)(this->camera_info.exposure_progress*100) << "\b\b\b";  // send to stderr in case anyone is watching
 
       // Archon timer ticks are in 10 nsec (1e-8) so when comparing to exposure_delay,
       // multiply exposure_delay by 1e8/exposure_factor, where exposure_factor=1 or =1000 for exposure_unit sec or msec.
@@ -4912,14 +4922,14 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       // problem.
       //
       if (--exposure_timeout_time < 0) {
-        std::cerr << "\n";
+//      std::cerr << "\n";
         error = ERROR;
         this->camera.log_error( function, "timeout waiting for exposure" );
         break;
       }
     }  // end while (done == false && not this->camera.is_aborted)
 
-    std::cerr << "\n";
+//  std::cerr << "\n";
 
     if ( this->camera.is_aborted() ) {
       error = this->abort_archon();
@@ -8249,15 +8259,12 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
     if ( this->coaddbuf != NULL ) { delete [] (int32_t*)this->coaddbuf; this->coaddbuf=NULL; }
     this->coaddbuf = (int32_t*) new int32_t [ this->cds_info.section_size ]{};
-//  memset(this->coaddbuf, 0, this->cds_info.section_size);
 
-    if ( this->coaddbuf_0 != NULL ) delete [] (int32_t*)this->coaddbuf_0;
-    this->coaddbuf_0 = (int32_t*) new int32_t [ this->cds_info.section_size ]{};
-//  memset(this->coaddbuf_0, 0, this->cds_info.section_size);
+    if ( this->mcdsbuf_0 != NULL ) delete [] (int32_t*)this->mcdsbuf_0;
+    this->mcdsbuf_0 = (int32_t*) new int32_t [ this->cds_info.section_size ]{};
 
-    if ( this->coaddbuf_1 != NULL ) delete [] (int32_t*)this->coaddbuf_1;
-    this->coaddbuf_1 = (int32_t*) new int32_t [ this->cds_info.section_size ]{};
-//  memset(this->coaddbuf_1, 0, this->cds_info.section_size);
+    if ( this->mcdsbuf_1 != NULL ) delete [] (int32_t*)this->mcdsbuf_1;
+    this->mcdsbuf_1 = (int32_t*) new int32_t [ this->cds_info.section_size ]{};
 
     return;
   }
@@ -8359,13 +8366,13 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       delete [] (int32_t*)this->coaddbuf;
       this->coaddbuf=NULL;
     }
-    if ( this->coaddbuf_0 != NULL ) {
-      delete [] (int32_t*)this->coaddbuf_0;
-      this->coaddbuf_0=NULL;
+    if ( this->mcdsbuf_0 != NULL ) {
+      delete [] (int32_t*)this->mcdsbuf_0;
+      this->mcdsbuf_0=NULL;
     }
-    if ( this->coaddbuf_1 != NULL ) {
-      delete [] (int32_t*)this->coaddbuf_1;
-      this->coaddbuf_1=NULL;
+    if ( this->mcdsbuf_1 != NULL ) {
+      delete [] (int32_t*)this->mcdsbuf_1;
+      this->mcdsbuf_1=NULL;
     }
     return;
   }
@@ -8411,6 +8418,12 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     std::string function = "Archon::Instrument::deinterlace";
     std::stringstream message;
 
+    // Zero the buffers that will be used to sum the MCDS baseline (mcdsbuf_0) and
+    // signal (mcdsbuf_1) frames.
+    //
+    memset( mcdsbuf_0, 0, this->cds_info.section_size * sizeof(int32_t) );
+    memset( mcdsbuf_1, 0, this->cds_info.section_size * sizeof(int32_t) );
+
     // Instantiate a DeInterlace class object,
     // which is constructed with the pointers need for the image and working buffers.
     // This object contains the functions needed for the deinterlacing,
@@ -8420,8 +8433,8 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
                                 (T*)workbuf,                           // pointer to buffer that contains the deinterlaced image
                                 (T*)cdsbuf,                            // pointer to buffer that contains the deinterlaced image
                                 coaddbuf,                              // pointer to buffer to contain the coadded image
-                                coaddbuf_0,                            // pointer to buffer to contain the coadded image
-                                coaddbuf_1,                            // pointer to buffer to contain the coadded image
+                                mcdsbuf_0,                             // pointer to buffer to contain the MCDS baseline sum (1st half)
+                                mcdsbuf_1,                             // pointer to buffer to contain the MCDS signal sum (2nd half)
                                 this->camera_info.iscds,
                                 this->camera_info.nmcds,
                                 this->camera_info.detector_pixels[0],  // cols
@@ -8547,11 +8560,11 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
     // Create a Mat image for the final MCDS coadd
     //
-    cv::Mat coadd   = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
+    cv::Mat coadd  = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
 
-    cv::Mat diff    = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
-    cv::Mat coadd_0 = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
-    cv::Mat coadd_1 = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
+    cv::Mat diff   = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
+    cv::Mat mcds_0 = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
+    cv::Mat mcds_1 = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
 
     message << "waiting for CDS/MCDS frames: self->deinterlace_count.load()=" << deinterlace_count
             << " self->camera_info.nseq=" << self->camera_info.nseq;
@@ -8572,24 +8585,19 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 #ifdef LOGLEVEL_DEBUG
         logwrite( function, "performing MCDS subtraction" );
 #endif
-        // Perform the CDS subtraction, signal-baseline
-	// and coadd the result. To do that, create Mat arrays from each of the coadd buffers.
+        // Perform the CDS subtraction, sum of signal frames - sum of baseline frames, average,
+	// then coadd the result. To do that, create Mat arrays from each of the MCDS buffers.
         //
         try {
-          coadd_0 = cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_32S, self->coaddbuf_0 );
-          coadd_1 = cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_32S, self->coaddbuf_1 );
+          mcds_0 = cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_32S, self->mcdsbuf_0 );
+          mcds_1 = cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_32S, self->mcdsbuf_1 );
 
-          diff   = coadd_1 - coadd_0;           // perform the subtraction
-
+          diff   = mcds_1 - mcds_0;             // perform the subtraction, signal-baseline
           diff  /= ( self->cds_info.nmcds/2 );  // average
-
           coadd += diff;                        // coadd here
-//cv::Mat display = cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_8U, cv::Scalar(0) );
-//cv::normalize(coadd, display, 0, 255, cv::NORM_MINMAX, CV_8U);
-//cv::imshow( "image", display );
-//cv::waitKey(1);
-          coadd_0.release();
-          coadd_1.release();
+
+          mcds_0.release();
+          mcds_1.release();
         }
         catch ( const cv::Exception& ex ) {
           message.str(""); message << "ERROR OpenCV exception subtracting signal-baseline: " << ex.what();
@@ -8640,8 +8648,8 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 //cv::destroyAllWindows();
     logwrite( function, "exiting CDS thread" );
     coadd.release();
-    coadd_0.release();
-    coadd_1.release();
+    mcds_0.release();
+    mcds_1.release();
     diff.release();
     return;
   }
