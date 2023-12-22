@@ -2412,10 +2412,9 @@ namespace Archon {
 
             this->modemap[mode].geometry.linecount = count;
             this->camera_info.region_of_interest[3] = count;
+            this->camera_info.detector_pixels[1] = count;
             this->camera_info.set_axes();
 
-            if (error==NO_ERROR) error = get_configmap_value( "PIXELCOUNT", this->camera_info.detector_pixels[0]);
-            if (error==NO_ERROR) error = get_configmap_value( "LINECOUNT", this->camera_info.detector_pixels[1]);
         }
 
         count = this->camera_info.detector_pixels[1];
