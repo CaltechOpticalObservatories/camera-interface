@@ -35,7 +35,8 @@ namespace Camera {
     this->image_num = 0;
     this->fits_naming = "time";
     this->fitstime = "";
-    this->abortstate = false;
+    this->abortstate.store(false);
+    this->exposing.store(false);
     this->writekeys_when = "before";
     this->autodir_state = true;
     this->default_roi = "1024 1024";
