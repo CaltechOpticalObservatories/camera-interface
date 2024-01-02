@@ -968,6 +968,11 @@ namespace Archon {
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
       void add_filename_key();
       void add_filename_key( Camera::Information &info );  /// adds the current filename to the systemkeys database
+      long get_status_key( std::string key, std::string &value );     /// get value for indicated key from STATUS string
+      long temp( std::string &retstring );                            /// get Archon backplane temp
+      long fan( std::string &retstring );                             /// get Archon fan tach
+      long overheat( std::string &retstring );                        /// get Archon overheat state
+      long tempinfo( std::string &retstring );                        /// get Archon temperature info string (all three)
       long power( std::string state_in, std::string &retstring );     /// wrapper for do_power
       long do_power( std::string state_in, std::string &retstring );  /// set/get Archon power state
       long expose( std::string nseq_in );

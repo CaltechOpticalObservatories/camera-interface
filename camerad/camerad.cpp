@@ -566,6 +566,26 @@ void doit(Network::TcpSocket sock) {
 #endif
 #ifdef STA_ARCHON
     else
+    if (cmd.compare("temp")==0) {
+                    ret = server.temp( retstring );
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("fan")==0) {
+                    ret = server.fan( retstring );
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("overheat")==0) {
+                    ret = server.overheat( retstring );
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
+    if (cmd.compare("tempinfo")==0) {
+                    ret = server.tempinfo( retstring );
+                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+                    }
+    else
     if (cmd.compare("caltimer")==0) {
                     ret = server.caltimer();
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }

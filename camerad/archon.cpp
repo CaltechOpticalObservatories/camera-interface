@@ -3894,6 +3894,158 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
   /***** Archon::Interface::add_filename_key **********************************/
 
 
+  /***** Archon::Interface::get_status_key ************************************/
+  /**
+   * @brief      get value for the indicated key from the Archon "STATUS" string
+   * @param[in]  key    key to extract from STATUS
+   * @param[out] value  value of key
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::get_status_key( std::string key, std::string &value ) {
+    std::string function = "Archon::Interface::get_status_key";
+    std::stringstream message;
+    std::string reply;
+
+    long error = this->archon_cmd( STATUS, reply );  // first the whole reply in one string
+
+    if ( error != NO_ERROR ) return error;
+
+    std::vector<std::string> lines, tokens;
+    Tokenize( reply, lines, " " );                   // then each line in a separate token "lines"
+
+    for ( auto line : lines ) {
+      Tokenize( line, tokens, "=" );                 // break each line into tokens to get KEY=value
+      if ( tokens.size() != 2 ) continue;            // need 2 tokens
+      try {
+        if ( tokens.at(0) == key ) {                 // looking for the KEY
+          value = tokens.at(1);                      // found the KEY= status here
+          break;                                     // done looking
+        }
+        else continue;
+      }
+      catch (std::out_of_range &) {                  // should be impossible
+        this->camera.log_error( function, "token out of range" );
+        return(ERROR);
+      }
+    }
+
+    return( NO_ERROR );
+  }
+  /***** Archon::Interface::get_status_key ************************************/
+
+
+  /***** Archon::Interface::temp **********************************************/
+  /**
+   * @brief      get the backplane temperature
+   * @param[out] retstring   contains the backplane temperature
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::temp( std::string &retstring ) {
+    std::string function = "Archon::Interface::temp";
+    std::stringstream message;
+
+    if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
+      this->camera.log_error( function, "connection not open to controller" );
+      return( ERROR );
+    }
+
+    long error = get_status_key( "BACKPLANE_TEMP", retstring );
+
+    return( error );
+  }
+  /***** Archon::Interface::temp **********************************************/
+
+
+  /***** Archon::Interface::fan ***********************************************/
+  /**
+   * @brief      get the fan tach
+   * @param[out] retstring   contains the fan tach
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::fan( std::string &retstring ) {
+    std::string function = "Archon::Interface::fan";
+    std::stringstream message;
+
+    if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
+      this->camera.log_error( function, "connection not open to controller" );
+      return( ERROR );
+    }
+
+    long error = get_status_key( "FANTACH", retstring );
+
+    return( error );
+  }
+  /***** Archon::Interface::fan ***********************************************/
+
+
+  /***** Archon::Interface::overheat ******************************************/
+  /**
+   * @brief      get the overheat state
+   * @param[out] retstring   contains the overheat state
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::overheat( std::string &retstring ) {
+    std::string function = "Archon::Interface::overheat";
+    std::stringstream message;
+
+    if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
+      this->camera.log_error( function, "connection not open to controller" );
+      return( ERROR );
+    }
+
+    long error = get_status_key( "OVERHEAT", retstring );
+
+    retstring = ( retstring == "1" ? "yes" : "no" );            // change return to "yes" or "no" from "1" or "0"
+
+    return( error );
+  }
+  /***** Archon::Interface::overheat ******************************************/
+
+
+  /***** Archon::Interface::tempinfo ******************************************/
+  /**
+   * @brief      get the temperature info, TEMP, FAN, OVERHEAT
+   * @param[out] retstring   return string contains the temperature info
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::tempinfo( std::string &retstring ) {
+    std::string function = "Archon::Interface::tempinfo";
+    std::stringstream message;
+    long error = ERROR;
+
+    if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
+      this->camera.log_error( function, "connection not open to controller" );
+      return( ERROR );
+    }
+
+    std::string value;
+
+    // Get three key=values: BACKPLANE_TEMP, FANTACH, OVERHEAT, and
+    // assemble them all into one string.
+    //
+    error = get_status_key( "BACKPLANE_TEMP", value );
+    message << "TEMP=" << ( error==NO_ERROR ? value : "error" );
+
+    error = get_status_key( "FANTACH", value );
+    message << " FAN=" << ( error==NO_ERROR ? value : "error" );
+
+    value.clear();
+    error = get_status_key( "OVERHEAT", value );
+    value = ( value == "1" ? "yes" : "no" );
+    message << " OVERHEAT=" << ( error==NO_ERROR ? value : "error" );
+
+    retstring = message.str();
+
+    return( error );
+  }
+  /***** Archon::Interface::tempinfo ******************************************/
+
+
   /***** Archon::Interface::do_power ******************************************/
   /**
    * @brief      set/get the power state
@@ -3939,32 +4091,21 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
     // Read the Archon power state directly from Archon
     //
-    std::string reply;
-    error = this->archon_cmd( STATUS, reply );                  // first the whole reply in one string
+    std::string power;
+    error = get_status_key( "POWER", power );
 
-    std::vector<std::string> lines, tokens;
-    Tokenize( reply, lines, " " );                              // then each line in a separate token "lines"
+    if ( error != NO_ERROR ) return( ERROR );
 
     int status=-1;
 
-    for ( auto line : lines ) {
-      Tokenize( line, tokens, "=" );                            // break each line into tokens to get KEY=value
-      if ( tokens.size() != 2 ) continue;                       // need 2 tokens
-      try {
-        if ( tokens.at(0).compare( 0, 5, "POWER" ) == 0 ) {     // looking for the POWER status
-          status = std::stoi( tokens.at(1) );                   // found the POWER= status here
-          break;                                                // done looking
-        }
-        else continue;
-      }
-      catch (std::invalid_argument &) {
-        this->camera.log_error( function, "unable to convert power status message to integer" );
-        return(ERROR);
-      }
-      catch (std::out_of_range &) {
-        this->camera.log_error( function, "token out of range" );
-        return(ERROR);
-      }
+    try { status = std::stoi( power ); }
+    catch (std::invalid_argument &) {
+      this->camera.log_error( function, "unable to convert power status message to integer" );
+      return(ERROR);
+    }
+    catch (std::out_of_range &) {
+      this->camera.log_error( function, "power status out of range" );
+      return(ERROR);
     }
 
     // set the power status (or not) depending on the value extracted from the STATUS message
