@@ -99,11 +99,12 @@ namespace Archon {
         std::string function = "Archon::Instrument::expose";
         std::stringstream message;
 
-        this->camera.clear_abort();                                   // clear the abort state
-        this->camera_info.exposure_aborted = false;
-
-        int nseq = 1;  // default number of sequences if not otherwise specified by nseq_in
-        long ret;
+        // Cannot start another exposure while currently exposing
+        //
+        if ( this->camera.is_exposing() ) {
+          this->camera.log_error( function, "cannot start another exposure while exposure in progress" );
+          return ERROR;
+        }
 
         // must have specified sampmode first (set to -1 in constructor)
         //
@@ -118,6 +119,8 @@ namespace Archon {
           this->camera.log_error( function, "nexp undefined (error in sampmode?)" );
           return ERROR;
         }
+
+        int nseq = 1;  // default number of sequences if not otherwise specified by nseq_in
 
         // If nseq_in is supplied then try to use that to set nseq, number of exposures (files)
         //
@@ -137,6 +140,16 @@ namespace Archon {
           }
         }
 
+        // Everything okay, tell the world we're exposing now
+        //
+        this->camera.set_exposing();
+        this->camera.async.enqueue( "EXPOSING: true" );
+
+        // Clear the abort state
+        //
+        this->camera.clear_abort();
+        this->camera_info.exposure_aborted = false;
+
         // Add NIRC2 system headers
         //
         this->make_camera_header();
@@ -149,14 +162,18 @@ namespace Archon {
         // so each of these generates a separate FITS file.
         //
         int totseq = nseq;
+        long ret;
         while( not this->camera.is_aborted() && ( nseq-- > 0 ) ) {
           ret = this->do_expose( std::to_string( this->camera_info.nexp ) );
           message.str(""); message << "NSEQ:" << (totseq-nseq);
           this->camera.async.enqueue( message.str() );
-          if ( ret != NO_ERROR ) return( ret );
+          if ( ret != NO_ERROR ) break;
           message.str(""); message << nseq << " sequence" << ( nseq > 1 ? "s" : "" ) << " remaining";
           logwrite( function, message.str() );
         }
+
+        this->camera.clear_exposing();
+        this->camera.async.enqueue( "EXPOSING: false" );
 
         return( ret );
       }
@@ -413,6 +430,13 @@ namespace Archon {
         message.str(""); message << "[DEBUG] args=" << args; logwrite( function, message.str() );
 #endif
 
+        // Cannot change ROI while exposing
+        //
+        if ( this->camera.is_exposing() ) {
+          this->camera.log_error( function, "cannot change ROI while exposure in progress" );
+          return ERROR;
+        }
+
         // Firmware must be loaded and a mode must have been selected
         //
         if ( ! this->firmwareloaded ) {
@@ -613,6 +637,13 @@ namespace Archon {
 #ifdef LOGLEVEL_DEBUG
         message.str(""); message << "[DEBUG] args=" << args; logwrite( function, message.str() );
 #endif
+
+        // Cannot change while exposure in progress
+        //
+        if ( this->camera.is_exposing() ) {
+          this->camera.log_error( function, "cannot change sampmode while exposure in progress" );
+          return ERROR;
+        }
 
         // Firmware must be loaded before selecting a mode because this will write to the controller
         //

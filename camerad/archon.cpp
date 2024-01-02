@@ -2076,6 +2076,13 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     bool paramchanged = false;
     long error;
 
+    // Cannot change while exposure in progress
+    //
+    if ( this->camera.is_exposing() ) {
+      this->camera.log_error( function, "cannot change camera mode while exposure in progress" );
+      return(ERROR);
+    }
+
     // No point in trying anything if no firmware has been loaded yet
     //
     if ( ! this->firmwareloaded ) {

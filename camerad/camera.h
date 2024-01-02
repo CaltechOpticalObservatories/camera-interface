@@ -41,6 +41,7 @@ namespace Camera {
       bool is_longerror;                     //!< set to return error message on command port
       bool is_mexamps;                       //!< should amplifiers be written as multi-extension?
       std::atomic<bool> abortstate;          /// set true to abort the current operation (exposure, readout, etc.)
+      std::atomic<bool> exposing;            /// set when exposure in progress
       std::stringstream lasterrorstring;     //!< a place to preserve an error message
 
     public:
@@ -51,9 +52,13 @@ namespace Camera {
       std::string   writekeys_when;          //!< when to write fits keys "before" or "after" exposure
       Common::Queue async;                   /// message queue object
 
-      inline void set_abort()   { this->abortstate = true;  };
-      inline void clear_abort() { this->abortstate = false; };
-      inline bool is_aborted()  { return this->abortstate;  };
+      inline void set_abort()   { this->abortstate.store( true );  };
+      inline void clear_abort() { this->abortstate.store( false ); };
+      inline bool is_aborted()  { return this->abortstate.load();  };
+
+      inline void set_exposing()   { this->exposing.store( true );  };
+      inline void clear_exposing() { this->exposing.store( false ); };
+      inline bool is_exposing()    { return this->exposing.load();  };
 
       inline bool coadd()       { return this->is_coadd;    };
       inline void coadd(bool in){ this->is_coadd = in;      };
