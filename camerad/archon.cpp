@@ -215,7 +215,7 @@ namespace Archon {
         int enable;
         try {
           enable = std::stoi( config.arg[entry] );
-	}
+	    }
         catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_EXPOSE_ENABLE to integer" );
           return(ERROR);
@@ -235,7 +235,7 @@ namespace Archon {
         int disable;
         try {
           disable = std::stoi( config.arg[entry] );
-	}
+	    }
         catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_EXPOSE_DISABLE to integer" );
           return(ERROR);
@@ -255,7 +255,7 @@ namespace Archon {
         int enable;
         try {
           enable = std::stoi( config.arg[entry] );
-	}
+	    }
         catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_UNTIMED_ENABLE to integer" );
           return(ERROR);
@@ -275,7 +275,7 @@ namespace Archon {
         int disable;
         try {
           disable = std::stoi( config.arg[entry] );
-	}
+	    }
         catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_UNTIMED_DISABLE to integer" );
           return(ERROR);
@@ -295,7 +295,7 @@ namespace Archon {
         int enable;
         try {
           enable = std::stoi( config.arg[entry] );
-	}
+	    }
         catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_READOUT_ENABLE to integer" );
           return(ERROR);
@@ -315,7 +315,7 @@ namespace Archon {
         int disable;
         try {
           disable = std::stoi( config.arg[entry] );
-	}
+	    }
         catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_READOUT_DISABLE to integer" );
           return(ERROR);
@@ -343,7 +343,7 @@ namespace Archon {
         int enable;
         try {
           enable = std::stoi( config.arg[entry] );
-	}
+	    }
         catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert SHUTENABLE_ENABLE to integer" );
           return(ERROR);
@@ -363,7 +363,7 @@ namespace Archon {
         int disable;
         try {
           disable = std::stoi( config.arg[entry] );
-	}
+	    }
         catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert SHUTENABLE_DISABLE to integer" );
           return(ERROR);
@@ -3978,11 +3978,11 @@ namespace Archon {
       //
       if (error == BUSY) {
         if ( ++busycount > 300 ) {
-	  done = true;
-	  this->camera.log_error( function, "received BUSY from Archon too many times trying to get frame status" );
-	  break;
-	}
-	else continue;
+	        done = true;
+	        this->camera.log_error( function, "received BUSY from Archon too many times trying to get frame status" );
+	        break;
+	    }
+        else continue;
       }
       else busycount=0;
 
