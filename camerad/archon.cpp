@@ -15,6 +15,7 @@
 #include <string>
 #include <fstream>
 #include <array>
+#include <utility>
 
 namespace Archon {
 
@@ -30,7 +31,7 @@ namespace Archon {
     this->frame.next_index = 0;
     this->abort = false;
     this->taplines = 0;
-    this->image_data = NULL;
+    this->image_data = nullptr;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
     this->is_longexposure = false;
@@ -80,8 +81,7 @@ namespace Archon {
 
   // Archon::Interface deconstructor
   //
-  Interface::~Interface() {
-  }
+  Interface::~Interface() = default;
 
 
   /**************** Archon::Interface::interface ******************************/
@@ -493,7 +493,7 @@ namespace Archon {
     // If there is already a correctly-sized buffer allocated,
     // then don't do anything except initialize that space to zero.
     //
-    if ( (this->image_data != NULL)     &&
+    if ( (this->image_data != nullptr)     &&
          (this->image_data_bytes != 0) &&
          (this->image_data_allocated == this->image_data_bytes) ) {
       memset(this->image_data, 0, this->image_data_bytes);
@@ -504,10 +504,10 @@ namespace Archon {
     // If memory needs to be re-allocated, delete the old buffer
     //
     else {
-      if (this->image_data != NULL) {
+      if (this->image_data != nullptr) {
         logwrite(function, "deleting old image_data buffer");
         delete [] this->image_data;
-        this->image_data=NULL;
+        this->image_data=nullptr;
       }
       // Allocate new memory
       //
@@ -536,7 +536,7 @@ namespace Archon {
    * @return 
    *
    */
-  long Interface::connect_controller(std::string devices_in="") {
+  long Interface::connect_controller(const std::string& devices_in="") {
     std::string function = "Archon::Interface::connect_controller";
     std::stringstream message;
     int adchans=0;
@@ -559,7 +559,7 @@ namespace Archon {
 
     message.str("");
     message << "socket connection to " << this->camera_info.hostname << ":" << this->camera_info.port << " "
-            << "established on fd " << this->archon.getfd();;
+            << "established on fd " << this->archon.getfd();
     logwrite(function, message.str());
 
     // Get the current system information for the installed modules
@@ -570,11 +570,11 @@ namespace Archon {
     std::vector<std::string> lines, tokens;
     Tokenize( reply, lines, " " );                    // then each line in a separate token "lines"
 
-    for ( auto line : lines ) {
+    for ( const auto& line : lines ) {
       Tokenize( line, tokens, "_=" );                 // finally break each line into tokens to get module, type and version
       if ( tokens.size() != 3 ) continue;             // need 3 tokens
 
-      std::string version="";
+      std::string version;
       int module=0;
       int type=0;
 
@@ -683,10 +683,10 @@ namespace Archon {
 
     // Free the memory
     //
-    if (this->image_data != NULL) {
+    if (this->image_data != nullptr) {
       logwrite(function, "releasing allocated device memory");
       delete [] this->image_data;
-      this->image_data=NULL;
+      this->image_data=nullptr;
     }
 
     // On success, write the value to the log and return
@@ -718,7 +718,7 @@ namespace Archon {
    * a time on the async port.
    *
    */
-  long Interface::native(std::string cmd) {
+  long Interface::native(const std::string& cmd) {
     std::string function = "Archon::Interface::native";
     std::stringstream message;
     std::string reply;
@@ -734,9 +734,9 @@ namespace Archon {
       this->camera.async.enqueue( message.str() );
 
       Tokenize(reply, tokens, " ");
-      for (long unsigned int tok=0; tok < tokens.size(); tok++) {
-        if ( ! tokens[tok].empty() && tokens[tok] != "\n" ) {
-          message.str(""); message << cmd << ":" << tokens[tok];
+      for (const auto & token : tokens) {
+        if ( ! token.empty() && token != "\n" ) {
+          message.str(""); message << cmd << ":" << token;
           this->camera.async.enqueue( message.str() );
         }
       }
@@ -757,11 +757,11 @@ namespace Archon {
    * @return ERROR, BUSY or NO_ERROR
    *
    */
-  long Interface::archon_cmd(std::string cmd) { // use this form when the calling
+  long Interface::archon_cmd(const std::string& cmd) { // use this form when the calling
     std::string reply;                          // function doesn't need to look at the reply
     return( archon_cmd(cmd, reply) );
   }
-  long Interface::archon_cmd(std::string cmd, std::string &reply) {
+  long Interface::archon_cmd(const std::string& cmd, std::string &reply) {
     std::string function = "Archon::Interface::archon_cmd";
     std::stringstream message;
     int     retval;
@@ -812,7 +812,7 @@ namespace Archon {
 
     // build the command checksum: msgref used to check that reply matches command
     //
-    SNPRINTF(check, "<%02X", this->msgref);
+    SNPRINTF(check, "<%02X", this->msgref)
 
     // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
     //
@@ -821,7 +821,7 @@ namespace Archon {
          (cmd.compare(0,6,"STATUS") != 0)  &&
          (cmd.compare(0,5,"FRAME") != 0) ) {
       // erase newline for logging purposes
-      std::string fcmd = scmd; try { fcmd.erase(fcmd.find("\n"), 1); } catch(...) { }
+      std::string fcmd = scmd; try { fcmd.erase(fcmd.find('\n'), 1); } catch(...) { }
       message.str(""); message << "sending command: " << fcmd;
       logwrite(function, message.str());
     }
@@ -858,7 +858,7 @@ namespace Archon {
         break; 
       }
       reply.append(buffer);                          // append read buffer into the reply string
-    } while(retval>0 && reply.find("\n") == std::string::npos);
+    } while(retval>0 && reply.find('\n') == std::string::npos);
 
     // If there was an Archon error then clear the busy flag and get out now
     //
@@ -879,7 +879,7 @@ namespace Archon {
     if (reply.compare(0, 3, check)!=0) {             // First 3 bytes of reply must equal checksum else reply doesn't belong to command
       error = ERROR;
       std::string hdr = reply;
-      try { scmd.erase(scmd.find("\n"), 1); } catch(...) { }
+      try { scmd.erase(scmd.find('\n'), 1); } catch(...) { }
       message.str(""); message << "command-reply mismatch for command: " + scmd + ": expected " + check + " but received " + reply ;
       this->camera.log_error( function, message.str() );
     }
@@ -922,14 +922,14 @@ namespace Archon {
    * which in turn handles all of the Archon in-use locking.
    *
    */
-  long Interface::read_parameter(std::string paramname, std::string &value) {
+  long Interface::read_parameter(const std::string& paramname, std::string &value) {
     std::string function = "Archon::Interface::read_parameter";
     std::stringstream message;
     std::stringstream cmd;
     std::string reply;
     int   error   = NO_ERROR;
 
-    if (this->parammap.find(paramname.c_str()) == this->parammap.end()) {
+    if (this->parammap.find(paramname) == this->parammap.end()) {
       message.str(""); message << "parameter \"" << paramname << "\" not found in ACF";
       this->camera.log_error( function, message.str() );
       return(ERROR);
@@ -949,21 +949,21 @@ namespace Archon {
       return error;
     }
 
-    try { reply.erase(reply.find("\n"), 1); } catch(...) { }  // strip newline
+    try { reply.erase(reply.find('\n'), 1); } catch(...) { }  // strip newline
 
     // reply should now be of the form PARAMETERn=PARAMNAME=VALUE
     // and we want just the VALUE here
     //
 
-    unsigned int loc;
+    size_t loc;
     value = reply;
     if (value.compare(0, 9, "PARAMETER") == 0) {                                      // value: PARAMETERn=PARAMNAME=VALUE
-      if ( (loc=value.find("=")) != std::string::npos ) value = value.substr(++loc);  // value: PARAMNAME=VALUE
+      if ( (loc=value.find('=')) != std::string::npos ) value = value.substr(++loc);  // value: PARAMNAME=VALUE
       else {
         value="NaN";
         error = ERROR;
       }
-      if ( (loc=value.find("=")) != std::string::npos ) value = value.substr(++loc);  // value: VALUE
+      if ( (loc=value.find('=')) != std::string::npos ) value = value.substr(++loc);  // value: VALUE
       else {
         value="NaN";
         error = ERROR;
@@ -995,7 +995,7 @@ namespace Archon {
    * @return NO_ERROR or ERROR,  return value from archon_cmd call
    *
    */
-  long Interface::prep_parameter(std::string paramname, std::string value) {
+  long Interface::prep_parameter(const std::string& paramname, std::string value) {
     std::string function = "Archon::Interface::prep_parameter";
     std::stringstream message;
     std::stringstream scmd;
