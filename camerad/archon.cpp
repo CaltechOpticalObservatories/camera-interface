@@ -3968,9 +3968,9 @@ namespace Archon {
     // Poll frame status until current frame is not the last frame and the buffer is ready to read.
     // The last frame was recorded before the readout was triggered in get_frame().
     //
-    while (done == false && this->abort == false) {
+    while (!done && !this->abort) {
 
-      usleep( 10000 );  // reduces polling frequency
+      if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
       error = this->get_frame_status();
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
@@ -4052,7 +4052,7 @@ namespace Archon {
 
     // On success, write the value to the log and return
     //
-    if ( this->abort == false ) {
+    if (!this->abort) {
       message.str("");
       message << "received currentframe: " << currentframe;
       logwrite(function, message.str());
@@ -4061,7 +4061,7 @@ namespace Archon {
     // If the wait was stopped, log a message and return NO_ERROR
     //
     else
-    if (this->abort == true) {
+    if (this->abort) {
       logwrite(function, "wait for readout stopped by external signal");
       return(NO_ERROR);
     }
