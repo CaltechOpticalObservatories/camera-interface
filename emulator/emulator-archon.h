@@ -34,8 +34,8 @@ namespace Archon {
   const int nadchan = 4;           //!< number of channels per ADC module
 
   class Interface {
-    private:
-      unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
+//  private:
+//    unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
 
     public:
       Interface();
@@ -93,7 +93,7 @@ namespace Archon {
       // Functions
       //
       long configure_controller();           //!< get configuration parameters from .cfg file
-      long system_report(std::string buf, std::string &retstring);         
+      long system_report(std::string &retstring);
       long status_report(std::string &retstring);
       long timer_report(std::string &retstring);
       unsigned long  get_timer();

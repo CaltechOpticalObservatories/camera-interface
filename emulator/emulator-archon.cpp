@@ -119,7 +119,7 @@ namespace Archon {
    * the configuration file by EMULATOR_SYSTEM.
    *
    */
-  long Interface::system_report(std::string buf, std::string &retstring) {
+  long Interface::system_report(std::string &retstring) {
     std::string function = "(Archon::Interface::system_report) ";
     std::fstream filestream;
     std::string line;
@@ -156,7 +156,7 @@ namespace Archon {
       Tokenize( line, tokens, "_=" );
       if ( tokens.size() != 3 ) continue;
 
-      int module=0;
+      int module;
       std::string version="";
 
       // get the type of each module from MODn_TYPE
@@ -383,8 +383,8 @@ namespace Archon {
     unsigned int block;      //!< block counter
     size_t byteswritten;     //!< bytes written for this block
     int totalbyteswritten;   //!< total bytes written for this image
-    size_t towrite=0;        //!< remaining bytes to write for this block
-    char* image_data=NULL;
+    size_t towrite;          //!< remaining bytes to write for this block
+    char* imageData=NULL;
 
     if ( cmd.length() != 21 ) {             // must be "FETCHxxxxxxxxyyyyyyyy", 21 chars
       std::cerr << function << "ERROR: expecting form FETCHxxxxxxxxyyyyyyyy but got \"" << cmd << "\"\n";
@@ -409,11 +409,11 @@ namespace Archon {
       return( ERROR );
     }
 
-    image_data = new char[reqblocks * BLOCK_LEN];
+      imageData = new char[reqblocks * BLOCK_LEN];
 
     std::srand( time( NULL ) );
     for ( unsigned int i=0; i<(reqblocks*BLOCK_LEN)/2; i+=10 ) {
-      image_data[i] = rand() % 40000 + 30000;
+        imageData[i] = rand() % 40000 + 30000;
     }
 
     std::string header = "<" + ref + ":";
@@ -427,9 +427,9 @@ namespace Archon {
       sock.Write(header);
       byteswritten = 0;
       do {
-        int retval=0;
+        int retval;
         towrite = BLOCK_LEN - byteswritten;
-        if ( ( retval = sock.Write(image_data, towrite) ) > 0 ) {
+        if (( retval = sock.Write(imageData, towrite) ) > 0 ) {
           byteswritten += retval;
           totalbyteswritten += retval;
           std::cerr << std::dec << std::setw(10) << totalbyteswritten << "\b\b\b\b\b\b\b\b\b\b";
@@ -438,7 +438,7 @@ namespace Archon {
     }
     std::cerr << std::dec << std::setw(10) << totalbyteswritten << " complete\n";
 
-    delete[] image_data;
+    delete[] imageData;
 
     return( NO_ERROR );
   }
@@ -542,7 +542,7 @@ namespace Archon {
         // Some keywords in this category are used to assign certain class variables
         //
         if ( key == "BIGBUF" ) {
-          this->bigbuf = ( std::stoi(value)==1 ? true : false );
+          this->bigbuf = std::stoi(value) == 1;
           this->image.activebufs = ( this->bigbuf ? 2 : 3 );
           this->frame.bufbase.at(0) = 0xA0000000;
           if ( this->bigbuf ) {
@@ -757,8 +757,8 @@ namespace Archon {
         double time_now   = get_clock_time();  // in seconds
         double time_start = time_now;
         double time_end   = time_start + image.exptime/image.exposure_factor;
-        double progress   = 0;
-        double elapsed    = 0;
+        double progress;
+        double elapsed;
         std::cerr << function << "exposure progress: ";
         while ( ( time_now - (image.exptime/image.exposure_factor + time_start) < 0 ) ) {
           usleep( 1000 );
@@ -794,14 +794,14 @@ namespace Archon {
         frame.buflines.at( frame.index ) = 0;
         frame.bufcomplete.at( frame.index ) = 0;
 
-        int i=0;
+//      int i=0;
 
         std::cerr << function << "readout line: ";
         for ( frame.buflines.at(frame.index) = 0; frame.buflines.at(frame.index) < image.linecount; frame.buflines.at(frame.index)++ ) {
           for ( frame.bufpixels.at(frame.index)= 0; frame.bufpixels.at(frame.index) < image.pixelcount; frame.bufpixels.at(frame.index)++ ) {
             for ( int tap = 0; tap < image.taplines; tap++ ) {
 //            frame.buffer.at( i ) = rand() % 40000 + 30000;  // random number between {30k:40k}
-              i++;
+//            i++;
             }
 //          frame.bufpixels.at( frame.index )++;
           }
