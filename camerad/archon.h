@@ -183,6 +183,7 @@ namespace Archon {
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
       void add_filename_key();
       long expose(std::string nseq_in);
+      long video();
       long wait_for_exposure();
       long wait_for_readout();
       long get_parameter(std::string parameter, std::string &retstring);

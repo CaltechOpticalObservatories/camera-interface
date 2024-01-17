@@ -599,6 +599,10 @@ void doit(Network::TcpSocket sock) {
         if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
     }
     else
+    if (cmd.compare("video")==0) {
+        ret = server.video();
+    }
+    else
     if (cmd.compare("roi")==0) {
                     ret = server.region_of_interest( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
