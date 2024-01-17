@@ -533,7 +533,12 @@ namespace Archon {
             cv::add( coadd, work, coadd, cv::noArray(), coadd.type() );
 
             // Copy coadded image into the FITS buffer pointed to by ptr
+            // as long as ptr is pointing to valid memory.
             //
+            if ( ptr == nullptr ) {
+              logwrite( function, "ERROR: invalid buffer allocation" );
+              return;
+            }
             unsigned long index=0;
             for ( int row=0; row<this->frame_rows; row++ ) {
               for ( int col=0; col<this->frame_cols; col++ ) {
@@ -862,6 +867,8 @@ namespace Archon {
       uint32_t readout_arg;
 
       bool lastmexamps;
+
+      bool write_tapinfo_to_fits;            //!< set to write tapinfo (gain, offset) to FITS headers
 
       std::string trigin_state;              //!< for external triggering of exposures
 

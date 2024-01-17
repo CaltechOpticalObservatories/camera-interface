@@ -288,7 +288,11 @@ class FITS_file {
       std::string function = "FITS_file::write_image";
       std::stringstream message;
 
-message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; logwrite( function, message.str() );
+      if ( info.section_size==0 ) {
+        logwrite( function, "ERROR: section size is zero!" );
+        return(ERROR);
+      }
+
       // The file must have been opened first
       //
       if ( !this->file_open ) {
@@ -325,6 +329,10 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
       message << ". spawning image writing thread for frame " << this->framen << " of " << info.fits_name;
       logwrite(function, message.str());
 #endif
+      if (!array.size()) {
+        logwrite( function, "ERROR: empty array" );
+        return(ERROR);
+      }
       std::thread([&]() {                                    // create the detached thread here
         if (info.ismex) {
           this->write_mex_thread(array, info, this);
@@ -346,7 +354,7 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
       int last_threadcount = this->threadcount;
       int wait = FITS_WRITE_WAIT;
       while (this->threadcount > 0) {
-        usleep(1000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (this->threadcount >= last_threadcount) {         // threads are not completing
           wait--;                                            // start decrementing wait timer
         }
@@ -407,7 +415,7 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
       //
       int wait = FITS_WRITE_WAIT;
       while (self->writing_file) {
-        usleep(1000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (--wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for last frame to complete. "
                                    << "unable to write " << info.fits_name;
@@ -480,6 +488,34 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
       logwrite( function, message.str() );
 #endif
 
+      if ( self==nullptr ) {
+        logwrite( function, "ERROR: bad self pointer" );
+        return;
+      }
+      if ( !data.size() ) {
+        logwrite( function, "ERROR: bad data" );
+        return;
+      }
+
+#ifdef LOGLEVEL_DEBUG
+      if (std::is_same<T, float>::value) {
+        logwrite( function, "[DEBUG] input type is float" );
+      }
+      else if (std::is_same<T, double>::value) {
+        logwrite( function, "[DEBUG] input type is double" );
+      }
+      else if (std::is_same<T, short>::value) {
+        logwrite( function, "[DEBUG] input type is short" );
+      }
+      else if (std::is_same<T, unsigned short>::value) {
+        logwrite( function, "[DEBUG] input type is unsigned short" );
+      }
+      else {
+        message.str(""); message << "[DEBUG] input type is " << typeid(T).name();
+        logwrite( function, message.str() );
+      }
+#endif
+
       // This makes the thread wait while another thread is writing images. This
       // thread will only start writing once the extension number matches the
       // number of frames already written.
@@ -487,7 +523,7 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
       int last_threadcount = this->threadcount;
       int wait = FITS_WRITE_WAIT;
       while (info.extension != this->framen) {
-        usleep(1000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (this->threadcount >= last_threadcount) {  // threads are not completing
           wait--;                                     // start decrementing wait timer
         }
@@ -584,7 +620,11 @@ message.str(""); message << "[DEBUG] info.section_size=" << info.section_size; l
 
         // Write and flush to make sure image is written to disk
         //
-        this->imageExt->write( fpixel, info.section_size, data );
+        if ( this->imageExt) this->imageExt->write( fpixel, info.section_size, data );
+        else {
+          logwrite( function, "ERROR: imageExt is NULL!" );
+          return;
+        }
         self->pFits->flush();
       }
       catch (CCfits::FitsError& error){
