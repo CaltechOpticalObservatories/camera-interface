@@ -16,7 +16,7 @@ namespace Archon {
    */
   Interface::Interface() {
     this->openfits_error = false;
-    this->archon_busy = false;
+    this->archon_busy.store(false);
     this->modeselected = false;
     this->firmwareloaded = false;
     this->msgref = 0;
@@ -30,9 +30,9 @@ namespace Archon {
     this->work_ring.reserve( Archon::IMAGE_RING_BUFFER_SIZE );
     this->cds_ring.reserve( Archon::IMAGE_RING_BUFFER_SIZE );
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
-      this->image_ring.push_back(NULL);
-      this->work_ring.push_back(NULL);
-      this->cds_ring.push_back(NULL);
+      this->image_ring.push_back(nullptr);
+      this->work_ring.push_back(nullptr);
+      this->cds_ring.push_back(nullptr);
       this->ringdata_allocated.push_back(0);
       this->ringbuf_deinterlaced.push_back(false);
     }
@@ -49,13 +49,13 @@ namespace Archon {
         p = std::make_unique<std::atomic<bool>>(false);
     }
 
-    this->coaddbuf = NULL;
-    this->mcdsbuf_0 = NULL;
-    this->mcdsbuf_1 = NULL;
-    this->image_data = NULL;
+    this->coaddbuf = nullptr;
+    this->mcdsbuf_0 = nullptr;
+    this->mcdsbuf_1 = nullptr;
+    this->image_data = nullptr;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
-    this->workbuf = NULL;
+    this->workbuf = nullptr;
     this->workbuf_size = 0;
     this->cdsbuf_size = 0;
     this->is_longexposure = false;
@@ -68,6 +68,8 @@ namespace Archon {
     this->trigin_readout = 0;
 
     this->lastmexamps = this->camera.mexamps();
+
+    this->write_tapinfo_to_fits = true;  // gains and offsets go in FITS headers, can be overridden by config file
 
     this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
     this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
@@ -126,17 +128,17 @@ namespace Archon {
     logwrite( "Interface::~Interface", "[DEBUG] deconstructor will free memory" );
 #endif
 
-    if (this->image_data != NULL) { delete [] this->image_data; this->image_data=NULL; }
+    if (this->image_data != nullptr) { delete [] this->image_data; this->image_data=nullptr; }
 
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
-      if ( this->image_ring.at(i) != NULL ) {
+      if ( this->image_ring.at(i) != nullptr ) {
         delete [] this->image_ring.at(i);
-        this->image_ring.at(i) = NULL;
+        this->image_ring.at(i) = nullptr;
       }
     }
 
     {
-    void* ptr=NULL;
+    void* ptr=nullptr;
     switch ( this->camera_info.datatype ) {
       case USHORT_IMG: {
         this->free_workring( (uint16_t *)ptr );
@@ -161,7 +163,7 @@ namespace Archon {
     }
 
     {
-    void* ptr=NULL;
+    void* ptr=nullptr;
     switch ( this->cds_info.datatype ) {
       case USHORT_IMG: {
         this->free_cdsring( (uint16_t *)ptr );
@@ -295,6 +297,24 @@ namespace Archon {
         }
       }
 ****/
+
+      if (config.param[entry].compare(0, 21, "WRITE_TAPINFO_TO_FITS")==0) {    // WRITE_TAPINFO_TO_FITS
+        if ( config.arg[entry] == "no" ) {
+          this->write_tapinfo_to_fits = false;
+        }
+        else
+        if ( config.arg[entry] == "yes" ) {
+          this->write_tapinfo_to_fits = true;
+        }
+        else {
+          message.str(""); message << "NOTICE: unrecognized value \"" << config.arg[entry] << "\" for WRITE_TAPINFO_TO_FITS."
+                                   << " Default is yes.";
+          this->write_tapinfo_to_fits = true;
+          this->camera.async.enqueue( message.str() );
+          logwrite( function, message.str() );
+        }
+        applied++;
+      }
 
       if (config.param[entry].compare(0, 15, "MCDSPAIRS_PARAM")==0) {          // MCDSPAIRS_PARAM
         this->mcdspairs_param = config.arg[entry];
@@ -531,21 +551,27 @@ namespace Archon {
       // DEFAULT_SAMPMODE
       if (config.param[entry].compare(0, 16, "DEFAULT_SAMPMODE")==0) {
         this->camera.default_sampmode = config.arg[entry];
-message.str(""); message << "[DEBUG] default_sampmode=" << this->camera.default_sampmode; logwrite( function, message.str() );
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] default_sampmode=" << this->camera.default_sampmode; logwrite( function, message.str() );
+#endif
         applied++;
       }
 
       // DEFAULT_EXPTIME
       if (config.param[entry].compare(0, 15, "DEFAULT_EXPTIME")==0) {
         this->camera.default_exptime = config.arg[entry];
-message.str(""); message << "[DEBUG] default_exptime=" << this->camera.default_exptime; logwrite( function, message.str() );
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] default_exptime=" << this->camera.default_exptime; logwrite( function, message.str() );
+#endif
         applied++;
       }
 
       // DEFAULT_ROI
       if (config.param[entry].compare(0, 11, "DEFAULT_ROI")==0) {
         this->camera.default_roi = config.arg[entry];
-message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; logwrite( function, message.str() );
+#ifdef LOGLEVEL_DEBUG
+        message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; logwrite( function, message.str() );
+#endif
         applied++;
       }
 
@@ -734,7 +760,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // If there is already a correctly-sized buffer allocated,
     // then don't do anything except initialize that space to zero.
     //
-    if ( (this->image_data != NULL)  &&
+    if ( (this->image_data != nullptr)  &&
          (expected_allocation != 0)  &&
          (this->image_data_allocated == expected_allocation) ) {
       memset(this->image_data, 0, expected_allocation);
@@ -745,10 +771,10 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // If memory needs to be re-allocated, delete the old buffer
     //
     else {
-      if (this->image_data != NULL) {
+      if (this->image_data != nullptr) {
         logwrite(function, "deleting old image_data buffer");
         delete [] this->image_data;
-        this->image_data=NULL;
+        this->image_data=nullptr;
       }
       // Allocate new memory
       //
@@ -798,7 +824,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         // If there is already a correctly-sized buffer allocated,
         // then don't do anything except initialize that space to zero.
         //
-        if ( ( this->image_ring.at(i) != NULL )  &&
+        if ( ( this->image_ring.at(i) != nullptr )  &&
              ( expected_allocation != 0 )        &&
              ( this->ringdata_allocated.at(i) == expected_allocation ) ) {
           memset( this->image_ring.at(i), 0, expected_allocation );
@@ -809,11 +835,11 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         // If memory needs to be re-allocated, delete the old buffer
         //
         else {
-          if ( this->image_ring.at(i) != NULL ) {
+          if ( this->image_ring.at(i) != nullptr ) {
             message.str(""); message << "deleting ring buffer " << i;
             logwrite( function, message.str() );
             delete [] this->image_ring.at(i);
-            this->image_ring.at(i)=NULL;
+            this->image_ring.at(i)=nullptr;
           }
           // Allocate new memory
           //
@@ -1022,20 +1048,20 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
     // Free the memory
     //
-    if ( this->image_data != NULL ) {
+    if ( this->image_data != nullptr ) {
       logwrite( function, "releasing allocated device memory" );
       delete [] this->image_data;
-      this->image_data=NULL;
+      this->image_data=nullptr;
     }
 
     // Free the image_ring buffers
     //
     message.str(""); message << "freed image ring buffer";
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
-      if ( this->image_ring.at(i) != NULL ) {
+      if ( this->image_ring.at(i) != nullptr ) {
         delete [] this->image_ring.at(i);
         message << " " << std::dec << i << ":" << std::hex << (void*)this->image_ring.at(i);
-        this->image_ring.at(i) = NULL;
+        this->image_ring.at(i) = nullptr;
       }
     }
     logwrite( function, message.str() );
@@ -1044,7 +1070,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // This takes a template function to typecast the pointer because it's defined as void.
     //
     {
-    void* ptr=NULL;
+    void* ptr=nullptr;
     switch ( this->camera_info.datatype ) {
       case USHORT_IMG: {
         this->free_workring( (uint16_t *)ptr );
@@ -1072,7 +1098,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // This takes a template function to typecast the pointer because it's defined as void.
     //
     {
-    void* ptr=NULL;
+    void* ptr=nullptr;
     switch ( this->cds_info.datatype ) {
       case USHORT_IMG: {
         this->free_cdsring( (uint16_t *)ptr );
@@ -1173,7 +1199,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       return(ERROR);
     }
 
-    if (this->archon_busy) {                    // only one command at a time
+    if ( this->archon_busy.load() ) {           // only one command at a time
       message.str(""); message << "Archon busy: ignored command " << cmd;
       this->camera.log_error( function, message.str() );
       return(BUSY);
@@ -1184,7 +1210,11 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
      * to prevent multiple threads from accessing the Archon.
      */
     const std::lock_guard<std::mutex> lock(this->archon_mutex);
-    this->archon_busy = true;
+    this->archon_busy.store( true );
+    if ( cmd != "FRAME" ) {
+//    message.str(""); message << "[TRACE_BUSY] setting archon_busy for cmd \"" << cmd << "\"";
+//    logwrite( function, message.str() );
+    }
 
     // build command: ">xxCOMMAND\n" where xx=hex msgref and COMMAND=command
     //
@@ -1202,6 +1232,8 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     catch (...) {
       message.str(""); message << "converting Archon command: " << prefix << " to uppercase";
       this->camera.log_error( function, message.str() );
+//    logwrite( function, "[TRACE_BUSY] clearing archon_busy on exception" );
+      this->archon_busy.store( false );
       return(ERROR);
     }
 
@@ -1236,9 +1268,13 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // Must also distinguish this from the FETCHLOG command, for which we do wait
     // for a normal reply.
     //
-    // The scoped mutex lock will be released automatically upon return.
+    // The scoped mutex lock will be released automatically upon return, but
+    // the archon_busy flag is not cleared here because Archon is still busy, so
+    // in this case archon_busy is not cleared until the Archon is done sending data,
+    // which happens in the read_frame() function.
     //
     if ( (cmd.compare(0,5,"FETCH")==0) && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
+
 
     // For all other commands, receive the reply
     //
@@ -1265,7 +1301,12 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
     // If there was an Archon error then clear the busy flag and get out now
     //
-    if ( error != NO_ERROR ) { this->archon_busy = false; return error; }
+    if ( error != NO_ERROR ) {
+//    message.str(""); message << "[TRACE_BUSY] clearing archon_busy for cmd=" << cmd << " and after error=" << error;
+//    logwrite( function, message.str() );
+      this->archon_busy.store( false );
+      return error;
+    }
 
     // The first three bytes of the reply should contain the msgref of the
     // command, which can be used as a check that the received reply belongs
@@ -1303,7 +1344,11 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
     // clear the semaphore (still had the mutex this entire function)
     //
-    this->archon_busy = false;
+    this->archon_busy.store( false );
+    if ( cmd != "FRAME" ) {
+//    message.str(""); message << "[TRACE_BUSY] cleared archon_busy for cmd \"" << cmd << "\"";
+//    logwrite( function, message.str() );
+    }
 
     return(error);
   }
@@ -2516,13 +2561,16 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
           this->gain.at( adnum )   = gain_try;      // gain as function of AD channel
           this->offset.at( adnum ) = offset_try;    // offset as function of AD channel
 
-          // Add the gain/offset as system header keywords.
+          // Add the gain/offset as system header keywords if configured to do so.
+          // "write_tapinfo_to_fits" is default true but can be overridden in the config file.
           //
           std::stringstream keystr;
-          keystr.str(""); keystr << "GAIN" << std::setfill('0') << std::setw(2) << adnum << "=" << this->gain.at( adnum ) << "// gain for AD chan " << adnum;
-          this->systemkeys.addkey( keystr.str() );
-          keystr.str(""); keystr << "OFFSET" << std::setfill('0') << std::setw(2) << adnum << "=" << this->offset.at( adnum ) << "// offset for AD chan " << adnum;
-          this->systemkeys.addkey( keystr.str() );
+          keystr.str(""); keystr << "GAIN" << std::setfill('0') << std::setw(2) << adnum << "=" << this->gain.at( adnum )
+                                 << "// gain for AD chan " << adnum;
+          if ( this->write_tapinfo_to_fits ) this->systemkeys.addkey( keystr.str() );
+          keystr.str(""); keystr << "OFFSET" << std::setfill('0') << std::setw(2) << adnum << "=" << this->offset.at( adnum )
+                                 << "// offset for AD chan " << adnum;
+          if ( this->write_tapinfo_to_fits ) this->systemkeys.addkey( keystr.str() );
         }
         catch ( std::out_of_range & ) {
           message.str(""); message << "AD# " << adnum << " outside range {0:" << (this->gain.size() & this->offset.size()) << "}";
@@ -2532,10 +2580,6 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
           }
           return( ERROR );
         }
-#ifdef LOGLEVEL_DEBUG
-        message.str(""); message << "[DEBUG] tap #" << tapn << " ad#" << adnum;
-        logwrite( function, message.str() );
-#endif
       }
     }
 
@@ -3078,7 +3122,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // Check that image buffer is prepared
     //
     try {
-      if ( (this->image_ring.at(ringcount_in) == NULL)        ||
+      if ( (this->image_ring.at(ringcount_in) == nullptr)        ||
            (this->ringdata_allocated.at(ringcount_in) == 0) ||
            (this->ringdata_allocated.at(ringcount_in) != this->image_data_bytes * this->camera_info.cubedepth) ) {
         message.str(""); message << "image buffer not ready."
@@ -3165,6 +3209,9 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     error = this->fetch(bufaddr, bufblocks);
     if ( error != NO_ERROR ) {
       logwrite( function, "ERROR: fetching Archon buffer" );
+//    message.str(""); message << "[TRACE_BUSY] clearing archon_busy after fetch returned " << error;
+//    logwrite( function, message.str() );
+      this->archon_busy.store( false );
       return error;
     }
 
@@ -3208,6 +3255,10 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         error = ERROR;
         break;                         // break out of for loop
       }
+
+//    message.str(""); message << "[TRACE_FETCH] msgref=" << check << " header=" << header;
+//    logwrite( function, message.str() );
+
       if (header[0] == '?') {  // Archon retured an error
         message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ") << " data";
         this->camera.log_error( function, message.str() );
@@ -3246,7 +3297,8 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // give back the archon_busy semaphore to allow other threads to access the Archon now
     //
     const std::unique_lock<std::mutex> lock(this->archon_mutex);
-    this->archon_busy = false;
+    this->archon_busy.store( false );
+//  logwrite( function, "[TRACE_BUSY] cleared archon_busy" );
     this->archon_mutex.unlock();
 
 //  std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
@@ -3257,6 +3309,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       message.str(""); message << "incomplete frame read " << std::dec 
                                << totalbytesread << " bytes: " << block << " of " << bufblocks << " 1024-byte blocks";
       logwrite( function, message.str() );
+      this->print_frame_status();
     }
 
     // Unlock the frame buffer
@@ -3335,7 +3388,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 #ifdef LOGLEVEL_DEBUG
           logwrite( function, "[DEBUG] will write each amplifier as a separate extension" );
 #endif
-          float *fext = NULL;
+          float *fext = nullptr;
 
           for ( int ext=0; ext < (int)this->camera_info.amp_section.size(); ext++ ) {
             try {
@@ -3393,12 +3446,12 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
               error = this->fits_file.write_image(fext, this->camera_info); // write the image to disk
               this->camera_info.extension++;                                // increment extension for multi-extension files
-              if ( fext != NULL ) { delete [] fext; fext=NULL; }            // dynamic object not automatic so must be destroyed
+              if ( fext != nullptr ) { delete [] fext; fext=nullptr; }      // dynamic object not automatic so must be destroyed
             }
             catch( std::out_of_range & ) {
               message.str(""); message << "ERROR: " << ext << " is a bad extension number";
               logwrite( function, message.str() );
-              if ( fext != NULL ) { delete [] fext; fext=NULL; }            // dynamic object not automatic so must be destroyed
+              if ( fext != nullptr ) { delete [] fext; fext=nullptr; }      // dynamic object not automatic so must be destroyed
               error = ERROR;
             }
           }
@@ -3407,7 +3460,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         // Write all amplifiers to the same extension
         //
         else {
-          float *fbuf = NULL;
+          float *fbuf = nullptr;
 //        fbuf = new float[ this->fits_info.section_size ];       // allocate a float buffer of same number of pixels for scaling  //TODO
           fbuf = new float[ this->camera_info.section_size ]{};   // allocate a float buffer of same number of pixels for scaling
 
@@ -3419,9 +3472,9 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 //        error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
           error = this->fits_file.write_image(fbuf, this->camera_info); // write the image to disk
           if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 32-bit image to disk" ); }
-          if (fbuf != NULL) {
+          if (fbuf != nullptr) {
             delete [] fbuf;
-            fbuf = NULL;
+            fbuf = nullptr;
           }
         }
         break;
@@ -3539,7 +3592,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     //
     cbuf16 = (unsigned short *)this->image_data;
 
-    fitsfile *FP       = NULL;
+    fitsfile *FP       = nullptr;
     int       status   = 0;
     int       naxes    = 2;
     long      axes[2];
@@ -4077,12 +4130,12 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
       if ( state_in == "ON" ) {
         error = this->archon_cmd( POWERON );                    // send POWERON command to Archon
-        if ( error == NO_ERROR ) usleep( 2000000 );             // wait 2s to ensure power is stable
+        if ( error == NO_ERROR ) std::this_thread::sleep_for( std::chrono::seconds(2) );         // wait 2s to ensure power is stable
       }
       else
       if ( state_in == "OFF" ) {
         error = this->archon_cmd( POWEROFF );                   // send POWEROFF command to Archon
-        if ( error == NO_ERROR ) usleep( 200000 );              // wait 200ms to ensure power is off
+        if ( error == NO_ERROR ) std::this_thread::sleep_for( std::chrono::milliseconds(200) );  // wait 200ms to ensure power is off
       }
       else {
         message.str(""); message << "unrecognized argument " << state_in << ": expected {on|off}";
@@ -4346,6 +4399,9 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       std::thread( std::ref( Archon::Interface::dothread_runcds ), this ).detach();
       error = this->alloc_cdsring();
     }
+#ifdef LOGLEVEL_DEBUG
+    else { logwrite( function, "[DEBUG] iscds=false. alloc_cdsring() was not called!" ); }
+#endif
 
     error |= this->prepare_ring_buffer();
     error |= this->alloc_workring();
@@ -4995,7 +5051,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
 //  std::cerr << "exposure progress: ";
     while ( (now - (waittime + start_time) < 0) && not this->camera.is_aborted() ) {
-      timeout(0.010);  // sleep 10 msec = 1e6 Archon ticks
+      std::this_thread::sleep_for( std::chrono::milliseconds(10) );  // sleep 10 msec = 1e6 Archon ticks
       increment += 1000000;
       now = get_clock_time();
       this->camera_info.exposure_progress = (double)increment / (double)(prediction - this->last_frame_timer);
@@ -5060,7 +5116,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         break;
       }
 
-      timeout( 0.001 );      // a little pause to slow down the requests to Archon
+      std::this_thread::sleep_for( std::chrono::milliseconds(1) );  // a little pause to slow down the requests to Archon
 
       // Added protection against infinite loops, probably never will be invoked
       // because an Archon error getting the timer would exit the loop.
@@ -5132,7 +5188,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     //
     while ( done == false && not this->camera.is_aborted() ) {
 
-      usleep( 100 );    // reduces polling frequency
+      std::this_thread::sleep_for( std::chrono::microseconds( 100 ) );  // reduces polling frequency
       error = this->get_frame_status();
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
@@ -5379,6 +5435,13 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     long ret=NO_ERROR;
     int32_t requested_exptime = -1;  // this is the user-requested total exposure time, extracted from exptime_in
     int32_t exp_delay = 0;           // this is the exposure delay that will be sent to the Archon
+
+    // Cannot start another exposure while currently exposing
+    //
+    if ( this->camera.is_exposing() ) {
+      this->camera.log_error( function, "cannot change exposure time while exposure in progress" );
+      return ERROR;
+    }
 
 #ifdef LOGLEVEL_DEBUG
         message.str(""); message << "[DEBUG] exptime_in=" << exptime_in; logwrite( function, message.str() );
@@ -7686,14 +7749,14 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     else
     if (testname == "busy") {
       if ( tokens.size() == 1 ) {
-        message.str(""); message << "archon_busy=" << this->archon_busy;
+        message.str(""); message << "archon_busy=" << this->archon_busy.load();
         logwrite( function, message.str() );
         error = NO_ERROR;
       }
       else if ( tokens.size() == 2 ) {
-        try { this->archon_busy = ( tokens.at(1)=="yes" ? true : false ); }
+        try { this->archon_busy.store( ( tokens.at(1)=="yes" ? true : false ) ); }
         catch ( std::out_of_range & ) { this->camera.log_error( function, "tokens out of range" ); error=ERROR; }
-        message.str(""); message << "archon_busy=" << this->archon_busy;
+        message.str(""); message << "archon_busy=" << this->archon_busy.load();
         logwrite( function, message.str() );
         error = NO_ERROR;
       }
@@ -7702,7 +7765,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         this->camera.log_error( function, message.str() );
         error = ERROR;
       }
-      retstring = this->archon_busy ? "true" : "false";
+      retstring = this->archon_busy.load() ? "true" : "false";
     }
 
     // ----------------------------------------------------
@@ -8126,7 +8189,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
         //
         deltatime.push_back( abs( delta_archon - delta_system ) );
 
-        usleep( sleepus );
+        std::this_thread::sleep_for( std::chrono::microseconds( sleepus ) );
       }
 
       // background polling back on
@@ -8218,7 +8281,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     std::string function = "Archon::Interface::alloc_workbuf";
     std::stringstream message;
     long retval = NO_ERROR;
-    void* ptr=NULL;
+    void* ptr=nullptr;
 
     switch ( this->camera_info.datatype ) {
       case USHORT_IMG: {
@@ -8267,7 +8330,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
 
     // But if it's not, then free whatever space is allocated, ...
     //
-    if ( this->workbuf != NULL ) this->free_workbuf(buf);
+    if ( this->workbuf != nullptr ) this->free_workbuf(buf);
 
     // ...and then allocate new space.
     //
@@ -8294,7 +8357,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     std::string function = "Archon::Interface::alloc_workring";
     std::stringstream message;
     long retval = NO_ERROR;
-    void* ptr=NULL;
+    void* ptr=nullptr;
 
     switch ( this->camera_info.datatype ) {
       case USHORT_IMG: {
@@ -8338,7 +8401,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     std::string function = "Archon::Interface::alloc_cdsring";
     std::stringstream message;
     long retval = NO_ERROR;
-    void* ptr=NULL;
+    void* ptr=nullptr;
 
 //  if ( not this->camera_info.iscds ) return( NO_ERROR );
 
@@ -8399,20 +8462,27 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     this->cdsbuf_size = this->cds_info.section_size;
     message.str(""); message << "allocated " << std::dec << this->cdsbuf_size << " pixels for CDS ring buffer";
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
-      if ( this->cds_ring.at(i) != NULL ) { delete [] (T*)this->cds_ring.at(i); this->cds_ring.at(i)=NULL; }
+      if ( this->cds_ring.at(i) != nullptr ) { delete [] (T*)this->cds_ring.at(i); this->cds_ring.at(i)=nullptr; }
       this->cds_ring.at(i) = (T*) new T [ this->cds_info.section_size ]{};
       message << " " << std::dec << i << ":" << std::hex << (void*)this->cds_ring.at(i);
     }
     logwrite( function, message.str() );
 
-    if ( this->coaddbuf != NULL ) { delete [] (int32_t*)this->coaddbuf; this->coaddbuf=NULL; }
+    if ( this->coaddbuf != nullptr ) { delete [] (int32_t*)this->coaddbuf; this->coaddbuf=nullptr; }
     this->coaddbuf = (int32_t*) new int32_t [ this->cds_info.section_size ]{};
 
-    if ( this->mcdsbuf_0 != NULL ) delete [] (int32_t*)this->mcdsbuf_0;
+    if ( this->mcdsbuf_0 != nullptr ) delete [] (int32_t*)this->mcdsbuf_0;
     this->mcdsbuf_0 = (int32_t*) new int32_t [ this->cds_info.section_size ]{};
 
-    if ( this->mcdsbuf_1 != NULL ) delete [] (int32_t*)this->mcdsbuf_1;
+    if ( this->mcdsbuf_1 != nullptr ) delete [] (int32_t*)this->mcdsbuf_1;
     this->mcdsbuf_1 = (int32_t*) new int32_t [ this->cds_info.section_size ]{};
+
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] allocated " << this->cds_info.section_size
+                             << " pixels for mcdsbuf_0 at " << std::hex << (void*)this->mcdsbuf_0
+                             << " and mcdsbuf_1 at " << std::hex << (void*)this->mcdsbuf_1;
+    logwrite( function, message.str() );
+#endif
 
     return;
   }
@@ -8434,7 +8504,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "[DEBUG] camera_info.section_size=" << this->camera_info.section_size << " workbuf_size=" << this->workbuf_size;
+    message.str(""); message << "[DEBUG] camera_info.section_size=" << this->camera_info.section_size;
     logwrite( function, message.str() );
 #endif
 
@@ -8445,11 +8515,11 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     // Otherwise create a new set of work ring buffers
     //
     try {
-      message.str(""); message << "allocated " << std::dec << this->workbuf_size << " pixels for work ring buffer";
+      message.str(""); message << "allocating " << std::dec << this->camera_info.section_size << " pixels for work ring buffers";
       for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
-        if ( this->work_ring.at(i) != NULL ) {
+        if ( this->work_ring.at(i) != nullptr ) {
           delete [] (T*)this->work_ring.at(i);
-          this->work_ring.at(i) = NULL;
+          this->work_ring.at(i) = nullptr;
         }
         this->work_ring.at(i) = (T*) new T [ this->camera_info.section_size ]{};
         this->workbuf_size = this->camera_info.section_size;
@@ -8477,10 +8547,10 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     std::stringstream message;
     message.str(""); message << "freed work ring buffer  ";
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
-      if ( this->work_ring.at(i) != NULL ) {
+      if ( this->work_ring.at(i) != nullptr ) {
         delete [] (T*)this->work_ring.at(i);
         message << " " << std::dec << i << ":" << std::hex << (void*)this->work_ring.at(i);
-        this->work_ring.at(i) = NULL;
+        this->work_ring.at(i) = nullptr;
       }
     }
     logwrite( function, message.str() );
@@ -8503,24 +8573,24 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     std::stringstream message;
     message << "freed cds ring buffer    ";
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
-      if ( this->cds_ring.at(i) != NULL ) {
+      if ( this->cds_ring.at(i) != nullptr ) {
         delete [] (T*)this->cds_ring.at(i);
         message << " " << std::dec << i << ":" << std::hex << (void*)this->cds_ring.at(i);
-        this->cds_ring.at(i) = NULL;
+        this->cds_ring.at(i) = nullptr;
       }
     }
     logwrite( function, message.str() );
-    if ( this->coaddbuf != NULL ) {
+    if ( this->coaddbuf != nullptr ) {
       delete [] (int32_t*)this->coaddbuf;
-      this->coaddbuf=NULL;
+      this->coaddbuf=nullptr;
     }
-    if ( this->mcdsbuf_0 != NULL ) {
+    if ( this->mcdsbuf_0 != nullptr ) {
       delete [] (int32_t*)this->mcdsbuf_0;
-      this->mcdsbuf_0=NULL;
+      this->mcdsbuf_0=nullptr;
     }
-    if ( this->mcdsbuf_1 != NULL ) {
+    if ( this->mcdsbuf_1 != nullptr ) {
       delete [] (int32_t*)this->mcdsbuf_1;
-      this->mcdsbuf_1=NULL;
+      this->mcdsbuf_1=nullptr;
     }
     return;
   }
@@ -8541,9 +8611,9 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
   void Interface::free_workbuf(T* buf) {
     std::string function = "Archon::Interface::free_workbuf";
     std::stringstream message;
-    if (this->workbuf != NULL) {
+    if (this->workbuf != nullptr) {
       delete [] (T*)this->workbuf;
-      this->workbuf = NULL;
+      this->workbuf = nullptr;
       this->workbuf_size = 0;
       message << "deleted old deinterlacing buffer " << std::hex << (void*)this->workbuf;
       logwrite(function, message.str());
@@ -8566,11 +8636,19 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
     std::string function = "Archon::Instrument::deinterlace";
     std::stringstream message;
 
+#ifdef LOGLEVEL_DEBUG
+    message << "[DEBUG] cds_info.section_size=" << this->cds_info.section_size << " sizeof(int32_t)=" << sizeof(int32_t)
+            << " -> " << this->cds_info.section_size*sizeof(int32_t) << " bytes for "
+            << " mcdsbuf_0=" << std::hex << (void*)mcdsbuf_0
+            << " mcdsbuf_1=" << std::hex << (void*)mcdsbuf_1;
+    logwrite( function, message.str() );
+#endif
+
     // Zero the buffers that will be used to sum the MCDS baseline (mcdsbuf_0) and
     // signal (mcdsbuf_1) frames.
     //
-    memset( mcdsbuf_0, 0, this->cds_info.section_size * sizeof(int32_t) );
-    memset( mcdsbuf_1, 0, this->cds_info.section_size * sizeof(int32_t) );
+    if ( this->mcdsbuf_0 != nullptr ) memset( this->mcdsbuf_0, 0, this->cds_info.section_size * sizeof(int32_t) );
+    if ( this->mcdsbuf_1 != nullptr ) memset( this->mcdsbuf_1, 0, this->cds_info.section_size * sizeof(int32_t) );
 
     // Instantiate a DeInterlace class object,
     // which is constructed with the pointers need for the image and working buffers.
@@ -8611,6 +8689,20 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
                  ringcount_in                                                       // selects the ringbuffer to deinterlace
                ).detach();
     }
+
+    // Wait for the ring buffer to be deinterlaced
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] waiting on deinterlace ringcount " << ringcount_in;
+    logwrite( function, message.str() );
+#endif
+    {
+    std::unique_lock<std::mutex> lk( this->deinter_mtx );
+    while ( ! this->ringbuf_deinterlaced.at( ringcount_in ) ) this->deinter_cv.wait( lk );
+    }
+#ifdef LOGLEVEL_DEBUG
+    message.str(""); message << "[DEBUG] done waiting on deinterlace ringcount " << ringcount_in;
+    logwrite( function, message.str() );
+#endif
 
     return( (T*)this->workbuf );
   }
@@ -8731,7 +8823,7 @@ message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; 
       logwrite( function, message.str() );
       if ( self->cds_info.nmcds > 0 ) {
 #ifdef LOGLEVEL_DEBUG
-        logwrite( function, "performing MCDS subtraction" );
+        logwrite( function, "[DEBUG] performing MCDS subtraction" );
 #endif
         // Perform the CDS subtraction, sum of signal frames - sum of baseline frames, average,
 	// then coadd the result. To do that, create Mat arrays from each of the MCDS buffers.

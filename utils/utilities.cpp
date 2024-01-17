@@ -113,13 +113,12 @@ std::string zone="";
   /** parse_val ***************************************************************/
 
 
-  /** Tokenize ****************************************************************/
+  /***** Tokenize *************************************************************/
   /**
-   * @fn         Tokenize
-   * @brief      break a string into a vector
-   * @param[in]  str, input string
-   * @param[out] tokens, vector of tokens
-   * @param[in]  delimiters, string
+   * @brief      break a string into a vector using the supplied delimiter(s)
+   * @param[in]  str         reference to input string
+   * @param[out] tokens      reference to vector to hold tokens
+   * @param[in]  delimiters  reference to string containing delimiters
    * @return     number of tokens
    *
    */
@@ -137,21 +136,11 @@ std::string zone="";
     std::string::size_type pos     = str.find_first_of(delimiters, lastPos);
 
     std::string quote("\"");
-    unsigned int quote_start = str.find(quote); //finds first quote mark
-    bool quotes_found = false;
-
-    if (quote_start != std::string::npos) {
-    }
-    else {
-      quote_start = -1;
-    }
+    bool insideQuotes = false;
 
     while (std::string::npos != pos || std::string::npos != lastPos) {
-      if (quotes_found == true) {
-        tokens.push_back(str.substr(lastPos + 1, pos - lastPos - 2));
-        pos++;
-        lastPos = str.find_first_not_of(delimiters, pos);
-        quotes_found = false;
+      if ( insideQuotes ) {
+        tokens.push_back( str.substr( lastPos, pos - lastPos ) );
       }
       else {
         // Found a token, add it to the vector.
@@ -161,19 +150,18 @@ std::string zone="";
         lastPos = str.find_first_not_of(delimiters, pos);
       }
 
-      // If the next character is a quote, grab between the quotes 
-      if (std::string::npos != lastPos && lastPos == quote_start){
-        pos = str.find_first_of("\"", lastPos + 1) + 1;
-        quotes_found = true;
+      // If the next character is a quote, toggle insideQuotes
+      if ( std::string::npos != lastPos && str.compare( lastPos, 1, quote ) == 0 ) {
+        insideQuotes = !insideQuotes;
+        // Skip the quote character
+        lastPos = str.find_first_not_of( delimiters, lastPos+1 );
       }
-      // Otherwise, find next "non-delimiter"
-      else {
-        pos = str.find_first_of(delimiters, lastPos);
-      }
+      // Find next "non-delimiter"
+      pos = str.find_first_of( delimiters, lastPos );
     }
     return(tokens.size());
   }
-  /** Tokenize ****************************************************************/
+  /***** Tokenize *************************************************************/
 
 
   /** Tokenize ****************************************************************/
@@ -522,7 +510,7 @@ std::string zone="";
   /** timeout *****************************************************************/
   /**
    * @fn         timeout
-   * @brief      
+   * @brief      not thread safe--update
    * @param[in]  seconds
    * @param[in]  next_sec
    * @return     none
