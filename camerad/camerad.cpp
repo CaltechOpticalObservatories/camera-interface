@@ -603,6 +603,10 @@ void doit(Network::TcpSocket sock) {
         ret = server.video();
     }
     else
+    if (cmd.compare("hexpose")==0) {
+        ret = server.hexpose(args);
+    }
+    else
     if (cmd.compare("roi")==0) {
                     ret = server.region_of_interest( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }

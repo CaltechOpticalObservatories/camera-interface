@@ -3783,7 +3783,280 @@ namespace Archon {
   /**************** Archon::Interface::expose *********************************/
 
 
-  long Interface::video() {
+    /**************** Archon::Interface::hexpose ********************************/
+    /**
+     * @fn     hexpose
+     * @brief  initiate an exposure for h2rg
+     * @param  nseq_in string, if set becomes the number of sequences
+     * @return ERROR or NO_ERROR
+     *
+     * This function does the following before returning successful completion:
+     *  1) trigger an Archon exposure by setting the EXPOSE parameter = nseq_in
+     *  2) wait for exposure delay
+     *  3) wait for readout into Archon frame buffer
+     *  4) read frame buffer from Archon to host
+     *  5) Do NOT write frame to disk (eventually to shared memory)
+     *
+     * Note that this assumes that the Archon ACF has been programmed to automatically
+     * read out the detector into the frame buffer after an exposure.
+     *
+     */
+    long Interface::hexpose(std::string nseq_in) {
+        std::string function = "Archon::Interface::hexpose";
+        std::stringstream message;
+        long error = NO_ERROR;
+        std::string nseqstr;
+        int nseq;
+
+        std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
+
+        if ( ! this->modeselected ) {
+            this->camera.log_error( function, "no mode selected" );
+            return ERROR;
+        }
+
+        // When switching from cubeamps=true to cubeamps=false,
+        // simply reset the mode to the current mode in order to
+        // reset the image size.
+        //
+        // This will need to be revisited once ROI is implemented. // TODO
+        //
+        if ( !this->camera.cubeamps() && ( this->lastcubeamps != this->camera.cubeamps() ) ) {
+            message.str(""); message << "detected change in cubeamps -- resetting camera mode to " << mode;
+            logwrite( function, message.str() );
+            this->set_camera_mode( mode );
+        }
+
+        // exposeparam is set by the configuration file
+        // check to make sure it was set, or else expose won't work
+        //
+        if (this->exposeparam.empty()) {
+            message.str(""); message << "EXPOSE_PARAM not defined in configuration file " << this->config.filename;
+            this->camera.log_error( function, message.str() );
+            return(ERROR);
+        }
+
+        // If the exposure time or longexposure mode were never set then read them from the Archon.
+        // This ensures that, if the client doesn't set these values then the server will have the
+        // same default values that the ACF has, rather than hope that the ACF programmer picks
+        // their defaults to match mine.
+        //
+        if ( this->camera_info.exposure_time   == -1 ) {
+            logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
+            this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
+
+            // read the Archon configuration memory
+            //
+            std::string etime;
+            if ( read_parameter( "exptime", etime ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"exptime\" parameter from Archon" ); return ERROR; }
+
+            // Tell the server these values
+            //
+            std::string retval;
+            if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
+        }
+        if ( this->camera_info.exposure_factor == -1 ||
+             this->camera_info.exposure_unit.empty() ) {
+            logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
+            this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
+
+            // read the Archon configuration memory
+            //
+            std::string lexp;
+            if ( read_parameter( "longexposure", lexp ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" ); return ERROR; }
+
+            // Tell the server these values
+            //
+            std::string retval;
+            if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
+        }
+
+        // If nseq_in is not supplied then set nseq to 1.
+        // Add any pre-exposures onto the number of sequences.
+        //
+        if ( nseq_in.empty() ) {
+            nseq = 1 + this->camera_info.num_pre_exposures;
+            nseqstr = std::to_string( nseq );
+        }
+        else {                                                          // sequence argument passed in
+            try {
+                nseq = std::stoi( nseq_in ) + this->camera_info.num_pre_exposures;      // test that nseq_in is an integer
+                nseqstr = std::to_string( nseq );                           // before trying to use it
+            }
+            catch (std::invalid_argument &) {
+                message.str(""); message << "unable to convert sequences: " << nseq_in << " to integer";
+                this->camera.log_error( function, message.str() );
+                return(ERROR);
+            }
+            catch (std::out_of_range &) {
+                message.str(""); message << "sequences " << nseq_in << " outside integer range";
+                this->camera.log_error( function, message.str() );
+                return(ERROR);
+            }
+        }
+
+        // Always initialize the extension number because someone could
+        // set datacube true and then send "expose" without a number.
+        //
+        this->camera_info.extension = 0;
+
+        error = this->get_frame_status();  // TODO is this needed here?
+
+        if (error != NO_ERROR) {
+            logwrite( function, "ERROR: unable to get frame status" );
+            return(ERROR);
+        }
+        this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
+
+        // initiate the exposure here
+        //
+        error = this->prep_parameter(this->exposeparam, nseqstr);
+        if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
+        if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: could not initiate exposure" );
+            return( error );
+        }
+
+        // get system time and Archon's timer after exposure starts
+        // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
+        //
+        this->camera_info.start_time = get_timestamp();                 // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+        if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
+            logwrite( function, "ERROR: could not get start time" );
+            return( ERROR );
+        }
+
+        this->add_filename_key();                                       // add filename to system keys database
+
+        logwrite(function, "exposure started");
+
+        this->camera_info.systemkeys.keydb = this->systemkeys.keydb;    // copy the systemkeys database object into camera_info
+
+        if (this->camera.writekeys_when=="before") this->copy_keydb();  // copy the ACF and userkeys database into camera_info
+
+        // Save the datacube state in camera_info so that the FITS writer can know about it
+        //
+        this->camera_info.iscube = this->camera.datacube();
+
+//  //TODO only use camera_info -- don't use fits_info -- is this OK? TO BE CONFIRMED
+//  this->fits_info = this->camera_info;                            // copy the camera_info class, to be given to fits writer  //TODO
+
+//  this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
+
+        if (nseq > 1) {
+            message.str(""); message << "starting sequence of " << nseq << " frames. lastframe=" << this->lastframe;
+            logwrite(function, message.str());
+        }
+
+        // If not RAW mode then wait for Archon frame buffer to be ready,
+        // then read the latest ready frame buffer to the host. If this
+        // is a squence, then loop over all expected frames.
+        //
+        // if ( mode != "RAW" ) {                                          // If not raw mode then
+        int expcount = 0;                                             // counter used only for tracking pre-exposures
+
+        //
+        // -- MAIN SEQUENCE LOOP --
+        //
+        while (nseq-- > 0) {
+
+            // Wait for any pre-exposures, first the exposure delay then the readout,
+            // but then continue to the next because pre-exposures are not read from
+            // the Archon's buffer.
+            //
+            if ( ++expcount <= this->camera_info.num_pre_exposures ) {
+
+                message.str(""); message << "pre-exposure " << expcount << " of " << this->camera_info.num_pre_exposures;
+                logwrite( function, message.str() );
+
+                if ( this->camera_info.exposure_time != 0 ) {                 // wait for the exposure delay to complete (if there is one)
+                    error = this->wait_for_exposure();
+                    if ( error != NO_ERROR ) {
+                        logwrite( function, "ERROR: waiting for pre-exposure" );
+                        return error;
+                    }
+                }
+
+                error = this->wait_for_readout();                             // Wait for the readout into frame buffer,
+                if ( error != NO_ERROR ) {
+                    logwrite( function, "ERROR: waiting for pre-exposure readout" );
+                    return error;
+                }
+
+                continue;
+            }
+
+            if ( !this->camera.datacube() || this->camera.cubeamps() ) {
+                this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+                if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
+                    logwrite( function, "ERROR: could not get start time" );
+                    return( ERROR );
+                }
+                this->add_filename_key();                                     // add filename to system keys database
+            }
+
+            if ( this->camera_info.exposure_time != 0 ) {                   // wait for the exposure delay to complete (if there is one)
+                error = this->wait_for_exposure();
+                if ( error != NO_ERROR ) {
+                    logwrite( function, "ERROR: waiting for exposure" );
+                    return error;
+                }
+            }
+
+            if (this->camera.writekeys_when=="after") this->copy_keydb();   // copy the ACF and userkeys database into camera_info
+
+            error = this->wait_for_readout();                               // Wait for the readout into frame buffer,
+
+            if ( error != NO_ERROR ) {
+                logwrite( function, "ERROR: waiting for readout" );
+                return error;
+            }
+
+            error = read_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
+            if ( error != NO_ERROR ) {
+                logwrite( function, "ERROR: reading frame buffer" );
+                return error;
+            }
+
+            // For non-sequence multiple exposures, including cubeamps, close the fits file here
+            //
+            if ( !this->camera.datacube() || this->camera.cubeamps() ) {    // Error or not, close the file.
+                this->camera.increment_imnum();                           // increment image_num when fitsnaming == "number"
+
+                // ASYNC status message on completion of each readout
+                //
+                message.str(""); message << "READOUT COMPLETE";
+                this->camera.async.enqueue( message.str() );
+                logwrite( function, message.str() );
+            }
+
+            if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
+
+        }  // end of sequence loop, while (nseq-- > 0)
+
+        // }
+
+        if ( this->camera.datacube() && !this->camera.cubeamps() ) {
+            this->camera.increment_imnum();          // increment image_num when fitsnaming == "number"
+
+            // ASYNC status message on completion of each file
+            //
+            message.str(""); message << "READOUT " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+            this->camera.async.enqueue( message.str() );
+            error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
+        }
+
+        // remember the cubeamps setting used for the last completed exposure
+        // TODO revisit once region-of-interest is implemented
+        //
+        this->lastcubeamps = this->camera.cubeamps();
+
+        return (error);
+    }
+    /**************** Archon::Interface::hexpose *********************************/
+
+
+    long Interface::video() {
       std::string function = "Archon::Interface::expose";
       std::stringstream message;
       long error = NO_ERROR;
