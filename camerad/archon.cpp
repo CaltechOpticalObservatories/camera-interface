@@ -2667,7 +2667,106 @@ namespace Archon {
   /**************** Archon::Interface::read_frame *****************************/
 
 
-  /**************** Archon::Interface::read_frame *****************************/
+    /**************** Archon::Interface::hread_frame *****************************/
+    /**
+     * @fn     hread_frame
+     * @brief  read latest Archon frame buffer
+     * @param  none
+     * @return ERROR or NO_ERROR
+     *
+     * This is function is overloaded.
+     *
+     * This version, with no parameter, is the one that is called by the server.
+     * The decision is made here if the frame to be read is a RAW or an IMAGE
+     * frame based on this->camera_info.current_observing_mode, then the
+     * overloaded version of read_frame(frame_type) is called with the appropriate
+     * frame type of IMAGE or RAW.
+     *
+     * This function WILL NOT call write_frame(...) to write data after reading it.
+     *
+     */
+    long Interface::hread_frame() {
+        std::string function = "Archon::Interface::hread_frame";
+        std::stringstream message;
+        long error = NO_ERROR;
+
+        if ( ! this->modeselected ) {
+            this->camera.log_error( function, "no mode selected" );
+            return ERROR;
+        }
+
+        int rawenable = this->modemap[this->camera_info.current_observing_mode].rawenable;
+
+        if (rawenable == -1) {
+            this->camera.log_error( function, "RAWENABLE is undefined" );
+            return ERROR;
+        }
+
+        // RAW-only
+        //
+        if (this->camera_info.current_observing_mode == "RAW") {              // "RAW" is the only reserved mode name
+
+            // the RAWENABLE parameter must be set in the ACF file, in order to read RAW data
+            //
+            if (rawenable==0) {
+                this->camera.log_error( function, "observing mode is RAW but RAWENABLE=0 -- change mode or set RAWENABLE?" );
+                return ERROR;
+            }
+            else {
+                error = this->read_frame(Camera::FRAME_RAW);                              // read raw frame
+                if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading raw frame" ); return error; }
+                // error = this->write_frame();                                              // write raw frame
+                // if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing raw frame" ); return error; }
+            }
+        }
+
+            // IMAGE, or IMAGE+RAW
+            // datacube was already set = true in the expose function
+            //
+        else {
+            error = this->read_frame(Camera::FRAME_IMAGE);                              // read image frame
+            if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading image frame" ); return error; }
+            // error = this->write_frame();                                                // write image frame
+            // if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing image frame" ); return error; }
+
+            // If mode is not RAW but RAWENABLE=1, then we will first read an image
+            // frame (just done above) and then a raw frame (below). To do that we
+            // must switch to raw mode then read the raw frame. Afterward, switch back
+            // to the original mode, for any subsequent exposures.
+            //
+            if (rawenable == 1) {
+#ifdef LOGLEVEL_DEBUG
+                logwrite(function, "[DEBUG] rawenable is set -- IMAGE+RAW file will be saved");
+        logwrite(function, "[DEBUG] switching to mode=RAW");
+#endif
+                std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode so we can come back to it
+                error = this->set_camera_mode("raw");                             // switch to raw mode
+                if ( error != NO_ERROR ) { logwrite( function, "ERROR: switching to raw mode" ); return error; }
+
+#ifdef LOGLEVEL_DEBUG
+                message.str(""); message << "error=" << error << "[DEBUG] calling read_frame(Camera::FRAME_RAW) if error=0"; logwrite(function, message.str());
+#endif
+                error = this->read_frame(Camera::FRAME_RAW);                      // read raw frame
+                if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading raw frame" ); return error; }
+#ifdef LOGLEVEL_DEBUG
+                message.str(""); message << "error=" << error << "[DEBUG] calling write_frame() for raw data if error=0"; logwrite(function, message.str());
+#endif
+                error = this->write_frame();                                      // write raw frame
+                if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing raw frame" ); return error; }
+#ifdef LOGLEVEL_DEBUG
+                message.str(""); message << "error=" << error << "[DEBUG] switching back to original mode if error=0"; logwrite(function, message.str());
+#endif
+                error = this->set_camera_mode(orig_mode);                         // switch back to the original mode
+                if ( error != NO_ERROR ) { logwrite( function, "ERROR: switching back to previous mode" ); return error; }
+            }
+        }
+
+        return error;
+    }
+    /**************** Archon::Interface::hread_frame *****************************/
+
+
+    /**************** Archon::Interface::read_frame *****************************/
   /**
    * @fn     read_frame
    * @brief  read latest Archon frame buffer
@@ -4012,7 +4111,7 @@ namespace Archon {
                 return error;
             }
 
-            error = read_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
+            error = hread_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: reading frame buffer" );
                 return error;

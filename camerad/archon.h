@@ -171,6 +171,7 @@ namespace Archon {
       long get_timer(unsigned long int *timer);
       long fetch(uint64_t bufaddr, uint32_t bufblocks);
       long read_frame();                     //!< read Archon frame buffer into host memory
+      long hread_frame();
       long read_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
       long write_raw();                      //!< write raw 16 bit data to a FITS file
