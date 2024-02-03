@@ -185,6 +185,7 @@ namespace Archon {
       void add_filename_key();
       long expose(std::string nseq_in);
       long hexpose(string nseq_in);
+      long hsetup();
       long video();
       long wait_for_exposure();
       long wait_for_readout();

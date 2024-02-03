@@ -603,6 +603,10 @@ void doit(Network::TcpSocket sock) {
         ret = server.video();
     }
     else
+    if (cmd.compare("hsetup")==0) {
+        ret = server.hsetup();
+    }
+    else
     if (cmd.compare("hexpose")==0) {
         ret = server.hexpose(args);
     }

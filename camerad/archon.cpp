@@ -3881,6 +3881,44 @@ namespace Archon {
   }
   /**************** Archon::Interface::expose *********************************/
 
+   /**************** Archon::Interface::hsetup ********************************/
+    /**
+     * @fn     hsetup
+     * @brief  setup archon for h2rg
+     * @param  NONE
+     * @return ERROR or NO_ERROR
+     *
+     * This function does the following:
+     *  1) Pulse low on MainResetB
+     *  2) sets output to Pad B and HIGHOHM
+     *  3) Set detector out of window mode
+     *
+     */
+    long Interface::hsetup() {
+        std::string function = "Archon::Interface::hsetup";
+        std::stringstream message;
+        std::string reg;
+        long error = NO_ERROR;
+
+        // H2RG manual says to pull this value low for 100 ns
+        this->set_parameter("H2RGMainReset", 1);
+        usleep(1);
+        this->set_parameter("H2RGMainReset", 0);
+
+        // Enable output to Pad B and HIGHOHM
+        this->inreg("10 1 16402");      // 0100 000000010010
+        this->inreg("10 0 1");          // send to detector
+        this->inreg("10 0 0");          // reset to 0
+
+        // Set detector out of window mode
+        this->inreg("10 1 28684");      // 0111 000000001100
+        this->inreg("10 0 1");          // send to detector
+        this->inreg("10 0 0");          // reset to 0
+
+        return (error);
+    }
+    /**************** Archon::Interface::hsetup *********************************/
+
 
     /**************** Archon::Interface::hexpose ********************************/
     /**
@@ -4155,7 +4193,24 @@ namespace Archon {
     /**************** Archon::Interface::hexpose *********************************/
 
 
-    long Interface::video() {
+    /**************** Archon::Interface::video *********************************/
+    /**
+     * @fn     video
+     * @brief  initiate a video exposure
+     * @param  nseq_in string, if set becomes the number of sequences
+     * @return ERROR or NO_ERROR
+     *
+     * This function does the following before returning successful completion:
+     *  1) trigger an Archon exposure by setting the EXPOSE parameter = nseq_in
+     *  2) wait for exposure delay
+     *  3) wait for readout into Archon frame buffer
+     *  4) read frame buffer from Archon to host
+     *  5) do NOT write frame to disk
+     *
+     * Note that this assumes that the Archon ACF has been programmed to automatically
+     * read out the detector into the frame buffer after an exposure.
+     *
+     */    long Interface::video() {
       std::string function = "Archon::Interface::expose";
       std::stringstream message;
       long error = NO_ERROR;
