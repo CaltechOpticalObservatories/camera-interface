@@ -107,6 +107,12 @@ namespace Archon {
       bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
       bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
       bool is_longexposure;                  //!< true for long exposure mode (exptime in sec), false for exptime in msec
+      bool is_window;                        //!< true if in window mode for h2rg, false if not
+
+      int win_hstart;
+      int win_hstop;
+      int win_vstart;
+      int win_vstop;
 
       bool lastcubeamps;
 
@@ -184,8 +190,10 @@ namespace Archon {
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
       void add_filename_key();
       long expose(std::string nseq_in);
-      long hexpose(string nseq_in);
+      long hexpose(std::string nseq_in);
       long hsetup();
+      long hroi(std::string geom_in, std::string &retstring);
+      long hwindow(std::string state_in, std::string &state_out);
       long video();
       long wait_for_exposure();
       long wait_for_readout();

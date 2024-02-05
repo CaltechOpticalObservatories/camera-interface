@@ -35,6 +35,11 @@ namespace Archon {
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
     this->is_longexposure = false;
+    this->is_window = false;
+    this->win_hstart = 0;
+    this->win_hstop = 2047;
+    this->win_vstart = 0;
+    this->win_vstop = 2047;
     this->n_hdrshift = 16;
     this->backplaneversion="";
 
@@ -3881,19 +3886,19 @@ namespace Archon {
   }
   /**************** Archon::Interface::expose *********************************/
 
-   /**************** Archon::Interface::hsetup ********************************/
-    /**
-     * @fn     hsetup
-     * @brief  setup archon for h2rg
-     * @param  NONE
-     * @return ERROR or NO_ERROR
-     *
-     * This function does the following:
-     *  1) Pulse low on MainResetB
-     *  2) sets output to Pad B and HIGHOHM
-     *  3) Set detector out of window mode
-     *
-     */
+  /**************** Archon::Interface::hsetup ********************************/
+  /**
+    * @fn     hsetup
+    * @brief  setup archon for h2rg
+    * @param  NONE
+    * @return ERROR or NO_ERROR
+    *
+    * NOTE: this assumes LVDS is module 10
+    * This function does the following:
+    *  1) Pulse low on MainResetB
+    *  2) sets output to Pad B and HIGHOHM
+    *
+    */
     long Interface::hsetup() {
         std::string function = "Archon::Interface::hsetup";
         std::stringstream message;
@@ -3902,25 +3907,189 @@ namespace Archon {
 
         // H2RG manual says to pull this value low for 100 ns
         this->set_parameter("H2RGMainReset", 1);
-        usleep(1);
+        usleep(1);  // close enough
         this->set_parameter("H2RGMainReset", 0);
 
         // Enable output to Pad B and HIGHOHM
-        this->inreg("10 1 16402");      // 0100 000000010010
-        this->inreg("10 0 1");          // send to detector
-        this->inreg("10 0 0");          // reset to 0
+        error = this->inreg("10 1 16402");      // 0100 000000010010
+        if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+        if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
 
-        // Set detector out of window mode
-        this->inreg("10 1 28684");      // 0111 000000001100
-        this->inreg("10 0 1");          // send to detector
-        this->inreg("10 0 0");          // reset to 0
+        if (error != NO_ERROR) {
+            message.str(""); message << "enabling output to Pad B and HIGHOHM";
+            this->camera.log_error( function, message.str() );
+            return(ERROR);
+        }
 
         return (error);
     }
-    /**************** Archon::Interface::hsetup *********************************/
+    /**************** Archon::Interface::hsetup *******************************/
 
+    /**************** Archon::Interface::hroi ******************************/
+    /**
+      * @fn     hroi
+      * @brief  set window limits for h2rg
+      * @param  geom_in  string, with hstart hstop vstart vstop in pixels
+      * @return ERROR or NO_ERROR
+      *
+      * NOTE: this assumes LVDS is module 10
+      * This function does the following:
+      *  1) sets limits of sub window using input params
+      *
+      */
+    long Interface::hroi(std::string geom_in, std::string &retstring) {
+        std::string function = "Archon::Interface::hroi";
+        std::stringstream message;
+        std::stringstream reg_arg;
+        int hstart, hstop, vstart, vstop;
+        long error = NO_ERROR;
+        std::vector<std::string> tokens;
 
-    /**************** Archon::Interface::hexpose ********************************/
+        // If geom_in is not supplied then set geometry to full frame.
+        //
+        if ( !geom_in.empty() ) {         // geometry arguments passed in
+            Tokenize(geom_in, tokens, " ");
+
+            if (tokens.size() != 4) {
+                message.str(""); message << "param expected 4 arguments (hstart, hstop, vstart, vstop) but got " << tokens.size();
+                this->camera.log_error( function, message.str() );
+                return(ERROR);
+            }
+            try {
+                hstart = std::stoi( tokens[0] ); // test that inputs are integers
+                hstop = std::stoi( tokens[1] );
+                vstart = std::stoi( tokens[2] );
+                vstop = std::stoi( tokens[3]);
+            }
+            catch (std::invalid_argument &) {
+                message.str(""); message << "unable to convert geometry values: " << geom_in << " to integer";
+                this->camera.log_error( function, message.str() );
+                return(ERROR);
+            }
+            catch (std::out_of_range &) {
+                message.str(""); message << "geometry values " << geom_in << " outside integer range";
+                this->camera.log_error( function, message.str() );
+                return(ERROR);
+            }
+
+            // Validate values are within detector
+            if ( hstart < 0 || hstop > 2047 || vstart < 0 || vstop > 2047) {
+                message.str(""); message << "geometry values " << geom_in << " outside pixel range";
+                this->camera.log_error( function, message.str());
+                return(ERROR);
+            }
+            // Validate values have proper ordering
+            if (hstart >= hstop || vstart >= vstop) {
+                message.str(""); message << "geometry values " << geom_in << " are not correctly ordered";
+                this->camera.log_error( function, message.str());
+                return(ERROR);
+            }
+
+            // Set detector registers and record limits
+            // hstart 1010 000000000000 = 40960
+            reg_arg.str("") ; reg_arg << "10 1 " << (40960 + hstart);
+            error = this->inreg(reg_arg.str());
+            if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+            if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+            if (error == NO_ERROR) this->win_hstart = hstart; // set x lo lim
+            // hstop 1011 000000000000 = 45056
+            reg_arg.str("") ; reg_arg << "10 1 " << (45056 + hstop);
+            if (error == NO_ERROR) error = this->inreg(reg_arg.str());
+            if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+            if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+            if (error == NO_ERROR) this->win_hstop = hstop; // set roi x hi lim
+            // vstart 1000 000000000000 = 32768
+            reg_arg.str("") ; reg_arg << "10 1 " << (32768 + vstart);
+            if (error == NO_ERROR) error = this->inreg(reg_arg.str());
+            if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+            if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+            if (error == NO_ERROR) this->win_vstart = vstart; // set y lo lim
+            // vstop 1001 000000000000 = 36864
+            reg_arg.str("") ; reg_arg << "10 1 " << (36864 + vstop);
+            if (error == NO_ERROR) error = this->inreg(reg_arg.str());
+            if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+            if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+            if (error == NO_ERROR) this->win_vstop = vstop; // set y hi lim
+        }
+
+        // prepare the return value
+        //
+        message.str(""); message << this->win_hstart << " " << this->win_hstop << " " << this->win_vstart << " " << this->win_vstop;
+        retstring = message.str();
+
+        if (error != NO_ERROR) {
+            message.str(""); message << "setting window geometry to " << retstring;
+            this->camera.log_error( function, message.str() );
+            return(ERROR);
+        }
+
+        return (error);
+    }
+    /**************** Archon::Interface::hroi *********************************/
+
+    /**************** Archon::Interface::hwindow ******************************/
+    /**
+      * @fn     hwindow
+      * @brief  set into/out of window mode for h2rg
+      * @param  state_in, string "TRUE, FALSE, 0, or 1"
+      * @return ERROR or NO_ERROR
+      *
+      * NOTE: this assumes LVDS is module 10
+      * This function does the following:
+      *  1) puts h2rg into or out of window mode
+      *
+      */
+    long Interface::hwindow(std::string state_in, std::string &state_out) {
+        std::string function = "Archon::Interface::hwindow";
+        std::stringstream message;
+        std::string reg;
+        long error = NO_ERROR;
+
+        // If something is passed then try to use it to set the window state
+        //
+        if ( !state_in.empty() ) {
+            try {
+                std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
+                if ( state_in == "FALSE" || state_in == "0" ) {
+                    this->is_window = false;
+                    // Set detector out of window mode
+                    error = this->inreg("10 1 28684"); // 0111 000000001100
+                    if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+                    if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+                } else
+                if ( state_in == "TRUE" || state_in == "1" ) {
+                    this->is_window = true;
+                    // Set detector into window mode
+                    error = this->inreg("10 1 28687"); // 0111 000000001111
+                    if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+                    if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+                }
+                else {
+                    message.str(""); message << "window state " << state_in << " is invalid. Expecting {true,false,0,1}";
+                    this->camera.log_error( function, message.str() );
+                    return( ERROR );
+                }
+            }
+            catch (...) {
+                message.str(""); message << "unknown exception converting window state " << state_in << " to uppercase";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+            }
+        }
+
+        state_out = ( this->is_window ? "true" : "false" );
+
+        if (error != NO_ERROR) {
+            message.str(""); message << "setting window state to " << state_in;
+            this->camera.log_error( function, message.str() );
+            return(ERROR);
+        }
+
+        return (error);
+    }
+    /**************** Archon::Interface::hwindow *******************************/
+
+    /**************** Archon::Interface::hexpose ******************************/
     /**
      * @fn     hexpose
      * @brief  initiate an exposure for h2rg

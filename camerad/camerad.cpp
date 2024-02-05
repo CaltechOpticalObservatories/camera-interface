@@ -611,6 +611,16 @@ void doit(Network::TcpSocket sock) {
         ret = server.hexpose(args);
     }
     else
+    if (cmd.compare("hroi")==0) {
+        ret = server.hroi( args, retstring );
+        if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+    }
+    else
+    if (cmd.compare("hwindow")==0) {
+        ret = server.hwindow( args, retstring );
+        if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+    }
+    else
     if (cmd.compare("roi")==0) {
                     ret = server.region_of_interest( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
