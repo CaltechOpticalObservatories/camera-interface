@@ -3910,8 +3910,9 @@ namespace Archon {
 
         // H2RG manual says to pull this value low for 100 ns
         this->set_parameter("H2RGMainReset", 1);
-        usleep(1);  // close enough
+        usleep(1500);  // close enough
         this->set_parameter("H2RGMainReset", 0);
+        usleep(1000);
 
         // Enable output to Pad B and HIGHOHM
         error = this->inreg("10 1 16402");      // 0100 000000010010
