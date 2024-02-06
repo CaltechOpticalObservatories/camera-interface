@@ -3929,7 +3929,7 @@ namespace Archon {
     /**
       * @fn     hroi
       * @brief  set window limits for h2rg
-      * @param  geom_in  string, with hstart hstop vstart vstop in pixels
+      * @param  geom_in  string, with vstart vstop hstart hstop in pixels
       * @return ERROR or NO_ERROR
       *
       * NOTE: this assumes LVDS is module 10
@@ -3951,15 +3951,15 @@ namespace Archon {
             Tokenize(geom_in, tokens, " ");
 
             if (tokens.size() != 4) {
-                message.str(""); message << "param expected 4 arguments (hstart, hstop, vstart, vstop) but got " << tokens.size();
+                message.str(""); message << "param expected 4 arguments (vstart, vstop, hstart, hstop) but got " << tokens.size();
                 this->camera.log_error( function, message.str() );
                 return(ERROR);
             }
             try {
-                hstart = std::stoi( tokens[0] ); // test that inputs are integers
-                hstop = std::stoi( tokens[1] );
-                vstart = std::stoi( tokens[2] );
-                vstop = std::stoi( tokens[3]);
+                vstart = std::stoi( tokens[0] ); // test that inputs are integers
+                vstop = std::stoi( tokens[1] );
+                hstart = std::stoi( tokens[2] );
+                hstop = std::stoi( tokens[3]);
             }
             catch (std::invalid_argument &) {
                 message.str(""); message << "unable to convert geometry values: " << geom_in << " to integer";
@@ -3973,31 +3973,19 @@ namespace Archon {
             }
 
             // Validate values are within detector
-            if ( hstart < 0 || hstop > 2047 || vstart < 0 || vstop > 2047) {
+            if ( vstart < 0 || vstop > 2047 || hstart < 0 || hstop > 2047) {
                 message.str(""); message << "geometry values " << geom_in << " outside pixel range";
                 this->camera.log_error( function, message.str());
                 return(ERROR);
             }
             // Validate values have proper ordering
-            if (hstart >= hstop || vstart >= vstop) {
+            if (vstart >= vstop || hstart >= hstop) {
                 message.str(""); message << "geometry values " << geom_in << " are not correctly ordered";
                 this->camera.log_error( function, message.str());
                 return(ERROR);
             }
 
             // Set detector registers and record limits
-            // hstart 1010 000000000000 = 40960
-            reg_arg.str("") ; reg_arg << "10 1 " << (40960 + hstart);
-            error = this->inreg(reg_arg.str());
-            if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
-            if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-            if (error == NO_ERROR) this->win_hstart = hstart; // set x lo lim
-            // hstop 1011 000000000000 = 45056
-            reg_arg.str("") ; reg_arg << "10 1 " << (45056 + hstop);
-            if (error == NO_ERROR) error = this->inreg(reg_arg.str());
-            if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
-            if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-            if (error == NO_ERROR) this->win_hstop = hstop; // set roi x hi lim
             // vstart 1000 000000000000 = 32768
             reg_arg.str("") ; reg_arg << "10 1 " << (32768 + vstart);
             if (error == NO_ERROR) error = this->inreg(reg_arg.str());
@@ -4010,11 +3998,25 @@ namespace Archon {
             if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
             if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
             if (error == NO_ERROR) this->win_vstop = vstop; // set y hi lim
-        }
+            // hstart 1010 000000000000 = 40960
+            reg_arg.str("") ; reg_arg << "10 1 " << (40960 + hstart);
+            error = this->inreg(reg_arg.str());
+            if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+            if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+            if (error == NO_ERROR) this->win_hstart = hstart; // set x lo lim
+            // hstop 1011 000000000000 = 45056
+            reg_arg.str("") ; reg_arg << "10 1 " << (45056 + hstop);
+            if (error == NO_ERROR) error = this->inreg(reg_arg.str());
+            if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+            if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+            if (error == NO_ERROR) this->win_hstop = hstop; // set roi x hi lim
+
+
+        }   // end if geom passed in
 
         // prepare the return value
         //
-        message.str(""); message << this->win_hstart << " " << this->win_hstop << " " << this->win_vstart << " " << this->win_vstop;
+        message.str(""); message << this->win_vstart << " " << this->win_vstop << " " << this->win_hstart << " " << this->win_hstop;
         retstring = message.str();
 
         if (error != NO_ERROR) {
@@ -4050,12 +4052,57 @@ namespace Archon {
         if ( !state_in.empty() ) {
             try {
                 std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
+
+                // Leave window mode
                 if ( state_in == "FALSE" || state_in == "0" ) {
                     this->is_window = false;
                     // Set detector out of window mode
                     error = this->inreg("10 1 28684"); // 0111 000000001100
                     if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
                     if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+                    // TODO: setp mode_? (not mode_Guiding?)
+
+                    // Now set params
+                    std::stringstream cmd;
+                    std::string str_cols;
+                    int rows = (this->win_vstop - this->win_vstart);
+                    this->get_parameter("H2RG_columns", str_cols);
+                    int cols = std::stoi(str_cols);
+                    if (error == NO_ERROR) {
+                        cmd << "H2RG_rows_skip " << this->win_vstart;
+                        error = this->set_parameter( cmd.str() );
+                    }
+                    cmd.str("");
+                    if (error == NO_ERROR) {
+                        cmd << "H2RG_rows " << rows;
+                        error = this->set_parameter( cmd.str() );
+                    }
+
+                    // Now set CDS
+                    std::string dontcare;
+                    cmd.str("");
+                    cmd << "PIXELCOUNT " << cols;
+                    error = this->cds( cmd.str(), dontcare );
+                    cmd.str("");
+                    cmd << "LINECOUNT " << rows;
+                    error = this->cds( cmd.str(), dontcare );
+
+                    // update modemap, in case someone asks again
+                    //
+                    std::string mode = this->camera_info.current_observing_mode;
+
+                    this->modemap[mode].geometry.linecount = rows;
+                    this->modemap[mode].geometry.pixelcount = cols;
+                    // this->camera_info.region_of_interest[0] = this->win_hstart;
+                    // this->camera_info.region_of_interest[1] = this->win_hstop;
+                    this->camera_info.region_of_interest[2] = this->win_vstart;
+                    this->camera_info.region_of_interest[3] = this->win_vstop;
+                    this->camera_info.detector_pixels[0] = cols;
+                    this->camera_info.detector_pixels[1] = rows;
+
+                    this->camera_info.set_axes();
+
+                // Enter window mode
                 } else
                 if ( state_in == "TRUE" || state_in == "1" ) {
                     this->is_window = true;
@@ -4063,6 +4110,46 @@ namespace Archon {
                     error = this->inreg("10 1 28687"); // 0111 000000001111
                     if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
                     if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+                    // TODO: setp mode_Guiding=1?
+
+                    // Now set params
+                    std::stringstream cmd;
+                    int rows = (this->win_vstop - this->win_vstart);
+                    int cols = (this->win_hstop - this->win_hstart);
+                    if (error == NO_ERROR) {
+                        cmd << "H2RG_win_columns " << cols;
+                        error = this->set_parameter( cmd.str() );
+                    }
+                    cmd.str("");
+                    if (error == NO_ERROR) {
+                        cmd << "H2RG_win_rows " << rows;
+                        error = this->set_parameter( cmd.str() );
+                    }
+
+                    // Now set CDS
+                    std::string dontcare;
+                    cmd.str("");
+                    cmd << "PIXELCOUNT " << cols;
+                    error = this->cds( cmd.str(), dontcare );
+                    cmd.str("");
+                    cmd << "LINECOUNT " << rows;
+                    error = this->cds( cmd.str(), dontcare );
+
+                    // update modemap, in case someone asks again
+                    //
+                    std::string mode = this->camera_info.current_observing_mode;
+
+                    this->modemap[mode].geometry.linecount = rows;
+                    this->modemap[mode].geometry.pixelcount = cols;
+                    this->camera_info.region_of_interest[0] = this->win_hstart;
+                    this->camera_info.region_of_interest[1] = this->win_hstop;
+                    this->camera_info.region_of_interest[2] = this->win_vstart;
+                    this->camera_info.region_of_interest[3] = this->win_vstop;
+                    this->camera_info.detector_pixels[0] = cols;
+                    this->camera_info.detector_pixels[1] = rows;
+
+                    this->camera_info.set_axes();
+
                 }
                 else {
                     message.str(""); message << "window state " << state_in << " is invalid. Expecting {true,false,0,1}";
