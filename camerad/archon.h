@@ -114,6 +114,9 @@ namespace Archon {
       int win_vstart;
       int win_vstop;
 
+      int taplines_store;                   //!< int number of original taplines
+      std::string tapline0_store;           //!< store tapline0 for window mode so can restore later
+
       bool lastcubeamps;
 
       std::string trigin_state;              //!< for external triggering of exposures

@@ -40,6 +40,9 @@ namespace Archon {
     this->win_hstop = 2047;
     this->win_vstart = 0;
     this->win_vstop = 2047;
+    this->tapline0_store = "";
+    this->taplines_store = 0;
+
     this->n_hdrshift = 16;
     this->backplaneversion="";
 
@@ -3940,7 +3943,8 @@ namespace Archon {
     long Interface::hroi(std::string geom_in, std::string &retstring) {
         std::string function = "Archon::Interface::hroi";
         std::stringstream message;
-        std::stringstream reg_arg;
+        std::stringstream cmd;
+        std::string dontcare;
         int hstart, hstop, vstart, vstop;
         long error = NO_ERROR;
         std::vector<std::string> tokens;
@@ -3987,30 +3991,68 @@ namespace Archon {
 
             // Set detector registers and record limits
             // vstart 1000 000000000000 = 32768
-            reg_arg.str("") ; reg_arg << "10 1 " << (32768 + vstart);
-            if (error == NO_ERROR) error = this->inreg(reg_arg.str());
+            cmd.str("") ; cmd << "10 1 " << (32768 + vstart);
+            error = this->inreg(cmd.str());
             if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
             if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
             if (error == NO_ERROR) this->win_vstart = vstart; // set y lo lim
             // vstop 1001 000000000000 = 36864
-            reg_arg.str("") ; reg_arg << "10 1 " << (36864 + vstop);
-            if (error == NO_ERROR) error = this->inreg(reg_arg.str());
+            cmd.str("") ; cmd << "10 1 " << (36864 + vstop);
+            if (error == NO_ERROR) error = this->inreg(cmd.str());
             if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
             if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
             if (error == NO_ERROR) this->win_vstop = vstop; // set y hi lim
             // hstart 1010 000000000000 = 40960
-            reg_arg.str("") ; reg_arg << "10 1 " << (40960 + hstart);
-            error = this->inreg(reg_arg.str());
+            cmd.str("") ; cmd << "10 1 " << (40960 + hstart);
+            if (error == NO_ERROR) error = this->inreg(cmd.str());
             if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
             if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
             if (error == NO_ERROR) this->win_hstart = hstart; // set x lo lim
             // hstop 1011 000000000000 = 45056
-            reg_arg.str("") ; reg_arg << "10 1 " << (45056 + hstop);
-            if (error == NO_ERROR) error = this->inreg(reg_arg.str());
+            cmd.str("") ; cmd << "10 1 " << (45056 + hstop);
+            if (error == NO_ERROR) error = this->inreg(cmd.str());
             if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
             if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
             if (error == NO_ERROR) this->win_hstop = hstop; // set roi x hi lim
 
+            // If we are in window mode, make adjustments to geometries
+            if (this->is_window) {
+                // Now set params
+                int rows = (this->win_vstop - this->win_vstart);
+                int cols = (this->win_hstop - this->win_hstart);
+                if (error == NO_ERROR) {
+                    cmd << "H2RG_win_columns " << cols;
+                    error = this->set_parameter(cmd.str());
+                }
+                cmd.str("");
+                if (error == NO_ERROR) {
+                    cmd << "H2RG_win_rows " << rows;
+                    error = this->set_parameter(cmd.str());
+                }
+
+                // Now set CDS
+                cmd.str("");
+                cmd << "PIXELCOUNT " << cols;
+                error = this->cds(cmd.str(), dontcare);
+                cmd.str("");
+                cmd << "LINECOUNT " << rows;
+                error = this->cds(cmd.str(), dontcare);
+
+                // update modemap, in case someone asks again
+                //
+                std::string mode = this->camera_info.current_observing_mode;
+
+                this->modemap[mode].geometry.linecount = rows;
+                this->modemap[mode].geometry.pixelcount = cols;
+                this->camera_info.region_of_interest[0] = this->win_hstart;
+                this->camera_info.region_of_interest[1] = this->win_hstop;
+                this->camera_info.region_of_interest[2] = this->win_vstart;
+                this->camera_info.region_of_interest[3] = this->win_vstop;
+                this->camera_info.detector_pixels[0] = cols;
+                this->camera_info.detector_pixels[1] = rows;
+
+                this->camera_info.set_axes();
+            }
 
         }   // end if geom passed in
 
@@ -4045,6 +4087,8 @@ namespace Archon {
         std::string function = "Archon::Interface::hwindow";
         std::stringstream message;
         std::string reg;
+        std::string dontcare;
+        std::stringstream cmd;
         long error = NO_ERROR;
 
         // If something is passed then try to use it to set the window state
@@ -4060,47 +4104,18 @@ namespace Archon {
                     error = this->inreg("10 1 28684"); // 0111 000000001100
                     if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
                     if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-                    // TODO: setp mode_? (not mode_Guiding?)
 
-                    // Now set params
-                    std::stringstream cmd;
-                    std::string str_cols;
-                    int rows = (this->win_vstop - this->win_vstart);
-                    this->get_parameter("H2RG_columns", str_cols);
-                    int cols = std::stoi(str_cols);
-                    if (error == NO_ERROR) {
-                        cmd << "H2RG_rows_skip " << this->win_vstart;
-                        error = this->set_parameter( cmd.str() );
-                    }
+                    // reset taplines
                     cmd.str("");
-                    if (error == NO_ERROR) {
-                        cmd << "H2RG_rows " << rows;
-                        error = this->set_parameter( cmd.str() );
-                    }
-
-                    // Now set CDS
-                    std::string dontcare;
+                    cmd << "TAPLINES " << this->taplines_store;
+                    this->cds(cmd.str(), dontcare);
                     cmd.str("");
-                    cmd << "PIXELCOUNT " << cols;
-                    error = this->cds( cmd.str(), dontcare );
-                    cmd.str("");
-                    cmd << "LINECOUNT " << rows;
-                    error = this->cds( cmd.str(), dontcare );
+                    cmd << "TAPLINE0 " << this->tapline0_store;
+                    this->cds(cmd.str(), dontcare);
 
-                    // update modemap, in case someone asks again
-                    //
-                    std::string mode = this->camera_info.current_observing_mode;
-
-                    this->modemap[mode].geometry.linecount = rows;
-                    this->modemap[mode].geometry.pixelcount = cols;
-                    // this->camera_info.region_of_interest[0] = this->win_hstart;
-                    // this->camera_info.region_of_interest[1] = this->win_hstop;
-                    this->camera_info.region_of_interest[2] = this->win_vstart;
-                    this->camera_info.region_of_interest[3] = this->win_vstop;
-                    this->camera_info.detector_pixels[0] = cols;
-                    this->camera_info.detector_pixels[1] = rows;
-
-                    this->camera_info.set_axes();
+                    // Set camera mode
+                    // This resets all internal buffer geometries
+                    this->set_camera_mode("DEFAULT");
 
                 // Enter window mode
                 } else
@@ -4110,10 +4125,23 @@ namespace Archon {
                     error = this->inreg("10 1 28687"); // 0111 000000001111
                     if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
                     if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-                    // TODO: setp mode_Guiding=1?
+
+                    // Adjust taplines
+                    std::string taplines_str;
+                    this->cds("TAPLINES", taplines_str);
+                    this->taplines_store = std::stoi(taplines_str);
+                    this->cds("TAPLINES 1", dontcare);
+                    this->taplines = 1;
+
+                    std::string tapline0;
+                    this->cds("TAPLINE0", tapline0);
+                    this->tapline0_store = tapline0;
+                    this->cds("TAPLINE0 AM30L,1,0", dontcare);
+
+                    // Set camera mode to Guiding
+                    this->set_camera_mode("GUIDING");
 
                     // Now set params
-                    std::stringstream cmd;
                     int rows = (this->win_vstop - this->win_vstart);
                     int cols = (this->win_hstop - this->win_hstart);
                     if (error == NO_ERROR) {
@@ -4127,7 +4155,6 @@ namespace Archon {
                     }
 
                     // Now set CDS
-                    std::string dontcare;
                     cmd.str("");
                     cmd << "PIXELCOUNT " << cols;
                     error = this->cds( cmd.str(), dontcare );
