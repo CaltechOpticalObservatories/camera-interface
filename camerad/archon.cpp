@@ -1770,7 +1770,7 @@ namespace Archon {
     // Load parameters and Apply CDS/Deint configuration if any of them changed
     //
     if ((error == NO_ERROR) && paramchanged)  error = this->archon_cmd(LOADPARAMS);  // TODO I think paramchanged is never set!
-    if ((error == NO_ERROR) && configchanged) error = this->archon_cmd(APPLYCDS);    // TODO I think configchaned is never set!
+    if ((error == NO_ERROR) && configchanged) error = this->archon_cmd(APPLYCDS);    // TODO I think configchanged is never set!
 
     // Get the current frame buffer status
     if (error == NO_ERROR) error = this->get_frame_status();
@@ -3909,10 +3909,11 @@ namespace Archon {
         long error = NO_ERROR;
 
         // H2RG manual says to pull this value low for 100 ns
+        // however, currently it is pulled low for ~1000 usec
         this->set_parameter("H2RGMainReset", 1);
-        usleep(1500);  // close enough
+        usleep(1500);  // to be sure we are done with the reset
         this->set_parameter("H2RGMainReset", 0);
-        usleep(1000);
+        usleep(1000);  // to be sure we are done with the reset
 
         // Enable output to Pad B and HIGHOHM
         error = this->inreg("10 1 16402");      // 0100 000000010010
@@ -4040,7 +4041,6 @@ namespace Archon {
                 error = this->cds(cmd.str(), dontcare);
 
                 // update modemap, in case someone asks again
-                //
                 std::string mode = this->camera_info.current_observing_mode;
 
                 this->modemap[mode].geometry.linecount = rows;
@@ -4088,6 +4088,8 @@ namespace Archon {
         std::string function = "Archon::Interface::hwindow";
         std::stringstream message;
         std::string reg;
+        std::string nowin_mode = "DEFAULT";
+        std::string win_mode = "GUIDING";
         std::string dontcare;
         std::stringstream cmd;
         long error = NO_ERROR;
@@ -4098,8 +4100,7 @@ namespace Archon {
             try {
                 std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
 
-                // Leave window mode
-                if ( state_in == "FALSE" || state_in == "0" ) {
+                if ( state_in == "FALSE" || state_in == "0" ) { // leave window mode
                     this->is_window = false;
                     // Set detector out of window mode
                     error = this->inreg("10 1 28684"); // 0111 000000001100
@@ -4116,11 +4117,18 @@ namespace Archon {
 
                     // Set camera mode
                     // This resets all internal buffer geometries
-                    this->set_camera_mode("DEFAULT");
+                    this->set_camera_mode(nowin_mode);
 
-                // Enter window mode
+                    // Now set CDS
+                    cmd.str("");
+                    cmd << "PIXELCOUNT " << this->modemap[nowin_mode].geometry.pixelcount;
+                    error = this->cds( cmd.str(), dontcare );
+                    cmd.str("");
+                    cmd << "LINECOUNT " << this->modemap[nowin_mode].geometry.linecount;
+                    error = this->cds( cmd.str(), dontcare );
+
                 } else
-                if ( state_in == "TRUE" || state_in == "1" ) {
+                if ( state_in == "TRUE" || state_in == "1" ) {  // enter window mode
                     this->is_window = true;
                     // Set detector into window mode
                     error = this->inreg("10 1 28687"); // 0111 000000001111
@@ -4140,7 +4148,7 @@ namespace Archon {
                     this->cds("TAPLINE0 AM33L,1,0", dontcare);
 
                     // Set camera mode to Guiding
-                    this->set_camera_mode("GUIDING");
+                    this->set_camera_mode(win_mode);
 
                     // Now set params
                     int rows = (this->win_vstop - this->win_vstart);
