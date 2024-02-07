@@ -4137,7 +4137,7 @@ namespace Archon {
                     std::string tapline0;
                     this->cds("TAPLINE0", tapline0);
                     this->tapline0_store = tapline0;
-                    this->cds("TAPLINE0 AM30L,1,0", dontcare);
+                    this->cds("TAPLINE0 AM33L,1,0", dontcare);
 
                     // Set camera mode to Guiding
                     this->set_camera_mode("GUIDING");
