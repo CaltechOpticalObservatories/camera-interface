@@ -959,7 +959,7 @@ namespace Archon {
 
     try { reply.erase(reply.find('\n'), 1); } catch(...) { }  // strip newline
 
-    // reply should now be of the form PARAMETERn=PARAMNAME=VALUE
+    // reply should now be of the form PARAMETERn=PARAMNAME=VALUE,
     // and we want just the VALUE here
     //
 
@@ -1168,7 +1168,7 @@ namespace Archon {
    * This function is overloaded.
    *
    * This version is for future compatibility.
-   * The multiple-controller version will pass a reference to a return string. //TODO
+   * The multiple-controller version will pass a reference to a return string.
    *
    */
   long Interface::load_firmware(std::string acffile, std::string &retstring) {
@@ -1238,10 +1238,10 @@ namespace Archon {
     logwrite(function, acffile);
 
     // The CPU in Archon is single threaded, so it checks for a network 
-    // command, then does some background polling (reading bias voltages etc), 
+    // command, then does some background polling (reading bias voltages etc.),
     // then checks again for a network command.  "POLLOFF" disables this 
     // background checking, so network command responses are very fast.  
-    // The downside is that bias voltages, temperatures, etc are not updated 
+    // The downside is that bias voltages, temperatures, etc. are not updated
     // until you give a "POLLON". 
     //
     error = this->archon_cmd(POLLOFF);
@@ -1275,8 +1275,8 @@ namespace Archon {
       //
       if (line.substr(0,6)=="[MODE_") {          // this is a mode section
         try {
-          line.erase(line.find("["), 1);         // erase the opening [ bracket
-          line.erase(line.find("]"), 1);         // erase the closing ] bracket
+          line.erase(line.find("["), 1);         // erase the opening square bracket
+          line.erase(line.find("]"), 1);         // erase the closing square bracket
         }
         catch(...) {
           message.str(""); message << "malformed mode section: " << savedline << ": expected [MODE_xxxx]";
@@ -1326,8 +1326,9 @@ namespace Archon {
       string_replace_char(line, "\\", "/");
 
       // erase all quotes
-      //
-      try { line.erase( std::remove(line.begin(), line.end(), '"'), line.end() ); } catch(...) { }
+      try {
+          line.erase( std::remove(line.begin(), line.end(), '"'), line.end() );
+      } catch(...) { }
 
       // Initialize key, value strings used to form WCONFIG KEY=VALUE command.
       // As long as key stays empty then the WCONFIG command is not written to the Archon.
@@ -1362,7 +1363,6 @@ namespace Archon {
       if (line.compare(0,4,"ACF:")==0) {
         std::vector<std::string> tokens;
         line = line.substr(4);                                            // strip off the "ACF:" portion
-        std::string key, value;
 
         try {
           Tokenize(line, tokens, "=");                                    // separate into tokens by "="
@@ -1498,8 +1498,7 @@ namespace Archon {
           return(ERROR);
         }
 
-        // Save all of the user keyword information in a map for later
-        //
+        // Save all the user keyword information in a map for later
         this->modemap[mode].acfkeys.keydb[keyword].keyword    = keyword;
         this->modemap[mode].acfkeys.keydb[keyword].keytype    = this->camera_info.userkeys.get_keytype(keyvalue);
         this->modemap[mode].acfkeys.keydb[keyword].keyvalue   = keyvalue;
@@ -1520,14 +1519,14 @@ namespace Archon {
         Tokenize(line, tokens, "=");                  // separate into PARAMETERn, ParameterName, value tokens
 
         if (tokens.size() != 3) {
-          message.str(""); message << "malformed paramter line: " << savedline << ": expected PARAMETERn=Param=value";;
+          message.str(""); message << "malformed paramter line: " << savedline << ": expected PARAMETERn=Param=value";
           this->camera.log_error( function, message.str() );
           filestream.close();
           return ERROR;
         }
 
         // Tokenize broke everything up at the "=" and
-        // we need all three parts but we also need a version containing the last
+        // we need all three parts, but we also need a version containing the last
         // two parts together, "ParameterName=value" so re-assemble them here.
         //
         std::stringstream paramnamevalue;
@@ -1538,7 +1537,7 @@ namespace Archon {
         this->configmap[ tokens[0] ].line  = linecount;              // configuration line number
         this->configmap[ tokens[0] ].value = paramnamevalue.str();   // configuration value for PARAMETERn
 
-        // build an STL map "parammap" indexed on ParameterName so that we can lookup by the actual name
+        // build an STL map "parammap" indexed on ParameterName so that we can look up by the actual name
         //
         this->parammap[ tokens[1] ].key   = tokens[0];          // PARAMETERn
         this->parammap[ tokens[1] ].name  = tokens[1] ;         // ParameterName
@@ -2007,7 +2006,7 @@ namespace Archon {
       Tokenize(this->configmap[tap.str().c_str()].value, tokens, ",");
 
       // If all three tokens present (A?xx,gain,offset) then parse it,
-      // otherwise it's an unused tap and we can skip it.
+      // otherwise it's an unused tap, and we can skip it.
       //
       if (tokens.size() == 3) { // defined tap has three tokens
         adchan = tokens[0];     // AD channel is the first (0th) token
@@ -2154,7 +2153,7 @@ namespace Archon {
       if (subtokens.size() != 2) {
         message.str("");
         message << "expected 2 but received invalid number of tokens (" << subtokens.size() << ") in FRAME message:";
-        for (size_t i=0; i<subtokens.size(); i++) message << " " << subtokens[i];
+        for (size_t ii=0; ii<subtokens.size(); ii++) message << " " << subtokens[ii];
         this->camera.log_error( function, message.str() );
         return(ERROR);  // We could continue; but if one is bad then we could miss seeing a larger problem
       }
@@ -2165,7 +2164,7 @@ namespace Archon {
 
       if (subtokens[0]=="TIMER") this->frame.timer = subtokens[1];  // timer is a string
       else {                                                        // everything else is going to be a number
-        try {                                                       // use "try..catch" to catch exceptions converting strings to numbers
+        try {                                                       // use "try...catch" to catch exceptions converting strings to numbers
           if (subtokens[0].compare(0, 3, "BUF")==0) {               // for all "BUFnSOMETHING=VALUE" we want the bufnum "n"
             bufnum = std::stoi( subtokens[0].substr(3, 1) );        // extract the "n" here which is 1-based (1,2,3)
           }
@@ -2640,15 +2639,15 @@ namespace Archon {
 
       // If mode is not RAW but RAWENABLE=1, then we will first read an image
       // frame (just done above) and then a raw frame (below). To do that we
-      // must switch to raw mode then read the raw frame. Afterwards, switch back
-      // to the original mode, for any subsequent exposures..
+      // must switch to raw mode then read the raw frame. Afterward, switch back
+      // to the original mode, for any subsequent exposures.
       //
       if (rawenable == 1) {
         #ifdef LOGLEVEL_DEBUG
         logwrite(function, "[DEBUG] rawenable is set -- IMAGE+RAW file will be saved");
         logwrite(function, "[DEBUG] switching to mode=RAW");
         #endif
-        std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode so we can come back to it
+        std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode, so we can come back to it
         error = this->set_camera_mode("raw");                             // switch to raw mode
         if ( error != NO_ERROR ) { logwrite( function, "ERROR: switching to raw mode" ); return error; }
 
@@ -2747,7 +2746,7 @@ namespace Archon {
                 logwrite(function, "[DEBUG] rawenable is set -- IMAGE+RAW file will be saved");
         logwrite(function, "[DEBUG] switching to mode=RAW");
 #endif
-                std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode so we can come back to it
+                std::string orig_mode = this->camera_info.current_observing_mode; // save the original mode, so we can come back to it
                 error = this->set_camera_mode("raw");                             // switch to raw mode
                 if ( error != NO_ERROR ) { logwrite( function, "ERROR: switching to raw mode" ); return error; }
 
@@ -4911,7 +4910,7 @@ namespace Archon {
       return NO_ERROR;
     }
 
-    // Set the time out value. If the exposure time is less than a second, set
+    // Set the time-out value. If the exposure time is less than a second, set
     // the timeout to 1 second. Otherwise, set it to the exposure time plus
     // 1 second.
     //
@@ -4957,9 +4956,9 @@ namespace Archon {
 
       timeout( 0.001 );      // a little pause to slow down the requests to Archon
 
-      // Added protection against infinite loops, probably never will be invoked
+      // Added protection against infinite loops, probably will never be invoked
       // because an Archon error getting the timer would exit the loop.
-      // exposure_timeout_time is in msec and it's a little more than 1 msec to get
+      // exposure_timeout_time is in msec, and it's a little more than 1 msec to get
       // through this loop. If this is decremented each time through then it should
       // never hit zero before the exposure is finished, unless there is a serious
       // problem.
@@ -5715,7 +5714,7 @@ namespace Archon {
     // "readout"
     // The assumption here is that the exposure has started and this command is
     // sent to prepare for the end of exposure. The exposure is nearly complete.
-    // The next TRIGIN will end the exposure and begin the readout so now we
+    // The next TRIGIN will end the exposure and begin the readout, so now we
     // begin waiting for the new frame to appear in the Archon frame buffer.
     // ------------------------------------------------------------------------
     //
@@ -7334,8 +7333,8 @@ namespace Archon {
       logwrite( function, message.str() );
 
       message.str(""); message << "[ampinfo] gains =";
-      for ( auto gain : this->gain ) {
-        message << " " << gain;
+      for ( auto gn : this->gain ) {
+        message << " " << gn;
       }
       logwrite( function, message.str() );
 
