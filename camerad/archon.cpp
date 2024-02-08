@@ -1361,17 +1361,18 @@ namespace Archon {
       //
       if (line.compare(0,4,"ACF:")==0) {
         std::vector<std::string> tokens;
-        line = line.substr(4);                                            // strip off the "ACF:" portion
+        line = line.substr(4);              // strip off the "ACF:" portion
+        std::string acf_key, acf_value;
 
         try {
-          Tokenize(line, tokens, "=");                                    // separate into tokens by "="
+          Tokenize(line, tokens, "="); // separate into tokens by "="
 
-          if (tokens.size() == 1) {                                       // KEY=, the VALUE is empty
-            key   = tokens[0];
-            value = "";
-          } else if (tokens.size() == 2) {                                       // KEY=VALUE
-                key   = tokens[0];
-                value = tokens[1];
+          if (tokens.size() == 1) {                    // KEY=, the VALUE is empty
+            acf_key   = tokens[0];
+            acf_value = "";
+          } else if (tokens.size() == 2) {             // KEY=VALUE
+                acf_key   = tokens[0];
+                acf_value = tokens[1];
           } else {
                 message.str(""); message << "malformed ACF line: " << savedline << ": expected KEY=VALUE";
                 this->camera.log_error( function, message.str() );
@@ -1382,17 +1383,16 @@ namespace Archon {
           bool keymatch = false;
 
           // If this key is in the main parammap then store it in the modemap's parammap for this mode
-          //
-          if (this->parammap.find( key ) != this->parammap.end()) {
-            this->modemap[mode].parammap[ key ].name  = key;
-            this->modemap[mode].parammap[ key ].value = value;
+          if (this->parammap.find( acf_key ) != this->parammap.end()) {
+            this->modemap[mode].parammap[ acf_key ].name  = acf_key;
+            this->modemap[mode].parammap[ acf_key ].value = acf_value;
             keymatch = true;
           }
 
           // If this key is in the main configmap, then store it in the modemap's configmap for this mode
           //
-          if (this->configmap.find( key ) != this->configmap.end()) {
-            this->modemap[mode].configmap[ key ].value = value;
+          if (this->configmap.find( acf_key ) != this->configmap.end()) {
+            this->modemap[mode].configmap[ acf_key ].value = acf_value;
             keymatch = true;
           }
 
@@ -1400,7 +1400,7 @@ namespace Archon {
           //
           if ( ! keymatch ) {
             message.str("");
-            message << "[MODE_" << mode << "] ACF directive: " << key << "=" << value << " is not a valid parameter or configuration key";
+            message << "[MODE_" << mode << "] ACF directive: " << acf_key << "=" << acf_value << " is not a valid parameter or configuration key";
             logwrite(function, message.str());
             filestream.close();
             return ERROR;
@@ -1413,6 +1413,7 @@ namespace Archon {
           return ERROR;
         }
         // end if (line.compare(0,4,"ACF:")==0)
+
       } else if (line.compare(0,5,"ARCH:")==0) {
           // The "ARCH:" tag is for internal (Archon_interface) variables
           // using the KEY=VALUE format.
