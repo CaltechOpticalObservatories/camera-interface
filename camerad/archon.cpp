@@ -4005,6 +4005,7 @@ namespace Archon {
                 // Now set params
                 int rows = (this->win_vstop - this->win_vstart);
                 int cols = (this->win_hstop - this->win_hstart);
+                cmd.str("");
                 if (error == NO_ERROR) {
                     cmd << "H2RG_win_columns " << cols;
                     error = this->set_parameter(cmd.str());
