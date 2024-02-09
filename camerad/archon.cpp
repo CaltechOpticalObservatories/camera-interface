@@ -1779,7 +1779,6 @@ namespace Archon {
     this->camera_info.bitpix = (samplemode==0) ? 16 : 32;
 
     // Load parameters and Apply CDS/Deint configuration if any of them changed
-    //
     if ((error == NO_ERROR) && paramchanged)  error = this->archon_cmd(LOADPARAMS);  // TODO I think paramchanged is never set!
     if ((error == NO_ERROR) && configchanged) error = this->archon_cmd(APPLYCDS);    // TODO I think configchanged is never set!
 
@@ -2859,7 +2858,10 @@ namespace Archon {
 
     // Lock the frame buffer before reading it
     //
-    if ( this->lock_buffer(bufready) == ERROR) { logwrite( function, "ERROR locking frame buffer" ); return (ERROR); }
+    if ( this->lock_buffer(bufready) == ERROR) {
+        logwrite( function, "ERROR locking frame buffer" );
+        return (ERROR);
+    }
 
     // Send the FETCH command to read the memory buffer from the Archon backplane.
     // Archon replies with one binary response per requested block. Each response
@@ -2912,8 +2914,18 @@ namespace Archon {
 
       // Are there data to read?
       if ( (retval=this->archon.Poll()) <= 0) {
-        if (retval==0) { message.str(""); message << "Poll timeout waiting for Archon frame data"; error = ERROR;   }  // TODO should error=TIMEOUT?
-        if (retval<0)  { message.str(""); message << "Poll error waiting for Archon frame data";   error = ERROR;   }
+        if (retval==0) {
+            message.str("");
+            message << "Poll timeout waiting for Archon frame data";
+            error = ERROR;
+        }  // TODO should error=TIMEOUT?
+
+        if (retval<0)  {
+            message.str("");
+            message << "Poll error waiting for Archon frame data";
+            error = ERROR;
+        }
+
         if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
         break;                         // breaks out of for loop
       }
@@ -4111,6 +4123,13 @@ namespace Archon {
                     cmd << "LINECOUNT " << this->modemap[nowin_mode].geometry.linecount;
                     error = this->cds( cmd.str(), dontcare );
 
+                    // Issue Abort to complete window mode exit
+                    cmd.str("");
+                    if (error == NO_ERROR) {
+                        cmd << "Abort 1 ";
+                        error = this->set_parameter( cmd.str() );
+                    }
+
                 } else
                 if ( state_in == "TRUE" || state_in == "1" ) {  // enter window mode
                     this->is_window = true;
@@ -5035,7 +5054,7 @@ namespace Archon {
         done  = true;
         error = NO_ERROR;
         break;
-      }  // end if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) )
+      }
 
       // If the frame isn't done by the predicted time then
       // enough time has passed to trigger a timeout error.
@@ -5060,7 +5079,7 @@ namespace Archon {
       #endif
       this->camera.async.enqueue( message.str() );
 
-    } // end while (done == false && this->abort == false)
+    } // end while (!done && !this->abort)
 
     // After exiting while loop, one update to ensure accurate ASYNC message
     // reporting of LINECOUNT.
@@ -5095,11 +5114,9 @@ namespace Archon {
       message << "received currentframe: " << currentframe;
       logwrite(function, message.str());
       return(NO_ERROR);
-    }
-    // If the wait was stopped, log a message and return NO_ERROR
-    //
-    else
-    if (this->abort) {
+
+    } else if (this->abort) {
+        // If the wait was stopped, log a message and return NO_ERROR
       logwrite(function, "wait for readout stopped by external signal");
       return(NO_ERROR);
 
