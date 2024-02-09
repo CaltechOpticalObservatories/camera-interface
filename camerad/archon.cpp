@@ -4130,8 +4130,7 @@ namespace Archon {
                         error = this->set_parameter( cmd.str() );
                     }
 
-                } else
-                if ( state_in == "TRUE" || state_in == "1" ) {  // enter window mode
+                } else if ( state_in == "TRUE" || state_in == "1" ) {  // enter window mode
                     this->is_window = true;
                     // Set detector into window mode
                     error = this->inreg("10 1 28687"); // 0111 000000001111
@@ -4150,7 +4149,7 @@ namespace Archon {
                     this->tapline0_store = tapline0;
                     this->cds("TAPLINE0 AM33L,1,0", dontcare);
 
-                    // Set camera mode to Guiding
+                    // Set camera mode to win_mode
                     this->set_camera_mode(win_mode);
 
                     // Now set params
@@ -4175,9 +4174,9 @@ namespace Archon {
                     error = this->cds( cmd.str(), dontcare );
 
                     // update modemap, in case someone asks again
-                    //
                     std::string mode = this->camera_info.current_observing_mode;
 
+                    // Adjust geometry parameters and camera_info
                     this->modemap[mode].geometry.linecount = rows;
                     this->modemap[mode].geometry.pixelcount = cols;
                     this->camera_info.region_of_interest[0] = this->win_hstart;
