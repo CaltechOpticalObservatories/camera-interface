@@ -72,7 +72,7 @@ namespace Camera {
       long imnum(std::string num_in, std::string& num_out);
       long writekeys(std::string writekeys_in, std::string &writekeys_out);
       long fitsnaming(std::string naming_in, std::string& naming_out);
-      void increment_imnum() { if (this->fits_naming.compare("number")==0) this->image_num++; };
+      void increment_imnum() { if (this->fits_naming=="number") this->image_num++; };
       void set_fitstime(std::string time_in);
       long get_fitsname(std::string &name_out);
       long get_fitsname(std::string controllerid, std::string &name_out);
