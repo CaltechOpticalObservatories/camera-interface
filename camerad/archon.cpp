@@ -4378,43 +4378,15 @@ namespace Archon {
             logwrite(function, message.str());
         }
 
-        // If not RAW mode then wait for Archon frame buffer to be ready,
+        // Wait for Archon frame buffer to be ready,
         // then read the latest ready frame buffer to the host. If this
-        // is a squence, then loop over all expected frames.
-        //
-        // if ( mode != "RAW" ) {                                          // If not raw mode then
-        int expcount = 0;                                             // counter used only for tracking pre-exposures
+        // is a sequence, then loop over all expected frames.
 
         //
         // -- MAIN SEQUENCE LOOP --
-        //
+        message.str(""); message << "camera.datacube() " << this->camera.datacube() << " camera.cubeamps() " << this->camera.cubeamps();
+        logwrite( function, message.str());
         while (nseq-- > 0) {
-
-            // Wait for any pre-exposures, first the exposure delay then the readout,
-            // but then continue to the next because pre-exposures are not read from
-            // the Archon's buffer.
-            //
-            if ( ++expcount <= this->camera_info.num_pre_exposures ) {
-
-                message.str(""); message << "pre-exposure " << expcount << " of " << this->camera_info.num_pre_exposures;
-                logwrite( function, message.str() );
-
-                if ( this->camera_info.exposure_time != 0 ) {                 // wait for the exposure delay to complete (if there is one)
-                    error = this->wait_for_exposure();
-                    if ( error != NO_ERROR ) {
-                        logwrite( function, "ERROR: waiting for pre-exposure" );
-                        return error;
-                    }
-                }
-
-                error = this->wait_for_readout();                             // Wait for the readout into frame buffer,
-                if ( error != NO_ERROR ) {
-                    logwrite( function, "ERROR: waiting for pre-exposure readout" );
-                    return error;
-                }
-
-                continue;
-            }
 
             if ( !this->camera.datacube() || this->camera.cubeamps() ) {
                 this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
