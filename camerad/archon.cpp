@@ -4372,7 +4372,7 @@ namespace Archon {
         std::stringstream message;
         long error = NO_ERROR;
         std::string nseqstr;
-        int nseq;
+        int nseq, finalframe;
 
         std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
@@ -4457,6 +4457,7 @@ namespace Archon {
         }
         this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
 
+        finalframe = this->lastframe + nseq;
         // initiate the exposure here
         //
         error = this->prep_parameter(this->exposeparam, nseqstr);
@@ -4489,7 +4490,7 @@ namespace Archon {
 
         //
         // -- MAIN SEQUENCE LOOP --
-        while (nseq-- > 0) {
+        while (nseq-- > 0 && this->lastframe < finalframe) {
 
             if ( !this->camera.datacube() || this->camera.cubeamps() ) {
                 this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
