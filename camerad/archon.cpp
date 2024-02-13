@@ -2765,8 +2765,7 @@ namespace Archon {
             return(ERROR);
         }
 
-        message.str(""); message << "will read " << (frame_type == Camera::FRAME_RAW ? "raw" : "image")
-                                 << " data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
+        message.str(""); message << "will read image data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
         logwrite(function, message.str());
 
         // Lock the frame buffer before reading it
@@ -2779,31 +2778,13 @@ namespace Archon {
         // Send the FETCH command to read the memory buffer from the Archon backplane.
         // Archon replies with one binary response per requested block. Each response
         // has a message header.
-        //
-        switch (frame_type) {
-            case Camera::FRAME_RAW:
-                // Archon buffer base address
-                bufaddr   = this->frame.bufbase[this->frame.index] + this->frame.bufrawoffset[this->frame.index];
 
-                // Calculate the number of blocks expected. image_memory is bytes per detector
-                bufblocks = (unsigned int) floor( (this->camera_info.image_memory + BLOCK_LEN - 1 ) / BLOCK_LEN );
-                break;
+        // Archon buffer base address
+        bufaddr   = this->frame.bufbase[this->frame.index];
 
-            case Camera::FRAME_IMAGE:
-                // Archon buffer base address
-                bufaddr   = this->frame.bufbase[this->frame.index];
-
-                // Calculate the number of blocks expected. image_memory is bytes per detector
-                bufblocks =
-                        (unsigned int) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
-                break;
-
-            default:  // should be impossible
-                message.str(""); message << "unknown frame type specified: " << frame_type << ": expected FRAME_RAW | FRAME_IMAGE";
-                this->camera.log_error( function, message.str() );
-                return(ERROR);
-                break;
-        }
+        // Calculate the number of blocks expected. image_memory is bytes per detector
+        bufblocks =
+                (unsigned int) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
 
         message.str(""); message << "will read " << std::dec << this->camera_info.image_memory << " bytes "
                                  << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
@@ -2870,15 +2851,14 @@ namespace Archon {
                 break;                         // break out of for loop
             }
             if (header[0] == '?') {  // Archon retured an error
-                message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ") << " data";
+                message.str(""); message << "Archon returned \'?\' reading image data";
                 this->camera.log_error( function, message.str() );
                 this->fetchlog();      // check the Archon log for error messages
                 error = ERROR;
                 break;                         // break out of for loop
 
             } else if (strncmp(header, check, 4) != 0) {
-                message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
-                                         << " data. header=" << header << " check=" << check;
+                message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
                 this->camera.log_error( function, message.str() );
                 error = ERROR;
                 break;                         // break out of for loop
@@ -2922,8 +2902,8 @@ namespace Archon {
         // On success, write the value to the log and return
         //
         if (error == NO_ERROR) {
-            message.str(""); message << "successfully read " << std::dec << totalbytesread << (frame_type==Camera::FRAME_RAW?" raw":" image")
-                                     << " bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
+            message.str(""); message << "successfully read " << std::dec << totalbytesread
+                    << " image bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
             logwrite(function, message.str());
 
         } else {
