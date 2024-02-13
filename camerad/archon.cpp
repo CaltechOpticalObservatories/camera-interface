@@ -4491,7 +4491,8 @@ namespace Archon {
         //
         // -- MAIN SEQUENCE LOOP --
         nread = 0;
-        while (nseq-- > 0 && this->lastframe < finalframe) {
+        int ns = nseq;
+        while (ns-- > 0 && this->lastframe < finalframe) {
 
             if ( !this->camera.datacube() || this->camera.cubeamps() ) {
                 this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
@@ -4530,7 +4531,7 @@ namespace Archon {
 
             if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
 
-        }  // end of sequence loop, while (nseq-- > 0)
+        }  // end of sequence loop, while (ns-- > 0 && this->lastframe < finalframe)
 
         // ASYNC status message on completion of each file
         message.str(""); message << "READOUT " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" ) << " (" << nread << " of " << nseq << " read)";
