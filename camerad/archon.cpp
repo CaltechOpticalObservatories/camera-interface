@@ -4309,8 +4309,8 @@ namespace Archon {
                     this->set_camera_mode(win_mode);
 
                     // Now set params
-                    int rows = (this->win_vstop - this->win_vstart);
-                    int cols = (this->win_hstop - this->win_hstart);
+                    int rows = (this->win_vstop - this->win_vstart) + 1;
+                    int cols = (this->win_hstop - this->win_hstart) + 1;
                     if (error == NO_ERROR) {
                         cmd << "H2RG_win_columns " << cols;
                         error = this->set_parameter( cmd.str() );
