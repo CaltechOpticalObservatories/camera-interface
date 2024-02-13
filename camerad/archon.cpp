@@ -4372,7 +4372,7 @@ namespace Archon {
         std::stringstream message;
         long error = NO_ERROR;
         std::string nseqstr;
-        int nseq, finalframe;
+        int nseq, finalframe, nread;
 
         std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
@@ -4490,6 +4490,7 @@ namespace Archon {
 
         //
         // -- MAIN SEQUENCE LOOP --
+        nread = 0;
         while (nseq-- > 0 && this->lastframe < finalframe) {
 
             if ( !this->camera.datacube() || this->camera.cubeamps() ) {
@@ -4522,7 +4523,8 @@ namespace Archon {
             }
 
             // ASYNC status message on completion of each readout
-            message.str(""); message << "READOUT COMPLETE";
+            nread++;
+            message.str(""); message << "READOUT COMPLETE (" << nread << " of " << nseq << " read)";
             this->camera.async.enqueue( message.str() );
             logwrite( function, message.str() );
 
@@ -4531,7 +4533,7 @@ namespace Archon {
         }  // end of sequence loop, while (nseq-- > 0)
 
         // ASYNC status message on completion of each file
-        message.str(""); message << "READOUT " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
+        message.str(""); message << "READOUT " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" ) << " (" << nread << " of " << nseq << " read)";
         this->camera.async.enqueue( message.str() );
         error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
 
