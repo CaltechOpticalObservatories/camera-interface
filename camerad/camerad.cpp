@@ -84,16 +84,13 @@ int main(int argc, char **argv) {
     if ( filename ) {
       server.config.filename = std::string( filename );
     }
-  }
-  else
 
-  // if no "-f <filename>" then as long as there's at least one arg,
-  // assume that is the config file name.
-  //
-  if (argc>1) {
+  } else if (argc>1) {
+      // if no "-f <filename>" then as long as there's at least one arg,
+      // assume that is the config file name.
     server.config.filename = std::string( argv[1] );
-  }
-  else {
+
+  } else {
     logwrite(function, "ERROR: no configuration file specified");
     server.exit_cleanly();
   }
@@ -134,17 +131,15 @@ int main(int argc, char **argv) {
   if ( zone == "local" ) {
     logwrite( function, "using local time zone" );
     server.systemkeys.addkey( "TM_ZONE=local//time zone" );
-  }
-  else {
+
+  } else {
     logwrite( function, "using GMT time zone" );
     server.systemkeys.addkey( "TM_ZONE=GMT//time zone" );
   }
 
   if ( !daemon_in.empty() && daemon_in == "yes" ) start_daemon = true;
-  else
-  if ( !daemon_in.empty() && daemon_in == "no"  ) start_daemon = false;
-  else
-  if ( !daemon_in.empty() ) {
+  else if ( !daemon_in.empty() && daemon_in == "no"  ) start_daemon = false;
+  else if ( !daemon_in.empty() ) {
     message.str(""); message << "ERROR: unrecognized argument DAEMON=" << daemon_in << ", expected { yes | no }";
     logwrite( function, message.str() );
     server.exit_cleanly();
@@ -211,8 +206,8 @@ int main(int argc, char **argv) {
       Network::TcpSocket sck(server.nbport, false, CONN_TIMEOUT, i);   // instantiate TcpSocket object, non-blocking port, CONN_TIMEOUT timeout
       sck.Listen();                                    // create a listening socket
       socklist.push_back(sck);
-    }
-    else {                                           // subsequent socket objects are copies of the first
+
+    } else {                                           // subsequent socket objects are copies of the first
       Network::TcpSocket sck = socklist[1];            // copy the first one, which has a valid listening socket
       sck.id = i;
       socklist.push_back(sck);
