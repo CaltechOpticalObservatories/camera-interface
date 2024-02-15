@@ -2683,58 +2683,20 @@ namespace Archon {
   /**************** Archon::Interface::read_frame *****************************/
 
 
-    /**************** Archon::Interface::hread_frame *****************************/
-    /**
-     * @fn     hread_frame
-     * @brief  read latest Archon frame buffer
-     * @param  none
-     * @return ERROR or NO_ERROR
-     *
-     * This is function is overloaded.
-     *
-     * This version, with no parameter, is the one that is called by the server.
-     * The decision is made here if the frame to be read is a RAW or an IMAGE
-     * frame based on this->camera_info.current_observing_mode, then the
-     * overloaded version of read_frame(frame_type) is called with the appropriate
-     * frame type of IMAGE or RAW.
-     *
-     * This function WILL NOT call write_frame(...) to write data after reading it.
-     *
-     */
+  /**************** Archon::Interface::hread_frame *****************************/
+  /**
+   * @fn     hread_frame
+   * @brief  read latest Archon frame buffer
+   * @param  frame_type
+   * @return ERROR or NO_ERROR
+   *
+   * This is the read_frame function which performs the actual read of the
+   * selected frame type.
+   *
+   * No write takes place here!
+   *
+   */
     long Interface::hread_frame() {
-        std::string function = "Archon::Interface::hread_frame";
-        std::stringstream message;
-        long error = NO_ERROR;
-
-        if ( ! this->modeselected ) {
-            this->camera.log_error( function, "no mode selected" );
-            return ERROR;
-        }
-
-        // IMAGE
-        error = this->hread_frame(Camera::FRAME_IMAGE); // read image frame
-        if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading image frame" ); return error; }
-
-        return error;
-    }
-    /**************** Archon::Interface::hread_frame *****************************/
-
-
-    /**************** Archon::Interface::hread_frame *****************************/
-    /**
-     * @fn     hread_frame
-     * @brief  read latest Archon frame buffer
-     * @param  frame_type
-     * @return ERROR or NO_ERROR
-     *
-     * This is the overloaded read_frame function which accepts the frame_type argument.
-     * This is called only by this->read_frame() to perform the actual read of the
-     * selected frame type.
-     *
-     * No write takes place here!
-     *
-     */
-    long Interface::hread_frame(Camera::frame_type_t frame_type) {
         std::string function = "Archon::Interface::hread_frame";
         std::stringstream message;
         int retval;
@@ -2747,16 +2709,8 @@ namespace Archon {
         long error = ERROR;
         int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
 
-        this->camera_info.frame_type = frame_type;
-
-        error = this->prepare_image_buffer();
-        if (error == ERROR) {
-            logwrite( function, "ERROR: unable to allocate an image buffer" );
-            return(ERROR);
-        }
-
         // Archon buffer number of the last frame read into memory
-        //
+        // Archon frame index is 1 biased so add 1 here
         bufready = this->frame.index + 1;
 
         if (bufready < 1 || bufready > this->camera_info.activebufs) {
@@ -4449,15 +4403,31 @@ namespace Archon {
         // set datacube true and then send "expose" without a number.
         this->camera_info.extension = 0;
 
-        error = this->get_frame_status();  // TODO is this needed here?
+        // initialize frame parameters (index, etc.)
+        error = this->get_frame_status();
 
         if (error != NO_ERROR) {
             logwrite( function, "ERROR: unable to get frame status" );
             return(ERROR);
         }
-        this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
+        // save the last frame number acquired (wait_for_readout will need this)
+        this->lastframe = this->frame.bufframen[this->frame.index];
 
+        // calculate the last frame to handle dropped frames correctly
         finalframe = this->lastframe + nseq;
+
+        if (nseq > 1) {
+            message.str(""); message << "starting sequence of " << nseq << " frames. lastframe=" << this->lastframe;
+            logwrite(function, message.str());
+        }
+
+        // Allocate image buffer once
+        this->camera_info.frame_type = Camera::FRAME_IMAGE;
+        error = this->prepare_image_buffer();
+        if (error == ERROR) {
+            logwrite( function, "ERROR: unable to allocate an image buffer" );
+            return(ERROR);
+        }
 
         // initiate the exposure here
         error = this->prep_parameter(this->exposeparam, nseqstr);
@@ -4478,19 +4448,14 @@ namespace Archon {
 
         logwrite(function, "exposure started");
 
-        if (nseq > 1) {
-            message.str(""); message << "starting sequence of " << nseq << " frames. lastframe=" << this->lastframe;
-            logwrite(function, message.str());
-        }
-
         // Wait for Archon frame buffer to be ready,
         // then read the latest ready frame buffer to the host. If this
         // is a sequence, then loop over all expected frames.
 
         //
         // -- MAIN SEQUENCE LOOP --
-        nread = 0;
-        int ns = nseq;
+        nread = 0;          // Keep track of how many we actually read
+        int ns = nseq;      // Iterate with ns, to preserve original request
         while (ns-- > 0 && this->lastframe < finalframe) {
 
             if ( !this->camera.datacube() || this->camera.cubeamps() ) {

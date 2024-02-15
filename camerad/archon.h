@@ -182,7 +182,6 @@ namespace Archon {
       long read_frame();                     //!< read Archon frame buffer into host memory
       long hread_frame();
       long read_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory
-      long hread_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
       long write_raw();                      //!< write raw 16 bit data to a FITS file
       long write_config_key( const char *key, const char *newvalue, bool &changed );
