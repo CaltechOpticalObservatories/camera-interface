@@ -2122,8 +2122,7 @@ namespace Archon {
    * @return 
    *
    * Sends the "FRAME" command to Archon, reads back the reply, then parses the
-   * reply and stores parameters into the framestatus structure 
-   * (of type frame_data_t).
+   * reply and stores parameters into the frame structure (of type frame_data_t).
    *
    */
   long Interface::get_frame_status() {
@@ -2140,26 +2139,26 @@ namespace Archon {
       return(error);
     }
 
-    // First Tokenize breaks the single, continuous string into vector of individual strings,
+    // First Tokenize breaks the single, continuous reply string into vector of individual strings,
     // from "TIMER=xxxx RBUF=xxxx " to:
     //   tokens[0] : TIMER=xxxx
     //   tokens[1] : RBUF=xxxx
     //   tokens[2] : etc.
-    //
     std::vector<std::string> tokens;
     Tokenize(reply, tokens, " ");
 
+    // loop over all tokens in reply
     for (const auto & token : tokens) {
 
-      // Second Tokenize separates the paramater from the value
-      //
+      // Second Tokenize separates the parameter from the value
+      // subtokens[0] = keyword
+      // subtokens[1] = value
       std::vector<std::string> subtokens;
       subtokens.clear();
       Tokenize(token, subtokens, "=");
 
       // Each entry in the FRAME message must have two tokens, one for each side of the "=" equal sign
       // (in other words there must be two subtokens per token)
-      //
       if (subtokens.size() != 2) {
         message.str("");
         message << "expected 2 but received invalid number of tokens (" << subtokens.size() << ") in FRAME message:";
@@ -2172,21 +2171,34 @@ namespace Archon {
       int value=0;
       uint64_t lvalue=0;
 
-      if (subtokens[0]=="TIMER") this->frame.timer = subtokens[1];  // timer is a string
-      else {                                                        // everything else is going to be a number
-        try {                                                       // use "try...catch" to catch exceptions converting strings to numbers
-          if (subtokens[0].compare(0, 3, "BUF")==0) {               // for all "BUFnSOMETHING=VALUE" we want the bufnum "n"
-            bufnum = std::stoi( subtokens[0].substr(3, 1) );        // extract the "n" here which is 1-based (1,2,3)
+      // Parse subtokens[1] (value) based on subtoken[0] (keyword)
+
+      // timer is a string
+      if (subtokens[0]=="TIMER") {
+          this->frame.timer = subtokens[1];
+
+      } else {
+          // everything else is going to be a number
+          // use "try...catch" to catch exceptions converting strings to numbers
+        try {
+            // for all "BUFnSOMETHING=VALUE" we want the bufnum "n"
+          if (subtokens[0].compare(0, 3, "BUF")==0) {
+              // extract the "n" here which is 1-based (1,2,3)
+              bufnum = std::stoi( subtokens[0].substr(3, 1) );
           }
 
-          if (subtokens[0].substr(4)=="BASE" ) {                    // for "BUFnBASE=xxx" the value is uint64
-            lvalue  = std::stol( subtokens[1] );                    // this value will get assigned to the corresponding parameter
+            // for "BUFnBASE=xxx" the value is uint64
+          if (subtokens[0].substr(4)=="BASE" ) {
+            lvalue  = std::stol( subtokens[1] );   // this value will get assigned to the corresponding parameter
 
-          } else if (subtokens[0].find("TIMESTAMP") != std::string::npos) {  // for any "xxxTIMESTAMPxxx" the value is uint64
-            lvalue  = std::stol( subtokens[1] );                    // this value will get assigned to the corresponding parameter
+            // for any "xxxTIMESTAMPxxx" the value is uint64
+          } else if (subtokens[0].find("TIMESTAMP") != std::string::npos) {
+            lvalue  = std::stol( subtokens[1] );   // this value will get assigned to the corresponding parameter
 
-            /* everything else is an int */
-          } else value  = std::stoi( subtokens[1] );                     // this value will get assigned to the corresponding parameter
+            // everything else is an int
+          } else {
+              value  = std::stoi( subtokens[1] );  // this value will get assigned to the corresponding parameter
+          }
 
         } catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert buffer: " << subtokens[0] << " or value: " << subtokens[1] << " from FRAME message to integer. Expected BUFnSOMETHING=nnnn";
@@ -2198,21 +2210,28 @@ namespace Archon {
           this->camera.log_error( function, message.str() );
           return(ERROR);
         }
-      }
-      if (subtokens[0]=="RBUF")  this->frame.rbuf  = value;
-      if (subtokens[0]=="WBUF")  this->frame.wbuf  = value;
+      } // end else everything else is a number
+
+      // Value has been parsed
+
+      // get currently locked buffers
+      if (subtokens[0]=="RBUF")  this->frame.rbuf  = value; // locked for reading
+      if (subtokens[0]=="WBUF")  this->frame.wbuf  = value; // locked for writing
 
       // The next group are BUFnSOMETHING=VALUE
       // Extract the "n" which must be a number from 1 to Archon::nbufs
       // After getting the buffer number we assign the corresponding value.
       //
       if (subtokens[0].compare(0, 3, "BUF")==0) {
-        if (bufnum < 1 || bufnum > Archon::nbufs) {
+          bufnum = std::stoi( subtokens[0].substr(3, 1) );
+          // verify buffer number (1,2, or 3)
+          if (bufnum < 1 || bufnum > Archon::nbufs) {
           message.str(""); message << "buffer number " << bufnum << " from FRAME message outside range {1:" << Archon::nbufs << "}";
           this->camera.log_error( function, message.str() );
           return(ERROR);
         }
         bufnum--;   // subtract 1 because it is 1-based in the message but need 0-based for the indexing
+        // Assign value to appropriate variable in frame structure
         if (subtokens[0].substr(4) == "SAMPLE")      this->frame.bufsample[bufnum]      =  value;
         if (subtokens[0].substr(4) == "COMPLETE")    this->frame.bufcomplete[bufnum]    =  value;
         if (subtokens[0].substr(4) == "MODE")        this->frame.bufmode[bufnum]        =  value;
@@ -2228,8 +2247,10 @@ namespace Archon {
         if (subtokens[0].substr(4) == "TIMESTAMP")   this->frame.buftimestamp[bufnum]   = lvalue;
         if (subtokens[0].substr(4) == "RETIMESTAMP") this->frame.bufretimestamp[bufnum] = lvalue;
         if (subtokens[0].substr(4) == "FETIMESTAMP") this->frame.buffetimestamp[bufnum] = lvalue;
-      }
-    }
+      } // end if token is BUFnSOMETHiNG
+    }   // end loop over all returned tokens
+
+    // FRAME replay has now been parsed into frame structure variables
 
     newestbuf   = this->frame.index;
 
@@ -2243,23 +2264,22 @@ namespace Archon {
     }
 
     // loop through the number of buffers
-    //
     int num_zero = 0;
     for (int bc=0; bc<Archon::nbufs; bc++) {
 
-      // look for special start-up case, when all frame buffers are zero
-      //
+      // count number of zero-valued buffers
       if ( this->frame.bufframen[bc] == 0 ) num_zero++;
 
+      // Is the latest frame complete?
       if ( (this->frame.bufframen[bc] > newestframe) &&
             this->frame.bufcomplete[bc] ) {
+          // update frame and buffer numbers
         newestframe = this->frame.bufframen[bc];
         newestbuf   = bc;
       }
     }
 
     // start-up case, all frame buffers are zero
-    //
     if (num_zero == Archon::nbufs) {
       newestframe = 0;
       newestbuf   = 0;
