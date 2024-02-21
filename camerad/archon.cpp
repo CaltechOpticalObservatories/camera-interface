@@ -2212,7 +2212,7 @@ namespace Archon {
         }
       } // end else everything else is a number
 
-      // Value has been parsed
+      // subtokens value has been parsed based on keyword
 
       // get currently locked buffers
       if (subtokens[0]=="RBUF")  this->frame.rbuf  = value; // locked for reading
@@ -2248,62 +2248,67 @@ namespace Archon {
         if (subtokens[0].substr(4) == "RETIMESTAMP") this->frame.bufretimestamp[bufnum] = lvalue;
         if (subtokens[0].substr(4) == "FETIMESTAMP") this->frame.buffetimestamp[bufnum] = lvalue;
       } // end if token is BUFnSOMETHiNG
-    }   // end loop over all returned tokens
 
-    // FRAME replay has now been parsed into frame structure variables
+    }   // end loop over all returned tokens from FRAME reply
 
+    // FRAME reply has now been parsed into frame structure variables
+    // now update frame.frame, frame.index, and frame.next_index
+
+    // Current frame.index
     newestbuf   = this->frame.index;
 
+    // Is frame.index a legal index?
     if (this->frame.index < (int)this->frame.bufframen.size()) {
-      newestframe = this->frame.bufframen[this->frame.index];
+        // get the current frame number
+        newestframe = this->frame.bufframen[this->frame.index];
 
     } else {
-      message.str(""); message << "newest buf " << this->frame.index << " from FRAME message exceeds number of buffers " << this->frame.bufframen.size();
-      this->camera.log_error( function, message.str() );
-      return(ERROR);
+        // frame.index value is illegal
+        message.str(""); message << "newest buf " << this->frame.index << " from FRAME message exceeds number of buffers " << this->frame.bufframen.size();
+        this->camera.log_error( function, message.str() );
+        return(ERROR);
     }
 
-    // loop through the number of buffers
-    int num_zero = 0;
+    int num_zero = 0;   // count zero buffers
+
+    // loop through the buffers
     for (int bc=0; bc<Archon::nbufs; bc++) {
 
       // count number of zero-valued buffers
       if ( this->frame.bufframen[bc] == 0 ) num_zero++;
 
-      // Is the latest frame complete?
-      if ( (this->frame.bufframen[bc] > newestframe) &&
-            this->frame.bufcomplete[bc] ) {
-          // update frame and buffer numbers
-        newestframe = this->frame.bufframen[bc];
-        newestbuf   = bc;
+      // Is the latest frame greater than the current one and is it complete?
+      if ( (this->frame.bufframen[bc] > newestframe) && this->frame.bufcomplete[bc] ) {
+          // if so, update frame and buffer numbers
+          newestframe = this->frame.bufframen[bc];
+          newestbuf   = bc;
       }
     }
 
-    // start-up case, all frame buffers are zero
+    // In start-up case, all frame buffers are zero
     if (num_zero == Archon::nbufs) {
-      newestframe = 0;
-      newestbuf   = 0;
+        // initialize frame number and buffer index both to zero
+        newestframe = 0;
+        newestbuf   = 0;
     }
 
-    /**
-     * save index of newest buffer. From this we can find the newest frame, etc.
-     */
-    this->frame.index = newestbuf;
+    // save the newest frame number and index of newest buffer.
     this->frame.frame = newestframe;
+    this->frame.index = newestbuf;
 
-    // Index of next frame is this->frame.index+1 
-    // except for start-up case (when it is 0) and
-    // wrapping to 0 when it reaches the maximum number of active buffers.
-    //
-    this->frame.next_index = this->frame.index + 1;
-    if ( this->frame.next_index >= this->camera_info.activebufs ) {
-      this->frame.next_index = 0;
-    }
-
-    // startup condition for next_frame
-    //
+    // startup condition for next_frame:
+    // frame number is 1 and corresponding buffer is not complete
     if ( ( this->frame.bufframen[ this->frame.index ] ) == 1 && this->frame.bufcomplete[ this->frame.index ] == 0 ) {
-      this->frame.next_index = 0;
+          this->frame.next_index = 0;
+
+    } else {
+        // Index of next frame is this->frame.index+1
+        this->frame.next_index = this->frame.index + 1;
+
+        // frame.next_index wraps to 0 when it reaches the maximum number of active buffers.
+        if (this->frame.next_index >= this->camera_info.activebufs) {
+            this->frame.next_index = 0;
+        }
     }
 
     return(error);
