@@ -5053,7 +5053,7 @@ namespace Archon {
     bool done = false;
 
     message.str("");
-    message << "waiting for new frame: lastframe=" << this->lastframe << " current buffer=" << this->frame.index+1;
+    message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
     logwrite(function, message.str());
 
     // waittime is 10% over the specified readout time
