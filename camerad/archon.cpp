@@ -5053,7 +5053,7 @@ namespace Archon {
     bool done = false;
 
     message.str("");
-    message << "waiting for new frame: lastframe=" << this->lastframe << " frame.index=" << this->frame.index;
+    message << "waiting for new frame: lastframe=" << this->lastframe << " current frame.index=" << this->frame.index;
     logwrite(function, message.str());
 
     // waittime is 10% over the specified readout time
@@ -5098,8 +5098,9 @@ namespace Archon {
         logwrite( function, "ERROR: unable to get frame status" );
         break;
       }
-      currentframe = this->frame.bufframen[this->frame.index];
 
+      // get current frame number and check the status of its buffer
+      currentframe = this->frame.bufframen[this->frame.index];
       if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
         done  = true;
         error = NO_ERROR;
@@ -5161,7 +5162,7 @@ namespace Archon {
     //
     if (!this->abort) {
       message.str("");
-      message << "received currentframe: " << currentframe;
+      message << "received currentframe: " << currentframe << " from buffer " << this->frame.index;
       logwrite(function, message.str());
       return(NO_ERROR);
 
