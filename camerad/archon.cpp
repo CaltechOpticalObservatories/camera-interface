@@ -4351,7 +4351,7 @@ namespace Archon {
         std::stringstream message;
         long error = NO_ERROR;
         std::string nseqstr;
-        int nseq, finalframe, nread;
+        int nseq, finalframe, nread, currentframe, currentindex;
 
         std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
@@ -4430,6 +4430,8 @@ namespace Archon {
 
         // initialize frame parameters (index, etc.)
         error = this->get_frame_status();
+        currentindex = this->frame.index;
+        currentframe = this->frame.bufframen[ currentindex ];
 
         if (error != NO_ERROR) {
             logwrite( function, "ERROR: unable to get frame status" );
@@ -4442,7 +4444,7 @@ namespace Archon {
         finalframe = this->lastframe + nseq;
 
         if (nseq > 1) {
-            message.str(""); message << "starting sequence of " << nseq << " frames. lastframe=" << this->lastframe;
+            message.str(""); message << "starting sequence of " << nseq << " frames. lastframe=" << this->lastframe << " last buffer=" << currentindex+1;
             logwrite(function, message.str());
         }
 
@@ -4455,6 +4457,7 @@ namespace Archon {
         }
 
         // initiate the exposure here
+        logwrite(function, "exposure starting");
         error = this->prep_parameter(this->exposeparam, nseqstr);
         if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
         if ( error != NO_ERROR ) {
@@ -4464,14 +4467,12 @@ namespace Archon {
 
         // get system time and Archon's timer after exposure starts
         // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
-        this->camera_info.start_time = get_timestamp();                 // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-        if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
-            logwrite( function, "ERROR: could not get start time" );
-            return( ERROR );
-        }
-        this->add_filename_key();                                       // add filename to system keys database
-
-        logwrite(function, "exposure started");
+        // this->camera_info.start_time = get_timestamp();                 // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+        // if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
+        //     logwrite( function, "ERROR: could not get start time" );
+        //     return( ERROR );
+        // }
+        // this->add_filename_key();                                       // add filename to system keys database
 
         // Wait for Archon frame buffer to be ready,
         // then read the latest ready frame buffer to the host. If this
@@ -4483,16 +4484,17 @@ namespace Archon {
         int ns = nseq;      // Iterate with ns, to preserve original request
         while (ns-- > 0 && this->lastframe < finalframe) {
 
-            if ( !this->camera.datacube() || this->camera.cubeamps() ) {
-                this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-                if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
-                    logwrite( function, "ERROR: could not get start time" );
-                    return( ERROR );
-                }
+            // if ( !this->camera.datacube() || this->camera.cubeamps() ) {
+            //    this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
+            //    if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
+            //        logwrite( function, "ERROR: could not get start time" );
+            //        return( ERROR );
+            //    }
                 // this->add_filename_key();                                     // add filename to system keys database
-            }
+            // }
 
-            if ( this->camera_info.exposure_time != 0 ) {                   // wait for the exposure delay to complete (if there is one)
+            // wait for the exposure delay to complete (if there is one)
+            if ( this->camera_info.exposure_time != 0 ) {
                 error = this->wait_for_exposure();
                 if ( error != NO_ERROR ) {
                     logwrite( function, "ERROR: waiting for exposure" );
@@ -4500,13 +4502,15 @@ namespace Archon {
                 }
             }
 
-            error = this->wait_for_readout();                               // Wait for the readout into frame buffer,
+            // Wait for the readout into frame buffer,
+            error = this->wait_for_readout();
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: waiting for readout" );
                 return error;
             }
 
-            error = hread_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
+            // then read the frame buffer to host (and write file) when frame ready.
+            error = hread_frame();
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: reading frame buffer" );
                 return error;
@@ -4522,8 +4526,8 @@ namespace Archon {
 
         }  // end of sequence loop, while (ns-- > 0 && this->lastframe < finalframe)
 
-        // ASYNC status message on completion of each file
-        message.str(""); message << "READOUT " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" ) << " (" << nread << " of " << nseq << " read)";
+        // ASYNC status message on completion of each sequence
+        message.str(""); message << "READOUT SEQUENCE " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" ) << " (" << nread << " of " << nseq << " read)";
         this->camera.async.enqueue( message.str() );
         error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
 
