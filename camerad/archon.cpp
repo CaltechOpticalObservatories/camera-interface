@@ -5197,41 +5197,22 @@ namespace Archon {
         std::string function = "Archon::Interface::hwait_for_readout";
         std::stringstream message;
         long error = NO_ERROR;
-        int currentframe=this->lastframe;
+        int currentframe=this->lastframe + 1;
 
         message.str("");
         message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
         logwrite(function, message.str());
 
-        // waittime is 10% over the specified readout time
-        // and will be used to keep track of timeout errors
-        //
-        double waittime;
-        try {
-            waittime = this->camera.readout_time.at(0) * 1.1;        // this is in msec
-
-        } catch(std::out_of_range &) {
-            message.str(""); message << "readout time for Archon not found from config file";
-            this->camera.log_error( function, message.str() );
-            return(ERROR);
-        }
-
         usleep( 1 );  // tune for size of window
 
-        //
-        error = this->get_frame_status();
-        if ( error != NO_ERROR ) {
-            logwrite( function, "ERROR: unable to get frame status" );
-            return error;
-        }
-        message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.index ];
-        this->camera.async.enqueue( message.str() );
+        this->frame.index += 1;
 
-        if ( error != NO_ERROR ) {
-            return error;
+        // Wrap frame.index
+        if (this->frame.index >= (int)this->frame.bufframen.size()) {
+            this->frame.index = 0;
         }
 
-        currentframe = this->frame.bufframen[this->frame.index];
+        this->frame.bufframen[ this->frame.index ] = currentframe;
 
 #ifdef LOGLEVEL_DEBUG
         message.str("");
