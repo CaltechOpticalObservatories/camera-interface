@@ -4431,7 +4431,6 @@ namespace Archon {
         // initialize frame parameters (index, etc.)
         error = this->get_frame_status();
         currentindex = this->frame.index;
-        currentframe = this->frame.bufframen[ currentindex ];
 
         if (error != NO_ERROR) {
             logwrite( function, "ERROR: unable to get frame status" );
@@ -5199,8 +5198,6 @@ namespace Archon {
         std::stringstream message;
         long error = NO_ERROR;
         int currentframe=this->lastframe;
-        int busycount=0;
-        bool done = false;
 
         message.str("");
         message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
@@ -5218,9 +5215,6 @@ namespace Archon {
             this->camera.log_error( function, message.str() );
             return(ERROR);
         }
-
-        double clock_now     = get_clock_time();                   // get_clock_time returns seconds
-        double clock_timeout = clock_now + waittime/1000.;         // must receive frame by this time
 
         usleep( 1 );  // tune for size of window
 
