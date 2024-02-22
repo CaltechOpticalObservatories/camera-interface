@@ -5207,7 +5207,7 @@ namespace Archon {
         message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
         logwrite(function, message.str());
 
-        usleep( 100 );  // tune for size of window
+        usleep( 1000 );  // tune for size of window
 
         this->frame.index += 1;
 
