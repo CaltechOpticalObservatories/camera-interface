@@ -4537,6 +4537,7 @@ namespace Archon {
         }
 
         message.str(""); message << "Last frame read " << this->frame.frame << " from buffer " << this->frame.index + 1;
+        logwrite( function, message.str());
 
         return (error);
     }
