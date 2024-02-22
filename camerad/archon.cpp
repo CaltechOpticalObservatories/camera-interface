@@ -4530,10 +4530,13 @@ namespace Archon {
         this->camera.async.enqueue( message.str() );
         error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
 
-        // remember the cubeamps setting used for the last completed exposure
-        // TODO revisit once region-of-interest is implemented
-        //
-        this->lastcubeamps = this->camera.cubeamps();
+        error = get_frame_status();
+        if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: getting final frame status" );
+            return error;
+        }
+
+        message.str(""); message << "Last frame read " << this->frame.frame << " from buffer " << this->frame.index + 1;
 
         return (error);
     }
@@ -5213,6 +5216,7 @@ namespace Archon {
         }
 
         this->frame.bufframen[ this->frame.index ] = currentframe;
+        this->frame.frame = currentframe;
 
 #ifdef LOGLEVEL_DEBUG
         message.str("");
