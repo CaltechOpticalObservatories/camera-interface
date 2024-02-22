@@ -2749,10 +2749,10 @@ namespace Archon {
 
         // Lock the frame buffer before reading it
         //
-        if ( this->lock_buffer(bufready) == ERROR) {
-            logwrite( function, "ERROR locking frame buffer" );
-            return (ERROR);
-        }
+        // if ( this->lock_buffer(bufready) == ERROR) {
+        //    logwrite( function, "ERROR locking frame buffer" );
+        //    return (ERROR);
+        // }
 
         // Send the FETCH command to read the memory buffer from the Archon backplane.
         // Archon replies with one binary response per requested block. Each response
@@ -2876,7 +2876,7 @@ namespace Archon {
 
         // Unlock the frame buffer
         //
-        if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+        // if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
 
         // On success, write the value to the log and return
         //
