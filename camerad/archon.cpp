@@ -4351,7 +4351,7 @@ namespace Archon {
         std::stringstream message;
         long error = NO_ERROR;
         std::string nseqstr;
-        int nseq, finalframe, nread, currentframe, currentindex;
+        int nseq, finalframe, nread, currentindex;
 
         std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
