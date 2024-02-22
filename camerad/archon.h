@@ -200,6 +200,7 @@ namespace Archon {
       long video();
       long wait_for_exposure();
       long wait_for_readout();
+      long hwait_for_readout();
       long get_parameter(std::string parameter, std::string &retstring);
       long set_parameter( std::string parameter, long value );
       long set_parameter(std::string parameter);

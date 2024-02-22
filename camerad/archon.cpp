@@ -4503,7 +4503,7 @@ namespace Archon {
             }
 
             // Wait for the readout into frame buffer,
-            error = this->wait_for_readout();
+            error = this->hwait_for_readout();
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: waiting for readout" );
                 return error;
@@ -5184,7 +5184,93 @@ namespace Archon {
   /**************** Archon::Interface::wait_for_readout ***********************/
 
 
-  /**************** Archon::Interface::get_parameter **************************/
+    /**************** Archon::Interface::hwait_for_readout ***********************/
+    /**
+     * @fn     hwait_for_readout
+     * @brief  creates a wait until the next frame buffer is ready
+     * @param  none
+     * @return ERROR or NO_ERROR
+     *
+     * This function polls the Archon frame status until a new frame is ready.
+     *
+     */
+    long Interface::hwait_for_readout() {
+        std::string function = "Archon::Interface::hwait_for_readout";
+        std::stringstream message;
+        long error = NO_ERROR;
+        int currentframe=this->lastframe;
+        int busycount=0;
+        bool done = false;
+
+        message.str("");
+        message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
+        logwrite(function, message.str());
+
+        // waittime is 10% over the specified readout time
+        // and will be used to keep track of timeout errors
+        //
+        double waittime;
+        try {
+            waittime = this->camera.readout_time.at(0) * 1.1;        // this is in msec
+
+        } catch(std::out_of_range &) {
+            message.str(""); message << "readout time for Archon not found from config file";
+            this->camera.log_error( function, message.str() );
+            return(ERROR);
+        }
+
+        double clock_now     = get_clock_time();                   // get_clock_time returns seconds
+        double clock_timeout = clock_now + waittime/1000.;         // must receive frame by this time
+
+        usleep( 1 );  // tune for size of window
+
+        //
+        error = this->get_frame_status();
+        if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: unable to get frame status" );
+            return error;
+        }
+        message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.index ];
+        this->camera.async.enqueue( message.str() );
+
+        if ( error != NO_ERROR ) {
+            return error;
+        }
+
+        currentframe = this->frame.bufframen[this->frame.index];
+
+#ifdef LOGLEVEL_DEBUG
+        message.str("");
+    message << "[DEBUG] lastframe=" << this->lastframe
+            << " currentframe=" << currentframe
+            << " bufcomplete=" << this->frame.bufcomplete[this->frame.index];
+    logwrite(function, message.str());
+#endif
+        this->lastframe = currentframe;
+
+        // On success, write the value to the log and return
+        //
+        if (!this->abort) {
+            message.str("");
+            message << "received currentframe: " << currentframe << " from buffer " << this->frame.index+1;
+            logwrite(function, message.str());
+            return(NO_ERROR);
+
+        } else if (this->abort) {
+            // If the wait was stopped, log a message and return NO_ERROR
+            logwrite(function, "wait for readout stopped by external signal");
+            return(NO_ERROR);
+
+        } else {
+            // Throw an error for any other errors (should be impossible)
+            this->camera.log_error( function, "waiting for readout" );
+            return(error);
+        }
+    }
+    /**************** Archon::Interface::hwait_for_readout ***********************/
+
+
+    /**************** Archon::Interface::get_parameter **************************/
   /**
    * @fn     get_parameter
    * @brief  get parameter using read_parameter()
