@@ -722,18 +722,18 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("native")==0) {
                     try {
-                      std::transform( sbuf.begin(), sbuf.end(), sbuf.begin(), ::toupper );    // make uppercase
+                      std::transform( args.begin(), args.end(), args.begin(), ::toupper );    // make uppercase
                     }
                     catch (...) {
                       logwrite(function, "error converting command to uppercase");
                       ret=ERROR;
                     }
 #ifdef ASTROCAM
-                    ret = server.native(sbuf, retstring);
+                    ret = server.native(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
 #endif
 #ifdef STA_ARCHON
-                    ret = server.native(sbuf);
+                    ret = server.native(args);
 #endif
                   }
 
