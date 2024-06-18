@@ -109,6 +109,8 @@ namespace Archon {
       bool is_longexposure;                  //!< true for long exposure mode (exptime in sec), false for exptime in msec
       bool is_window;                        //!< true if in window mode for h2rg, false if not
 
+      bool is_autofetch;
+
       int win_hstart;
       int win_hstop;
       int win_vstart;
@@ -197,6 +199,7 @@ namespace Archon {
       long hsetup();
       long hroi(std::string geom_in, std::string &retstring);
       long hwindow(std::string state_in, std::string &state_out);
+      long autofetch(std::string state_in, std::string &state_out);
       long video();
       long wait_for_exposure();
       long wait_for_readout();

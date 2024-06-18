@@ -36,6 +36,7 @@ namespace Archon {
     this->image_data_allocated = 0;
     this->is_longexposure = false;
     this->is_window = false;
+    this->is_autofetch = false;
     this->win_hstart = 0;
     this->win_hstop = 2047;
     this->win_vstart = 0;
@@ -2769,13 +2770,15 @@ namespace Archon {
                                  << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
         logwrite(function, message.str());
 
-        // send the FETCH command.
-        // This will take the archon_busy semaphore, but not release it -- must release in this function!
-        //
-        error = this->fetch(bufaddr, bufblocks);
-        if ( error != NO_ERROR ) {
-            logwrite( function, "ERROR: fetching Archon buffer" );
-            return error;
+        if (!this->is_autofetch) {
+            // send the FETCH command.
+            // This will take the archon_busy semaphore, but not release it -- must release in this function!
+            //
+            error = this->fetch(bufaddr, bufblocks);
+            if (error != NO_ERROR) {
+                logwrite(function, "ERROR: fetching Archon buffer");
+                return error;
+            }
         }
 
         // Read the data from the connected socket into memory, one block at a time
@@ -4328,6 +4331,94 @@ namespace Archon {
     }
     /**************** Archon::Interface::hwindow *******************************/
 
+    /**************** Archon::Interface::autofetch ******************************/
+    /**
+      * @fn     autofetch
+      * @brief  set into/out of autofetch mode for archon
+      * @param  state_in, string "TRUE, FALSE, 0, or 1"
+      * @return ERROR or NO_ERROR
+      *
+      * NOTE: this assumes LVDS is module 10
+      * This function does the following:
+      *  1) puts archon into or out of autofetch mode
+      *
+      */
+    long Interface::autofetch(std::string state_in, std::string &state_out) {
+        std::string function = "Archon::Interface::autofetch";
+        std::stringstream message;
+        std::string reg;
+        std::string nowin_mode = "DEFAULT";
+        std::string win_mode = "GUIDING";
+        std::string dontcare;
+        std::stringstream cmd;
+        long error = NO_ERROR;
+
+        // If something is passed then try to use it to set the autofetch state
+        //
+        if ( !state_in.empty() ) {
+            try {
+                std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
+
+                if ( state_in == "FALSE" || state_in == "0" ) { // leave autofetch mode
+                    this->is_autofetch = false;
+                    // Set detector out of autofetch mode
+                    // Now send the AUTOFETCHx command
+                    //
+                    std::stringstream autofetchstr;
+                    autofetchstr << "AUTOFETCH0";
+
+                    if (error == NO_ERROR) error = this->archon_cmd(autofetchstr.str());
+
+                    if (error != NO_ERROR) {
+                        message << "unsetting autofetch mode: ";
+                    } else {
+                        message << "unset autofetch mode: ";
+                    }
+
+                    logwrite(function, message.str());
+
+                } else if ( state_in == "TRUE" || state_in == "1" ) {  // enter window mode
+                    this->is_autofetch = true;
+                    // Set detector into autofetch mode
+                    // Now send the AUTOFETCHx command
+                    //
+                    std::stringstream autofetchstr;
+                    autofetchstr << "AUTOFETCH1";
+
+                    if (error == NO_ERROR) error = this->archon_cmd(autofetchstr.str());
+
+                    if (error != NO_ERROR) {
+                        message << "setting autofetch mode: ";
+                    } else {
+                        message << "set autofetch mode: ";
+                    }
+
+                    logwrite(function, message.str());
+                } else {
+                    message.str(""); message << "autofetch state " << state_in << " is invalid. Expecting {true,false,0,1}";
+                    this->camera.log_error( function, message.str() );
+                    return( ERROR );
+                }
+
+            } catch (...) {
+                message.str(""); message << "unknown exception converting autofetch state " << state_in << " to uppercase";
+                this->camera.log_error( function, message.str() );
+                return( ERROR );
+            }
+        }
+
+        state_out = ( this->is_autofetch ? "true" : "false" );
+
+        if (error != NO_ERROR) {
+            message.str(""); message << "setting autofetch state to " << state_in;
+            this->camera.log_error( function, message.str() );
+            return(ERROR);
+        }
+
+        return (error);
+    }
+    /**************** Archon::Interface::autofetch *******************************/
+
     /**************** Archon::Interface::hexpose ******************************/
     /**
      * @fn     hexpose
@@ -4561,8 +4652,10 @@ namespace Archon {
      * Note that this assumes that the Archon ACF has been programmed to automatically
      * read out the detector into the frame buffer after an exposure.
      *
-     */    long Interface::video() {
-      std::string function = "Archon::Interface::expose";
+     */
+
+    long Interface::video() {
+      std::string function = "Archon::Interface::video";
       std::stringstream message;
       long error = NO_ERROR;
       std::string nseqstr;
@@ -4892,7 +4985,7 @@ namespace Archon {
       this->lastcubeamps = this->camera.cubeamps();
 
       return (error);
-  }
+    }
     /**************** Archon::Interface::video *********************************/
 
 
