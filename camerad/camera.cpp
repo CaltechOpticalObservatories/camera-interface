@@ -177,9 +177,11 @@ bool Camera::get_abortstate() {
 
     if (naming_in.empty()) {           // no string passed so this is a request. do nothing but will return the current value
       error = NO_ERROR;
+
     } else if ( (naming_in=="time") || (naming_in=="number") ) {
       this->fits_naming = naming_in;   // set new value
       error = NO_ERROR;
+
     } else {
       message.str(""); message << "invalid naming type: " << naming_in << ". Must be \"time\" or \"number\".";
       error = ERROR;
