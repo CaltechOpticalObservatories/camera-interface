@@ -43,7 +43,6 @@ void signal_handler(int signo) {
       server.exit_cleanly();                // shutdown the server
       break;
   }
-  return;
 }
 /** signal_handler ***********************************************************/
 
@@ -85,16 +84,13 @@ int main(int argc, char **argv) {
     if ( filename ) {
       server.config.filename = std::string( filename );
     }
-  }
-  else
 
-  // if no "-f <filename>" then as long as there's at least one arg,
-  // assume that is the config file name.
-  //
-  if (argc>1) {
+  } else if (argc>1) {
+      // if no "-f <filename>" then as long as there's at least one arg,
+      // assume that is the config file name.
     server.config.filename = std::string( argv[1] );
-  }
-  else {
+
+  } else {
     logwrite(function, "ERROR: no configuration file specified");
     server.exit_cleanly();
   }
@@ -135,17 +131,15 @@ int main(int argc, char **argv) {
   if ( zone == "local" ) {
     logwrite( function, "using local time zone" );
     server.systemkeys.addkey( "TM_ZONE=local//time zone" );
-  }
-  else {
+
+  } else {
     logwrite( function, "using GMT time zone" );
     server.systemkeys.addkey( "TM_ZONE=GMT//time zone" );
   }
 
   if ( !daemon_in.empty() && daemon_in == "yes" ) start_daemon = true;
-  else
-  if ( !daemon_in.empty() && daemon_in == "no"  ) start_daemon = false;
-  else
-  if ( !daemon_in.empty() ) {
+  else if ( !daemon_in.empty() && daemon_in == "no"  ) start_daemon = false;
+  else if ( !daemon_in.empty() ) {
     message.str(""); message << "ERROR: unrecognized argument DAEMON=" << daemon_in << ", expected { yes | no }";
     logwrite( function, message.str() );
     server.exit_cleanly();
@@ -209,14 +203,14 @@ int main(int argc, char **argv) {
   //
   for (int i=1; i<N_THREADS; i++) {                  // create N_THREADS-1 non-blocking socket objects
     if (i==1) {                                      // first one only
-      Network::TcpSocket s(server.nbport, false, CONN_TIMEOUT, i);   // instantiate TcpSocket object, non-blocking port, CONN_TIMEOUT timeout
-      s.Listen();                                    // create a listening socket
-      socklist.push_back(s);
-    }
-    else {                                           // subsequent socket objects are copies of the first
-      Network::TcpSocket s = socklist[1];            // copy the first one, which has a valid listening socket
-      s.id = i;
-      socklist.push_back(s);
+      Network::TcpSocket sck(server.nbport, false, CONN_TIMEOUT, i);   // instantiate TcpSocket object, non-blocking port, CONN_TIMEOUT timeout
+      sck.Listen();                                    // create a listening socket
+      socklist.push_back(sck);
+
+    } else {                                           // subsequent socket objects are copies of the first
+      Network::TcpSocket sck = socklist[1];            // copy the first one, which has a valid listening socket
+      sck.id = i;
+      socklist.push_back(sck);
     }
     std::thread(thread_main, socklist[i]).detach();  // spawn a thread to handle each non-blocking socket request
   }
@@ -250,7 +244,7 @@ int main(int argc, char **argv) {
  *
  */
 void new_log_day( bool logstderr ) { 
-  while (1) {
+  while (true) {
     std::this_thread::sleep_for( std::chrono::seconds( nextday ) );
     close_log();
     init_log( logpath, Camera::DAEMON_NAME, logstderr );
@@ -273,12 +267,11 @@ void new_log_day( bool logstderr ) {
  *
  */
 void block_main(Network::TcpSocket sock) {
-  while(1) {
+  while(true) {
     sock.Accept();
     doit(sock);                   // call function to do the work
     sock.Close();
   }
-  return;
 }
 /** block_main ***************************************************************/
 
@@ -301,14 +294,13 @@ void block_main(Network::TcpSocket sock) {
  *
  */
 void thread_main(Network::TcpSocket sock) {
-  while (1) {
+  while (true) {
     server.conn_mutex.lock();
     sock.Accept();
     server.conn_mutex.unlock();
     doit(sock);                // call function to do the work
     sock.Close();
   }
-  return;
 }
 /** thread_main **************************************************************/
 
@@ -337,7 +329,7 @@ void async_main(Network::UdpSocket sock) {
     logwrite(function, "asyncrhonous message port disabled by request");
   }
 
-  while (1) {
+  while (true) {
     std::string message = server.camera.async.dequeue();    // get the latest message from the queue (blocks)
     retval = sock.Send(message);                            // transmit the message
     if (retval < 0) {
@@ -350,7 +342,6 @@ void async_main(Network::UdpSocket sock) {
       return;
     }
   }
-  return;
 }
 /** async_main ***************************************************************/
 
@@ -426,7 +417,7 @@ void doit(Network::TcpSocket sock) {
     if (sbuf.empty()) {sock.Write("\n"); continue;}  // acknowledge empty command so client doesn't time out
 
     try {
-      std::size_t cmd_sep = sbuf.find_first_of(" "); // find the first space, which separates command from argument list
+      std::size_t cmd_sep = sbuf.find_first_of(' '); // find the first space, which separates command from argument list
 
       cmd = sbuf.substr(0, cmd_sep);                 // cmd is everything up until that space
 
@@ -458,14 +449,14 @@ void doit(Network::TcpSocket sock) {
      * process commands here
      */
     ret = NOTHING;
-    std::string retstring="";                               // string for return the value (where needed)
+    std::string retstring;                               // string for return the value (where needed)
 
-    if (cmd.compare("exit")==0) {
+    if (cmd=="exit") {
                     server.camera.async.enqueue("exit");    // shutdown the async message thread if running
                     server.exit_cleanly();                  // shutdown the server
                     }
     else
-    if (cmd.compare("config")==0) {                         // report the config file used for camerad
+    if (cmd=="config") {                         // report the config file used for camerad
                     std::stringstream cfg;
                     cfg << "CONFIG:" << server.config.filename;
                     server.camera.async.enqueue( cfg.str() );
@@ -474,82 +465,82 @@ void doit(Network::TcpSocket sock) {
                     ret = NO_ERROR;
                     }
     else
-    if (cmd.compare("open")==0) {
+    if (cmd=="open") {
                     ret = server.connect_controller(args);
                     }
     else
-    if (cmd.compare("close")==0) {
+    if (cmd=="close") {
                     ret = server.disconnect_controller();
                     }
     else
-    if (cmd.compare("load")==0) {
+    if (cmd=="load") {
                     if (args.empty()) ret = server.load_firmware(retstring);
                     else              ret = server.load_firmware(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("basename")==0) {
+    if (cmd=="basename") {
                     ret = server.camera.basename(args, retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
                     }
     else
-    if (cmd.compare("imnum")==0) {
+    if (cmd=="imnum") {
                     ret = server.camera.imnum(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("imdir")==0) {
+    if (cmd=="imdir") {
                     ret = server.camera.imdir(args, retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
                     }
     else
-    if (cmd.compare("autodir")==0) {
+    if (cmd=="autodir") {
                     ret = server.camera.autodir(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("datacube")==0) {
+    if (cmd=="datacube") {
                     ret = server.camera.datacube(args, retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
                     }
     else
-    if (cmd.compare("longerror")==0) {
+    if (cmd=="longerror") {
                     ret = server.camera.longerror(args, retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
                     }
     else
-    if (cmd.compare("preexposures")==0) {
+    if (cmd=="preexposures") {
                     ret = server.camera_info.pre_exposures( args, retstring );
                     sock.Write( retstring );
                     sock.Write( " " );
                     }
     else
-    if (cmd.compare("cubeamps")==0) {
+    if (cmd=="cubeamps") {
                     ret = server.camera.cubeamps(args, retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
                     }
     else
-    if (cmd.compare("fitsnaming")==0) {
+    if (cmd=="fitsnaming") {
                     ret = server.camera.fitsnaming(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("shutter")==0) {
+    if (cmd=="shutter") {
                     ret = server.shutter(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("writekeys")==0) {
+    if (cmd=="writekeys") {
                     ret = server.camera.writekeys(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("key")==0) {
+    if (cmd=="key") {
                     if (args.compare(0, 4, "list")==0) {
                       logwrite( function, "systemkeys:" ); ret = server.systemkeys.listkeys();
                       logwrite( function, "userkeys:" );   ret = server.userkeys.listkeys();
@@ -560,7 +551,7 @@ void doit(Network::TcpSocket sock) {
                     }
                     }
     else
-    if (cmd.compare("abort")==0) {
+    if (cmd=="abort") {
                     server.camera.abort();
                     ret = 0;
                     }
@@ -594,19 +585,19 @@ void doit(Network::TcpSocket sock) {
 #endif
 #ifdef STA_ARCHON
     else
-    if (cmd.compare("roi")==0) {
+    if (cmd=="roi") {
                     ret = server.region_of_interest( args, retstring );
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("isloaded")==0) {
+    if (cmd=="isloaded") {
                     retstring = server.firmwareloaded ? "true" : "false";
                     sock.Write(retstring);
                     sock.Write(" ");
                     ret = NO_ERROR;
                     }
     else
-    if (cmd.compare("mode")==0) {
+    if (cmd=="mode") {
                     if (args.empty()) {     // no argument means asking for current mode
                       if (server.modeselected) {
                         ret=NO_ERROR;
@@ -617,77 +608,77 @@ void doit(Network::TcpSocket sock) {
                     else ret = server.set_camera_mode(args);
                     }
     else
-    if (cmd.compare("getp")==0) {
+    if (cmd=="getp") {
                     ret = server.get_parameter(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("setp")==0) {
+    if (cmd=="setp") {
                     ret = server.set_parameter(args);
                     }
     else
-    if (cmd.compare("loadtiming")==0) {
+    if (cmd=="loadtiming") {
                     if (args.empty()) ret = server.load_timing(retstring);
                     else              ret = server.load_timing(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("inreg")==0) {
+    if (cmd=="inreg") {
                     ret = server.inreg(args);
                     }
     else
-    if (cmd.compare("printstatus")==0) {
+    if (cmd=="printstatus") {
                     ret = server.get_frame_status();
                     if (ret==NO_ERROR) server.print_frame_status();
                     }
     else
-    if (cmd.compare("readframe")==0) {
+    if (cmd=="readframe") {
                     ret = server.read_frame();
                     }
     else
-    if (cmd.compare("writeframe")==0) {
+    if (cmd=="writeframe") {
                     ret = server.write_frame();
                     }
     else
-    if (cmd.compare("cds")==0) {
+    if (cmd=="cds") {
                     ret = server.cds(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("heater")==0) {
+    if (cmd=="heater") {
                     ret = server.heater(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("sensor")==0) {
+    if (cmd=="sensor") {
                     ret = server.sensor(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("longexposure")==0) {
+    if (cmd=="longexposure") {
                     ret = server.longexposure(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("hdrshift")==0) {
+    if (cmd=="hdrshift") {
                     ret = server.hdrshift(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("trigin")==0) {
+    if (cmd=="trigin") {
                     ret = server.trigin(args);
                     }
 #endif
     else
-    if (cmd.compare("expose")==0) {
+    if (cmd=="expose") {
                     ret = server.expose(args);
                     }
     else
-    if (cmd.compare("exptime")==0) {
+    if (cmd=="exptime") {
                     // Neither controller allows fractional exposure times
                     // so catch that here.
                     //
-                    if ( args.find(".") != std::string::npos ) {
+                    if ( args.find('.') != std::string::npos ) {
                       ret = ERROR;
                       logwrite(function, "ERROR: fractional exposure times not allowed");
                       // empty the args string so that a call to exptime returns the current exptime
@@ -699,28 +690,28 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("bias")==0) {
+    if (cmd=="bias") {
                     ret = server.bias(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("echo")==0) {
+    if (cmd=="echo") {
                     sock.Write(args);
                     sock.Write("\n");
                     }
     else
-    if (cmd.compare("interface")==0) {
+    if (cmd=="interface") {
                     ret = server.interface(retstring);
                     sock.Write(retstring);
                     sock.Write(" ");
                     }
     else
-    if (cmd.compare("test")==0) {
+    if (cmd=="test") {
                     ret = server.test(args, retstring);
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("native")==0) {
+    if (cmd=="native") {
                     try {
                       std::transform( args.begin(), args.end(), args.begin(), ::toupper );    // make uppercase
                     }
@@ -755,7 +746,6 @@ void doit(Network::TcpSocket sock) {
   }
 
   sock.Close();
-  return;
 }
 /** doit *********************************************************************/
 
