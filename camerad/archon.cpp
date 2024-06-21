@@ -79,10 +79,6 @@ namespace Archon {
     this->frame.buffetimestamp.resize( Archon::nbufs );
   }
 
-  // Archon::Interface deconstructor
-  //
-  Interface::~Interface() = default;
-
 
   /**************** Archon::Interface::interface ******************************/
   long Interface::interface(std::string &iface) {
