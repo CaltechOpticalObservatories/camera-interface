@@ -155,9 +155,8 @@ class InterruptableSleepTimer {
   public:
     // lock on creation
     //
-    InterruptableSleepTimer() {
+    InterruptableSleepTimer() : _run(true) {
       _lock();
-      _run = true;
     }
 
     // unlock on destruction, if wake was never called

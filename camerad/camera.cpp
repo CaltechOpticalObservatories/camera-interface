@@ -24,23 +24,6 @@
 
 namespace Camera {
 
-  Camera::Camera() {
-    this->is_cubeamps = false;           // don't force amplifiers to be written as multi-extension cubes
-    this->is_longerror = false;
-    this->is_datacube = false;
-    this->image_dir = "/tmp";
-    this->dirmode = 0;                   // user specified mode to OR with 0700 for imdir creation
-    this->base_name = "image";
-    this->image_num = 0;
-    this->fits_naming = "time";
-    this->fitstime = "";
-    this->abortstate = false;
-    this->_abortstate = false;
-    this->writekeys_when = "before";
-    this->autodir_state = true;
-  }
-
-
   /** Camera::Camera::abort ***************************************************/
   /**
    * @fn     abort

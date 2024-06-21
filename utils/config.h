@@ -24,8 +24,6 @@
       };
       Config(): n_entries(), param(), arg() { };
 
-      ~Config() { };
-
       std::string filename;
       int n_entries;
       std::vector<std::string> param;
