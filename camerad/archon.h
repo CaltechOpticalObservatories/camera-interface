@@ -144,10 +144,10 @@ namespace Archon {
 
       // Functions
       //
-      long interface(std::string &iface);    //!< get interface type
+      static long interface(std::string &iface);    //!< get interface type
       long configure_controller();           //!< get configuration parameters
       long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
-      long connect_controller(std::string devices_in);  //!< open connection to archon controller
+      long connect_controller(const std::string& devices_in);  //!< open connection to archon controller
       long disconnect_controller();          //!< disconnect from archon controller
       long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING
       long load_timing(std::string acffile, std::string &retstring);
@@ -156,11 +156,11 @@ namespace Archon {
       long load_acf(std::string acffile);    //!< only load (WCONFIG) the specified ACF file
       long set_camera_mode(std::string mode_in);
       long load_mode_settings(std::string mode);
-      long native(std::string cmd);
-      long archon_cmd(std::string cmd);
-      long archon_cmd(std::string cmd, std::string &reply);
-      long read_parameter(std::string paramname, std::string &valstring);
-      long prep_parameter(std::string paramname, std::string value);
+      long native(const std::string& cmd);
+      long archon_cmd(const std::string& cmd);
+      long archon_cmd(const std::string& cmd, std::string &reply);
+      long read_parameter(const std::string& paramname, std::string &valstring);
+      long prep_parameter(const std::string& paramname, std::string value);
       long load_parameter(std::string paramname, std::string value);
       long fetchlog();
       long get_frame_status();
