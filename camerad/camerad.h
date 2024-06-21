@@ -7,8 +7,7 @@
  *
  */
 
-#ifndef SERVER_H
-#define SERVER_H
+#pragma once
 
 #include <fstream>
 #include <iostream>
@@ -48,27 +47,18 @@ namespace Camera {
 #endif
     private:
     public:
-      Server() {
-        this->nbport=-1;
-        this->blkport=-1;
-        this->asyncport=-1;
-      }
+      int nbport;                        //!< non-blocking port
+      int blkport;                       //!< blocking port
+      int asyncport;                     //!< asynchronous message port
 
-      /** Camera::~Server **********************************************************/
-      /**
-       * @fn     ~Server
-       * @brief  class deconstructor cleans up on exit
-       */
+      Server() : nbport(-1), blkport(-1), asyncport(-1) { }
+
       ~Server() {
         close(this->nonblocking_socket);
         close(this->blocking_socket);
         close_log();  // close the logfile, if open
       }
-      /** Camera::~Server **********************************************************/
 
-      int nbport;                        //!< non-blocking port
-      int blkport;                       //!< blocking port
-      int asyncport;                     //!< asynchronous message port
       std::string asyncgroup;            //!< asynchronous multicast group
 
       int nonblocking_socket;
@@ -78,11 +68,9 @@ namespace Camera {
 
       std::mutex conn_mutex;             //!< mutex to protect against simultaneous access to Accept()
 
-      /** Camera::Server::exit_cleanly *********************************************/
+      /***** Camera::Server::exit_cleanly *************************************/
       /**
-       * @fn     signal_handler
        * @brief  handles ctrl-C and exits
-       * @param  int signo
        * @return nothing
        *
        */
@@ -92,7 +80,7 @@ namespace Camera {
         logwrite(function, "server exiting");
         exit(EXIT_SUCCESS);
       }
-      /** Camera::Server::exit_cleanly *********************************************/
+      /***** Camera::Server::exit_cleanly *************************************/
 
 
       /***** Camera::Server::configure_server *********************************/
@@ -216,4 +204,3 @@ namespace Camera {
   };  // end class Server
 
 } // end namespace Camera
-#endif

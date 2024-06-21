@@ -1,5 +1,3 @@
-#ifndef CAMERA_FITS_H
-#define CAMERA_FITS_H
 /**
  * @file    fits.h
  * @brief   fits interface functions to CCFits
@@ -12,6 +10,8 @@
  * FITS file operations.
  *
  */
+#pragma once
+
 #include <CCfits/CCfits>
 #include <fstream>         /// for ofstream
 #include <thread>
@@ -26,30 +26,22 @@ const int FITS_WRITE_WAIT = 5000;                   /// approx time (in msec) to
 
 class FITS_file {
   private:
-    std::mutex fits_mutex;                          /// used to block writing_file semaphore in multiple threads
-    std::unique_ptr<CCfits::FITS> pFits;            /// pointer to FITS data container
+    std::atomic<int> threadcount;                   /// keep track of number of write_image_thread threads
+    std::atomic<int> framen;                        /// internal frame counter for data cubes
     std::atomic<bool> writing_file;                 /// semaphore indicates file is being written
     std::atomic<bool> error;                        /// indicates an error occured in a file writing thread
     std::atomic<bool> file_open;                    /// semaphore indicates file is open
-    std::atomic<int> threadcount;                   /// keep track of number of write_image_thread threads
-    std::atomic<int> framen;                        /// internal frame counter for data cubes
+
+    std::mutex fits_mutex;                          /// used to block writing_file semaphore in multiple threads
+    std::unique_ptr<CCfits::FITS> pFits;            /// pointer to FITS data container
     CCfits::ExtHDU* imageExt;                       /// image extension header unit
     std::string fits_name;
 
   public:
     bool iserror() { return this->error; };         /// allows outsiders access to errors that occurred in a fits writing thread
     bool isopen()  { return this->file_open; };     /// allows outsiders access file open status
-    FITS_file() {                                   /// constructor
-      this->threadcount = 0;
-      this->framen = 0;
-      this->writing_file = false;
-      this->error = false;
-      this->file_open = false;
-    };
 
-    ~FITS_file() {                                  /// deconstructor
-    };
-
+    FITS_file() : threadcount(0), framen(0), writing_file(false), error(false), file_open(false) { }
 
     /**************** FITS_file::open_file ************************************/
     /**
@@ -606,4 +598,3 @@ class FITS_file {
     /**************** FITS_file::add_key **************************************/
 
 };
-#endif

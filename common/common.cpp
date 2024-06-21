@@ -54,10 +54,10 @@ namespace Common {
    * @fn     get_keytype
    * @brief  return the keyword type based on the keyvalue
    * @param  std::string value
-   * @return std::string type: "BOOL", "STRING", "FLOAT", "INT"
+   * @return std::string type: "BOOL", "STRING", "DOUBLE", "INT"
    *
    * This function looks at the contents of the value string to determine if it
-   * contains an INT, FLOAT, BOOL or STRING, and returns a string identifying the type.
+   * contains an INT, DOUBLE, BOOL or STRING, and returns a string identifying the type.
    * That type is used in FITS_file::add_user_key() for adding keywords to the header.
    *
    */
@@ -91,13 +91,33 @@ namespace Common {
         ++pos;
     }
 
+    std::string check_type;
+
     if (pos == keyvalue.size()) {
+      // If it's an INT or DOUBLE, don't return that type until it has been checked, below
+      //
       if (keyvalue.find(".") == std::string::npos)    // all numbers and no decimals, it's an integer
-        return std::string("INT");
+        check_type = "INT";
       else                                            // otherwise numbers with a decimal, it's a float
-        return std::string("FLOAT");
+        check_type = "DOUBLE";
     }
     else return std::string("STRING");                // lastly, must be a string
+
+    // If it's an INT or a DOUBLE then try to convert the value to INT or DOUBLE.
+    // If that conversion fails then set the type to STRING.
+    //
+    try {
+      if ( check_type == "INT"    ) std::stoi( keyvalue );
+      if ( check_type == "DOUBLE" ) std::stod( keyvalue );
+    }
+    catch ( std::invalid_argument & ) {
+      return std::string( "STRING" );
+    }
+    catch ( std::out_of_range & ) {
+      return std::string( "STRING" );
+    }
+    return check_type;
+
   }
   /** Common::FitsKeys::get_keytype *******************************************/
 
@@ -123,7 +143,7 @@ namespace Common {
       message << " (" << keyit->second.keytype << ")";
       logwrite(function, message.str());
     }
-    return(NO_ERROR);
+    return NO_ERROR;
   }
   /** Common::FitsKeys::listkeys **********************************************/
 
@@ -153,7 +173,7 @@ namespace Common {
     Tokenize(arg, tokens, "=");
     if (tokens.size() != 2) {
       logwrite( function, "missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)" );
-      return(ERROR);
+      return ERROR;
     }
 
     keyword   = tokens[0].substr(0,8);                                     // truncate keyword to 8 characters
@@ -186,7 +206,7 @@ namespace Common {
         message.str(""); message << "keyword " << keyword << " erased";
         logwrite(function, message.str());
       }
-      return(NO_ERROR);
+      return NO_ERROR;
     }
 
     // check for instances of the comment separator in keycomment
@@ -194,7 +214,7 @@ namespace Common {
     if (keycomment.find(comment_separator) != std::string::npos) {
       message.str(""); message << "ERROR: FITS comment delimiter: found too many instancces of " << comment_separator << " in keycomment";
       logwrite( function, message.str() );
-      return(NO_ERROR);
+      return NO_ERROR;
     }
 
     // insert new entry into the database
@@ -209,8 +229,42 @@ namespace Common {
     logwrite( function, message.str() );
 #endif
 
-    return(NO_ERROR);
+    return NO_ERROR;
   }
   /** Common::FitsKeys::addkey ************************************************/
+
+
+  /***** Common::FitsKeys::delkey *********************************************/
+  /**
+   * @brief      delete FITS keyword from internal database
+   * @param[in]  keyword
+   * @return     ERROR for improper input arg, otherwise NO_ERROR
+   *
+   */
+  long FitsKeys::delkey( std::string keyword ) {
+    std::string function = "Common::FitsKeys::delkey";
+    std::stringstream message;
+
+    try {
+      std::transform( keyword.begin(), keyword.end(), keyword.begin(), ::toupper );    // make uppercase
+    }
+    catch (...) {
+      message.str(""); message << "converting keyword " << keyword << " to uppercase";
+      logwrite( function, message.str() );
+      return ERROR;
+    }
+
+    // Delete the keydb entry for associated keyword (if found).
+    // Don't report anything if keyword is not found.
+    //
+    fits_key_t::iterator keyit = this->keydb.find( keyword );
+    if ( keyit != this->keydb.end() ) {
+      this->keydb.erase( keyit );
+      message.str(""); message << "keyword " << keyword << " erased";
+      logwrite( function, message.str() );
+    }
+    return NO_ERROR;
+  }
+  /***** Common::FitsKeys::delkey *********************************************/
 
 }
