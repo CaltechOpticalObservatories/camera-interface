@@ -10,8 +10,7 @@
  *
  */
 
-#ifndef NEWTCPLINUX_H
-#define NEWTCPLINUX_H
+#pragma once
 
 #include <chrono>                      /// for timing timeouts
 #include <cstdio>
@@ -156,4 +155,3 @@ namespace Network {
   /** UdpSocket ***************************************************************/
 
 }
-#endif

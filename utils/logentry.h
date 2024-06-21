@@ -1,12 +1,13 @@
 /** ---------------------------------------------------------------------------
- * @fn       logentry.h
+ * @file     logentry.h
  * @brief    include file for logging functions
  * @author   David Hale <dhale@astro.caltech.edu>
  *
  */
-#ifndef LOGENTRY_H
-#define LOGENTRY_H
 
+#pragma once
+
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -16,10 +17,7 @@
 #include "utilities.h"
 
 extern unsigned int nextday;                               /// number of seconds until the next day is a global
-extern bool to_stderr;                                     /// log also to stderr
 
-long init_log( std::string logpath, std::string name, bool stderr_in );  /// initialize the logging system
+long init_log( std::string name, std::string logpath, std::string logstderr, std::string logtmzone );    /// initialize the logging system
 void close_log();                                          /// close the log file stream
-void logwrite(std::string function, std::string message);  /// create a time-stamped log entry "message" from "function"
-
-#endif
+void logwrite( const std::string &function, const std::string &message );  /// create a time-stamped log entry "message" from "function"

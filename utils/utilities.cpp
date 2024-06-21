@@ -1,23 +1,22 @@
 /**
  * @file    utilities.cpp
  * @brief   some handy utilities to use anywhere
- * @details 
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
 
 #include "utilities.h"
 
-std::string zone="";
+std::string tmzone_cfg;      ///< time zone if set in cfg file
+std::mutex generate_tmpfile_mtx;
 
-  /** cmdOptionExists *********************************************************/
+  /***** cmdOptionExists ******************************************************/
   /**
-   * @fn         cmdOptionExists
    * @brief      returns true if option is found in argv
-   * @param[in]  begin char**
-   * @param[in]  end char**
-   * @param[out] option ref to string
-   * @return     true or false
+   * @param[in]  begin       this is the beginning, should be argv
+   * @param[in]  end         this is the end, should be argv+argc
+   * @param[out] option      string to search for
+   * @return     true|false  if string was found
    *
    * Intended to be called as cmdOptionExists( argv, argv+argc, "-X" )
    * to search for "-X" option in argv.
@@ -28,17 +27,16 @@ std::string zone="";
   bool cmdOptionExists( char** begin, char** end, const std::string &option ) {
     return std::find( begin, end, option ) != end;
   }
-  /** cmdOptionExists *********************************************************/
+  /***** cmdOptionExists ******************************************************/
 
 
-  /** getCmdOption ************************************************************/
+  /***** getCmdOption *********************************************************/
   /**
-   * @fn         getCmdOption
    * @brief      returns pointer to command line option specified with "-X option"
-   * @param[in]  begin char**
-   * @param[in]  end char**
-   * @param[out] option ref to string
-   * @return     char*
+   * @param[in]  begin   this is the beginning, should be argv
+   * @param[in]  end     this is the end, should be argv+argc
+   * @param[out] option  string to search for
+   * @return     char*   pointer to the option found
    *
    * Intended to be called as char* option = getCmdOption( argv, argv+argc, "-X" );
    * to get option associated with "-X option" in argv.
@@ -53,15 +51,13 @@ std::string zone="";
     }
     return 0;
   }
-  /** getCmdOption ************************************************************/
+  /***** getCmdOption *********************************************************/
 
 
-  /** my_hardware_concurrency *************************************************/
+  /***** my_hardware_concurrency **********************************************/
   /**
-   * @fn         my_hardware_concurrency
    * @brief      return number of concurrent threads supported by the implementation
-   * @param[in]  none
-   * @return     int
+   * @return     integer number of processors listed in /proc/cpuinfo
    *
    * Counts the number of processors listed in /proc/cpuinfo
    *
@@ -72,15 +68,13 @@ std::string zone="";
                        std::istream_iterator<std::string>(),
                        std::string("processor") );
   }
-  /** my_hardware_concurrency *************************************************/
+  /***** my_hardware_concurrency **********************************************/
 
 
-  /** cores_available *********************************************************/
+  /***** cores_available ******************************************************/
   /**
-   * @fn         cores_available
    * @brief      return number of concurrent threads supported by the implementation
-   * @param[in]  none
-   * @return     int
+   * @return     integer number of cores
    *
    * If the value is not known then check /proc/cpuinfo
    *
@@ -89,15 +83,14 @@ std::string zone="";
     unsigned int cores = std::thread::hardware_concurrency();
     return cores ? cores : my_hardware_concurrency();
   }
-  /** cores_available *********************************************************/
+  /***** cores_available ******************************************************/
 
 
-  /** parse_val ***************************************************************/
+  /***** parse_val ************************************************************/
   /**
-   * @fn         parse_val
    * @brief      returns an unsigned int from a string
-   * @param[in]  string
-   * @return     unsigned int
+   * @param[in]  str  string to convert to uint
+   * @return     unsigned int form of string
    *
    */
   unsigned int parse_val(const std::string& str) {
@@ -110,16 +103,15 @@ std::string zone="";
     v >> u;
     return u;
   }
-  /** parse_val ***************************************************************/
+  /***** parse_val ************************************************************/
 
 
-  /** Tokenize ****************************************************************/
+  /***** Tokenize *************************************************************/
   /**
-   * @fn         Tokenize
    * @brief      break a string into a vector
-   * @param[in]  str, input string
-   * @param[out] tokens, vector of tokens
-   * @param[in]  delimiters, string
+   * @param[in]  str         input string
+   * @param[out] tokens      vector of tokens
+   * @param[in]  delimiters  delimiters
    * @return     number of tokens
    *
    */
@@ -147,7 +139,7 @@ std::string zone="";
     }
 
     while (std::string::npos != pos || std::string::npos != lastPos) {
-      if (quotes_found == true) {
+      if (quotes_found) {
         tokens.push_back(str.substr(lastPos + 1, pos - lastPos - 2));
         pos++;
         lastPos = str.find_first_not_of(delimiters, pos);
@@ -173,19 +165,17 @@ std::string zone="";
     }
     return(tokens.size());
   }
-  /** Tokenize ****************************************************************/
+  /***** Tokenize *************************************************************/
 
 
-  /** Tokenize ****************************************************************/
+  /***** Tokenize *************************************************************/
   /**
-   * @fn         Tokenize
    * @brief      break a string into device list and arg list vectors
-   * @param[in]  &str, reference to input string
-   * @param[in]  &devlist, reference to vector for device list
-   * @param[in]  &ndev, reference to number of devices
-   * @param[out] &arglist, reference to vector for arg list
-   * @param[in]  &narg, reference to number of args
-   * @return     nothing
+   * @param[in]  str      reference to input string
+   * @param[in]  devlist  reference to vector for device list
+   * @param[in]  ndev     reference to number of devices
+   * @param[out] arglist  reference to vector for arg list
+   * @param[in]  narg     reference to number of args
    *
    * This is a special version of Tokenize.
    *
@@ -208,7 +198,7 @@ std::string zone="";
       std::string dev_str = str.substr( 0, str.find( ":" ) );
       std::vector<std::string> tokens;
       Tokenize( dev_str, tokens, "," );          // Tokenize the dev string on the comma ","
-      for ( auto tok : tokens ) {
+      for ( const auto &tok : tokens ) {
         try {
           devlist.push_back( std::stoi( tok ) );
         }
@@ -229,24 +219,22 @@ std::string zone="";
     std::string arg_str = str.substr( devdelim+1 );
     std::vector<std::string> tokens;
     Tokenize( arg_str, tokens, " " );            // Tokenize the arg string on the space " "
-    for ( auto tok : tokens ) {
+    for ( const auto &tok : tokens ) {
       arglist.push_back( tok );
     }
     narg = arglist.size();
 
     return;
   }
-  /** Tokenize ****************************************************************/
+  /***** Tokenize *************************************************************/
 
 
-  /** chrrep ******************************************************************/
+  /***** chrrep ***************************************************************/
   /**
-   * @fn         chrrep
    * @brief      replace one character within a string with a new character
    * @param[out] str     pointer to string
    * @param[in]  oldchr  the old character to replace in the string
    * @param[in]  newchr  the replacement value
-   * @return     none
    *
    * This function modifies the original string pointed to by *str.
    *
@@ -256,9 +244,8 @@ std::string zone="";
     int   i=0;
     while ( *p ) {
       if (*p == oldchr) {
-        /**
-         * special case for DEL character. move string over by one char
-         */
+        // special case for DEL character. move string over by one char
+        //
         if (newchr == 127) {    // if newchr==DEL copy memory after that chr
           memmove(&str[i], &str[i+1], strlen(str)-i);
         }
@@ -269,17 +256,15 @@ std::string zone="";
       ++p; i++;                 // increment pointer and byte counter
     }
   }
-  /** chrrep ******************************************************************/
+  /***** chrrep ***************************************************************/
 
 
-  /** string_replace_char *****************************************************/
+  /***** string_replace_char **************************************************/
   /**
-   * @fn         string_replace_char
    * @brief      replace one character within a std::string with a new character
-   * @param[out] reference to str
-   * @param[in]  oldchar is the char to replace
-   * @param[in]  newchar is the replacement value
-   * @return     none
+   * @param[out] str      reference to string to modify
+   * @param[in]  oldchar  the char to replace
+   * @param[in]  newchar  the replacement value
    *
    */
   void string_replace_char(std::string &str, const char *oldchar, const char *newchar) {
@@ -287,28 +272,53 @@ std::string zone="";
       if ( str.find(oldchar) != std::string::npos ) str.replace(str.find(oldchar), 1, newchar);
     }
   }
-  /** string_replace_char *****************************************************/
+  /***** string_replace_char **************************************************/
 
 
-  /** get_time ****************************************************************/
+  /***** get_time *************************************************************/
   /**
-   * @fn         get_time
    * @brief      gets the current time and returns values by reference
-   * @param[out] int & year
-   * @param[out] int & mon
-   * @param[out] int & mday
-   * @param[out] int & hour
-   * @param[out] int & min
-   * @param[out] int & sec
-   * @param[out] int & usec
-   * @return     1 on error, 0 if okay
+   * @details    call get_time with tmzone_cfg, which is the optional time zone
+   *             set by config file. If not set then UTC is used.
+   * @param[out] year  int reference for year
+   * @param[out] mon   int reference for month
+   * @param[out] mday  int reference for day
+   * @param[out] hour  int reference for hour
+   * @param[out] min   int reference for minute
+   * @param[out] sec   int reference for second
+   * @param[out] usec  int reference for microsecond
+   * @return     1=error, 0=okay
+   *
+   * This function is overloaded
    *
    */
   long get_time( int &year, int &mon, int &mday, int &hour, int &min, int &sec, int &usec ) {
-    std::stringstream current_time;  // String to contain the time
-    time_t t;                        // Container for system time
-    struct timespec timenow;         // Time of day container
-    struct tm mytime;                // GMT time container
+    return get_time( tmzone_cfg, year, mon, mday, hour, min, sec, usec );
+  }
+  /***** get_time *************************************************************/
+
+
+  /***** get_time *************************************************************/
+  /**
+   * @brief      gets the current time and returns values by reference
+   * @param[in]  tmzone_in  optional time zone {local|UTC|<empty>}
+   * @param[out] year       reference to year
+   * @param[out] mon        reference to month
+   * @param[out] mday       reference to day
+   * @param[out] hour       reference to hour
+   * @param[out] min        reference to minute
+   * @param[out] sec        reference to second
+   * @param[out] usec       reference to microsecond
+   * @return     1=error, 0=okay
+   *
+   * This function is overloaded
+   *
+   */
+  long get_time( const std::string &tmzone_in, int &year, int &mon, int &mday, int &hour, int &min, int &sec, int &usec ) {
+    std::stringstream current_time;      // String to contain the time
+    std::time_t t = std::time(nullptr);  // Container for system time
+    struct timespec timenow;             // Time of day container
+    struct tm mytime;                    // GMT time container
     long error = 0;
 
     // Get the system time, return a bad timestamp on error
@@ -319,9 +329,9 @@ std::string zone="";
     //
     if ( !error ) {
       t = timenow.tv_sec;
-      if ( zone == "local" )  { if ( localtime_r( &t, &mytime ) == NULL ) error = 1; }
+      if ( tmzone_in == "local" )  { if ( localtime_r( &t, &mytime ) == nullptr ) error = 1; }
       else {
-        if ( gmtime_r( &t, &mytime ) == NULL ) error = 1;
+        if ( gmtime_r( &t, &mytime ) == nullptr ) error = 1;
       }
     }
 
@@ -348,71 +358,112 @@ std::string zone="";
 
     return( error );
   }
-  /** get_time ****************************************************************/
+  /***** get_time *************************************************************/
 
 
-  /** get_timestamp ***********************************************************/
+  /***** timestamp_from *******************************************************/
   /**
-   * @fn         get_timestamp
-   * @brief      return a string of the current time "YYYY-MM-DDTHH:MM:SS.ssssss"
-   * @param[in]  none
-   * @return     string
+   * @brief      get a human-readable timestamp from a timespec struct
+   * @details    call timestamp_from with tmzone_cfg, which is the optional time zone
+   *             set by config file. If not set then UTC is used.
+   *             The timespec struct must have been filled before calling
+   *             this function. This function only gets the time from it. This
+   *             is used when multiple functions might need to do things all
+   *             with the same time and you don't want the time to differ by
+   *             even a fraction of a second between those operations.
+   * @param[in]  time_in  reference to a filled timespec struct
+   * @return     string   YYYY-MM-DDTHH:MM:SS.sss
+   *
+   * This function is overloaded
    *
    */
-  std::string get_timestamp() {
-    std::stringstream current_time;  // String to contain the time
-    time_t t;                        // Container for system time
-    struct timespec timenow;         // Time of day container
-    struct tm mytime;                // GMT time container
+  std::string timestamp_from( struct timespec &time_in ) {
+    return timestamp_from( tmzone_cfg, time_in );
+  }
+  /***** timestamp_from *******************************************************/
 
-    // Get the system time, return a bad timestamp on error
-    //
-    if ( clock_gettime( CLOCK_REALTIME, &timenow ) != 0 ) return("9999-99-99T99:99:99.999999");
 
-    // Convert the time of day to local or GMT
+  /***** timestamp_from *******************************************************/
+  /**
+   * @brief      get a human-readable timestamp from a timespec struct
+   * @details    The timespec struct must have been filled before calling
+   *             this function. This function only gets the time from it. This
+   *             is used when multiple functions might need to do things all
+   *             with the same time and you don't want the time to differ by
+   *             even a fraction of a second between those operations.
+   * @param[in]  tmzone_in  optional time zone {local|UTC|<empty>}
+   * @param[in]  time_in    reference to a filled timespec struct
+   * @return     string     YYYY-MM-DDTHH:MM:SS.sss
+   *
+   * This function is overloaded
+   *
+   */
+  std::string timestamp_from( const std::string &tmzone_in, struct timespec &time_in ) {
+    std::stringstream current_time;    // String to contain the time
+    std::time_t t=std::time(nullptr);  // Container for system time
+    struct tm time;                    // time container
+
+    // Convert the input time to local or GMT
     //
-    t = timenow.tv_sec;
-    if ( zone == "local" ) { if ( localtime_r( &t, &mytime ) == NULL ) return( "9999-99-99T99:99:99.999999" ); }
-    else                   { if ( gmtime_r( &t, &mytime ) == NULL )    return( "9999-99-99T99:99:99.999999" ); }
+    t = time_in.tv_sec;
+    if ( tmzone_in == "local" ) { if ( localtime_r( &t, &time ) == nullptr ) return( "9999-99-99T99:99:99.999" ); }
+    else                        { if ( gmtime_r( &t, &time ) == nullptr )    return( "9999-99-99T99:99:99.999" ); }
 
     current_time.setf(std::ios_base::right);
     current_time << std::setfill('0') << std::setprecision(0)
-                 << std::setw(4) << mytime.tm_year + 1900   << "-"
-                 << std::setw(2) << mytime.tm_mon + 1 << "-"
-                 << std::setw(2) << mytime.tm_mday    << "T"
-                 << std::setw(2) << mytime.tm_hour  << ":"
-                 << std::setw(2) << mytime.tm_min << ":"
-                 << std::setw(2) << mytime.tm_sec
-                 << "." << std::setw(6) << timenow.tv_nsec/1000;
+                 << std::setw(4) << time.tm_year + 1900   << "-"
+                 << std::setw(2) << time.tm_mon + 1 << "-"
+                 << std::setw(2) << time.tm_mday    << "T"
+                 << std::setw(2) << time.tm_hour  << ":"
+                 << std::setw(2) << time.tm_min << ":"
+                 << std::setw(2) << time.tm_sec << "."
+                 << std::setw(3) << std::fixed << std::round( time_in.tv_nsec/1000000. );
 
     return(current_time.str());
   }
-  /** get_timestamp ***********************************************************/
+  /***** timestamp_from *******************************************************/
 
 
-  /** get_system_date *********************************************************/
+  /***** get_system_date ******************************************************/
   /**
-   * @fn         get_system_date
    * @brief      return current date in formatted string "YYYYMMDD"
-   * @param[in]  none
-   * @return     string
+   * @details    call get_system_date with tmzone_cfg, which is the optional time zone
+   *             set by config file. If not set then UTC is used.
+   * @return     string  YYYYMMDD
+   *
+   * This function is overloaded
    *
    */
   std::string get_system_date() {
-    std::stringstream current_date;  // String to contain the return value
-    time_t t;                        // Container for system time
-    struct timespec timenow;;        // Time of day container
+    return get_system_date( tmzone_cfg );
+  }
+  /***** get_system_date ******************************************************/
+
+
+  /***** get_system_date ******************************************************/
+  /**
+   * @brief      return current date in formatted string "YYYYMMDD"
+   * @param[in]  tmzone_in  optional time zone {local|UTC|<empty>}
+   * @return     string  YYYYMMDD
+   *
+   * This function is overloaded
+   *
+   */
+  std::string get_system_date( const std::string &tmzone_in ) {
+    std::stringstream current_date;    // String to contain the return value
+    std::time_t t=std::time(nullptr);  // Container for system time
+    struct timespec timenow;;          // Time of day container
     struct tm mytime;                // time container
 
     // Get the system time, return a bad datestamp on error
     //
     if ( clock_gettime( CLOCK_REALTIME, &timenow ) != 0 ) return( "99999999" );
 
-    // Convert the time of day to GMT
+    // Convert the time of day to local or GMT
     //
     t = timenow.tv_sec;
-    if ( zone == "local" ) { if ( localtime_r( &t, &mytime ) == NULL ) return( "9999-99-99T99:99:99.999999" ); }
-    else                   { if ( gmtime_r( &t, &mytime ) == NULL )    return( "9999-99-99T99:99:99.999999" ); }
+    if ( tmzone_in == "local" ) { if ( localtime_r( &t, &mytime ) == nullptr ) return( "9999-99-99T99:99:99.999999" ); }
+    else                        { if ( gmtime_r( &t, &mytime ) == nullptr )    return( "9999-99-99T99:99:99.999999" ); }
 
     current_date.setf(std::ios_base::right);
     current_date << std::setfill('0') << std::setprecision(0)
@@ -422,24 +473,37 @@ std::string zone="";
 
     return( current_date.str() );
   }
-  /** get_system_date *********************************************************/
+  /***** get_system_date ******************************************************/
 
 
-  /** get_file_time ***********************************************************/
+  /***** get_file_time ********************************************************/
   /**
-   * @fn         get_file_time
    * @brief      return current time in formatted string "YYYYMMDDHHMMSS"
-   * @param[in]  none
-   * @return     string
+   * @return     string  YYYYMMDDHHMMSS
    *
    * Used for filenames
    *
    */
   std::string get_file_time() {
-    std::stringstream current_time;  // String to contain the time
-    time_t t;                        // Container for system time
-    struct timespec timenow;         // Time of day container
-    struct tm mytime;                // time container
+    return get_file_time( tmzone_cfg );
+  }
+  /***** get_file_time ********************************************************/
+
+
+  /***** get_file_time ********************************************************/
+  /**
+   * @brief      return current time in formatted string "YYYYMMDDHHMMSS"
+   * @param[in]  tmzone_in  optional time zone {local|UTC|<empty>}
+   * @return     string  YYYYMMDDHHMMSS
+   *
+   * Used for filenames
+   *
+   */
+  std::string get_file_time( const std::string &tmzone_in ) {
+    std::stringstream current_time;    // String to contain the time
+    std::time_t t=std::time(nullptr);  // Container for system time
+    struct timespec timenow;           // Time of day container
+    struct tm mytime;                  // time container
 
     // Get the system time, return a bad timestamp on error
     //
@@ -448,8 +512,8 @@ std::string zone="";
     // Convert the time of day to local or GMT
     //
     t = timenow.tv_sec;
-    if ( zone == "local" ) { if ( localtime_r( &t, &mytime ) == NULL ) return( "99999999999999" ); }
-    else                   { if ( gmtime_r( &t, &mytime ) == NULL )    return( "99999999999999" ); }
+    if ( tmzone_in == "local" ) { if ( localtime_r( &t, &mytime ) == nullptr ) return( "99999999999999" ); }
+    else                        { if ( gmtime_r( &t, &mytime ) == nullptr )    return( "99999999999999" ); }
 
     current_time.setf(std::ios_base::right);
     current_time << std::setfill('0') << std::setprecision(0)
@@ -462,14 +526,12 @@ std::string zone="";
 
     return(current_time.str());
   }
-  /** get_file_time ***********************************************************/
+  /***** get_file_time ********************************************************/
 
 
-  /** get_clock_time **********************************************************/
+  /***** get_clock_time *******************************************************/
   /**
-   * @fn         get_clock_time
    * @brief      get the current clock time using REALTIME flag from the processor
-   * @param[in]  none
    * @return     time in seconds
    *
    */
@@ -478,52 +540,118 @@ std::string zone="";
     if (clock_gettime(CLOCK_REALTIME, &data) != 0) return 0;
     return ( data.tv_sec + (data.tv_nsec / 1000000000.0) );
   }
-  /** get_clock_time **********************************************************/
+  /***** get_clock_time *******************************************************/
 
 
-  /** timeout *****************************************************************/
+  /***** timeout **************************************************************/
   /**
-   * @fn         timeout
-   * @brief      
-   * @param[in]  seconds
-   * @param[in]  next_sec
-   * @return     none
+   * @brief      sleeps integral number of minutes or seconds
+   * @param[in]  wholesec  an optional number of integral seconds to sleep first
+   * @param[in]  next      string "sec" or "min" to return on integral sec or min
+   * @return     0 on success, 1 on error
    *
    */
-  void timeout(float seconds, bool next_sec) {
-    if (seconds < 1 && seconds > 0) {
-      usleep(seconds * 1000000);
-    }
-    else {
-      // Sleep the number of seconds called for
-      //
-      if (seconds > 0) {
-        sleep((int)seconds);
-      }
+  long timeout( int wholesec, std::string next ) {
 
-      if (next_sec == true) {
-        // Get the current time to the microsecond
-        //
-        struct timespec data;                // Time of day container
-        if(clock_gettime(CLOCK_REALTIME, &data) != 0) return;
+    std::time_t t=std::time(nullptr);  // Container for system time
+    struct timespec timenow;           // Time of day container
+    struct tm mytime;                  // GMT time container
+    long error=0;
+    int nsec, sec;
 
-        // If the microseconds are less than 0.9999999, we sleep that long
-        //
-        if (data.tv_nsec/1000000000 < 0.999999999) {
-          usleep((useconds_t)((999999999-data.tv_nsec)/1000));
-        }
+    // sleep for any requested whole number of seconds
+    //
+    if ( wholesec > 0 ) std::this_thread::sleep_for( std::chrono::seconds( wholesec ) );
+
+    // Get the system time, return a bad timestamp on error
+    //
+    if ( clock_gettime( CLOCK_REALTIME, &timenow ) != 0 ) error = 1;
+
+    // Convert the time of day to local or GMT
+    //
+    if ( !error ) {
+      t = timenow.tv_sec;
+      if ( gmtime_r( &t, &mytime ) == nullptr ) error = 1;
+      sec  = mytime.tm_sec;    // current second
+      nsec = timenow.tv_nsec;  // current nanosecond
+    }
+
+    // sleep for the required fraction to get to the next whole number
+    // of sec or min, as requested
+    //
+    if ( !error && next == "sec" ) {
+      if (nsec < 999999999) {
+        std::this_thread::sleep_for( std::chrono::nanoseconds( 999999999-nsec ) );
       }
     }
+    else
+    if ( !error && next == "min" ) {
+      if (sec < 59) {
+        std::this_thread::sleep_for( std::chrono::seconds( 59-sec ) );
+      }
+      if (nsec < 999999999) {
+        std::this_thread::sleep_for( std::chrono::nanoseconds( 999999999-nsec ) );
+      }
+    }
+
+    return error;
   }
-  /** timeout *****************************************************************/
+  /***** timeout **************************************************************/
 
 
-  /** compare_versions ********************************************************/
+  /***** mjd_from *************************************************************/
   /**
-   * @fn         compare_versions
+   * @brief      return Modified Julian Date for time in a timespec struct
+   * @details    The input timespec struct must have been filled before calling
+   *             this function. This function only calculates the MJD from it.
+   *
+   *             I got this from ZTF's astronomy.h which says it came from
+   *             Meeus' Astronomical Formulae for Calculators.  The two JD
+   *             conversion routines routines were replaced 1998 November 29
+   *             to avoid inclusion of copyrighted "Numerical Recipes" code.
+   *             A test of 1 million random JDs between 1585 and 3200 AD gave
+   *             the same conversions as the NR routines.
+   * @param[in]  time_in  reference to timespec struct filled by clock_gettime()
+   * @return     double, 0 on error
+   *
+   */
+  double mjd_from( struct timespec &time_in ) {
+    std::time_t t=std::time(nullptr);  // Container for system time
+    struct tm time;                    // GMT time container
+    double a, y, m;
+    double jdn, jd;
+
+    // Convert the input time to GMT
+    //
+    t = time_in.tv_sec;
+    if ( gmtime_r( &t, &time ) == nullptr ) return 0.;
+
+    a = std::floor((14 - (time.tm_mon + 1)) / 12);
+    y = (time.tm_year + 1900) +4800 - a;
+    m = (time.tm_mon + 1) + 12 * a - 3;
+    jdn = time.tm_mday
+        + std::floor((153 * m + 2) / 5)
+        + 365 * y
+        + std::floor(y / 4)
+        - std::floor(y / 100)
+        + std::floor(y / 400)
+        - 32045;
+
+    jd = jdn + (time.tm_hour - 12) / 24.
+             + time.tm_min / 1440.
+             + time.tm_sec / 86400.
+             + (time_in.tv_nsec/1000000000.)/86400.;
+
+    return( jd - 2400000.5 );
+  }
+  /***** mjd_from *************************************************************/
+
+
+  /***** compare_versions *****************************************************/
+  /**
    * @brief      compares two version numbers represented as strings
-   * @param[in]  v1
-   * @param[in]  v2
+   * @param[in]  v1  the first version number string to be compared
+   * @param[in]  v2  the second version number string to be compared
    * @return     0,1,-1,-999
    *
    * This function compares version or revision numbers which are represented
@@ -537,7 +665,7 @@ std::string zone="";
    * but must be numbers.
    *
    */
-  int compare_versions(std::string v1, std::string v2) {
+  int compare_versions(const std::string &v1, const std::string &v2) {
     std::vector<std::string> tokens1;
     std::vector<std::string> tokens2;
 
@@ -571,5 +699,218 @@ std::string zone="";
 
     return 0;      // or they are equal
   }
-  /** compare_versions ********************************************************/
+  /***** compare_versions *****************************************************/
 
+
+  /***** md5_file *************************************************************/
+  /**
+   * @brief      compute the md5sum of a file
+   * @details    This makes use of an external source, md5.h and md5.c
+   * @param[in]  filename  const reference to filename to process
+   * @param[out] hash      reference to a string to contain result
+   *
+   */
+  long md5_file( const std::string &filename, std::string &hash ) {
+    MD5_CTX ctx;
+    md5_init( &ctx );
+
+    try {
+      // open the input file stream
+      //
+      std::ifstream instream( filename, std::ios::binary );
+      if ( ! instream.is_open() ) {
+        std::cerr << "ERROR opening file: " << filename << "\n";
+        return 1;
+      }
+
+      // process a byte at a time so the entire file never lives in memory
+      // use a vector for better cleanup
+      //
+      std::vector<BYTE> buffer(1, 0);
+      while ( instream.read(reinterpret_cast<char*>(buffer.data()), 1) ) {
+          md5_update( &ctx, buffer.data(), instream.gcount() );
+      }
+
+      instream.close();
+    }
+    catch ( std::ifstream::failure &e ) {
+      std::cerr << "md5_file( " << filename << " ): " << e.what() << "\n";
+      hash = "ERROR";
+      return 1;
+    }
+    catch ( std::exception &e ) {
+      std::cerr << "md5_file( " << filename << " ): " << e.what() << "\n";
+      hash = "ERROR";
+      return 1;
+    }
+
+    BYTE result[MD5_BLOCK_SIZE];
+    md5_final( &ctx, result );
+
+    // convert result to a string
+    //
+    std::stringstream str;
+    for (int i = 0; i < MD5_BLOCK_SIZE; ++i) {
+      str << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(result[i]);
+    }
+
+    hash = str.str();
+
+    return 0;
+  }
+  /***** md5_file *************************************************************/
+
+
+  /***** is_owner *************************************************************/
+  /**
+   * @brief      does the user own the specified file?
+   * @details    Check if the effective user ID matches the file's owner ID
+   * @param[in]  filename  const reference to filename to check
+   * @return     true or false
+   *
+   */
+  bool is_owner( const std::filesystem::path &filename ) {
+    struct stat fstat;
+    if ( stat( filename.c_str(), &fstat ) == 0 ) {
+      // Check if the effective user ID matches the file's owner ID
+      return geteuid() == fstat.st_uid;
+    }
+    return false;  // Error handling: Unable to get file information
+  }
+  /***** is_owner *************************************************************/
+
+
+  /***** has_write_permission *************************************************/
+  /**
+   * @brief      does the user have write permission on the specified file?
+   * @details    Check if the effective user ID has write permission
+   * @param[in]  filename  const reference to filename to check
+   * @return     true or false
+   *
+   */
+  bool has_write_permission( const std::filesystem::path &filename ) {
+    struct stat fstat;
+    if ( stat( filename.c_str(), &fstat ) == 0 ) {
+      // Check if the effective user ID has write permission
+      return fstat.st_mode & S_IWUSR;
+    }
+    return false;  // Error handling: Unable to get file information
+  }
+  /***** has_write_permission *************************************************/
+
+
+  /***** tchar ****************************************************************/
+  /**
+   * @brief      return a printable string of a non-printable terminating char
+   * @param[in]  str  reference to input string
+   * @return     string (static references are valid for the lifetime of the program)
+   *
+   */
+  const std::string &tchar( const std::string &str ) {
+    static const std::string unknown   = "??";
+    static const std::string newline   = "\\n";
+    static const std::string carreturn = "\\r";
+    static const std::string nullchar  = "\\0";
+
+    if ( str.empty() ) return unknown;
+
+    switch ( str.back() ) {
+      case '\n': return newline;
+      case '\r': return carreturn;
+      case '\0': return nullchar;
+      default  : return unknown;
+    }
+  }
+  /***** tchar ****************************************************************/
+
+
+  /***** strip_control_characters *********************************************/
+  /**
+   * @brief      strip all leading and trailing control chars from a string
+   * @param[in]  str  input string
+   * @return     input string without control chars
+   *
+   * str is cast to uchar for safety because iscntrl() requires uchar
+   *
+   */
+  std::string strip_control_characters( const std::string &str ) {
+    // locate leading control characters
+    //
+    size_t start = 0;
+    while ( start < str.length() && std::iscntrl( static_cast<unsigned char>( str[start] ) ) ) {
+      ++start;
+    }
+
+    // locate trailing control characters
+    //
+    size_t end = str.length();
+    while ( end > start && std::iscntrl( static_cast<unsigned char>( str[end - 1] ) ) ) {
+      --end;
+    } 
+
+    // return the substring without leading and trailing control characters
+    //
+    return str.substr( start, end - start );
+  }
+  /***** strip_control_characters *********************************************/
+
+
+  /***** starts_with **********************************************************/
+  /**
+   * @brief      check if a string starts with a string literal
+   * @details    this is here in case c++20 is not available
+   * @param[in]  str     reference to input string
+   * @param[in]  prefix  a read-only prefix string
+   * @return     true or false
+   *
+   */
+  bool starts_with( const std::string &str, std::string_view prefix ) {
+    return ( str.compare( 0, prefix.length(), prefix ) == 0 );
+  }
+  /***** starts_with **********************************************************/
+
+
+  /***** ends_with ************************************************************/
+  /**
+   * @brief      check if a string end with a string literal
+   * @details    this is here in case c++20 is not available
+   * @param[in]  str     reference to input string
+   * @param[in]  suffix  a read-only suffix string
+   * @return     true or false
+   *
+   */
+  bool ends_with( const std::string &str, std::string_view suffix ) {
+    if ( str.length() < suffix.length() ) return false;
+    return str.substr( str.length() - suffix.length() ) == suffix;
+  }
+  /***** ends_with ************************************************************/
+
+
+  /***** generate_temp_filename ***********************************************/
+  /**
+   * @brief      generates a temporary filename only, not a file
+   * @details    mimmics tmpnam to more safely create a temporary filename
+   * @param[in]  prefix  prefix for the filename, /tmp/prefix.XXXXXX
+   * @return     generated temporary filename
+   *
+   */
+  std::string generate_temp_filename( const std::string &prefix ) {
+    std::string pattern = "/tmp/" + prefix + "XXXXXX";
+    char* filename = strdup( pattern.c_str() );  // mkstemp requires a non-const pointer
+
+    generate_tmpfile_mtx.lock();
+    int fd = mkstemp( filename );                // create and open the file
+    generate_tmpfile_mtx.unlock();
+
+    if ( fd != -1 ) {
+      close(fd);                                 // close the file immediately
+      std::string temp_filename = filename;      // create a std::string
+      free( filename );                          // cleanup and
+      unlink( temp_filename.c_str() );           // delete the file.
+      return temp_filename;
+    } else {
+        free( filename );
+        return "";
+    }
+  }
+  /***** generate_temp_filename ***********************************************/

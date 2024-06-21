@@ -5,8 +5,7 @@
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
-#ifndef ARCHON_H
-#define ARCHON_H
+#pragma once
 
 #include <CCfits/CCfits>           //!< needed here for types in set_axes()
 #include <atomic>
@@ -84,7 +83,6 @@ namespace Archon {
 
     public:
       Interface();
-      ~Interface();
 
       // Class Objects
       //
@@ -344,5 +342,3 @@ namespace Archon {
   };
 
 }
-
-#endif

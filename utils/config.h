@@ -6,12 +6,16 @@
  *
  */
 
-#ifndef ARCHONCONFIG_H
-#define ARCHONCONFIG_H
+#pragma once
 
 #include <fstream>
 #include "logentry.h"
 
+  /***** Config ***************************************************************/
+  /**
+   * @class Config
+   * @brief class provides functions for accessing configuration files
+   */
   class Config {
     private:
     public:
@@ -28,11 +32,10 @@
       std::vector<std::string> arg;
 
 
-      /** Config::read_config ******************************************************/
+      /***** Config::read_config **********************************************/
       /**
-       * @fn         read_config
        * @brief      read the configuration file
-       * @param[in]  reference to Config class object
+       * @param[in]  config  reference to Config class object
        * @return     0 (no error) or 1 (error)
        *
        */
@@ -150,7 +153,7 @@
         return(0);
 
       }
-      /** Config::read_config ******************************************************/
+      /***** Config::read_config **********************************************/
 
   };
-#endif
+  /***** Config ***************************************************************/

@@ -70,7 +70,7 @@ bool Camera::get_abortstate() {
   this->abort_mutex.lock();
   state = this->abortstate;
   this->abort_mutex.unlock();
-  return( state );
+  return state;
 }
 
 
@@ -149,7 +149,7 @@ bool Camera::get_abortstate() {
       catch (...) {
         message.str(""); message << "unknown exception parsing argument: " << writekeys_in;
         this->log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
       }
     }
 
@@ -177,12 +177,13 @@ bool Camera::get_abortstate() {
 
     if (naming_in.empty()) {           // no string passed so this is a request. do nothing but will return the current value
       error = NO_ERROR;
-
-    } else if ( (naming_in=="time") || (naming_in=="number") ) {
+    }
+    else
+    if ( (naming_in.compare("time")==0) || (naming_in.compare("number")==0) ) {
       this->fits_naming = naming_in;   // set new value
       error = NO_ERROR;
-
-    } else {
+    }
+    else {
       message.str(""); message << "invalid naming type: " << naming_in << ". Must be \"time\" or \"number\".";
       error = ERROR;
     }
@@ -213,7 +214,7 @@ bool Camera::get_abortstate() {
       message.str(""); message << "image number: " << this->image_num;
       logwrite(function, message.str());
       num_out = std::to_string(this->image_num);
-      return(NO_ERROR);
+      return NO_ERROR;
     }
 
     else {                             // Otherwise check the incoming value
@@ -223,21 +224,21 @@ bool Camera::get_abortstate() {
       }
       catch (std::invalid_argument &) {
         this->log_error( function, "invalid number: unable to convert to integer" );
-        return(ERROR);
+        return ERROR;
       }
       catch (std::out_of_range &) {
         this->log_error( function, "imnum out of integer range" );
-        return(ERROR);
+        return ERROR;
       }
       if (num < 0) {                   // can't be negative
         message.str(""); message << "requested image number " << num << " must be >= 0";
         this->log_error( function, message.str() );
-        return(ERROR);
+        return ERROR;
       }
       else {                           // value is OK
         this->image_num = num;
         num_out = num_in;
-        return(NO_ERROR);
+        return NO_ERROR;
       }
     }
   }
@@ -258,7 +259,7 @@ bool Camera::get_abortstate() {
    */
   long Camera::basename(std::string name_in) {
     std::string dontcare;
-    return( basename(name_in, dontcare) );
+    return basename(name_in, dontcare);
   }
   long Camera::basename(std::string name_in, std::string& name_out) {
     std::string function = "Camera::Camera::basename";
@@ -283,7 +284,7 @@ bool Camera::get_abortstate() {
     logwrite(function, message.str());
     name_out = this->base_name;
 
-    return(error);
+    return error;
   }
   /** Camera::Camera::basename ************************************************/
 
@@ -306,7 +307,7 @@ bool Camera::get_abortstate() {
    */
   long Camera::imdir(std::string dir_in) {
     std::string dontcare;
-    return( imdir(dir_in, dontcare) );
+    return imdir(dir_in, dontcare);
   }
   long Camera::imdir(std::string dir_in, std::string& dir_out) {
     std::string function = "Camera::Camera::imdir";
@@ -388,7 +389,7 @@ bool Camera::get_abortstate() {
     message.str(""); message << "image directory: " << this->image_dir;
     logwrite(function, message.str());
     dir_out = this->image_dir;
-    return( error );
+    return error;
   }
   /** Camera::Camera::imdir ***************************************************/
 
@@ -428,7 +429,7 @@ bool Camera::get_abortstate() {
       catch (...) {
         message.str(""); message << "unknown exception parsing argument: " << state_in;
         this->log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
       }
     }
 
@@ -450,7 +451,7 @@ bool Camera::get_abortstate() {
   /**
    * @fn     set_fitstime
    * @brief  set the "fitstime" variable used for the filename
-   * @param  string formatted as "YYYY-MM-DDTHH:MM:SS.ssssss"
+   * @param  string formatted as "YYYY-MM-DDTHH:MM:SS.sss"
    * @return std::string
    *
    * The Camera class has a public string variable "fitstime" which is
@@ -464,7 +465,7 @@ bool Camera::get_abortstate() {
     std::string function = "Camera::Camera::set_fitstime";
     std::stringstream message;
 
-    if ( time_in.length() != 26 ) {  // wrong number of characters, input can't be formatted correctly
+    if ( time_in.length() != 23 ) {  // wrong number of characters, input can't be formatted correctly
       message.str(""); message << "ERROR: bad input time: " << time_in;
       logwrite(function, message.str());
       this->fitstime = "99999999999999";
@@ -536,7 +537,7 @@ bool Camera::get_abortstate() {
           message << "requested base directory " << basedir.str() << " does not exist";
           this->log_error( function, message.str() );
         }
-        return(ERROR);
+        return ERROR;
       }
     }
     else {
@@ -593,7 +594,7 @@ bool Camera::get_abortstate() {
 #endif
 
     name_out = fn.str();
-    return(NO_ERROR);
+    return NO_ERROR;
   }
   /** Camera::Camera:get_fitsname *********************************************/
 
@@ -652,7 +653,7 @@ bool Camera::get_abortstate() {
 
     // and this lets the server know if it was set or not
     //
-    return( error );
+    return error;
   }
   /** Camera::Camera::datacube ************************************************/
 
@@ -712,7 +713,7 @@ bool Camera::get_abortstate() {
 
     // and this lets the server know if it was set or not
     //
-    return( error );
+    return error;
   }
   /** Camera::Camera::longerror ***********************************************/
 
@@ -780,7 +781,7 @@ bool Camera::get_abortstate() {
 
     // and this lets the server know if it was set or not
     //
-    return( error );
+    return error;
   }
   /** Camera::Camera::cubeamps ************************************************/
 
@@ -808,7 +809,7 @@ bool Camera::get_abortstate() {
       message.str(""); message << "pre-exposures: " << this->num_pre_exposures;
       logwrite( function, message.str() );
       num_out = std::to_string( this->num_pre_exposures );
-      return( NO_ERROR );
+      return NO_ERROR;
     }
 
     else {                             // Otherwise check the incoming value
@@ -819,22 +820,22 @@ bool Camera::get_abortstate() {
       catch ( std::invalid_argument & ) {
         message.str(""); message << "ERROR: invalid number: unable to convert " << num_in << " to integer";
         logwrite( function, message.str() );
-        return( ERROR );
+        return ERROR;
       }
       catch ( std::out_of_range & ) {
         message.str(""); message << "ERROR: " << num_in << " out of integer range";
         logwrite( function, message.str() );
-        return( ERROR );
+        return ERROR;
       }
       if ( num < 0 ) {                 // can't be negative
         message.str(""); message << "ERROR: requested pre-exposures " << num << " must be >= 0";
         logwrite( function, message.str() );
-        return( ERROR );
+        return ERROR;
       }
       else {                           // incoming value is OK
         this->num_pre_exposures = num; // set the class variable
         num_out = num_in;              // set the return string value
-        return( NO_ERROR );
+        return NO_ERROR;
       }
     }
   }

@@ -5,8 +5,7 @@
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
-#ifndef CAMERA_H
-#define CAMERA_H
+#pragma once
 
 #include <CCfits/CCfits>           /// needed here for types in set_axes()
 #include <dirent.h>                /// for imdir()
@@ -223,4 +222,3 @@ namespace Camera {
   /**************** Camera::Information ***************************************/
 
 }
-#endif
