@@ -752,7 +752,7 @@ namespace Archon {
    */
   long Interface::archon_cmd(const std::string& cmd) { // use this form when the calling
     std::string reply;                          // function doesn't need to look at the reply
-    return archon_cmd(cmd, reply);
+    return( archon_cmd(cmd, reply) );
   }
   long Interface::archon_cmd(const std::string& cmd, std::string &reply) {
     std::string function = "Archon::Interface::archon_cmd";
@@ -1110,7 +1110,7 @@ namespace Archon {
    *
    */
   long Interface::load_timing(std::string acffile, std::string &retstring) {
-    return this->load_timing( acffile );
+    return( this->load_timing( acffile ) );
   }
   long Interface::load_timing(std::string acffile) {
     std::string function = "Archon::Interface::load_timing";
@@ -1178,7 +1178,7 @@ namespace Archon {
    *
    */
   long Interface::load_firmware(std::string acffile, std::string &retstring) {
-    return this->load_firmware( acffile );
+    return( this->load_firmware( acffile ) );
   }
   /**************** Archon::Interface::load_firmware **************************/
 
@@ -2152,7 +2152,7 @@ namespace Archon {
         message << "expected 2 but received invalid number of tokens (" << subtokens.size() << ") in FRAME message:";
         for (const auto & subtoken : subtokens) message << " " << subtoken;
         this->camera.log_error( function, message.str() );
-        return ERROR;
+        return ERROR;  // We could continue; but if one is bad then we could miss seeing a larger problem
       }
 
       int bufnum=0;
@@ -2946,7 +2946,7 @@ namespace Archon {
               message.str(""); message << "ERROR: " << ext << " is a bad extension number";
               logwrite( function, message.str() );
               if ( fext != nullptr ) { delete [] fext; fext=nullptr; }            // dynamic object not automatic so must be destroyed
-              return( ERROR );
+              return ERROR;
             }
           }
             // end if this->camera.cubeamps()
@@ -3260,19 +3260,19 @@ namespace Archon {
   long Interface::write_parameter( const char *paramname, int newvalue, bool &changed ) {
     std::stringstream newvaluestr;
     newvaluestr << newvalue;
-    return ( write_parameter(paramname, newvaluestr.str().c_str(), changed) );
+    return( write_parameter(paramname, newvaluestr.str().c_str(), changed) );
   }
 
   long Interface::write_parameter( const char *paramname, const char *newvalue ) {
     bool dontcare = false;
-    return write_parameter(paramname, newvalue, dontcare);
+    return( write_parameter(paramname, newvalue, dontcare) );
   }
 
   long Interface::write_parameter( const char *paramname, int newvalue ) {
     bool dontcare = false;
     std::stringstream newvaluestr;
     newvaluestr << newvalue;
-    return ( write_parameter(paramname, newvaluestr.str().c_str(), dontcare) );
+    return( write_parameter(paramname, newvaluestr.str().c_str(), dontcare) );
   }
   /**************** Archon::Interface::write_parameter ************************/
 
@@ -3974,12 +3974,12 @@ namespace Archon {
       message.str("");
       message << "received currentframe: " << currentframe << " from buffer " << this->frame.index+1;
       logwrite(function, message.str());
-      return(NO_ERROR);
+      return NO_ERROR;
 
     } else if (this->abort) {
         // If the wait was stopped, log a message and return NO_ERROR
       logwrite(function, "wait for readout stopped by external signal");
-      return(NO_ERROR);
+      return NO_ERROR;
 
     } else {
         // Throw an error for any other errors (should be impossible)
@@ -4019,7 +4019,7 @@ namespace Archon {
   long Interface::set_parameter( std::string parameter, long value ) {
     std::stringstream paramstring;
     paramstring << parameter << " " << value;
-    return set_parameter( paramstring.str() );
+    return( set_parameter( paramstring.str() ) );
   }
   long Interface::set_parameter(std::string parameter) {
     std::string function = "Archon::Interface::set_parameter";
@@ -4271,7 +4271,7 @@ namespace Archon {
       } catch ( std::invalid_argument & ) {
         message.str(""); message << "converting hdrshift: " << bits_in << " to integer";
         this->camera.log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
 
       } catch ( std::out_of_range & ) {
         message.str(""); message << "hdrshift: " << bits_in << " is outside integer range";
@@ -4282,7 +4282,7 @@ namespace Archon {
 
     if ( hdrshift_req < 0 || hdrshift_req > 31 ) {
       this->camera.log_error( function, "hdrshift outside range {0:31}" );
-      return( ERROR );
+      return ERROR;
 
     } else this->n_hdrshift = hdrshift_req;
 
@@ -4941,7 +4941,7 @@ namespace Archon {
     if ( ret == -999 ) {
       message.str(""); message << "comparing backplane version " << this->backplaneversion << " to " << REV_HEATERTARGET;
       this->camera.log_error( function, message.str() );
-      return( ERROR );
+      return ERROR;
 
     } else if ( ret == -1 ) {
       this->heater_target_min = -150.0;
@@ -5159,7 +5159,7 @@ namespace Archon {
       if ( tokens[2] != "RAMP" && tokens[3] != "ON" ) {
         message.str(""); message << "expected RAMP ON <ramprate> but got"; for (int i=2; i<5; i++) message << " " << tokens[i];
         this->camera.log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
 
       } else {  // got "<module> A|B RAMP ON" now check that the last (5th) token is a number
         try {
@@ -5192,7 +5192,7 @@ namespace Archon {
       if ( tokens[2] != "PID" ) {
         message.str(""); message << "expected PID <p> <i> <d> but got"; for (int i=2; i<6; i++) message << " " << tokens[i];
         this->camera.log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
 
       } else {  // got "<module> A|B PID <p> <i> <d>" now check that the last 3 tokens are numbers
         // Fractional PID requires a minimum backplane version
@@ -5202,7 +5202,7 @@ namespace Archon {
         if ( ret == -999 ) {
           message.str(""); message << "comparing backplane version " << this->backplaneversion << " to " << REV_FRACTIONALPID;
           this->camera.log_error( function, message.str() );
-          return( ERROR );
+          return ERROR;
 
         } else if ( ret == -1 ) {
             fractionalpid_ok = false;
@@ -5344,7 +5344,7 @@ namespace Archon {
       if ( error != NO_ERROR ) {
         message.str(""); message << "reading heater configuration " << key;
         logwrite( function, message.str() );
-        return( error );
+        return error;
 
       } else {
         // If key ends with "ENABLE" or "RAMP"
@@ -5464,7 +5464,7 @@ namespace Archon {
     } catch ( std::invalid_argument & ) {
       message.str(""); message << "parsing argument: " << args << ": expected <module#> <A|B|C> [ current | AVG [N] ]";
       this->camera.log_error( function, message.str() );
-      return( ERROR );
+      return ERROR;
 
     } catch ( std::out_of_range & ) {
       message.str(""); message << "argument outside range in " << args << ": expected <module#> <A|B|C> [ current | AVG [N] ]";
@@ -5524,7 +5524,7 @@ namespace Archon {
         } catch ( std::invalid_argument & ) {
           message.str(""); message << "parsing \"" << args << "\" : expected \"AVG\" or integer for arg 3";
           this->camera.log_error( function, message.str() );
-          return( ERROR );
+          return ERROR;
 
         } catch ( std::out_of_range & ) {
           message.str(""); message << "parsing \"" << args << "\" : arg 3 outside integer range";
@@ -5563,7 +5563,7 @@ namespace Archon {
       } catch ( std::invalid_argument & ) {
         message.str(""); message << "parsing \"" << args << "\" : expected integer for arg 4";
         this->camera.log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
 
       } catch ( std::out_of_range & ) {
         message.str(""); message << "parsing \"" << args << "\" : arg 4 outside integer range";
@@ -5682,7 +5682,7 @@ namespace Archon {
       } catch ( std::invalid_argument & ) {
         message.str(""); message << "bad value: " << value << " read back from configuration. expected integer";
         this->camera.log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
 
       } catch ( std::out_of_range & ) {
         message.str(""); message << "value: " << value << " read back from configuration outside integer range";
@@ -5933,7 +5933,7 @@ namespace Archon {
     } catch(std::out_of_range &) {
       message << "parsing cds arguments: " << args << ": Expected cds <configkey> [ value ]";
       this->camera.log_error( function, message.str() );
-      return( ERROR );
+      return ERROR;
 
     } catch(...) {
       message << "unknown exception parsing cds arguments: " << args << ": Expected cds <configkey> [ value ]";
@@ -6054,7 +6054,7 @@ namespace Archon {
     if ( error != NO_ERROR ) {
       message.str(""); message << "configuration " << inreg_key.str() << "=" << value;
       logwrite( function, message.str() );
-      return( ERROR );
+      return ERROR;
 
     } else {
       std::stringstream applystr;
@@ -6127,7 +6127,7 @@ namespace Archon {
 
     } catch ( std::out_of_range & ) {
         this->camera.log_error( function, "testname token out of range" );
-        return( ERROR );
+        return ERROR;
     }
 
     // ----------------------------------------------------
