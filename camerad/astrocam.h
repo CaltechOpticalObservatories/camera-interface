@@ -59,7 +59,7 @@ namespace AstroCam {
 
   class Callback : public arc::gen3::CooExpIFace {  //!< Callback class inherited from the ARC API
     public:
-      Callback(){}
+      Callback() = default;
       void exposeCallback( int devnum, std::uint32_t uiElapsedTime );
       void readCallback( int devnum, std::uint32_t uiPixelCount );
       void frameCallback( int devnum,
@@ -77,10 +77,7 @@ namespace AstroCam {
       T* workbuf;
 
     public:
-      XeInterlace(T* imbuf_in, T* workbuf_in) {
-        this->imbuf   = imbuf_in;
-        this->workbuf = workbuf_in;
-      }
+      XeInterlace(T* imbuf_in, T* workbuf_in) : imbuf(imbuf_in), workbuf(workbuf_in) { }
 
       void split_parallel();
       void split_serial();
@@ -448,8 +445,7 @@ namespace AstroCam {
       void retval_to_string( std::uint32_t check_retval, std::string& retstring );
 
     public:
-      Interface();
-      ~Interface();
+      Interface() = default;
 
       // Class Objects
       //
@@ -500,8 +496,7 @@ namespace AstroCam {
           long workbuf_size;
 
         public:
-          Controller();                 //!< class constructor
-          ~Controller() { };            //!< no deconstructor
+          Controller() = default;       //!< class constructor
           Camera::Information info;     //!< this is the main controller info object
 //        Camera::FitsKeys userkeys;    //!< create a FitsKeys object for FITS keys specified by the user
           FITS_file *pFits;             //!< FITS container object has to be a pointer here

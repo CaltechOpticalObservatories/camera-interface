@@ -33,8 +33,7 @@ namespace Common {
   class FitsKeys {
     private:
     public:
-      FitsKeys() {}
-      ~FitsKeys() {}
+      FitsKeys() = default;
 
       std::string get_keytype(std::string keyvalue);         /// return type of keyword based on value
       long listkeys();                                       /// list FITS keys in the internal database
@@ -193,8 +192,7 @@ namespace Common {
       std::condition_variable notifier;
       bool is_running;
     public:
-      Queue(void) : message_queue() , queue_mutex() , notifier() { this->is_running = false; };
-      ~Queue(void) {}
+      Queue(void) : is_running(false) { }
 
       void service_running(bool state) { this->is_running = state; };  /// set service running
       bool service_running() { return this->is_running; };             /// is the service running?

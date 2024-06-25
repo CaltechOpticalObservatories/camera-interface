@@ -32,22 +32,28 @@ namespace Camera {
       std::string image_dir;
       std::string base_name;
       std::string fits_naming;
+
       std::string fitstime;                  //!< "YYYYMMDDHHMMSS" uesd for filename, set by get_fitsname()
+
       mode_t dirmode;                        //!< user specified mode to OR with 0700 for imdir creation
       int image_num;
       bool is_datacube;
       bool is_longerror;                     //!< set to return error message on command port
       bool is_cubeamps;                      //!< should amplifiers be written as multi-extension data cubes?
       std::atomic<bool> _abortstate;;
+
       std::mutex abort_mutex;
       std::stringstream lasterrorstring;     //!< a place to preserve an error message
 
     public:
-      Camera();
-      ~Camera() {}
+      Camera() : image_dir("/tmp"), base_name("image"), fits_naming("true"), 
+                 dirmode(0), image_num(0), is_datacube(false), is_longerror(false), is_cubeamps(false), _abortstate(false),
+                 autodir_state(true), abortstate(false), writekeys_when("before") { }
+
 
       bool          autodir_state;           //!< if true then images are saved in a date subdir below image_dir, i.e. image_dir/YYYYMMDD/
       bool          abortstate;              //!< set true to abort the current operation (exposure, readout, etc.)
+
       std::string   writekeys_when;          //!< when to write fits keys "before" or "after" exposure
       Common::Queue async;                   /// message queue object
 
