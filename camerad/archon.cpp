@@ -153,7 +153,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert port number to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "port number out of integer range" );
@@ -214,7 +214,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_EXPOSE_ENABLE to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "TRIGIN_EXPOSE_ENABLE out of integer range" );
@@ -234,7 +234,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_EXPOSE_DISABLE to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "TRIGIN_EXPOSE_DISABLE out of integer range" );
@@ -254,7 +254,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_UNTIMED_ENABLE to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "TRIGIN_UNTIMED_ENABLE out of integer range" );
@@ -274,7 +274,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_UNTIMED_DISABLE to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "TRIGIN_UNTIMED_DISABLE out of integer range" );
@@ -294,7 +294,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_READOUT_ENABLE to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "TRIGIN_READOUT_ENABLE out of integer range" );
@@ -314,7 +314,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert TRIGIN_READOUT_DISABLE to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "TRIGIN_READOUT_DISABLE out of integer range" );
@@ -342,7 +342,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert SHUTENABLE_ENABLE to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "SHUTENABLE_ENABLE out of integer range" );
@@ -362,7 +362,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert SHUTENABLE_DISABLE to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "SHUTENABLE_DISABLE out of integer range" );
@@ -402,7 +402,7 @@ namespace Archon {
 
         } catch (std::invalid_argument &) {
           this->camera.log_error( function, "unable to convert readout time to integer" );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "readout time out of integer range" );
@@ -435,7 +435,7 @@ namespace Archon {
 
           } catch (std::invalid_argument &) {
             this->camera.log_error( function, "unable to convert mode bit to integer" );
-            return(ERROR);
+            return ERROR;
 
           } catch (std::out_of_range &) {
             this->camera.log_error( function, "out of range converting dirmode bit" );
@@ -589,7 +589,7 @@ namespace Archon {
         } catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert module or type from " << tokens[0] << "=" << tokens[1] << " to integer";
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           message.str(""); message << "module " << tokens[0].substr(3) << " or type " << tokens[1] << " out of range";
@@ -1453,7 +1453,7 @@ namespace Archon {
             message.str(""); message << "unrecognized internal parameter specified: "<< tokens[0];
             this->camera.log_error( function, message.str() );
 	        filestream.close();
-            return(ERROR);
+            return ERROR;
           }
           // end else if (line.compare(0,5,"ARCH:")==0)
 
@@ -1470,7 +1470,7 @@ namespace Archon {
             message.str(""); message << "malformed FITS command: " << savedline << ": expected KEYWORD=value/comment";
             this->camera.log_error( function, message.str() );
             filestream.close();
-            return(ERROR);
+            return ERROR;
           }
           keyword   = tokens[0].substr(0,8); // truncate keyword to 8 characters
           keystring = tokens[1];                    // tokenize the rest in a moment
@@ -1499,7 +1499,7 @@ namespace Archon {
             message.str(""); message << "too many \"/\" in comment string? " << keystring;
             this->camera.log_error( function, message.str() );
             filestream.close();
-            return(ERROR);
+            return ERROR;
           }
 
           // Save all the user keyword information in a map for later
@@ -2039,7 +2039,7 @@ namespace Archon {
         } catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert AD number \'" << adchan << "\' to integer";
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           this->camera.log_error( function, "AD number out of integer range" );
@@ -2061,7 +2061,7 @@ namespace Archon {
         } catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert GAIN \"" << tokens[1] << "\" and/or OFFSET \"" << tokens[2] << "\" to integer";
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           message.str(""); message << "GAIN " << tokens[1] << ", OFFSET " << tokens[2] << " outside integer range";
@@ -2191,7 +2191,7 @@ namespace Archon {
         } catch (std::invalid_argument &) {
           message.str(""); message << "unable to convert buffer: " << subtokens[0] << " or value: " << subtokens[1] << " from FRAME message to integer. Expected BUFnSOMETHING=nnnn";
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           message.str(""); message << "buffer: " << subtokens[0] << " or value: " << subtokens[1] << " from FRAME message outside integer range. Expected BUFnSOMETHING=nnnn";
@@ -2254,7 +2254,7 @@ namespace Archon {
         // frame.index value is illegal
         message.str(""); message << "newest buf " << this->frame.index << " from FRAME message exceeds number of buffers " << this->frame.bufframen.size();
         this->camera.log_error( function, message.str() );
-        return(ERROR);
+        return ERROR;
     }
 
     int num_zero = 0;   // count zero buffers
@@ -3436,7 +3436,7 @@ namespace Archon {
       } catch (std::invalid_argument &) {
         message.str(""); message << "unable to convert sequences: " << nseq_in << " to integer";
         this->camera.log_error( function, message.str() );
-        return(ERROR);
+        return ERROR;
 
       } catch (std::out_of_range &) {
         message.str(""); message << "sequences " << nseq_in << " outside integer range";
@@ -4069,7 +4069,7 @@ namespace Archon {
       } catch (std::invalid_argument &) {
         message.str(""); message << "converting exposure time: " << exptime_in << " to integer";
         this->camera.log_error( function, message.str() );
-        return(ERROR);
+        return ERROR;
 
       } catch (std::out_of_range &) {
         message.str(""); message << "requested exposure time: " << exptime_in << " outside integer range";
@@ -4907,7 +4907,7 @@ namespace Archon {
     } catch (std::invalid_argument &) {
       message.str(""); message << "converting heater <module> " << tokens[0] << " to integer";
       this->camera.log_error( function, message.str() );
-      return(ERROR);
+      return ERROR;
 
     } catch (std::out_of_range &) {
       message.str(""); message << "heater <module>: " << tokens[0] << " is outside integer range";
@@ -5020,7 +5020,7 @@ namespace Archon {
         } catch (std::invalid_argument &) {
           message.str(""); message << "converting heater <target>=" << tokens[2] << " to float";
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           message.str(""); message << "heater <target>: " << tokens[2] << " outside range of float";
@@ -5055,7 +5055,7 @@ namespace Archon {
         } catch (std::invalid_argument &) {
           message.str(""); message << "converting heater <target> " << tokens[3] << " to float";
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           message.str(""); message << "heater <target>: " << tokens[3] << " outside range of float";
@@ -5088,7 +5088,7 @@ namespace Archon {
           } catch (std::invalid_argument &) {
             message.str(""); message << "converting RAMP <ramprate> " << tokens[3] << " to integer";
             this->camera.log_error( function, message.str() );
-            return(ERROR);
+            return ERROR;
 
           } catch (std::out_of_range &) {
             message.str(""); message << "RAMP <ramprate>: " << tokens[3] << " outside range of integer";
@@ -5112,7 +5112,7 @@ namespace Archon {
         } catch (std::invalid_argument &) {
           message.str(""); message << "converting ILIM <value> " << tokens[3] << " to integer";
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           message.str(""); message << "ILIM <value>: " << tokens[3] << " outside range of integer";
@@ -5173,7 +5173,7 @@ namespace Archon {
         } catch (std::invalid_argument &) {
           message.str(""); message << "expected RAMP ON <ramprate> but unable to convert <ramprate>=" << tokens[4] << " to integer";
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           message.str(""); message << "expected RAMP ON <ramprate> but <ramprate>=" << tokens[4] << " outside range of integer";
@@ -5245,7 +5245,7 @@ namespace Archon {
           message.str(""); message << "converting one or more heater PID values to numbers:";
           for (int i=3; i<6; i++) message << " " << tokens[i];
           this->camera.log_error( function, message.str() );
-          return(ERROR);
+          return ERROR;
 
         } catch (std::out_of_range &) {
           message.str(""); message << "heater PID exception: one or more values outside range:";
@@ -5758,7 +5758,7 @@ namespace Archon {
     } catch (std::invalid_argument &) {
       message.str(""); message << "parsing bias arguments: " << args << ": expected <module> <channel> [ voltage ]";
       this->camera.log_error( function, message.str() );
-      return(ERROR);
+      return ERROR;
 
     } catch (std::out_of_range &) {
       message.str(""); message << "argument range: " << args << ": expected <module> <channel> [ voltage ]";
@@ -6394,7 +6394,7 @@ namespace Archon {
 
         } catch ( std::out_of_range & ) {
             this->camera.log_error( function, "nseqstr token out of range" );
-            return(ERROR);
+            return ERROR;
         }
 
       } else {
@@ -6418,7 +6418,7 @@ namespace Archon {
       } catch (std::invalid_argument &) {
         message.str(""); message << "unable to convert sequences: " << nseqstr << " to integer";
         this->camera.log_error( function, message.str() );
-        return(ERROR);
+        return ERROR;
 
       } catch (std::out_of_range &) {
         message.str(""); message << "sequences " << nseqstr << " outside integer range";
@@ -6588,7 +6588,7 @@ namespace Archon {
       } catch (std::invalid_argument &) {
         message.str(""); message << "unable to convert one or more args to an integer";
         this->camera.log_error( function, message.str() );
-        return(ERROR);
+        return ERROR;
 
       } catch (std::out_of_range &) {
         message.str(""); message << "nseq, sleepus tokens outside range";
