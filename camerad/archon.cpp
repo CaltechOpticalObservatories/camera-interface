@@ -79,6 +79,7 @@ namespace Archon {
     this->frame.buffetimestamp.resize( Archon::nbufs );
   }
 
+
   /**************** Archon::Interface::interface ******************************/
   long Interface::interface(std::string &iface) {
     std::string function = "Archon::Interface::interface";
