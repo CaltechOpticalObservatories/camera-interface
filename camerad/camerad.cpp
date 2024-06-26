@@ -71,8 +71,14 @@ int main(int argc, char **argv) {
   std::string function = "Camera::main";
   std::stringstream message;
   long ret=NO_ERROR;
-  std::string daemon_in;     // daemon setting read from config file
-  bool start_daemon = false; // don't start as daemon unless specifically requested
+
+  // Daemonize by default, but allow command line arg to keep it as
+  // a foreground process
+  //
+  if ( ! cmdOptionExists( argv, argv+argc, "--foreground" ) ) {
+    logwrite( function, "starting daemon" );
+    Daemon::daemonize( Camera::DAEMON_NAME, "/tmp", "", "", "" );
+  }
 
   // capture these signals
   //
@@ -110,7 +116,6 @@ int main(int argc, char **argv) {
   //
   for (int entry=0; entry < server.config.n_entries; entry++) {
     if (server.config.param[entry] == "LOGPATH") log_path = server.config.arg[entry];   // where to write log files
-    if (server.config.param[entry] == "DAEMON")  daemon_in = server.config.arg[entry];  // am I starting as a daemon or not?
 
     if (server.config.param[entry] == "LOGSTDERR") {                                    // should I log also to stderr?
       std::string stderrstr = server.config.arg[entry];
@@ -169,8 +174,6 @@ int main(int argc, char **argv) {
       server.camera.async.enqueue( message.str() );
     }
 
-     if (server.config.param[entry] == "DAEMON")  daemon_in = server.config.arg[entry];
-
   }
 
   if ( log_path.empty() ) {
@@ -185,28 +188,6 @@ int main(int argc, char **argv) {
 
   if ( log_tostderr.empty() ) {
     logwrite( function, "LOGSTDERR=(empty): logs will be echoed to stderr" );
-  }
-
-  if ( !daemon_in.empty() && daemon_in == "yes" ) start_daemon = true;
-  else
-  if ( !daemon_in.empty() && daemon_in == "no"  ) start_daemon = false;
-  else
-  if ( !daemon_in.empty() ) {
-    message.str(""); message << "ERROR: unrecognized argument DAEMON=" << daemon_in << ", expected { yes | no }";
-    logwrite( function, message.str() );
-    server.exit_cleanly();
-  }
-
-  // check for "-d" command line option last so that the command line
-  // can override the config file to start as daemon
-  //
-  if ( cmdOptionExists( argv, argv+argc, "-d" ) ) {
-    start_daemon = true;
-  }
-
-  if ( start_daemon ) {
-    logwrite( function, "starting daemon" );
-    Daemon::daemonize( Camera::DAEMON_NAME, "/tmp", "", "", "" );
   }
 
   // log and add server build date to system keys db
