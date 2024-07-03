@@ -944,7 +944,7 @@ namespace Archon {
       long load_timing(std::string acffile, std::string &retstring);
       long load_firmware(std::string acffile); //!< load specified acf then APPLYALL
       long load_firmware(std::string acffile, std::string &retstring);
-      long load_acf(std::string acffile);    //!< only load (WCONFIG) the specified ACF file
+      long load_acf( std::string acffile, bool write_to_archon );    //!< only load (WCONFIG) the specified ACF file
       long set_camera_mode(std::string mode_in);
       long load_mode_settings(std::string mode);
       long native(std::string cmd);

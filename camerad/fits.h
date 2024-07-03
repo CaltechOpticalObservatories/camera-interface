@@ -13,6 +13,7 @@
  *
  */
 #include <CCfits/CCfits>
+#include <filesystem>
 #include <fstream>         /// for ofstream
 #include <thread>
 #include <atomic>
@@ -26,29 +27,26 @@ const int FITS_WRITE_WAIT = 5000;                   /// approx time (in msec) to
 
 class FITS_file {
   private:
-    std::mutex fits_mutex;                          /// used to block writing_file semaphore in multiple threads
-    std::unique_ptr<CCfits::FITS> pFits;            /// pointer to FITS data container
     std::atomic<bool> writing_file;                 /// semaphore indicates file is being written
     std::atomic<bool> error;                        /// indicates an error occured in a file writing thread
     std::atomic<bool> file_open;                    /// semaphore indicates file is open
     std::atomic<int> threadcount;                   /// keep track of number of write_image_thread threads
     std::atomic<int> framen;                        /// internal frame counter for multi-extensions
+
+    std::mutex fits_mutex;                          /// used to block writing_file semaphore in multiple threads
+    std::unique_ptr<CCfits::FITS> pFits;            /// pointer to FITS data container
     CCfits::ExtHDU* imageExt;                       /// image extension header unit
     std::string fits_name;
+
+    inline static const std::string in_process = ".writing";  /// add this extension while fits writing is in process, remove on close
 
   public:
     bool iserror() { return this->error; };         /// allows outsiders access to errors that occurred in a fits writing thread
     bool isopen()  { return this->file_open; };     /// allows outsiders access file open status
-    FITS_file() {                                   /// constructor
-      this->threadcount = 0;
-      this->framen = 0;
-      this->writing_file = false;
-      this->error = false;
-      this->file_open = false;
-    };
 
-    ~FITS_file() {                                  /// deconstructor
-    };
+    // Default constructor, only initializes values
+    //
+    FITS_file() : writing_file(false), error(false), file_open(false), threadcount(0), framen(0) { }
 
 
     /**************** FITS_file::open_file ************************************/
@@ -66,29 +64,36 @@ class FITS_file {
       std::string function = "FITS_file::open_file";
       std::stringstream message;
 
+      const std::lock_guard<std::mutex> lock(this->fits_mutex);
+
 //    int num_axis = ( info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes
       int num_axis = ( info.fitscubed > 1 ? 3 : 2 );  // local variable for number of axes
       long* axes;                                     // local variable of image axes size
 
-      const std::lock_guard<std::mutex> lock(this->fits_mutex);
+      // Save the requested filename in the FITS_file class.
+      // The requested name in the info class is the final name, but the local name in
+      // the FITS_file class will add a ".writing" extension when it is opened, which
+      // will be used for writing. This will get removed after the file is closed.
+      //
+      this->fits_name = info.fits_name + this->in_process;
 
       // This is probably a programming error, if file_open is true here
       //
       if (this->file_open) {
-        message.str(""); message << "ERROR: FITS file \"" << info.fits_name << "\" already open";
+        message.str(""); message << "ERROR: FITS file \"" << this->fits_name << "\" already open";
         logwrite(function, message.str());
         return (ERROR);
       }
 
       // Check that we can write the file, because CCFits will crash if it cannot
       //
-      std::ofstream checkfile ( info.fits_name.c_str() );
+      std::ofstream checkfile ( this->fits_name.c_str() );
       if ( checkfile.is_open() ) {
         checkfile.close();
-        std::remove( info.fits_name.c_str() );
+        std::remove( this->fits_name.c_str() );
       }
       else {
-        message.str(""); message << "ERROR unable to create file \"" << info.fits_name << "\"";
+        message.str(""); message << "ERROR unable to create file \"" << this->fits_name << "\"";
         logwrite(function, message.str());
         return(ERROR);
       }
@@ -118,7 +123,7 @@ class FITS_file {
         // Create a new FITS object, specifying the data type and axes for the primary image.
         // Simultaneously create the corresponding file.
         //
-        this->pFits.reset( new CCfits::FITS(info.fits_name, info.datatype, num_axis, axes) );
+        this->pFits.reset( new CCfits::FITS(this->fits_name, info.datatype, num_axis, axes) );
         this->file_open = true;    // file is open now
 //      this->make_camera_header(info); /// TODO this call might be obsolete
 
@@ -143,19 +148,19 @@ class FITS_file {
         }
       }
       catch (CCfits::FITS::CantCreate){
-        message.str(""); message << "ERROR: unable to open FITS file \"" << info.fits_name << "\"";
+        message.str(""); message << "ERROR: unable to open FITS file \"" << this->fits_name << "\"";
         logwrite(function, message.str());
         delete [] axes;
         return(ERROR);
       }
       catch (...) {
-        message.str(""); message << "unknown error opening FITS file \"" << info.fits_name << "\"";
+        message.str(""); message << "unknown error opening FITS file \"" << this->fits_name << "\"";
         logwrite(function, message.str());
         delete [] axes;
         return(ERROR);
       }
 
-      message.str(""); message << "opened file \"" << info.fits_name << "\" for FITS write";
+      message.str(""); message << "opened file \"" << this->fits_name << "\" for FITS write";
       logwrite(function, message.str());
 
       // must reset variables as when container was constructed
@@ -165,8 +170,6 @@ class FITS_file {
       this->framen = 0;
       this->writing_file = false;
       this->error = false;
-
-      this->fits_name = info.fits_name;
 
       delete [] axes;
       return (0);
@@ -264,9 +267,21 @@ class FITS_file {
       // Let the world know that the file is closed
       //
       this->file_open = false;
-
       message.str(""); message << this->fits_name << " closed";
       logwrite(function, message.str());
+
+      // Rename the file to remove the in_process extension
+      //
+      std::string finished_file { this->fits_name, 0, this->fits_name.rfind( this->in_process ) };  // remove extension
+
+      std::filesystem::path in_process_path( this->fits_name );
+      std::filesystem::path finished_path( finished_file );
+
+      std::filesystem::rename( in_process_path, finished_path );
+
+      message.str(""); message << "renamed " << this->fits_name << " to " << finished_file;
+      logwrite(function, message.str());
+
       this->fits_name="";
     }
     /**************** FITS_file::close_file ***********************************/
@@ -296,7 +311,7 @@ class FITS_file {
       // The file must have been opened first
       //
       if ( !this->file_open ) {
-        message.str(""); message << "ERROR: FITS file \"" << info.fits_name << "\" not open";
+        message.str(""); message << "ERROR: FITS file \"" << this->fits_name << "\" not open";
         logwrite(function, message.str());
         return (ERROR);
       }
@@ -326,7 +341,7 @@ class FITS_file {
               << " cubedepth=" << info.cubedepth
               << " axes=";
       for ( auto aa : axes ) message << aa << " ";
-      message << ". spawning image writing thread for frame " << this->framen << " of " << info.fits_name;
+      message << ". spawning image writing thread for frame " << this->framen << " of " << this->fits_name;
       logwrite(function, message.str());
 #endif
       if (!array.size()) {
@@ -340,12 +355,11 @@ class FITS_file {
         else {
           this->write_image_thread(array, info, this);
         }
-        std::lock_guard<std::mutex> lock(this->fits_mutex);  // lock and
         this->threadcount--;                                 // decrement threadcount
       }).detach();
 #ifdef LOGLEVEL_DEBUG
       message.str("");
-      message << "[DEBUG] spawned image writing thread for frame " << this->framen << " of " << info.fits_name;
+      message << "[DEBUG] spawned image writing thread for frame " << this->framen << " of " << this->fits_name;
       logwrite(function, message.str());
 #endif
 
@@ -367,7 +381,7 @@ class FITS_file {
                                    << " threadcount=" << threadcount 
                                    << " extension=" << info.extension 
                                    << " framen=" << this->framen
-                                   << " file=" << info.fits_name;
+                                   << " file=" << this->fits_name;
           logwrite(function, message.str());
           this->writing_file = false;
           return (ERROR);
@@ -376,13 +390,13 @@ class FITS_file {
 
       if (this->error) {
         message.str("");
-        message << "an error occured in one of the FITS writing threads for " << info.fits_name;
+        message << "an error occured in one of the FITS writing threads for " << this->fits_name;
         logwrite(function, message.str());
       }
 #ifdef LOGLEVEL_DEBUG
       else {
         message.str("");
-        message << "[DEBUG] " << info.fits_name << " complete";
+        message << "[DEBUG] " << this->fits_name << " complete";
         logwrite(function, message.str());
       }
 #endif
@@ -418,7 +432,7 @@ class FITS_file {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (--wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for last frame to complete. "
-                                   << "unable to write " << info.fits_name;
+                                   << "unable to write " << this->fits_name;
           logwrite(function, message.str());
           self->writing_file = false;
           self->error = true;    // tells the calling function that I had an error
@@ -483,7 +497,7 @@ class FITS_file {
       std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
-      message.str(""); message << "[DEBUG] " << info.fits_name << ": info.extension=" << info.extension << " this->framen=" << this->framen << " axes=";
+      message.str(""); message << "[DEBUG] " << this->fits_name << ": info.extension=" << info.extension << " this->framen=" << this->framen << " axes=";
       for ( auto aa : info.axes ) message << aa << " ";
       logwrite( function, message.str() );
 #endif
@@ -571,7 +585,7 @@ class FITS_file {
 
         message.str("");     message << "adding " << axes[0] << " x " << axes[1];
         if ( num_axis==3 ) { message << " x " << axes[2]; }
-                             message << " frame to extension " << extname << " in file " << info.fits_name;
+                             message << " frame to extension " << extname << " in file " << this->fits_name;
         logwrite(function, message.str());
 
         // Add the extension here

@@ -15,28 +15,36 @@
 std::mutex loglock;
 std::ofstream filestream;      /// IO stream class
 unsigned int nextday = 86410;  /// number of seconds until a new day
+bool to_stderr = true;         /// write to stderr
+std::string tmzone_log="";     /// optional time zone for logging
 
 
 /** init_log *****************************************************************/
 /**
  * @fn         init_log
  * @brief      initializes the logging
- * @param[in]  logpath string is the path for log file
- * @param[in]  name string is the name of the log file in logpath
+ * @param[in]  name       name of the log file in logpath
+ * @param[in]  logpath    path for log file
+ * @param[in]  logstderr  should I also print to stderr?
+ * @param[in]  logtmzone  optional time zone for logging
  * @return     0 on success, 1 on error
  *
  * Opens an ofstream to the specified logfile, "logpath/name_YYYYMMDD.log"
  * where logpath and name are passed in as parameters.
  *
  */
-long init_log( std::string logpath, std::string name ) {
+long init_log( std::string name, std::string logpath, std::string logstderr, std::string logtmzone ) {
   std::string function = "init_log";
   std::stringstream filename;
   std::stringstream message;
   int year, mon, mday, hour, min, sec, usec;
   long error = 0;
 
-  if ( ( error = get_time( year, mon, mday, hour, min, sec, usec ) ) ) return error;
+  to_stderr = ( logstderr=="false" ? false : true );
+
+  tmzone_log = logtmzone;
+
+  if ( ( error = get_time( tmzone_log, year, mon, mday, hour, min, sec, usec ) ) ) return error;
 
   // assemble log file name from the passed-in arguments and current date
   //
@@ -106,7 +114,7 @@ void close_log() {
  */
 void logwrite(std::string function, std::string message) {
   std::stringstream logmsg;
-  std::string timestamp = get_timestamp();       // get the current time (defined in utilities.h)
+  std::string timestamp = get_timestamp(tmzone_log); // get the current time (defined in utilities.h)
 
   std::lock_guard<std::mutex> lock(loglock);     // lock mutex to protect from multiple access
 
@@ -116,7 +124,7 @@ void logwrite(std::string function, std::string message) {
     filestream << logmsg.str();                  // send to the file stream (if open)
     filestream.flush();
   }
-  std::cerr << logmsg.str();                     // send to standard error
+  if ( to_stderr ) std::cerr << logmsg.str();    // send to standard error unless restricted
 }
 /** logwrite *****************************************************************/
 

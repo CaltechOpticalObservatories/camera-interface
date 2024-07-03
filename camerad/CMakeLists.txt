@@ -5,10 +5,11 @@
 cmake_minimum_required( VERSION 3.12 )
 
 set( CAMERA_DIR ${PROJECT_BASE_DIR}/camerad )
-set( ENV{OpenCV_DIR} "/usr/local/caltech" )
+set( ENV{OpenCV_DIR} "/usr/local/caltech/opencv-454" )
 
 find_package( OpenCV REQUIRED )
 include_directories( ${OpenCV_INCLUDE_DIRS} )
+include_directories( "/usr/local/caltech/heasarc/include" )
 include_directories( ${PROJECT_BASE_DIR}/utils )
 include_directories( ${PROJECT_BASE_DIR}/common )
 link_directories( ${PROJECT_BASE_DIR}/lib )
@@ -74,7 +75,7 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 elseif(${INTERFACE_TYPE} STREQUAL "Archon")
         message(STATUS "compiling for STA Archon")
         set(INTERFACE_TARGET archon)
-        add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb )
+        add_definitions( -Wall -ansi -O0 -Wno-variadic-macros -std=c++17 -ggdb3 )
         add_definitions(-DSTA_ARCHON)
         list(APPEND INTERFACE_SOURCE
                 "${CAMERA_DIR}/archon.cpp"
@@ -132,8 +133,12 @@ add_library(camera STATIC
 
 #find_library(PYTHON_LIB python3.9 NAMES libpython3.9 PATHS /usr/local/anaconda/lib)
 ## find_library(PYTHON_LIB python3.9 NAMES libpython3.9 PATHS /usr/lib/x86_64-linux-gnu)
-find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/lib/x86_64-linux-gnu)
-find_library(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/lib/x86_64-linux-gnu)
+find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/caltech/heasarc/lib /usr/lib/x86_64-linux-gnu)
+find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/caltech/heasarc/lib /usr/lib/x86_64-linux-gnu)
+
+set(CCFITS_LIB "/usr/local/caltech/heasarc/lib/libCCfits.so" CACHE FILEPATH "Path to CCfits library" FORCE)
+set(CFITS_LIB "/usr/local/caltech/heasarc/lib/libcfitsio.so" CACHE FILEPATH "Path to cfitsio library" FORCE)
+
 
 find_package(Threads)
 

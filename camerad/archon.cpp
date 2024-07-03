@@ -1549,9 +1549,9 @@ namespace Archon {
   long Interface::load_timing(std::string acffile) {
     std::string function = "Archon::Interface::load_timing";
 
-    // load the ACF file into configuration memory
+    // load the ACF file and write to Archon configuration memory
     //
-    long error = this->load_acf( acffile );
+    long error = this->load_acf( acffile, true );
 
     // parse timing script and parameters and apply them to the system
     //
@@ -1596,9 +1596,9 @@ namespace Archon {
    */
   long Interface::load_firmware(std::string acffile) {
     std::string function = "Archon::Interface::load_firmware";
-    // load the ACF file into configuration memory
+    // load the ACF file and write to Archon configuration memory
     //
-    long error = this->load_acf( acffile );
+    long error = this->load_acf( acffile, true );
 
     // Parse and apply the complete system configuration from configuration memory.
     // Detector power will be off after this.
@@ -1652,12 +1652,13 @@ namespace Archon {
 
   /**************** Archon::Interface::load_acf *******************************/
   /**
-   * @fn     load_acf
-   * @brief  loads the ACF file into configuration memory (no APPLY!)
-   * @param  acffile
-   * @return ERROR or NO_ERROR
+   * @brief      loads the ACF file into configuration memory (no APPLY!)
+   * @param[in]  acffile          optional fully qualified path to ACF file
+   * @param[in]  write_to_archon  true=write ACF to Archon, false=read into host memory
+   * @return     ERROR or NO_ERROR
    *
-   * This function loads the specfied file into configuration memory.
+   * This function loads the optionally specified file into configuration memory
+   * (if not specified, then the file specified by DEFAULT_FIRMWARE will be used).
    * While the ACF is being read, an internal database (STL map) is being 
    * created to allow lookup access to the ACF file or parameters.
    *
@@ -1668,8 +1669,13 @@ namespace Archon {
    * not apply it to the system. Therefore, this function must be followed
    * with a LOADTIMING or APPLYALL command, for example.
    *
+   * If write_to_archon is false then the Archon is not written to at all.
+   * The ACF is read only into host memory. This is useful in case camerad
+   * is stopped and restarted, it can use this to know about the previously
+   * loaded ACF.
+   *
    */
-  long Interface::load_acf(std::string acffile) {
+  long Interface::load_acf( std::string acffile, bool write_to_archon ) {
     std::string function = "Archon::Interface::load_acf";
     std::stringstream message;
     std::fstream filestream;  // I/O stream class
@@ -1680,12 +1686,14 @@ namespace Archon {
     std::string key, value;
 
     int      linecount;  // the Archon configuration line number is required for writing back to config memory
-    int      error=NO_ERROR;
+    long     error=NO_ERROR;
     bool     parse_config=false;
 
     // get the acf filename, either passed here or from loaded default
     //
     if ( acffile.empty() ) {
+      message.str(""); message << "using DEFAULT_FIRMWARE from config file " << this->config.filename;
+      logwrite( function, message.str() );
       acffile = this->camera.firmware[0];
     }
     else {
@@ -1710,6 +1718,13 @@ namespace Archon {
 
     logwrite(function, acffile);
 
+    if ( write_to_archon ) {
+      logwrite( function, "will write ACF to Archon" );
+    }
+    else {
+      logwrite( function, "reading ACF into host memory only" );
+    }
+
     // The CPU in Archon is single threaded, so it checks for a network 
     // command, then does some background polling (reading bias voltages etc), 
     // then checks again for a network command.  "POLLOFF" disables this 
@@ -1717,13 +1732,13 @@ namespace Archon {
     // The downside is that bias voltages, temperatures, etc are not updated 
     // until you give a "POLLON". 
     //
-    error = this->archon_cmd(POLLOFF);
+    if ( write_to_archon ) error = this->archon_cmd(POLLOFF);
 
     // clear configuration memory for this controller
     //
-    if (error == NO_ERROR) error = this->archon_cmd(CLEARCONFIG);
+    if ( error == NO_ERROR && write_to_archon ) error = this->archon_cmd(CLEARCONFIG);
 
-    if ( error != NO_ERROR ) { logwrite( function, "ERROR: could not prepare Archon for new ACF" ); return error; }
+    if ( error != NO_ERROR  && write_to_archon ) { logwrite( function, "ERROR: could not prepare Archon for new ACF" ); return error; }
 
     // Any failure after clearing the configuration memory will mean
     // no firmware is loaded.
@@ -2062,14 +2077,14 @@ namespace Archon {
               << linecount
               << key << "=" << value << "\n";
         // send the WCONFIG command here
-        if (error == NO_ERROR) error = this->archon_cmd(sscmd.str());
+        if ( error == NO_ERROR && write_to_archon ) error = this->archon_cmd(sscmd.str());
       } // end if ( !key.empty() && !value.empty() )
       linecount++;
     } // end while ( getline(filestream, line) )
 
     // re-enable background polling
     //
-    if (error == NO_ERROR) error = this->archon_cmd(POLLON);
+    if ( error == NO_ERROR && write_to_archon ) error = this->archon_cmd(POLLON);
 
     filestream.close();
     if (error == NO_ERROR) {
@@ -4701,14 +4716,12 @@ namespace Archon {
           // only for multi-extension files, which means that camera_info.ismex must be true.
           //
           int slice_ts = ( this->camera_info.sampmode==SAMPMODE_SINGLE ? slice : slice+1 );
-          message.str(""); message << "TS" << std::setw(3) << std::setfill('0') << slice_ts
-                                   << "=" << std::dec << std::fixed << std::setprecision(0)
+          message.str(""); message << "TS" << slice_ts << "=" << std::dec << std::fixed << std::setprecision(0)
                                    << this->frame.buftimestamp[this->frame.index]
                                    << "// Archon timestamp for slice " << slice_ts << " in 10ns";
           this->extkeys.addkey( message.str() );
 
-          message.str(""); message << "DTS" << std::setw(3) << std::setfill('0') << slice_ts
-                                   << "=" << std::dec << dts
+          message.str(""); message << "DTS" << slice_ts << "=" << std::dec << dts
                                    << "// Archon delta TS slice " << slice_ts << " in 10ns";
           this->extkeys.addkey( message.str() );
 
@@ -7613,7 +7626,7 @@ namespace Archon {
     //
     error |= this->archon_cmd(POLLON);  // OR'd so as not to lose any previous error
 
-    message.str(""); message << "Archon time at " << get_timestamp( this->cal_systime ) << " is " << this->cal_archontime;
+    message.str(""); message << "Archon time at " << timestamp_from( this->cal_systime ) << " is " << this->cal_archontime;
     logwrite( function, message.str() );
 
     // Add the calibration values to the systemkeys database
@@ -7623,9 +7636,9 @@ namespace Archon {
     message.str(""); message << "CAL_ARCH:" << this->cal_archontime;
     this->camera.async.enqueue( message.str() );
 
-    message.str(""); message << "CAL_SYS=" << get_timestamp( this->cal_systime ) << "// system time at CAL_ARCH";
+    message.str(""); message << "CAL_SYS=" << timestamp_from( this->cal_systime ) << "// system time at CAL_ARCH";
     this->systemkeys.addkey( message.str() );
-    message.str(""); message << "CAL_SYS:" << get_timestamp( this->cal_systime );
+    message.str(""); message << "CAL_SYS:" << timestamp_from( this->cal_systime );
     this->camera.async.enqueue( message.str() );
 
     return( error );

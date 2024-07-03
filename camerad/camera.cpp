@@ -420,12 +420,11 @@ namespace Camera {
 
 
 
-  /** Camera::Camera:set_fitstime *********************************************/
+  /***** Camera::Camera:set_fitstime ******************************************/
   /**
-   * @fn     set_fitstime
-   * @brief  set the "fitstime" variable used for the filename
-   * @param  string formatted as "YYYY-MM-DDTHH:MM:SS.ssssss"
-   * @return std::string
+   * @brief      set the "fitstime" variable used for the filename
+   * @param[in]  string formatted as "YYYY-MM-DDTHH:MM:SS.sss"
+   * @return     std::string formatted as "YYYYMMDDHHMMSS"
    *
    * The Camera class has a public string variable "fitstime" which is
    * to be used for the FITS filename, when the time-format is selected.
@@ -438,8 +437,9 @@ namespace Camera {
     std::string function = "Camera::Camera::set_fitstime";
     std::stringstream message;
 
-    if ( time_in.length() != 26 ) {  // wrong number of characters, input can't be formatted correctly
-      message.str(""); message << "ERROR: bad input time: " << time_in;
+    if ( time_in.length() != 23 ) {  // wrong number of characters, input can't be formatted correctly
+      message.str(""); message << "ERROR: bad input time \"" << time_in << "\""
+                               << " has " << time_in.length() << " chars but expected 23";
       logwrite(function, message.str());
       this->fitstime = "99999999999999";
       return;
@@ -454,7 +454,7 @@ namespace Camera {
 
     return;
   }
-  /** Camera::Camera:set_fitstime *********************************************/
+  /***** Camera::Camera:set_fitstime ******************************************/
 
 
   /** Camera::Camera:get_fitsname *********************************************/

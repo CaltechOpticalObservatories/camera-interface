@@ -11,7 +11,10 @@
 #include "daemonize.h"
 
 Camera::Server server;
-std::string logpath; 
+
+std::string log_path;
+std::string log_tmzone;
+std::string log_tostderr;
 
 /** signal_handler ***********************************************************/
 /**
@@ -49,7 +52,7 @@ void signal_handler(int signo) {
 
 
 int  main(int argc, char **argv);           // main thread (just gets things started)
-void new_log_day( );                        // create a new log each day
+void new_log_day();                         // create a new log each day
 void block_main(Network::TcpSocket sock);   // this thread handles requests on blocking port
 void thread_main(Network::TcpSocket sock);  // this thread handles requests on non-blocking port
 void async_main(Network::UdpSocket sock);   // this thread handles the asyncrhonous UDP message port
@@ -104,21 +107,49 @@ int main(int argc, char **argv) {
   }
 
   for (int entry=0; entry < server.config.n_entries; entry++) {
-    if (server.config.param[entry] == "LOGPATH") logpath = server.config.arg[entry];
-    if (server.config.param[entry] == "TM_ZONE") zone = server.config.arg[entry];
+
+    if (server.config.param[entry] == "LOGPATH") log_path = server.config.arg[entry];
+
+    if (server.config.param[entry] == "TM_ZONE") {
+      if ( server.config.arg[entry] != "UTC" && server.config.arg[entry] != "local" ) {
+        message.str(""); message << "ERROR invalid TM_ZONE_DATA=" << server.config.arg[entry] << ": expected UTC|local";
+        logwrite( function, message.str() );
+        server.exit_cleanly();
+      }
+      message.str(""); message << "TM_ZONE=" << server.config.arg[entry] << "//time zone";
+      server.systemkeys.addkey( message.str() );
+      tmzone_cfg = server.config.arg[entry];
+      message.str(""); message << "config:" << server.config.param[entry] << "=" << server.config.arg[entry];
+      logwrite( function, message.str() );
+      server.camera.async.enqueue( message.str() );
+    }
+
+    if (server.config.param[entry] == "TM_ZONE_LOG") {
+      if ( server.config.arg[entry] != "UTC" && server.config.arg[entry] != "local" ) {
+        message.str(""); message << "ERROR invalid TM_ZONE_LOG=" << server.config.arg[entry] << ": expected UTC|local";
+        logwrite( function, message.str() );
+        server.exit_cleanly();
+      }
+      log_tmzone = server.config.arg[entry];
+      message.str(""); message << "config:" << server.config.param[entry] << "=" << server.config.arg[entry];
+      logwrite( function, message.str() );
+      server.camera.async.enqueue( message.str() );
+    }
+
+    if (server.config.param[entry] == "TZ_ENV") {
+      setenv( "TZ", server.config.arg[entry].c_str(), 1 );
+      tzset();
+      message.str(""); message << "config:" << server.config.param[entry] << "=" << server.config.arg[entry];
+      logwrite( function, message.str() );
+      server.camera.async.enqueue( message.str() );
+    }
+
     if (server.config.param[entry] == "DAEMON")  daemon_in = server.config.arg[entry];
   }
-  if (logpath.empty()) {
+
+  if (log_path.empty()) {
     logwrite(function, "ERROR: LOGPATH not specified in configuration file");
     server.exit_cleanly();
-  }
-  if ( zone == "local" ) {
-    logwrite( function, "using local time zone" );
-    server.systemkeys.addkey( "TM_ZONE=local//time zone" );
-  }
-  else {
-    logwrite( function, "using GMT time zone" );
-    server.systemkeys.addkey( "TM_ZONE=GMT//time zone" );
   }
 
   if ( !daemon_in.empty() && daemon_in == "yes" ) start_daemon = true;
@@ -143,14 +174,14 @@ int main(int argc, char **argv) {
     Daemon::daemonize( Camera::DAEMON_NAME, "/tmp", "", "", "" );
   }
 
-  if ( ( init_log( logpath, Camera::DAEMON_NAME ) != 0 ) ) {         // initialize the logging system
-    logwrite(function, "ERROR: unable to initialize logging system");
+  if ( ( init_log( Camera::DAEMON_NAME, log_path, log_tostderr, log_tmzone ) != 0 ) ) {         // initialize the logging system
+    std::cerr << get_timestamp(log_tmzone) << " (" << function << ") ERROR unable to initialize logging system\n";
     server.exit_cleanly();
   }
 
   // log and add server build date to system keys db
   //
-  message << "this version built " << BUILD_DATE << " " << BUILD_TIME;
+  message.str(""); message << "this version built " << BUILD_DATE << " " << BUILD_TIME;
   logwrite(function, message.str());
 
   message.str(""); message << "CAMD_VER=" << BUILD_DATE << " " << BUILD_TIME << " // camerad build date";
@@ -223,9 +254,8 @@ int main(int argc, char **argv) {
 
 /** new_log_day **************************************************************/
 /**
- * @fn     new_log_day
- * @brief  creates a new logbook each day
- * @return nothing
+ * @brief    creates a new logbook each day
+ * @return   nothing
  *
  * This thread is started by main and never terminates.
  * It sleeps for the number of seconds that logentry determines
@@ -235,11 +265,11 @@ int main(int argc, char **argv) {
  * is set by init_log.
  *
  */
-void new_log_day( ) { 
+void new_log_day() { 
   while (1) {
     std::this_thread::sleep_for( std::chrono::seconds( nextday ) );
     close_log();
-    init_log( logpath, Camera::DAEMON_NAME );
+    init_log( Camera::DAEMON_NAME, log_path, log_tostderr, log_tmzone );
   }
 }
 /** new_log_day **************************************************************/
@@ -459,6 +489,10 @@ void doit(Network::TcpSocket sock) {
                     ret = server.disconnect_controller();
                     }
     else
+    if (cmd.compare("readacf")==0) {
+                    ret = server.load_acf( args, false );
+                    }
+    else
     if (cmd.compare("load")==0) {
                     if (args.empty()) ret = server.load_firmware(retstring);
                     else              ret = server.load_firmware(args, retstring);
@@ -615,6 +649,7 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd.compare("isloaded")==0) {
                     retstring = server.firmwareloaded ? "true" : "false";
+                    logwrite( function, std::string("firmwareloaded=")+retstring );
                     sock.Write(retstring);
                     sock.Write(" ");
                     ret = NO_ERROR;

@@ -172,22 +172,63 @@ namespace Common {
     //
     Tokenize(arg, tokens, "=");
     if (tokens.size() != 2) {
-      logwrite( function, "missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)" );
+      logwrite( function, "ERROR missing or too many '=': expected KEYWORD=VALUE//COMMENT (optional comment)" );
       return(ERROR);
     }
 
     keyword   = tokens[0].substr(0,8);                                     // truncate keyword to 8 characters
     keyword   = keyword.erase(keyword.find_last_not_of(" ")+1);            // remove trailing spaces from keyword
+
     std::locale loc;
-    for (std::string::size_type ii=0; ii<keyword.length(); ++ii) {         // Convert keyword to upper case:
-      keyword[ii] = std::toupper(keyword[ii],loc);                         // prevents duplications in STL map
+    for (std::string::size_type ii=0; ii<keyword.length(); ++ii) {         // Convert keyword to upper case
+      keyword[ii] = std::toupper(keyword[ii],loc);
     }
+
+    // Apply keyword rules one at a time so that the error can identify the problem
+    //
+
+    // no embedded spaces allowed in keyword
+    //
+    if ( keyword.find( " " ) != std::string::npos ) {
+      message.str(""); message << "ERROR embedded spaces not allowed in keyword \"" << keyword << "\"";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
+    // keyword must start with a letter {A:Z}
+    //
+    static const std::regex start( "[A-Z].*" );  // start with [A-Z] followed by 0 or more of anything
+    if ( !regex_match( keyword, start ) ) {
+      message.str(""); message << "ERROR first character of keyword \"" << keyword << "\" must start with A:Z";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
+    // keyword must contain only A-Z, 0-9, underscore and dash
+    //
+    static const std::regex contents( "[A-Z][A-Z0-9_-]*" );  // start with A-Z followed by zero or more of A-Z, 0-9, _, -
+    if ( !regex_match( keyword, contents ) ) {
+      message.str(""); message << "ERROR keyword \"" << keyword << "\" must contain only A-Z, 0-9, underscore or hyphen";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
+    // keyword cannot conntain 0-padded number sequences
+    //
+    static const std::regex zeropadding( "[A-Z_-]*[0][0-9]+[A-Z_-]*" );  // zero or more chars and 0 followed by one or more numbers
+    if ( regex_match( keyword, zeropadding ) ) {
+      message.str(""); message << "ERROR keyword \"" << keyword << "\" cannot contain 0-padded numbers";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
     keystring = tokens[1];                                                 // tokenize the rest in a moment
 
     size_t pos = keystring.find(comment_separator);                        // location of the comment separator
     keyvalue = keystring.substr(0, pos);                                   // keyvalue is everything up to comment
     keyvalue = keyvalue.erase(0, keyvalue.find_first_not_of(" "));         // remove leading spaces from keyvalue
     keyvalue = keyvalue.erase(keyvalue.find_last_not_of(" ")+1);           // remove trailing spaces from keyvalue
+
     if (pos != std::string::npos) {
       keycomment = keystring.erase(0, pos + comment_separator.length());
       keycomment = keycomment.erase(0, keycomment.find_first_not_of(" ")); // remove leading spaces from keycomment
@@ -209,6 +250,31 @@ namespace Common {
       return(NO_ERROR);
     }
 
+    // keyvalue limited to 68 bytes
+    //
+    if ( keyvalue.length() > 68 ) {
+      message.str(""); message << "ERROR keyvalue \"" << keyvalue << "\" cannot exceed 68 bytes";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
+    keytype = this->get_keytype(keyvalue);
+
+    if ( keytype=="INT" || keytype=="LONG" || keytype=="FLOAT" || keytype=="DOUBLE" ) {
+      if ( keyvalue.length() > 20 ) {
+        message.str(""); message << "ERROR numerical keyvalue \"" << keyvalue << "\" cannot exceed 20 bytes";
+        logwrite( function, message.str() );
+        return( ERROR );
+      }
+    }
+
+    if ( keyvalue.length() + keycomment.length() > 68 ) {
+      int limit = 68 - keyvalue.length();
+      keycomment = keycomment.substr(0, limit);
+      message.str(""); message << "NOTICE comment truncated to fit record limit: \"" << keycomment << "\"";
+      logwrite( function, message.str() );
+    }
+
     // check for instances of the comment separator in keycomment
     //
     if (keycomment.find(comment_separator) != std::string::npos) {
@@ -220,7 +286,7 @@ namespace Common {
     // insert new entry into the database
     //
     this->keydb[keyword].keyword    = keyword;
-    this->keydb[keyword].keytype    = this->get_keytype(keyvalue);
+    this->keydb[keyword].keytype    = keytype;
     this->keydb[keyword].keyvalue   = keyvalue;
     this->keydb[keyword].keycomment = keycomment;
 

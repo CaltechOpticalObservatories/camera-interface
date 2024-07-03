@@ -14,6 +14,7 @@
 #include <mutex>
 #include <map>
 #include <condition_variable>
+#include <regex>
 
 #include "logentry.h"
 
