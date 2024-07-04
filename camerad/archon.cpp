@@ -16,7 +16,6 @@ namespace Archon {
    */
   Interface::Interface() {
     this->openfits_error = false;
-    this->archon_busy.store(false);
     this->modeselected = false;
     this->firmwareloaded = false;
     this->msgref = 0;
@@ -1194,26 +1193,25 @@ namespace Archon {
     char    check[4];
     int     error = NO_ERROR;
 
-    if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
+    // Nothing to do if no connection open to controller
+    //
+    if (!this->archon.isconnected()) {
       this->camera.log_error( function, "connection not open to controller" );
-      return(ERROR);
+      return ERROR;
     }
 
-    if ( this->archon_busy.load() ) {           // only one command at a time
+    // Blocks to protect against simultaneous access, automatically
+    // unlocks on return.
+    //
+    std::lock_guard<std::mutex> lock( this->archon_mutex );
+
+    // The archon busy atomic flag is also needed because FETCH can keep
+    // Archon busy for longer than the duration of this function.
+    //
+    if ( this->archon_busy.test_and_set() ) {
       message.str(""); message << "Archon busy: ignored command " << cmd;
       this->camera.log_error( function, message.str() );
-      return(BUSY);
-    }
-
-    /**
-     * Hold a scoped lock for the duration of this function, 
-     * to prevent multiple threads from accessing the Archon.
-     */
-    const std::lock_guard<std::mutex> lock(this->archon_mutex);
-    this->archon_busy.store( true );
-    if ( cmd != "FRAME" ) {
-//    message.str(""); message << "[TRACE_BUSY] setting archon_busy for cmd \"" << cmd << "\"";
-//    logwrite( function, message.str() );
+      return BUSY;
     }
 
     // build command: ">xxCOMMAND\n" where xx=hex msgref and COMMAND=command
@@ -1226,16 +1224,8 @@ namespace Archon {
              << std::hex
              << this->msgref;
     std::string prefix=ssprefix.str();
-    try {
-      std::transform( prefix.begin(), prefix.end(), prefix.begin(), ::toupper );    // make uppercase
-    }
-    catch (...) {
-      message.str(""); message << "converting Archon command: " << prefix << " to uppercase";
-      this->camera.log_error( function, message.str() );
-//    logwrite( function, "[TRACE_BUSY] clearing archon_busy on exception" );
-      this->archon_busy.store( false );
-      return(ERROR);
-    }
+
+    std::transform( prefix.begin(), prefix.end(), prefix.begin(), ::toupper );    // make uppercase
 
     std::stringstream  sscmd;         // sscmd = stringstream, building command
     sscmd << prefix << cmd << "\n";
@@ -1268,13 +1258,11 @@ namespace Archon {
     // Must also distinguish this from the FETCHLOG command, for which we do wait
     // for a normal reply.
     //
-    // The scoped mutex lock will be released automatically upon return, but
-    // the archon_busy flag is not cleared here because Archon is still busy, so
-    // in this case archon_busy is not cleared until the Archon is done sending data,
-    // which happens in the read_frame() function.
+    // Do not clear the archon_busy flag because Archon is still busy!
+    // The read_frame() function will have to clear this flag when it is
+    // done reading the data.
     //
-    if ( (cmd.compare(0,5,"FETCH")==0) && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
-
+    if ( (cmd.compare(0,5,"FETCH")==0) && (cmd.compare(0,8,"FETCHLOG")!=0) ) return NO_ERROR;
 
     // For all other commands, receive the reply
     //
@@ -1302,9 +1290,7 @@ namespace Archon {
     // If there was an Archon error then clear the busy flag and get out now
     //
     if ( error != NO_ERROR ) {
-//    message.str(""); message << "[TRACE_BUSY] clearing archon_busy for cmd=" << cmd << " and after error=" << error;
-//    logwrite( function, message.str() );
-      this->archon_busy.store( false );
+      this->archon_busy.clear();
       return error;
     }
 
@@ -1342,13 +1328,9 @@ namespace Archon {
       reply.erase(0, 3);                             // strip off the msgref from the reply
     }
 
-    // clear the semaphore (still had the mutex this entire function)
+    // clear the busy flag
     //
-    this->archon_busy.store( false );
-    if ( cmd != "FRAME" ) {
-//    message.str(""); message << "[TRACE_BUSY] cleared archon_busy for cmd \"" << cmd << "\"";
-//    logwrite( function, message.str() );
-    }
+    this->archon_busy.clear();
 
     return(error);
   }
@@ -2950,24 +2932,23 @@ namespace Archon {
           << std::setfill('0') << std::setw(8) << std::hex
           << bufblocks;
     std::string scmd = sscmd.str();
-    try {
-      std::transform( scmd.begin(), scmd.end(), scmd.begin(), ::toupper );  // make uppercase
-    }
-    catch (...) {
-      message.str(""); message << "converting command: " << sscmd.str() << " to uppercase";
-      this->camera.log_error( function, message.str() );
-      return(ERROR);
-    }
 
-    if (this->archon_cmd(scmd) == ERROR) {
+    std::transform( scmd.begin(), scmd.end(), scmd.begin(), ::toupper );  // make uppercase
+
+    // Sending archon_cmd( FETCH ) will set the archon busy flag and not clear it.
+    // If there's an error then archon_cmd() probably cleared it but it's OK to
+    // make sure that it's cleared here.
+    //
+    if ( this->archon_cmd( scmd ) == ERROR ) {
       logwrite( function, "ERROR: sending FETCH command. Aborting read." );
+      this->archon_busy.clear();                                            // clear busy flag
       this->archon_cmd(UNLOCK);                                             // unlock all buffers
-      return(ERROR);
+      return ERROR;
     }
 
     message.str(""); message << "reading " << (this->camera_info.frame_type==Camera::FRAME_RAW?"raw":"image") << " with " << scmd;
     logwrite(function, message.str());
-    return(NO_ERROR);
+    return NO_ERROR;
   }
   /**************** Archon::Interface::fetch **********************************/
 
@@ -3219,14 +3200,12 @@ namespace Archon {
     logwrite(function, message.str());
 
     // send the FETCH command.
-    // This will take the archon_busy semaphore, but not release it -- must release in this function!
+    // This will set the archon_busy flag, but not clear it (except on error).
     //
     error = this->fetch(bufaddr, bufblocks);
+
     if ( error != NO_ERROR ) {
       logwrite( function, "ERROR: fetching Archon buffer" );
-//    message.str(""); message << "[TRACE_BUSY] clearing archon_busy after fetch returned " << error;
-//    logwrite( function, message.str() );
-      this->archon_busy.store( false );
       return error;
     }
 
@@ -3309,12 +3288,10 @@ namespace Archon {
     logwrite( function, message.str() );
 #endif
 
-    // give back the archon_busy semaphore to allow other threads to access the Archon now
+    // Archon has sent its data so clear the archon busy flag to
+    // allow other threads to access the Archon now.
     //
-    const std::unique_lock<std::mutex> lock(this->archon_mutex);
-    this->archon_busy.store( false );
-//  logwrite( function, "[TRACE_BUSY] cleared archon_busy" );
-    this->archon_mutex.unlock();
+    this->archon_busy.clear();
 
 //  std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
 
@@ -3343,7 +3320,7 @@ namespace Archon {
     else {
       logwrite( function, "ERROR: reading Archon camera data to memory!" );
     }
-    return(error);
+    return error;
   }
   /**************** Archon::Interface::read_frame *****************************/
 
@@ -7761,24 +7738,35 @@ namespace Archon {
     //
     else
     if (testname == "busy") {
-      if ( tokens.size() == 1 ) {
-        message.str(""); message << "archon_busy=" << this->archon_busy.load();
-        logwrite( function, message.str() );
-        error = NO_ERROR;
+      if ( tokens.size() == 1 ) {  // fall through
       }
       else if ( tokens.size() == 2 ) {
-        try { this->archon_busy.store( ( tokens.at(1)=="yes" ? true : false ) ); }
-        catch ( std::out_of_range & ) { this->camera.log_error( function, "tokens out of range" ); error=ERROR; }
-        message.str(""); message << "archon_busy=" << this->archon_busy.load();
-        logwrite( function, message.str() );
-        error = NO_ERROR;
+        if ( tokens[1] == "set" ) {
+          this->archon_busy.test_and_set();
+        }
+        else
+        if ( tokens[1] == "clear" ) {
+          this->archon_busy.clear();
+        }
+        else {
+          logwrite( function, "ERROR expected set | clear" );
+          error = NO_ERROR;
+        }
       }
       else {
-        message.str(""); message << "expected one argument, yes or no";
-        this->camera.log_error( function, message.str() );
+        this->camera.log_error( function, "ERROR expected set | clear" );
         error = ERROR;
       }
-      retstring = this->archon_busy.load() ? "true" : "false";
+
+      if ( this->archon_busy.test_and_set() ) {  // was already set
+        retstring="set";
+      }
+      else {                                     // was clear, so clear before returning
+        this->archon_busy.clear();
+        retstring="clear";
+      }
+      logwrite( function, retstring );
+      error = NO_ERROR;
     }
 
     // ----------------------------------------------------

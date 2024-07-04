@@ -909,9 +909,8 @@ namespace Archon {
       uint32_t image_data_allocated;         //!< allocated number of bytes for image_data
 
       std::atomic<bool> openfits_error;      //!< indicates the openfits thread had an error (or not)
-      std::atomic<bool> archon_busy;         //!< indicates a thread is accessing Archon
-      std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
-                                             //!< use in conjunction with archon_busy flag
+      std::atomic_flag archon_busy = ATOMIC_FLAG_INIT;  //!< indicates a thread is accessing Archon
+      std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads
       std::string exposeparam;               //!< param name to trigger exposure when set =1
       std::string abortparam;                //!< param name to trigger an abort when set =1
       std::string mcdspairs_param;           //!< param name to set MCDS samples
