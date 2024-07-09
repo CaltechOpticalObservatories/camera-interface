@@ -38,8 +38,8 @@ namespace Archon {
 
     this->ringlock.resize( Archon::IMAGE_RING_BUFFER_SIZE );  // pre-size the ringlock container
 
-    this->deinterlace_count.store(0);
-    this->write_frame_count.store(0);
+    this->deinterlace_count.store( 0, std::memory_order_seq_cst );
+    this->write_frame_count.store( 0, std::memory_order_seq_cst );
 
     // Can't have a vector of atomics but can have a vector of unique_ptr.
     // Initialize those pointers here.
@@ -4227,8 +4227,8 @@ namespace Archon {
     this->camera_info.cmd_start_time = get_timestamp();           // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
     this->camera.clear_abort();                                   // could be cleared by any earlier expose() wrapper
 
-    this->deinterlace_count.store(0);
-    this->write_frame_count.store(0);
+    this->deinterlace_count.store( 0, std::memory_order_seq_cst );
+    this->write_frame_count.store( 0, std::memory_order_seq_cst );
 
     std::string mode = this->camera_info.current_observing_mode;  // local copy for convenience
 
@@ -4583,7 +4583,7 @@ namespace Archon {
         // because this can take some time.
         //
         if ( !this->camera.mex() || this->camera.mexamps() ) {
-          this->openfits_error.store( false );
+          this->openfits_error.store( false, std::memory_order_seq_cst );
           std::thread( std::ref( Archon::Interface::dothread_openfits ), this ).detach();
         }
 
@@ -4715,7 +4715,7 @@ namespace Archon {
 
           // If this ring buffer is already locked for writing then there is a problem
           //
-          bool ringlock = (*this->ringlock.at( this->ringcount )).load();
+          bool ringlock = (*this->ringlock.at( this->ringcount )).load( std::memory_order_seq_cst );
           if ( ringlock ) {
             message.str(""); message << "RING BUFFER OVERFLOW: ring buffer " << this->ringcount << " is already locked for writing";
             this->camera.log_error( function, message.str() );
@@ -4723,9 +4723,9 @@ namespace Archon {
             return ERROR;
           }
 
-          (*this->ringlock.at( this->ringcount )).store(true);                           // mark this ring buffer as locked while reading data into it
-          error = this->read_frame( Camera::FRAME_IMAGE, ptr_image, this->ringcount );   // read image frame buffer to host, no write
-          (*this->ringlock.at( this->ringcount )).store(false);                          // clear the ring buffer lock flag
+          (*this->ringlock.at( this->ringcount )).store(true, std::memory_order_seq_cst);   // mark this ring buffer as locked while reading data into it
+          error = this->read_frame( Camera::FRAME_IMAGE, ptr_image, this->ringcount );      // read image frame buffer to host, no write
+          (*this->ringlock.at( this->ringcount )).store(false, std::memory_order_seq_cst);  // clear the ring buffer lock flag
 
           if ( error != NO_ERROR ) {
             logwrite( function, "ERROR: reading frame buffer" );
@@ -4928,13 +4928,13 @@ namespace Archon {
       // Wait for all of the extensions to have been written
       //
       logwrite( function, "waiting for all frames to be deinterlaced and written" );
-      int wfc = this->write_frame_count.load();
+      int wfc = this->write_frame_count.load( std::memory_order_seq_cst );
 #ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] write_frame_count=" << wfc << " nseq=" << this->camera_info.nseq;
       logwrite( function, message.str() );
 #endif
       while ( wfc < this->camera_info.nseq ) {
-        wfc = this->write_frame_count.load();
+        wfc = this->write_frame_count.load( std::memory_order_seq_cst );
 //DDSH  if ( this->camera.is_aborted() ) {  // TODO check this
 //DDSH    write( function, "aborted, no longer waiting for frames" );
 //DDSH    break;
@@ -5052,14 +5052,6 @@ namespace Archon {
       //
       message.str(""); message << "EXPOSURE:" << (int)(this->camera_info.exposure_delay - (this->camera_info.exposure_progress * this->camera_info.exposure_delay));
       this->camera.async.enqueue( message.str() );
-    }
-
-    if ( this->camera.is_aborted() ) {
-//    std::cerr << "\n";
-      error = this->abort_archon();
-      message.str(""); message << ( error==ERROR ? "ERROR aborting exposure" : "exposure aborted" );
-      logwrite( function, message.str() );
-      return error;
     }
 
     // Set the time out value. If the exposure time is less than a second, set
@@ -5251,6 +5243,7 @@ namespace Archon {
     }
 
     if ( error != NO_ERROR ) {
+      this->camera.log_error( function, "waiting for readout" );
       return error;
     }
 
@@ -5266,25 +5259,18 @@ namespace Archon {
 
     // On success, write the value to the log and return
     //
-    if ( not this->camera.is_aborted() ) {
+    if ( ! this->camera.is_aborted() ) {
       message.str("");
       message << "received currentframe: " << currentframe;
       logwrite(function, message.str());
-      return(NO_ERROR);
+      return NO_ERROR;
     }
     // If the wait was stopped, log a message and return NO_ERROR
     //
-    else
-    if ( this->camera.is_aborted() ) {
+    else {
       logwrite(function, "wait for readout stopped by external signal");
       this->abort_archon();
-      return(NO_ERROR);
-    }
-    // Throw an error for any other errors (should be impossible)
-    //
-    else {
-      this->camera.log_error( function, "waiting for readout" );
-      return(error);
+      return NO_ERROR;
     }
   }
   /**************** Archon::Interface::wait_for_readout ***********************/
@@ -8234,13 +8220,23 @@ namespace Archon {
 
   /***** Archon::Interface::abort *********************************************/
   /**
-   * @brief      set the abort parameter on the Archon
-   * @return     ERROR or NO_ERROR
+   * @brief      set abort flags, locally and in Archon
+   * @return     ERROR | NO_ERROR
    *
    */
   long Interface::abort() {
     std::string function = "Archon::Interface::abort";
     std::stringstream message;
+
+    // Tell Archon to abort (the ACF must support this)
+    // If Archon is reading out then this will block until readout is complete.
+    // There is no way to stop a FETCH command once started.
+    //
+    long error = this->abort_archon();
+
+    if ( error != NO_ERROR ) {
+      logwrite( function, "ERROR aborting Archon" );
+    }
 
     // Set class object abort flags
     //
@@ -8248,7 +8244,7 @@ namespace Archon {
     this->camera_info.exposure_aborted = true;
     if ( this->camera_info.iscds ) this->cds_info.exposure_aborted = true;
 
-    return NO_ERROR;
+    return error;
   }
   /***** Archon::Interface::abort *********************************************/
 
@@ -8256,10 +8252,11 @@ namespace Archon {
   /***** Archon::Interface::abort_archon **************************************/
   /**
    * @brief      set the abort parameter on the Archon
-   * @return     ERROR or NO_ERROR
+   * @return     ERROR | NO_ERROR
    *
    */
   long Interface::abort_archon() {
+    logwrite( "Archon::Interface::abort_archon", "setting Archon abort parameter" );
     long error = this->prep_parameter( this->abortparam, "1" );
     if ( error == NO_ERROR ) error = this->load_parameter( this->abortparam, "1" );
     return error;
@@ -8795,17 +8792,19 @@ namespace Archon {
   void Interface::dothread_runcds( Interface *self ) {
     std::string function = "Archon::Interface::dothread_runcds";
     std::stringstream message;
-    int deinterlace_count = self->deinterlace_count.load();
+    int deinterlace_count = self->deinterlace_count.load( std::memory_order_seq_cst );
 
 //cv::namedWindow( "image", cv::WINDOW_AUTOSIZE );
 
     // Create a Mat image for the final MCDS coadd
+    // Using smart pointers to automatically clean up.
     //
-    cv::Mat coadd  = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
+    std::unique_ptr<cv::Mat> coadd( new cv::Mat( cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S ) ) );
 
-    cv::Mat diff   = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
-    cv::Mat mcds_0 = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
-    cv::Mat mcds_1 = cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S );
+    std::unique_ptr<cv::Mat> diff( new cv::Mat( cv::Mat::zeros( self->cds_info.imheight, self->cds_info.imwidth, CV_32S ) ) );
+
+    std::unique_ptr<cv::Mat> mcds_0(nullptr);
+    std::unique_ptr<cv::Mat> mcds_1(nullptr);
 
     message << "waiting for CDS/MCDS frames: self->deinterlace_count.load()=" << deinterlace_count
             << " self->camera_info.nseq=" << self->camera_info.nseq;
@@ -8816,9 +8815,9 @@ namespace Archon {
     //
     {
     std::unique_lock<std::mutex> lk( self->deinter_mtx );
-    while ( not self->camera.is_aborted() && ( deinterlace_count < self->camera_info.nseq ) ) {
+    while ( ! self->camera.is_aborted() && ( deinterlace_count < self->camera_info.nseq ) ) {
       self->deinter_cv.wait( lk );
-      deinterlace_count = self->deinterlace_count.load();
+      deinterlace_count = self->deinterlace_count.load( std::memory_order_seq_cst );
 //    if ( self->camera.is_aborted() ) { self->deinterlace_count.store(self->camera_info.nseq); }
       message.str(""); message << "deinterlace_count=" << deinterlace_count;
       logwrite( function, message.str() );
@@ -8830,15 +8829,12 @@ namespace Archon {
 	// then coadd the result. To do that, create Mat arrays from each of the MCDS buffers.
         //
         try {
-          mcds_0 = cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_32S, self->mcdsbuf_0 );
-          mcds_1 = cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_32S, self->mcdsbuf_1 );
+          mcds_0.reset( new cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_32S, self->mcdsbuf_0 ) );
+          mcds_1.reset( new cv::Mat( self->cds_info.imheight, self->cds_info.imwidth, CV_32S, self->mcdsbuf_1 ) );
 
-          diff   = mcds_1 - mcds_0;             // perform the subtraction, signal-baseline
-          diff  /= ( self->cds_info.nmcds/2 );  // average
-          coadd += diff;                        // coadd here
-
-          mcds_0.release();
-          mcds_1.release();
+          *diff   = *mcds_1 - *mcds_0;           // perform the subtraction, signal-baseline
+          *diff  /= ( self->cds_info.nmcds/2 );  // average
+          *coadd += *diff;                       // coadd here
         }
         catch ( const cv::Exception& ex ) {
           message.str(""); message << "ERROR OpenCV exception subtracting signal-baseline: " << ex.what();
@@ -8864,10 +8860,10 @@ namespace Archon {
     // Now that all frames have been completed, it's time to write the co-added image
     //
     long error=NO_ERROR;
-    if ( not self->camera.is_aborted() && self->camera_info.nmcds == 0 ) {
+    if ( ! self->camera.is_aborted() && self->camera_info.nmcds == 0 ) {
       error = self->cds_file.write_image( self->coaddbuf, self->cds_info );
     }
-    else if ( not self->camera.is_aborted() ) {
+    else if ( ! self->camera.is_aborted() ) {
 #ifdef LOGLEVEL_DEBUG
         logwrite( function, "[DEBUG] copying MCDS coadd image to FITS buffer" );
 #endif
@@ -8876,7 +8872,7 @@ namespace Archon {
       unsigned long index=0;
       for ( int row=0; row<self->cds_info.imheight; row++ ) {
         for ( int col=0; col<self->cds_info.imwidth; col++ ) {
-          *( self->coaddbuf + index++ ) = (int32_t)(coadd.at<int32_t>(row,col));
+          *( self->coaddbuf + index++ ) = static_cast<int32_t>(coadd->at<int32_t>(row, col));
         }
       }
       error = self->cds_file.write_image( self->coaddbuf, self->cds_info );
@@ -8888,10 +8884,6 @@ namespace Archon {
 
 //cv::destroyAllWindows();
     logwrite( function, "exiting CDS thread" );
-    coadd.release();
-    mcds_0.release();
-    mcds_1.release();
-    diff.release();
     return;
   }
   /***** Archon::Interface::dothread_runcds ***********************************/
@@ -8916,7 +8908,7 @@ namespace Archon {
 
     if ( error != NO_ERROR ) {
       logwrite( function, "ERROR: couldn't validate fits filename" );
-      self->openfits_error.store( true );
+      self->openfits_error.store( true, std::memory_order_seq_cst );
       return;
     }
     self->add_filename_key();                                          // add filename to system keys database
@@ -8930,7 +8922,7 @@ namespace Archon {
     error = self->fits_file.open_file( (self->camera.writekeys_when=="before"?true:false), self->camera_info );
     if ( error != NO_ERROR ) {
       self->camera.log_error( function, "couldn't open fits file" );
-      self->openfits_error.store( true );
+      self->openfits_error.store( true, std::memory_order_seq_cst );
       return;
     }
     return;
@@ -8953,7 +8945,7 @@ namespace Archon {
     // which means we should not be here trying to deinterlace it. Either got here too fast or the read
     // is taking too long.
     //
-    bool ringlock = (*self->ringlock.at( ringcount_in )).load();
+    bool ringlock = (*self->ringlock.at( ringcount_in )).load( std::memory_order_seq_cst );
     if ( ringlock ) {
       message.str(""); message << "RING BUFFER OVERFLOW: ring buffer " << ringcount_in << " is locked for writing";
       self->camera.log_error( function, message.str() );
@@ -9024,7 +9016,7 @@ namespace Archon {
     // Wait for the ring buffer to be deinterlaced
     {
     std::unique_lock<std::mutex> lk( self->deinter_mtx );
-    while ( /*not self->camera.is_aborted() and*/ not self->ringbuf_deinterlaced.at( ringcount_in ) ) self->deinter_cv.wait( lk ); //DDSH TODO check this
+    while ( /* ! self->camera.is_aborted() and*/ ! self->ringbuf_deinterlaced.at( ringcount_in ) ) self->deinter_cv.wait( lk ); //DDSH TODO check this
     }
 
 #ifdef LOGLEVEL_DEBUG
@@ -9040,7 +9032,7 @@ namespace Archon {
     if ( self->camera.mex() ) ++self->write_frame_count;
 
 #ifdef LOGLEVEL_DEBUG
-    int wfc = self->write_frame_count.load();
+    int wfc = self->write_frame_count.load( std::memory_order_seq_cst );
     message.str(""); message << "[DEBUG] write_frame(" << ringcount_in << ") is done. write_frame_count=" << wfc;
     logwrite( function, message.str() );
 #endif

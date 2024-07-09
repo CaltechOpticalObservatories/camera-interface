@@ -52,13 +52,13 @@ namespace Camera {
       std::string   writekeys_when;          //!< when to write fits keys "before" or "after" exposure
       Common::Queue async;                   /// message queue object
 
-      inline void set_abort()   { this->abortstate.store( true );  };
-      inline void clear_abort() { this->abortstate.store( false ); };
-      inline bool is_aborted()  { return this->abortstate.load();  };
+      inline void set_abort()   { this->abortstate.store( true, std::memory_order_seq_cst );  };
+      inline void clear_abort() { this->abortstate.store( false, std::memory_order_seq_cst ); };
+      inline bool is_aborted()  { return this->abortstate.load( std::memory_order_seq_cst );  };
 
-      inline void set_exposing()   { this->exposing.store( true );  };
-      inline void clear_exposing() { this->exposing.store( false ); };
-      inline bool is_exposing()    { return this->exposing.load();  };
+      inline void set_exposing()   { this->exposing.store( true, std::memory_order_seq_cst );  };
+      inline void clear_exposing() { this->exposing.store( false, std::memory_order_seq_cst ); };
+      inline bool is_exposing()    { return this->exposing.load( std::memory_order_seq_cst );  };
 
       inline bool coadd()       { return this->is_coadd;    };
       inline void coadd(bool in){ this->is_coadd = in;      };

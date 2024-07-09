@@ -79,7 +79,7 @@ class FITS_file {
 
       // This is probably a programming error, if file_open is true here
       //
-      if (this->file_open) {
+      if ( this->file_open.load( std::memory_order_seq_cst ) ) {
         message.str(""); message << "ERROR: FITS file \"" << this->fits_name << "\" already open";
         logwrite(function, message.str());
         return (ERROR);
@@ -217,10 +217,16 @@ class FITS_file {
       if ( writekeys ) {
         logwrite( function, "writing user-defined keys after exposure" );
         Common::FitsKeys::fits_key_t::iterator keyit;
-        for (keyit  = info.userkeys.keydb.begin();
-             keyit != info.userkeys.keydb.end();
-             keyit++) {
-          this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+        try {
+          for (keyit  = info.userkeys.keydb.begin();
+               keyit != info.userkeys.keydb.end();
+               keyit++) {
+            this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+          }
+        }
+        catch ( const std::exception &e ) {
+          message.str(""); message << "ERROR writing user keys on close: " << e.what();
+          logwrite( function, message.str() );
         }
       }
 
@@ -248,25 +254,25 @@ class FITS_file {
         // Write the checksum
         //
         this->pFits->pHDU().writeChecksum();
-
-        // Deallocate the CCfits object and close the FITS file
-        //
-        this->pFits->destroy();
       }
       catch (CCfits::FitsError& error){
         message.str(""); message << "ERROR writing checksum and closing file: " << error.message();
         logwrite(function, message.str());
-        this->file_open = false;   // must set this false on exception
+        this->file_open.store( false, std::memory_order_seq_cst );   // must set this false on exception
       }
       catch ( std::out_of_range &e ) {
         message.str(""); message << "ERROR parsing cmd_start_time: " << e.what();
         logwrite(function, message.str());
-        this->file_open = false;   // must set this false on exception
+        this->file_open.store( false, std::memory_order_seq_cst );   // must set this false on exception
       }
+
+      // Deallocate the CCfits object and close the FITS file
+      //
+      this->pFits->destroy();
 
       // Let the world know that the file is closed
       //
-      this->file_open = false;
+      this->file_open.store( false, std::memory_order_seq_cst );
       message.str(""); message << this->fits_name << " closed";
       logwrite(function, message.str());
 
@@ -277,10 +283,15 @@ class FITS_file {
       std::filesystem::path in_process_path( this->fits_name );
       std::filesystem::path finished_path( finished_file );
 
-      std::filesystem::rename( in_process_path, finished_path );
-
-      message.str(""); message << "renamed " << this->fits_name << " to " << finished_file;
-      logwrite(function, message.str());
+      try {
+        std::filesystem::rename( in_process_path, finished_path );
+        message.str(""); message << "renamed " << this->fits_name << " to " << finished_file;
+        logwrite(function, message.str());
+      }
+      catch ( const std::filesystem::filesystem_error &e ) {
+        message.str(""); message << "ERROR renaming " << this->fits_name << " to " << finished_file << ": " << e.what();
+        logwrite(function, message.str());
+      }
 
       this->fits_name="";
     }
@@ -310,7 +321,7 @@ class FITS_file {
 
       // The file must have been opened first
       //
-      if ( !this->file_open ) {
+      if ( !this->file_open.load( std::memory_order_seq_cst ) ) {
         message.str(""); message << "ERROR: FITS file \"" << this->fits_name << "\" not open";
         logwrite(function, message.str());
         return (ERROR);
@@ -365,16 +376,16 @@ class FITS_file {
 
       // wait for all threads to complete
       //
-      int last_threadcount = this->threadcount;
+      int last_threadcount = this->threadcount.load( std::memory_order_seq_cst );
       int wait = FITS_WRITE_WAIT;
       while (this->threadcount > 0) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        if (this->threadcount >= last_threadcount) {         // threads are not completing
-          wait--;                                            // start decrementing wait timer
+        if (this->threadcount.load( std::memory_order_seq_cst ) >= last_threadcount) {  // threads are not completing
+          wait--;                                                                       // start decrementing wait timer
         }
-        else {                                               // a thread was completed so things are still working
-          last_threadcount = this->threadcount;              // reset last threadcount
-          wait = FITS_WRITE_WAIT;                            // reset wait timer
+        else {                                                                          // a thread was completed so things are still working
+          last_threadcount = this->threadcount.load( std::memory_order_seq_cst );       // reset last threadcount
+          wait = FITS_WRITE_WAIT;                                                       // reset wait timer
         }
         if (wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for threads."
@@ -383,12 +394,12 @@ class FITS_file {
                                    << " framen=" << this->framen
                                    << " file=" << this->fits_name;
           logwrite(function, message.str());
-          this->writing_file = false;
+          this->writing_file.store( false, std::memory_order_seq_cst );
           return (ERROR);
         }
       }
 
-      if (this->error) {
+      if ( this->error.load( std::memory_order_seq_cst ) ) {
         message.str("");
         message << "an error occured in one of the FITS writing threads for " << this->fits_name;
         logwrite(function, message.str());
@@ -401,7 +412,7 @@ class FITS_file {
       }
 #endif
 
-      return ( this->error ? ERROR : NO_ERROR );
+      return ( this->error.load( std::memory_order_seq_cst ) ? ERROR : NO_ERROR );
     }
     /**************** FITS_file::write_image **********************************/
 
@@ -428,26 +439,26 @@ class FITS_file {
       // function is really for single image writing, it's here just in case.
       //
       int wait = FITS_WRITE_WAIT;
-      while (self->writing_file) {
+      while ( self->writing_file.load( std::memory_order_seq_cst ) ) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (--wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for last frame to complete. "
                                    << "unable to write " << this->fits_name;
           logwrite(function, message.str());
-          self->writing_file = false;
+          self->writing_file.store( false, std::memory_order_seq_cst );
           self->error = true;    // tells the calling function that I had an error
           return;
         }
       }
 
-      // Set the FITS system to verbose mode so it writes error messages
-      //
-      CCfits::FITS::setVerboseMode(true);
-
       // Lock the mutex and set the semaphore for file writing
       //
       const std::lock_guard<std::mutex> lock(self->fits_mutex);
-      self->writing_file = true;
+      self->writing_file.store( true, std::memory_order_seq_cst );
+
+      // Set the FITS system to verbose mode so it writes error messages
+      //
+      CCfits::FITS::setVerboseMode(true);
 
       // write the primary image into the FITS file
       //
@@ -468,12 +479,12 @@ class FITS_file {
       catch (CCfits::FitsError& error){
         message.str(""); message << "FITS file error thrown: " << error.message();
         logwrite(function, message.str());
-        self->writing_file = false;
+        self->writing_file.store( false, std::memory_order_seq_cst );
         self->error = true;    // tells the calling function that I had an error
         return;
       }
 
-      self->writing_file = false;
+      self->writing_file.store( false, std::memory_order_seq_cst );
     }
     /**************** FITS_file::write_image_thread ***************************/
 
@@ -534,16 +545,16 @@ class FITS_file {
       // thread will only start writing once the extension number matches the
       // number of frames already written.
       //
-      int last_threadcount = this->threadcount;
+      int last_threadcount = this->threadcount.load( std::memory_order_seq_cst );
       int wait = FITS_WRITE_WAIT;
-      while (info.extension != this->framen) {
+      while ( info.extension != this->framen.load( std::memory_order_seq_cst ) ) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        if (this->threadcount >= last_threadcount) {  // threads are not completing
-          wait--;                                     // start decrementing wait timer
+        if (this->threadcount.load( std::memory_order_seq_cst ) >= last_threadcount) {  // threads are not completing
+          wait--;                                                                       // start decrementing wait timer
         }
-        else {                                        // a thread was completed so things are still working
-          last_threadcount = this->threadcount;       // reset last threadcount
-          wait = FITS_WRITE_WAIT;                     // reset wait timer
+        else {                                                                          // a thread was completed so things are still working
+          last_threadcount = this->threadcount.load( std::memory_order_seq_cst );       // reset last threadcount
+          wait = FITS_WRITE_WAIT;                                                       // reset wait timer
         }
         if (wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for frame write."
@@ -551,7 +562,7 @@ class FITS_file {
                                    << " extension=" << info.extension 
                                    << " framen=" << this->framen;
           logwrite(function, message.str());
-          self->writing_file = false;
+          self->writing_file.store( false, std::memory_order_seq_cst );
           self->error = true;    // tells the calling function that I had an error
           return;
         }
@@ -564,7 +575,7 @@ class FITS_file {
       // Lock the mutex and set the semaphore for file writing
       //
       const std::lock_guard<std::mutex> lock(self->fits_mutex);
-      self->writing_file = true;
+      self->writing_file.store( true, std::memory_order_seq_cst );
 
       // write the primary image into the FITS file
       //
@@ -644,7 +655,7 @@ class FITS_file {
       catch (CCfits::FitsError& error){
         message.str(""); message << "FITS file error thrown: " << error.message();
         logwrite(function, message.str());
-        self->writing_file = false;
+        self->writing_file.store( false, std::memory_order_seq_cst );
         self->error = true;    // tells the calling function that I had an error
         return;
       }
@@ -652,7 +663,7 @@ class FITS_file {
       // increment number of frames written
       //
       this->framen++;
-      self->writing_file = false;
+      self->writing_file.store( false, std::memory_order_seq_cst );
     }
     /**************** FITS_file::write_mex_thread *****************************/
 
@@ -705,7 +716,7 @@ class FITS_file {
 
       // The file must have been opened first
       //
-      if ( !this->file_open ) {
+      if ( !this->file_open.load( std::memory_order_seq_cst ) ) {
         logwrite(function, "ERROR: no fits file open!");
         return;
       }
