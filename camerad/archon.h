@@ -102,6 +102,48 @@ namespace Archon {
 
   const int CDS_OFFS =   0;  /// offset to add to read frame for cds images before subtraction
 
+
+  /***** Archon::mat_add_will_overflow ****************************************/
+  /**
+   * @brief      check if adding two cv::Mat arrays could result in an overflow
+   * @details    Include the explicit template argument specification.
+   * @param[in]  dest  destination Mat array
+   * @param[in]  src   source Mat array, added to dest
+   * @return     true | false
+   *
+   * Returns true if adding src onto dest could result in an overflow of
+   * the type <T> in either the positive (max) or negative (min) direction.
+   *
+   */
+  template<typename T>
+  bool mat_add_will_overflow( const cv::Mat &dest, const cv::Mat &src ) {
+    // Find the min/max values in dest and src Mat arrays
+    //
+    double max_dest, max_src, min_dest, min_src;
+    cv::minMaxLoc( dest, &min_dest, &max_dest );
+    cv::minMaxLoc( src,  &min_src,  &max_src  );
+
+    // Calculate the potential maximum value after adding src to dest
+    //
+    T potential_max, potential_min;
+    try {
+      potential_max = cv::saturate_cast<T>(max_dest + max_src);
+      potential_min = cv::saturate_cast<T>(min_dest + min_src);
+    } catch ( cv::Exception &e ) {
+      std::stringstream message;
+      message << "ERROR calculating potential min/max values: " << e.what();
+      logwrite( "Archon::mat_add_will_overflow", message.str() );
+      return true;
+    }
+
+    // Check against the numeric limits for type <T>
+    //
+    return( potential_max > std::numeric_limits<T>::max() ||
+            potential_min < std::numeric_limits<T>::min() );
+  }
+  /***** Archon::mat_add_will_overflow ****************************************/
+
+
   /***** Archon::PythonProc ***************************************************/
   /**
    * @class  PythonProc
@@ -623,6 +665,10 @@ namespace Archon {
         // This form of the cv::add() function will properly convert the type.
         //
         try {
+          if ( mat_add_will_overflow<int32_t>( coadd, diff ) ) {
+            logwrite( function, "ERROR coadd would overflow datatype" );
+            return;
+          }
           cv::add( coadd, diff, coadd, cv::noArray(), coadd.type() );
         }
         catch ( const cv::Exception& ex ) {

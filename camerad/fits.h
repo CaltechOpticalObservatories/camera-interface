@@ -378,7 +378,7 @@ class FITS_file {
       //
       int last_threadcount = this->threadcount.load( std::memory_order_seq_cst );
       int wait = FITS_WRITE_WAIT;
-      while (this->threadcount > 0) {
+      while ( this->threadcount.load( std::memory_order_seq_cst ) > 0 ) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (this->threadcount.load( std::memory_order_seq_cst ) >= last_threadcount) {  // threads are not completing
           wait--;                                                                       // start decrementing wait timer
@@ -523,22 +523,24 @@ class FITS_file {
       }
 
 #ifdef LOGLEVEL_DEBUG
+      message.str("");
       if (std::is_same<T, float>::value) {
-        logwrite( function, "[DEBUG] input type is float" );
+        message << "[DEBUG] input data=float";
       }
       else if (std::is_same<T, double>::value) {
-        logwrite( function, "[DEBUG] input type is double" );
+        message << "[DEBUG] input data=double";
       }
       else if (std::is_same<T, short>::value) {
-        logwrite( function, "[DEBUG] input type is short" );
+        message << "[DEBUG] input data=short";
       }
       else if (std::is_same<T, unsigned short>::value) {
-        logwrite( function, "[DEBUG] input type is unsigned short" );
+        message << "[DEBUG] input data=unsigned short";
       }
       else {
-        message.str(""); message << "[DEBUG] input type is " << typeid(T).name();
-        logwrite( function, message.str() );
+        message << "[DEBUG] input data=" << typeid(T).name();
       }
+      message << " info.datatype=" << info.datatype;
+      logwrite( function, message.str() );
 #endif
 
       // This makes the thread wait while another thread is writing images. This
