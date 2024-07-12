@@ -389,8 +389,8 @@ class FITS_file {
         }
         if (wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for threads."
-                                   << " threadcount=" << threadcount 
-                                   << " extension=" << info.extension 
+                                   << " threadcount=" << threadcount
+                                   << " extension=" << info.extension.load( std::memory_order_seq_cst )
                                    << " framen=" << this->framen
                                    << " file=" << this->fits_name;
           logwrite(function, message.str());
@@ -508,7 +508,9 @@ class FITS_file {
       std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
-      message.str(""); message << "[DEBUG] " << this->fits_name << ": info.extension=" << info.extension << " this->framen=" << this->framen << " axes=";
+      message.str(""); message << "[DEBUG] " << this->fits_name << ": info.extension="
+                               << info.extension.load( std::memory_order_seq_cst )
+                               << " this->framen=" << this->framen << " axes=";
       for ( auto aa : info.axes ) message << aa << " ";
       logwrite( function, message.str() );
 #endif
@@ -549,7 +551,7 @@ class FITS_file {
       //
       int last_threadcount = this->threadcount.load( std::memory_order_seq_cst );
       int wait = FITS_WRITE_WAIT;
-      while ( info.extension != this->framen.load( std::memory_order_seq_cst ) ) {
+      while ( info.extension.load( std::memory_order_seq_cst ) != this->framen.load( std::memory_order_seq_cst ) ) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (this->threadcount.load( std::memory_order_seq_cst ) >= last_threadcount) {  // threads are not completing
           wait--;                                                                       // start decrementing wait timer
@@ -561,7 +563,7 @@ class FITS_file {
         if (wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for frame write."
                                    << " threadcount=" << threadcount 
-                                   << " extension=" << info.extension 
+                                   << " extension=" << info.extension.load( std::memory_order_seq_cst )
                                    << " framen=" << this->framen;
           logwrite(function, message.str());
           self->writing_file.store( false, std::memory_order_seq_cst );
@@ -594,7 +596,7 @@ class FITS_file {
         // create the extension name
         // This shows up as keyword EXTNAME and in DS9's "display header"
         //
-        std::string extname = std::to_string( info.extension+1 );
+        std::string extname = std::to_string( info.extension.load( std::memory_order_seq_cst )+1 );
 
         message.str("");     message << "adding " << axes[0] << " x " << axes[1];
         if ( num_axis==3 ) { message << " x " << axes[2]; }
@@ -644,6 +646,13 @@ class FITS_file {
           logwrite( function, "no AMPSEC key: missing amplifier section information" );
         }
 */
+
+        message.str(""); message << "[DEBUG] fpixel=" << fpixel
+                                 << " section_size=" << info.section_size
+                                 << " datatype=" << info.datatype
+                                 << " data.size=" << data.size();
+        for (size_t i = 0; i < axes.size(); ++i) message << " axes[" << i << "]=" << axes[i];
+        logwrite( function, message.str() );
 
         // Write and flush to make sure image is written to disk
         //

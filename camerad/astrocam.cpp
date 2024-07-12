@@ -1261,7 +1261,7 @@ namespace AstroCam {
       //
       for ( auto dev : this->devlist ) {
         try {
-          this->controller.at( dev ).info.extension = 0;
+          this->controller.at( dev ).info.extension.store(0);
         }
         catch ( std::out_of_range & ) {
           message.str(""); message << "ERROR: no active controller for device number " << dev;

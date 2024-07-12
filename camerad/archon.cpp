@@ -3416,7 +3416,8 @@ namespace Archon {
               fext = new float[ ext_size ]{};
 
 #ifdef LOGLEVEL_DEBUG
-              message.str(""); message << "[DEBUG] allocated " << ext_size << " pixels for extension " << this->camera_info.extension+1;
+              message.str(""); message << "[DEBUG] allocated " << ext_size << " pixels for extension "
+                                       << this->camera_info.extension.load( std::memory_order_seq_cst )+1;
               logwrite( function, message.str() );
 #endif
 
@@ -3432,12 +3433,13 @@ namespace Archon {
               }
 
 #ifdef LOGLEVEL_DEBUG
-              message.str(""); message << "[DEBUG] calling fits_file.write_image( ) for extension " << this->camera_info.extension+1;
+              message.str(""); message << "[DEBUG] calling fits_file.write_image( ) for extension "
+                                       << this->camera_info.extension.load( std::memory_order_seq_cst )+1;
               logwrite( function, message.str() );
 #endif
 
               error = this->fits_file.write_image(fext, this->camera_info); // write the image to disk
-              this->camera_info.extension++;                                // increment extension for multi-extension files
+              this->camera_info.extension.fetch_add(1);                     // atomically increment extension for multi-extension files
               if ( fext != nullptr ) { delete [] fext; fext=nullptr; }      // dynamic object not automatic so must be destroyed
             }
             catch( std::out_of_range & ) {
@@ -3548,8 +3550,8 @@ namespace Archon {
     //
     if ( error == NO_ERROR ) {
       if ( this->camera.mex() ) {
-        this->camera_info.extension++;                                // increment extension for multi-extension files
-        this->cds_info.extension++;                                   // increment extension for multi-extension files
+        this->camera_info.extension.fetch_add(1);                     // atomically increment extension for multi-extension files
+        this->cds_info.extension.fetch_add(1);                        // atomically increment extension for multi-extension files
 //      message.str(""); message << "DATACUBE:" << this->camera_info.extension << " " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" );
 //      this->camera.async.enqueue( message.str() );
         error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
@@ -3598,7 +3600,7 @@ namespace Archon {
 
     // create fits file
     //
-    if (this->camera_info.extension == 0) {
+    if (this->camera_info.extension.load(std::memory_order_seq_cst) == 0) {
 #ifdef LOGLEVEL_DEBUG
       logwrite(function, "[DEBUG] creating fits file with cfitsio");
 #endif
@@ -3612,7 +3614,8 @@ namespace Archon {
     else {
 #ifdef LOGLEVEL_DEBUG
       logwrite(function, "[DEBUG] opening fits file with cfitsio");
-      message.str(""); message << "[DEBUG] file=" << this->camera_info.fits_name << " extension=" << this->camera_info.extension
+      message.str(""); message << "[DEBUG] file=" << this->camera_info.fits_name << " extension="
+                               << this->camera_info.extension.load(std::memory_order_seq_cst)
                                << " bitpix=" << this->camera_info.bitpix;
       logwrite(function, message.str());
 #endif
@@ -4356,7 +4359,7 @@ namespace Archon {
     // Always initialize the extension number because someone could
     // set mex true and then send "expose" without a number.
     //
-    this->camera_info.extension = 0;
+    this->camera_info.extension.store(0);
 
     // Save the mex state in camera_info so that the FITS writer can know about it
     //
@@ -4472,7 +4475,7 @@ namespace Archon {
         logwrite( function, "NOTICE:override mex true" );
         this->camera.mex(true);
       }
-      this->camera_info.extension = 0;
+      this->camera_info.extension.store(0);
     }
 
     // Open the FITS file now for multi-extensions
@@ -5956,7 +5959,7 @@ namespace Archon {
     // Always initialize the extension number because someone could
     // set mex true and then send "expose" without a number.
     //
-    this->camera_info.extension = 0;
+    this->camera_info.extension.store(0);
 
     // ------------------------------------------------------------------------
     // "readout"
@@ -6024,7 +6027,7 @@ namespace Archon {
           logwrite( function, "NOTICE:override mex true" );
           this->camera.mex(true);
         }
-        this->camera_info.extension = 0;
+        this->camera_info.extension.store(0);
       }
 
       // Save the mex state in camera_info so that the FITS writer can know about it
@@ -8009,7 +8012,7 @@ namespace Archon {
         // If read-write selected then need to do some FITS stuff
         //
         if ( rw ) {
-          this->camera_info.extension = 0;                            // always initialize extension
+          this->camera_info.extension.store(0);                       // always initialize extension
           error = this->camera.get_fitsname( this->camera_info.fits_name ); // assemble the FITS filename if rw selected
           if ( error != NO_ERROR ) {
             logwrite( function, "ERROR: couldn't validate fits filename" );
@@ -8918,7 +8921,7 @@ namespace Archon {
 #ifdef LOGLEVEL_DEBUG
     logwrite( function, "[DEBUG] reset extension=0 and opening new fits file" );
 #endif
-    self->camera_info.extension = 0;
+    self->camera_info.extension.store(0);
     error = self->fits_file.open_file( (self->camera.writekeys_when=="before"?true:false), self->camera_info );
     if ( error != NO_ERROR ) {
       self->camera.log_error( function, "couldn't open fits file" );

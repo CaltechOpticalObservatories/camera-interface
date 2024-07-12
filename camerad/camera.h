@@ -174,7 +174,7 @@ namespace Camera {
       bool          iscds;                   //!< is CDS subtraction requested?
       int           nmcds;                   ///  number of MCDS samples
       bool          ismex;                   //!< the info object given to the FITS writer will need to know multi-extension status
-      int           extension;               //!< extension number for multi-extension files
+      std::atomic<int>  extension;           //!< extension number for multi-extension files
       bool          shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
       std::string   shutteractivate;         //!< shutter activation state
       int32_t       exposure_time;           //!< requested exposure time in exposure_unit
@@ -203,50 +203,199 @@ namespace Camera {
       Common::FitsKeys systemkeys;   /// create a FitsKeys object for FITS keys imposed by the software
       Common::FitsKeys extkeys;      /// create a FitsKeys object for FITS keys imposed by the software
 
-
-  Information() {
-        this->axes[0] = 1;
-        this->axes[1] = 1;
-        this->axes[2] = 1;
-        this->cubedepth = 1;
-        this->fitscubed = 1;
-        this->binning[0] = 1;
-        this->binning[1] = 1;
-        this->region_of_interest[0] = 1;
-        this->region_of_interest[1] = 1;
-        this->region_of_interest[2] = 1;
-        this->region_of_interest[3] = 1;
-        this->image_center[0] = 1;
-        this->image_center[1] = 1;
-        this->iscds = false;
-        this->exposure_aborted = false;
-        this->nmcds = 0;
-        this->ismex = false;
-        this->datatype = 0;
-        this->type_set = false;              //!< set true when datatype has been defined
-        this->requested_exptime = 0;         //!< default requested exposure time
-        this->readouttime = -1;              //!< default readout time is undefined
-        this->exposure_time = -1;            //!< default exposure time is undefined
-        this->exposure_unit = "";            //!< default exposure unit is undefined
-        this->exposure_factor = -1;          //!< default factor is undefined
-        this->shutteractivate = "";
-        this->num_pre_exposures = 0;         //!< default is no pre-exposures
-        this->is_cds = false;
-        this->nseq = 1;
-        this->nexp = -1;
-        this->num_coadds = 1;                //!< default num of coadds
-        this->sampmode = -1;
-        this->sampmode_ext = -1;
-        this->sampmode_frames = -1;
-        this->pixel_time=0;
-        this->pixel_skip_time=0;
-        this->row_overhead_time=0;
-        this->row_skip_time=0;
-        this->frame_start_time=0;
-        this->fs_pulse_time=0;
-        this->nslice=0;
-        this->ncoadd=0;
+      // Default Information class constructor and initializer list
+      //
+      Information()
+        : datatype(0),
+          type_set(false),                   //!< set true when datatype has been defined
+          axes{1, 1, 1},
+          pixel_time(0),
+          pixel_skip_time(0),
+          row_overhead_time(0),
+          row_skip_time(0),
+          frame_start_time(0),
+          fs_pulse_time(0),
+          cubedepth(1),
+          fitscubed(1),
+          ncoadd(0),
+          nslice(0),
+          binning{1, 1},
+          region_of_interest{1, 1, 1, 1},
+          image_center{1, 1},
+          exposure_aborted(false),
+          iscds(false),
+          nmcds(0),
+          ismex(false),
+          shutteractivate(""),
+          exposure_time(-1),                 //!< default is undefined
+          requested_exptime(0),              //!< default is undefined
+          readouttime(-1),                   //!< default is undefined
+          exposure_unit(""),                 //!< default unit undefined
+          exposure_factor(-1),               //!< default factor is undefined
+          num_pre_exposures(0),              //!< default is no pre-exposures
+          is_cds(false),
+          nseq(1),
+          nexp(-1),
+          num_coadds(1),                     //!< default num of coadds
+          sampmode(-1),
+          sampmode_ext(-1),
+          sampmode_frames(-1)
+      {
       }
+
+    // Copy constructor needed because the default copy constructor is deleted,
+    // due to the atomic variable (which doesn't have a copy or copy assignment
+    // constructor). So this manually loads and stores the atomic. All of the
+    // other variables have to come along, too.
+    //
+    Information( const Information &other )
+        : hostname( other.hostname ),
+          port( other.port ),
+          activebufs( other.activebufs ),
+          bitpix( other.bitpix ),
+          datatype( other.datatype ),
+          type_set( other.type_set ),
+          frame_type( other.frame_type ),
+          detector_pixels{other.detector_pixels[0], other.detector_pixels[1]},
+          section_size( other.section_size ),
+          image_memory( other.image_memory ),
+          current_observing_mode( other.current_observing_mode ),
+          readout_name( other.readout_name ),
+          readout_type( other.readout_type ),
+          axes{other.axes[0], other.axes[1], other.axes[2]},
+          pixel_time( other.pixel_time ),
+          pixel_skip_time( other.pixel_skip_time ),
+          row_overhead_time( other.row_overhead_time ),
+          row_skip_time( other.row_skip_time ),
+          frame_start_time( other.frame_start_time ),
+          fs_pulse_time( other.fs_pulse_time ),
+          cubedepth( other.cubedepth ),
+          fitscubed( other.fitscubed ),
+          ncoadd( other.ncoadd ),
+          nslice( other.nslice ),
+          binning{other.binning[0], other.binning[1]},
+          axis_pixels{other.axis_pixels[0], other.axis_pixels[1]},
+          region_of_interest{other.region_of_interest[0], other.region_of_interest[1], other.region_of_interest[2], other.region_of_interest[3]},
+          image_center{other.image_center[0], other.image_center[1]},
+          imwidth( other.imwidth ),
+          imheight( other.imheight ),
+          imwidth_read( other.imwidth_read ),
+          imheight_read( other.imheight_read ),
+          exposure_aborted( other.exposure_aborted ),
+          iscds( other.iscds ),
+          nmcds( other.nmcds ),
+          ismex( other.ismex ),
+          extension( other.extension.load() ),
+          shutterenable( other.shutterenable ),
+          shutteractivate( other.shutteractivate ),
+          exposure_time( other.exposure_time ),
+          exposure_delay( other.exposure_delay ),
+          requested_exptime( other.requested_exptime ),
+          readouttime( other.readouttime ),
+          exposure_unit( other.exposure_unit ),
+          exposure_factor( other.exposure_factor ),
+          exposure_progress( other.exposure_progress ),
+          num_pre_exposures( other.num_pre_exposures ),
+          is_cds( other.is_cds ),
+          nseq( other.nseq ),
+          nexp( other.nexp ),
+          num_coadds( other.num_coadds ),
+          sampmode( other.sampmode ),
+          sampmode_ext( other.sampmode_ext ),
+          sampmode_frames( other.sampmode_frames ),
+          fits_name( other.fits_name ),
+          cmd_start_time( other.cmd_start_time ),
+          start_time( other.start_time ),
+          stop_time( other.stop_time ),
+          amp_section( other.amp_section ),
+          userkeys( other.userkeys ),
+          systemkeys( other.systemkeys ),
+          extkeys( other.extkeys )
+    {
+    }
+
+    // Copy assignment operator
+    //
+    Information& operator=( const Information& other ) {
+        if ( this != &other ) {
+            hostname = other.hostname;
+            port = other.port;
+            activebufs = other.activebufs;
+            bitpix = other.bitpix;
+            datatype = other.datatype;
+            type_set = other.type_set;
+            frame_type = other.frame_type;
+            detector_pixels[0] = other.detector_pixels[0];
+            detector_pixels[1] = other.detector_pixels[1];
+            section_size = other.section_size;
+            image_memory = other.image_memory;
+            current_observing_mode = other.current_observing_mode;
+            readout_name = other.readout_name;
+            readout_type = other.readout_type;
+            axes[0] = other.axes[0];
+            axes[1] = other.axes[1];
+            axes[2] = other.axes[2];
+            pixel_time = other.pixel_time;
+            pixel_skip_time = other.pixel_skip_time;
+            row_overhead_time = other.row_overhead_time;
+            row_skip_time = other.row_skip_time;
+            frame_start_time = other.frame_start_time;
+            fs_pulse_time = other.fs_pulse_time;
+            cubedepth = other.cubedepth;
+            fitscubed = other.fitscubed;
+            ncoadd = other.ncoadd;
+            nslice = other.nslice;
+            binning[0] = other.binning[0];
+            binning[1] = other.binning[1];
+            axis_pixels[0] = other.axis_pixels[0];
+            axis_pixels[1] = other.axis_pixels[1];
+            region_of_interest[0] = other.region_of_interest[0];
+            region_of_interest[1] = other.region_of_interest[1];
+            region_of_interest[2] = other.region_of_interest[2];
+            region_of_interest[3] = other.region_of_interest[3];
+            image_center[0] = other.image_center[0];
+            image_center[1] = other.image_center[1];
+            imwidth = other.imwidth;
+            imheight = other.imheight;
+            imwidth_read = other.imwidth_read;
+            imheight_read = other.imheight_read;
+            exposure_aborted = other.exposure_aborted;
+            iscds = other.iscds;
+            nmcds = other.nmcds;
+            ismex = other.ismex;
+            extension.store( other.extension.load() );
+            shutterenable = other.shutterenable;
+            shutteractivate = other.shutteractivate;
+            exposure_time = other.exposure_time;
+            exposure_delay = other.exposure_delay;
+            requested_exptime = other.requested_exptime;
+            readouttime = other.readouttime;
+            exposure_unit = other.exposure_unit;
+            exposure_factor = other.exposure_factor;
+            exposure_progress = other.exposure_progress;
+            num_pre_exposures = other.num_pre_exposures;
+            is_cds = other.is_cds;
+            nseq = other.nseq;
+            nexp = other.nexp;
+            num_coadds = other.num_coadds;
+            sampmode = other.sampmode;
+            sampmode_ext = other.sampmode_ext;
+            sampmode_frames = other.sampmode_frames;
+            fits_name = other.fits_name;
+            cmd_start_time = other.cmd_start_time;
+            start_time = other.start_time;
+            stop_time = other.stop_time;
+            amp_section = other.amp_section;
+            userkeys = other.userkeys;
+            systemkeys = other.systemkeys;
+            extkeys = other.extkeys;
+        }
+        return *this;
+    }
+
+    // Destructor
+    //
+    ~Information() = default;
 
       long pre_exposures( std::string num_in, std::string &num_out );
 
