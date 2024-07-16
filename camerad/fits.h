@@ -1,5 +1,4 @@
-#ifndef CAMERA_FITS_H
-#define CAMERA_FITS_H
+#pragma once
 /**
  * @file    fits.h
  * @brief   fits interface functions to CCFits
@@ -35,7 +34,6 @@ class FITS_file {
 
     std::mutex fits_mutex;                          /// used to block writing_file semaphore in multiple threads
     std::unique_ptr<CCfits::FITS> pFits;            /// pointer to FITS data container
-    CCfits::ExtHDU* imageExt;                       /// image extension header unit
     std::string fits_name;
 
     inline static const std::string in_process = ".writing";  /// add this extension while fits writing is in process, remove on close
@@ -133,7 +131,7 @@ class FITS_file {
         for (keyit  = info.systemkeys.keydb.begin();
              keyit != info.systemkeys.keydb.end();
              keyit++) {
-          this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+          this->add_key( keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
         }
 
         // If specified, iterate through the user-defined FITS keyword databases and add them to the primary header.
@@ -143,7 +141,7 @@ class FITS_file {
           for (keyit  = info.userkeys.keydb.begin();
                keyit != info.userkeys.keydb.end();
                keyit++) {
-            this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+            this->add_key( keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
           }
         }
       }
@@ -179,10 +177,9 @@ class FITS_file {
 
     /**************** FITS_file::close_file ***********************************/
     /**
-     * @fn         close_file
      * @brief      closes fits file
-     * @param[in]  none
-     * @return     none
+     * @param[in]  writekeys  set true to write keys after exposure
+     * @param[in]  info       reference to Camera::Information
      *
      * Before closing the file, DATE and CHECKSUM keywords are added.
      * Nothing called returns anything so this doesn't return anything.
@@ -200,6 +197,8 @@ class FITS_file {
 #endif
         return;
       }
+
+      const std::lock_guard<std::mutex> lock(this->fits_mutex);
 
 /**
       // Iterate through the system-defined FITS keyword databases and add them to the primary header.
@@ -221,7 +220,7 @@ class FITS_file {
           for (keyit  = info.userkeys.keydb.begin();
                keyit != info.userkeys.keydb.end();
                keyit++) {
-            this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+            this->add_key( keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
           }
         }
         catch ( const std::exception &e ) {
@@ -349,6 +348,7 @@ class FITS_file {
       for ( int i=0; i < num_axis; i++ ) axes[i] = info.axes[i];
       message.str("");
       message << "[DEBUG] threadcount=" << this->threadcount << " ismex=" << info.ismex << " section_size=" << info.section_size 
+              << " datatype=" << info.datatype
               << " cubedepth=" << info.cubedepth
               << " axes=";
       for ( auto aa : axes ) message << aa << " ";
@@ -361,10 +361,10 @@ class FITS_file {
       }
       std::thread([&]() {                                    // create the detached thread here
         if (info.ismex) {
-          this->write_mex_thread(array, info, this);
+          this->write_mex_thread( array, info );
         }
         else {
-          this->write_image_thread(array, info, this);
+          this->write_image_thread( array, info );
         }
         this->threadcount--;                                 // decrement threadcount
       }).detach();
@@ -423,7 +423,6 @@ class FITS_file {
      * @brief      This is where the data are actually written for flat fits files
      * @param[in]  T &data, reference to the data
      * @param[in]  Camera::Information &info, reference to the info structure
-     * @param[in]  FITS_file *self, pointer to this-> object
      * @return     nothing
      *
      * This is the worker thread, to write the data using CCFits,
@@ -431,30 +430,41 @@ class FITS_file {
      *
      */
     template <class T>
-    void write_image_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
+    void write_image_thread( std::valarray<T> &data, Camera::Information &info ) {
       std::string function = "FITS_file::write_image_thread";
       std::stringstream message;
+
+      if ( !data.size() ) {
+        logwrite( function, "ERROR: bad data" );
+        return;
+      }
+
+#ifdef LOGLEVEL_DEBUG
+      message.str(""); message << "[DEBUG] input data=" << demangle( typeid(T).name() )
+                               << " info.datatype=" << info.datatype;
+      logwrite( function, message.str() );
+#endif
 
       // This makes the thread wait while another thread is writing images. This
       // function is really for single image writing, it's here just in case.
       //
       int wait = FITS_WRITE_WAIT;
-      while ( self->writing_file.load( std::memory_order_seq_cst ) ) {
+      while ( this->writing_file.load( std::memory_order_seq_cst ) ) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (--wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for last frame to complete. "
                                    << "unable to write " << this->fits_name;
           logwrite(function, message.str());
-          self->writing_file.store( false, std::memory_order_seq_cst );
-          self->error = true;    // tells the calling function that I had an error
+          this->writing_file.store( false, std::memory_order_seq_cst );
+          this->error = true;    // tells the calling function that I had an error
           return;
         }
       }
 
       // Lock the mutex and set the semaphore for file writing
       //
-      const std::lock_guard<std::mutex> lock(self->fits_mutex);
-      self->writing_file.store( true, std::memory_order_seq_cst );
+      const std::lock_guard<std::mutex> lock(this->fits_mutex);
+      this->writing_file.store( true, std::memory_order_seq_cst );
 
       // Set the FITS system to verbose mode so it writes error messages
       //
@@ -463,28 +473,20 @@ class FITS_file {
       // write the primary image into the FITS file
       //
       try {
-        if (info.datatype == SHORT_IMG) {
-          this->pFits->pHDU().addKey("BZERO", 32768, "offset for signed short int" );
-          this->pFits->pHDU().addKey("BSCALE", 1, "scaling factor");
-        }
-        else {
-          this->pFits->pHDU().addKey("BZERO", 0.0, "offset");
-          this->pFits->pHDU().addKey("BSCALE", 1, "scaling factor");
-        }
-
         long fpixel(1);        // start with the first pixel always
-        self->pFits->pHDU().write( fpixel, info.section_size, data );
-        self->pFits->flush();  // make sure the image is written to disk
+        auto nelements = info.section_size;
+        this->pFits->pHDU().write( fpixel, nelements, data );
+        this->pFits->flush();  // make sure the image is written to disk
       }
-      catch (CCfits::FitsError& error){
-        message.str(""); message << "FITS file error thrown: " << error.message();
+      catch ( CCfits::FitsError& error ) {
+        message.str(""); message << "ERROR FITS file error thrown: " << error.message() << " writing " << this->fits_name;
         logwrite(function, message.str());
-        self->writing_file.store( false, std::memory_order_seq_cst );
-        self->error = true;    // tells the calling function that I had an error
+        this->writing_file.store( false, std::memory_order_seq_cst );
+        this->error = true;    // tells the calling function that I had an error
         return;
       }
 
-      self->writing_file.store( false, std::memory_order_seq_cst );
+      this->writing_file.store( false, std::memory_order_seq_cst );
     }
     /**************** FITS_file::write_image_thread ***************************/
 
@@ -495,7 +497,6 @@ class FITS_file {
      * @brief      This is where the data are actually written for multi-extensions
      * @param[in]  T &data, reference to the data
      * @param[in]  Camera::Information &info, reference to the info structure
-     * @param[in]  FITS_file *self, pointer to this-> object
      * @return     nothing
      *
      * This is the worker thread, to write the data using CCFits,
@@ -503,45 +504,27 @@ class FITS_file {
      *
      */
     template <class T>
-    void write_mex_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
+    void write_mex_thread( std::valarray<T> &data, Camera::Information &info ) {
       std::string function = "FITS_file::write_mex_thread";
       std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] " << this->fits_name << ": info.extension="
                                << info.extension.load( std::memory_order_seq_cst )
+                               << " datatype=" << info.datatype
                                << " this->framen=" << this->framen << " axes=";
       for ( auto aa : info.axes ) message << aa << " ";
       logwrite( function, message.str() );
 #endif
 
-      if ( self==nullptr ) {
-        logwrite( function, "ERROR: bad self pointer" );
-        return;
-      }
       if ( !data.size() ) {
         logwrite( function, "ERROR: bad data" );
         return;
       }
 
 #ifdef LOGLEVEL_DEBUG
-      message.str("");
-      if (std::is_same<T, float>::value) {
-        message << "[DEBUG] input data=float";
-      }
-      else if (std::is_same<T, double>::value) {
-        message << "[DEBUG] input data=double";
-      }
-      else if (std::is_same<T, short>::value) {
-        message << "[DEBUG] input data=short";
-      }
-      else if (std::is_same<T, unsigned short>::value) {
-        message << "[DEBUG] input data=unsigned short";
-      }
-      else {
-        message << "[DEBUG] input data=" << typeid(T).name();
-      }
-      message << " info.datatype=" << info.datatype;
+      message.str(""); message << "[DEBUG] input data=" << demangle( typeid(T).name() )
+                               << " info.datatype=" << info.datatype;
       logwrite( function, message.str() );
 #endif
 
@@ -566,8 +549,8 @@ class FITS_file {
                                    << " extension=" << info.extension.load( std::memory_order_seq_cst )
                                    << " framen=" << this->framen;
           logwrite(function, message.str());
-          self->writing_file.store( false, std::memory_order_seq_cst );
-          self->error = true;    // tells the calling function that I had an error
+          this->writing_file.store( false, std::memory_order_seq_cst );
+          this->error = true;    // tells the calling function that I had an error
           return;
         }
       }
@@ -578,13 +561,15 @@ class FITS_file {
 
       // Lock the mutex and set the semaphore for file writing
       //
-      const std::lock_guard<std::mutex> lock(self->fits_mutex);
-      self->writing_file.store( true, std::memory_order_seq_cst );
+      const std::lock_guard<std::mutex> lock(this->fits_mutex);
+      this->writing_file.store( true, std::memory_order_seq_cst );
 
       // write the primary image into the FITS file
       //
       try {
         long fpixel(1);                     // start with the first pixel always
+        auto bpix = info.datatype;
+        auto nelements = info.section_size;
 
 //      long num_axis = ( info.cubedepth > 1 ? 3 : 2 );
         long num_axis = ( info.fitscubed > 1 ? 3 : 2 );
@@ -603,26 +588,20 @@ class FITS_file {
                              message << " frame to extension " << extname << " in file " << this->fits_name;
         logwrite(function, message.str());
 
-        // Add the extension here
+        // Add the extension here using a local, unique pointer for automatic cleanup
         //
-        this->imageExt = self->pFits->addImage(extname, info.datatype, axes);
+        std::unique_ptr<CCfits::ExtHDU> imageExt( pFits->addImage( extname, bpix, axes ) );
 
-        // Add extension-only keys now
-        //
-        if (info.datatype == SHORT_IMG) {
-          this->imageExt->addKey("BZERO", 32768, "offset for signed short int");
-          this->imageExt->addKey("BSCALE", 1, "scaling factor");
-        }
-        else {
-          this->imageExt->addKey("BZERO", 0.0, "offset");
-          this->imageExt->addKey("BSCALE", 1, "scaling factor");
+        if ( ! imageExt ) {
+          logwrite( function, "ERROR adding FITS image extension" );
+          return;
         }
 
         Common::FitsKeys::fits_key_t::iterator keyit;
         for ( keyit  = info.extkeys.keydb.begin();
               keyit != info.extkeys.keydb.end();
               keyit++ ) {
-          this->add_key( false, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+          this->add_key( extname, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
         }
 
         // Add AMPSEC keys
@@ -648,7 +627,7 @@ class FITS_file {
 */
 
         message.str(""); message << "[DEBUG] fpixel=" << fpixel
-                                 << " section_size=" << info.section_size
+                                 << " section_size=" << nelements
                                  << " datatype=" << info.datatype
                                  << " data.size=" << data.size();
         for (size_t i = 0; i < axes.size(); ++i) message << " axes[" << i << "]=" << axes[i];
@@ -656,25 +635,25 @@ class FITS_file {
 
         // Write and flush to make sure image is written to disk
         //
-        if ( this->imageExt) this->imageExt->write( fpixel, info.section_size, data );
+        if ( imageExt) imageExt->write( fpixel, nelements, data );
         else {
           logwrite( function, "ERROR: imageExt is NULL!" );
           return;
         }
-        self->pFits->flush();
+        this->pFits->flush();
       }
       catch (CCfits::FitsError& error){
-        message.str(""); message << "FITS file error thrown: " << error.message();
+        message.str(""); message << "ERROR FITS file error thrown: " << error.message() << " writing " << this->fits_name;
         logwrite(function, message.str());
-        self->writing_file.store( false, std::memory_order_seq_cst );
-        self->error = true;    // tells the calling function that I had an error
+        this->writing_file.store( false, std::memory_order_seq_cst );
+        this->error = true;    // tells the calling function that I had an error
         return;
       }
 
       // increment number of frames written
       //
       this->framen++;
-      self->writing_file.store( false, std::memory_order_seq_cst );
+      this->writing_file.store( false, std::memory_order_seq_cst );
     }
     /**************** FITS_file::write_mex_thread *****************************/
 
@@ -704,10 +683,10 @@ class FITS_file {
     /**************** FITS_file::make_camera_header ***************************/
 
 
-    /***** FITS_file::add_key *************************************************/
+    /***** FITS_file::add_key_to_hdu ******************************************/
     /**
      * @brief      wrapper to write keywords to the FITS file header
-     * @param[in]  primary  boolean is true for primary, false for extension
+     * @param[in]  hdu      reference to HDU
      * @param[in]  keyword
      * @param[in]  type
      * @param[in]  value
@@ -716,51 +695,33 @@ class FITS_file {
      * Uses CCFits addKey template function, this wrapper ensures the correct type is passed.
      * 
      */
-    void add_key( bool primary, std::string keyword, std::string type, std::string value, std::string comment ) {
-      std::string function = "FITS_file::add_key";
+    void add_key_to_hdu( CCfits::HDU &hdu, std::string keyword, std::string type, std::string value, std::string comment ) {
+      std::string function = "FITS_file::add_key_to_hdu";
       std::stringstream message;
 
-#ifdef LOGLEVEL_DEBUG
-      message << "[DEBUG] keyword=" << keyword << " type=" << type << " value=" << value << " comment=" << comment;
-      logwrite( function, message.str() );
-#endif
-
-      // The file must have been opened first
-      //
-      if ( !this->file_open.load( std::memory_order_seq_cst ) ) {
-        logwrite(function, "ERROR: no fits file open!");
-        return;
-      }
-
       try {
-        if (type.compare("BOOL") == 0) {
+        if ( type == "BOOL" ) {
           bool boolvalue = ( value == "T" ? true : false );
-          ( primary ? this->pFits->pHDU().addKey( keyword, boolvalue, comment )
-                    : this->imageExt->addKey( keyword, boolvalue, comment ) );
-        }
-        else if (type.compare("INT") == 0) {
-          ( primary ? this->pFits->pHDU().addKey(keyword, std::stoi(value), comment)
-                    : this->imageExt->addKey( keyword, std::stoi(value), comment ) );
-        }
-        else if (type.compare("LONG") == 0) {
-          ( primary ? this->pFits->pHDU().addKey(keyword, std::stol(value), comment)
-                    : this->imageExt->addKey( keyword, std::stol(value), comment ) );
-        }
-        else if (type.compare("FLOAT") == 0) {
-          ( primary ? this->pFits->pHDU().addKey(keyword, std::stof(value), comment)
-                    : this->imageExt->addKey( keyword, std::stof(value), comment ) );
-        }
-        else if (type.compare("DOUBLE") == 0) {
-          ( primary ? this->pFits->pHDU().addKey(keyword, std::stod(value), comment)
-                    : this->imageExt->addKey( keyword, std::stod(value), comment ) );
-        }
-        else if (type.compare("STRING") == 0) {
-          ( primary ? this->pFits->pHDU().addKey(keyword, value, comment)
-                    : this->imageExt->addKey( keyword, value, comment ) );
-        }
-        else {
-          message.str(""); message << "ERROR unknown type: " << type << " for user keyword: " << keyword << "=" << value
-                                   << ": expected {INT,LONG,FLOAT,DOUBLE,STRING,BOOL}";
+          hdu.addKey( keyword, boolvalue, comment );
+        } else
+        if ( type == "INT" ) {
+          hdu.addKey( keyword, std::stoi(value), comment );
+        } else
+        if ( type == "LONG" ) {
+          hdu.addKey( keyword, std::stol(value), comment );
+        } else
+        if ( type == "FLOAT" ) {
+          hdu.addKey( keyword, std::stof(value), comment );
+        } else
+        if ( type == "DOUBLE" ) {
+          hdu.addKey( keyword, std::stod(value), comment );
+        } else
+        if ( type == "STRING" ) {
+          hdu.addKey( keyword, value, comment );
+        } else {
+          std::stringstream message;
+          message << "ERROR unknown type: " << type << " for user keyword: " << keyword << "=" << value
+                  << ": expected {INT,LONG,FLOAT,DOUBLE,STRING,BOOL}";
           logwrite(function, message.str());
         }
       }
@@ -770,27 +731,90 @@ class FITS_file {
       catch ( std::invalid_argument & ) {
         message.str(""); message << "ERROR: unable to convert value " << value;
         logwrite( function, message.str() );
-        if (type.compare("STRING") != 0) {
-          ( primary ? this->pFits->pHDU().addKey(keyword, value, comment)
-                    : this->imageExt->addKey( keyword, value, comment ) );
+        if ( type != "STRING" ) {
+          hdu.addKey( keyword, value, comment );
         }
       }
       catch ( std::out_of_range & ) {
         message.str(""); message << "ERROR: value " << value << " out of range";
         logwrite( function, message.str() );
-        if (type.compare("STRING") != 0) {
-          ( primary ? this->pFits->pHDU().addKey(keyword, value, comment)
-                    : this->imageExt->addKey( keyword, value, comment ) );
+        if ( type != "STRING" ) {
+          hdu.addKey( keyword, value, comment );
         }
       }
-      catch (CCfits::FitsError & err) {
-        message.str(""); message << "ERROR adding key " << keyword << "=" << value << " / " << comment << " (" << type << ")"
-                                 << " to " << ( primary ? "primary" : "extension" ) << " :"
+      catch ( CCfits::FitsError & err ) {
+        message.str(""); message << "ERROR adding key " << keyword << "=" << value << " / " << comment << " (" << type << ") : "
                                  << err.message();
         logwrite(function, message.str());
       }
+
+      return;
+    }
+    /***** FITS_file::add_key_to_hdu ******************************************/
+
+
+    /***** FITS_file::add_key *************************************************/
+    /**
+     * @brief      wrapper to write keywords to the FITS primary HDU header
+     * @details    calls add_key_to_hdu() with the primary HDU pointer
+     * @param[in]  keyword
+     * @param[in]  type
+     * @param[in]  value
+     * @param[in]  comment
+     *
+     * This function is overloaded
+     *
+     */
+    void add_key( std::string keyword, std::string type, std::string value, std::string comment ) {
+      std::string function = "FITS_file::add_key";
+
+      // The file must have been opened first
+      //
+      if ( !this->file_open.load( std::memory_order_seq_cst ) ) {
+        logwrite( function, "ERROR: no fits file open!" );
+        return;
+      }
+
+      // add the keyword to the primary HDU
+      //
+      add_key_to_hdu( this->pFits->pHDU(), keyword, type, value, comment );
+
+      return;
+    }
+    /***** FITS_file::add_key *************************************************/
+
+
+    /***** FITS_file::add_key *************************************************/
+    /**
+     * @brief      wrapper to write keywords to the FITS extension header
+     * @details    calls add_key_to_hdu() with the appropriate pointer
+     *             for the named extension
+     * @param[in]  extmame  extension name
+     * @param[in]  keyword
+     * @param[in]  type
+     * @param[in]  value
+     * @param[in]  comment
+     *
+     * This function is overloaded
+     *
+     */
+    void add_key( const std::string extname, std::string keyword, std::string type, std::string value, std::string comment ) {
+      std::string function = "FITS_file::add_key";
+
+      // The file must have been opened first
+      //
+      if ( !this->file_open.load( std::memory_order_seq_cst ) ) {
+        logwrite( function, "ERROR: no fits file open!" );
+        return;
+      }
+
+      // add the keyword to the primary HDU
+      //
+      CCfits::ExtHDU &imageExt = this->pFits->extension( extname );
+      add_key_to_hdu( imageExt, keyword, type, value, comment );
+
+      return;
     }
     /***** FITS_file::add_key *************************************************/
 
 };
-#endif

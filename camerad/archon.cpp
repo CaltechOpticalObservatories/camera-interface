@@ -4687,8 +4687,8 @@ namespace Archon {
             double truitime = dts/100000000.;
             std::stringstream truitimestr;
             truitimestr << truitime;
-            this->cds_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
-            this->fits_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
+            this->cds_file.add_key( "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
+            this->fits_file.add_key( "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
           }
 
           // Add Archon TIMESTAMP for this frame buffer to the extkeys database.

@@ -884,3 +884,28 @@ std::mutex generate_tmpfile_mtx;
     }
   }
   /***** generate_temp_filename ***********************************************/
+
+
+  /***** demangle *************************************************************/
+  /**
+   * @brief      demangle type names
+   * @param[in]  mangled_name
+   * @return     demangled name
+   *
+   */
+  std::string demangle( const char* mangled_name ) {
+    int status = 0;
+
+    // use unique_ptr with custom deleter to manage the demangled name's memory
+    // because __cxa_demangle returns a pointer that must be freed
+    //
+    std::unique_ptr<char, void(*)(void*)> demangled_name(
+        abi::__cxa_demangle( mangled_name, nullptr, nullptr, &status ),
+        std::free
+    );
+
+    // return demangled name if successful
+    //
+    return (status == 0) ? demangled_name.get() : mangled_name;
+  }
+  /***** demangle *************************************************************/

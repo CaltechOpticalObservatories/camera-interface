@@ -29,6 +29,10 @@
 #include <string>
 #include <string_view>
 #include <cctype>
+#include <typeinfo>
+#include <cxxabi.h>
+#include <memory> // For std::unique_ptr
+#include <cstdlib> // For std::free
 
 extern std::string tmzone_cfg;                      /// time zone if set in cfg file
 extern std::mutex generate_tmpfile_mtx;
@@ -109,6 +113,7 @@ inline bool caseCompareChar( char a, char b ) { return ( std::toupper(a) == std:
 inline bool caseCompareString( const std::string &s1, const std::string &s2 ) {
   return( (s1.size()==s2.size() ) && std::equal( s1.begin(), s1.end(), s2.begin(), caseCompareChar) ); }
 
+std::string demangle( const char* mangled_name );
 
 /***** to_string_prec *******************************************************/
 /**
