@@ -47,6 +47,20 @@ jobs:
       run: .github/workflows/install-deps.sh
       shell: bash
 
+    - name: Install ARC64PCI
+      run: |
+        cd ${{github.workspace}}/..
+        git clone https://github.com/CaltechOpticalObservatories/Arc64PCI.git
+        cd Arc64PCI
+        make
+
+    - name: Install ARC-API
+      run: |
+        cd ${{github.workspace}}/..
+        git clone https://github.com/CaltechOpticalObservatories/ARC_API_36.git
+        cd ARC_API_36
+        make
+
     - name: Configure CMake AstroCam
       run: |
         cd ${{github.workspace}}/build
