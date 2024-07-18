@@ -7,8 +7,8 @@
 # user must define the interface type here
 # valid types are: "AstroCam" | "Archon"
 # ----------------------------------------------------------------------------
-set(INTERFACE_TYPE "Archon")
-#set(INTERFACE_TYPE "AstroCam")
+
+# INTERFACE_TYPE should be set via command line to Archon or AstroCam
 # ----------------------------------------------------------------------------
 
 # un-comment the following to log verbose debug messages
