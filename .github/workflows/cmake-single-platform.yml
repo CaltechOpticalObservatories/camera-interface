@@ -13,7 +13,7 @@ env:
   INSTR: generic
 
 jobs:
-  build_archon:
+  build-archon:
     runs-on: ubuntu-latest
 
     steps:
@@ -38,7 +38,7 @@ jobs:
         cd ${{github.workspace}}/build
         make
   
-  build_astrocam:
+  build-astrocam:
     runs-on: ubuntu-latest
 
     steps:
