@@ -20,7 +20,9 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install dependecies
-      run: install-deps.sh
+      run: |
+        ls -l
+        .github/workflows/install-deps.sh
       shell: bash
     
     - name: Configure CMake Archon
@@ -42,7 +44,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Install dependecies
-      run: install-deps.sh
+      run: .github/workflows/install-deps.sh
       shell: bash
 
     - name: Configure CMake AstroCam
