@@ -13,7 +13,7 @@ env:
   INSTR: generic
 
 jobs:
-  setup:
+  build_archon:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,10 +25,7 @@ jobs:
         sudo apt-get install libccfits-dev
         sudo apt-get install libcfitsio-dev
         sudo apt-get install libcurl4-openssl-dev
-
-  build_archon:
-    runs-on: ubuntu-latest
-    steps:
+    
     - name: Configure CMake Archon
       run: |
         cd ${{github.workspace}}/build
@@ -43,7 +40,17 @@ jobs:
   
   build_astrocam:
     runs-on: ubuntu-latest
+
     steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependecies
+      run: |
+        sudo apt-get update
+        sudo apt-get install libccfits-dev
+        sudo apt-get install libcfitsio-dev
+        sudo apt-get install libcurl4-openssl-dev
+
     - name: Configure CMake AstroCam
       run: |
         cd ${{github.workspace}}/build
