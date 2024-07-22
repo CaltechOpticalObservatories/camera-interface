@@ -38,7 +38,7 @@ jobs:
         make
   
   build-astrocam:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
 
     steps:
     - uses: actions/checkout@v4
@@ -52,14 +52,14 @@ jobs:
         cd ${{github.workspace}}/..
         git clone https://github.com/CaltechOpticalObservatories/Arc64PCI.git
         cd Arc64PCI
-        make KERNEL_CLASS_WITHOUT_OWNER=1
+        make
 
     - name: Install ARC-API
       run: |
         cd ${{github.workspace}}/..
         git clone https://github.com/CaltechOpticalObservatories/ARC_API_36.git
         cd ARC_API_36
-        make KERNEL_CLASS_WITHOUT_OWNER=1
+        make
 
     - name: Configure CMake AstroCam
       run: |
