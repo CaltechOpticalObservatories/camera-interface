@@ -8,7 +8,11 @@
 # valid types are: "AstroCam" | "Archon"
 # ----------------------------------------------------------------------------
 
-# INTERFACE_TYPE should be set via command line to Archon or AstroCam
+# Interface type can be set via command line ( Archo | AstroCam )
+
+IF(NOT DEFINED INTERFACE_TYPE)
+    set(INTERFACE_TYPE "Archon")
+endif()
 # ----------------------------------------------------------------------------
 
 # un-comment the following to log verbose debug messages
