@@ -83,6 +83,7 @@ namespace Archon {
 
     public:
       Interface();
+      ~Interface();
 
       // Class Objects
       //
@@ -105,6 +106,14 @@ namespace Archon {
       bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
       bool firmwareloaded;                   //!< true if firmware is loaded, false otherwise
       bool is_longexposure;                  //!< true for long exposure mode (exptime in sec), false for exptime in msec
+      bool is_window;                        //!< true if in window mode for h2rg, false if not
+      bool is_autofetch;
+      int win_hstart;
+      int win_hstop;
+      int win_vstart;
+      int win_vstop;
+      int taplines_store;                   //!< int number of original taplines
+      std::string tapline0_store;           //!< store tapline0 for window mode so can restore later
 
       bool lastcubeamps;
 
@@ -169,6 +178,7 @@ namespace Archon {
       long get_timer(unsigned long int *timer);
       long fetch(uint64_t bufaddr, uint32_t bufblocks);
       long read_frame();                     //!< read Archon frame buffer into host memory
+      long hread_frame();
       long read_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
       long write_raw();                      //!< write raw 16 bit data to a FITS file
@@ -181,8 +191,15 @@ namespace Archon {
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
       void add_filename_key();
       long expose(std::string nseq_in);
+      long hexpose(std::string nseq_in);
+      long hsetup();
+      long hroi(std::string geom_in, std::string &retstring);
+      long hwindow(std::string state_in, std::string &state_out);
+      long autofetch(std::string state_in, std::string &state_out);
+      long video();
       long wait_for_exposure();
       long wait_for_readout();
+      long hwait_for_readout();
       long get_parameter(std::string parameter, std::string &retstring);
       long set_parameter( std::string parameter, long value );
       long set_parameter(std::string parameter);
