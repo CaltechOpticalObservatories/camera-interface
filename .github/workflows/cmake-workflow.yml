@@ -38,7 +38,7 @@ jobs:
         make
   
   build-astrocam:
-    runs-on: macos-12
+    runs-on: ubuntu-20.04
 
     steps:
     - uses: actions/checkout@v4
@@ -47,18 +47,20 @@ jobs:
       run: .github/workflows/install-deps.sh
       shell: bash
 
-    - name: Install ARC64PCI
-      run: |
-        cd ${{github.workspace}}/..
-        git clone https://github.com/CaltechOpticalObservatories/Arc64PCI.git
-        cd Arc64PCI
-        make
-
     - name: Install ARC-API
       run: |
         cd ${{github.workspace}}/..
         git clone https://github.com/CaltechOpticalObservatories/ARC_API_36.git
         cd ARC_API_36
+        g++ --version
+        make
+
+    - name: Install ARC64PCI
+      run: |
+        cd ${{github.workspace}}/..
+        git clone https://github.com/CaltechOpticalObservatories/Arc64PCI.git
+        cd Arc64PCI
+        g++ --version
         make
 
     - name: Configure CMake AstroCam
