@@ -406,8 +406,8 @@ std::mutex generate_tmpfile_mtx;
     // Convert the input time to local or GMT
     //
     t = time_in.tv_sec;
-    if ( tmzone_in == "local" ) { if ( localtime_r( &t, &time ) == nullptr ) return( "9999-99-99T99:99:99.999" ); }
-    else                        { if ( gmtime_r( &t, &time ) == nullptr )    return( "9999-99-99T99:99:99.999" ); }
+    if ( tmzone_in == "local" ) { if ( localtime_r( &t, &time ) == nullptr ) return( "9999-99-99T99:99:99.999999" ); }
+    else                        { if ( gmtime_r( &t, &time ) == nullptr )    return( "9999-99-99T99:99:99.999999" ); }
 
     current_time.setf(std::ios_base::right);
     current_time << std::setfill('0') << std::setprecision(0)
@@ -417,7 +417,7 @@ std::mutex generate_tmpfile_mtx;
                  << std::setw(2) << time.tm_hour  << ":"
                  << std::setw(2) << time.tm_min << ":"
                  << std::setw(2) << time.tm_sec << "."
-                 << std::setw(3) << std::fixed << std::round( time_in.tv_nsec/1000000. );
+                 << std::setw(6) << time_in.tv_nsec/1000;
 
     return(current_time.str());
   }
