@@ -93,16 +93,12 @@ int main(int argc, char **argv) {
     if ( filename ) {
       server.config.filename = std::string( filename );
     }
-  }
-  else
-
-  // if no "-f <filename>" then as long as there's at least one arg,
-  // assume that is the config file name.
-  //
-  if (argc>1) {
+  } else if (argc>1) {
+      // if no "-f <filename>" then as long as there's at least one arg,
+      // assume that is the config file name.
+      //
     server.config.filename = std::string( argv[1] );
-  }
-  else {
+  } else {
     logwrite(function, "ERROR: no configuration file specified");
     server.exit_cleanly();
   }
@@ -491,7 +487,7 @@ void doit(Network::TcpSocket sock) {
      * process commands here
      */
     ret = NOTHING;
-    std::string retstring="";                               // string for return the value (where needed)
+    std::string retstring;                               // string for return the value (where needed)
 
     if (cmd=="exit") {
                     server.camera.async.enqueue("exit");    // shutdown the async message thread if running
@@ -626,6 +622,28 @@ void doit(Network::TcpSocket sock) {
                     }
 #endif
 #ifdef STA_ARCHON
+    else
+    if (cmd=="video") {
+        ret = server.video();
+    }
+    else
+    if (cmd=="hsetup") {
+        ret = server.hsetup();
+    }
+    else
+    if (cmd=="hexpose") {
+        ret = server.hexpose(args);
+    }
+    else
+    if (cmd=="hroi") {
+        ret = server.hroi( args, retstring );
+        if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+    }
+    else
+    if (cmd=="hwindow") {
+        ret = server.hwindow( args, retstring );
+        if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+    }
     else
     if (cmd=="roi") {
                     ret = server.region_of_interest( args, retstring );
