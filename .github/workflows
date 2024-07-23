@@ -1,0 +1,79 @@
+name: CMake workflow
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  INTERFACE_TYPE_ARCHON: Archon
+  INTERFACE_TYPE_ASTROCAM: AstroCam
+  INSTR: generic
+
+jobs:
+  build-archon:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependecies
+      run: |
+        ls -l
+        .github/workflows/install-deps.sh
+      shell: bash
+    
+    - name: Configure CMake Archon
+      run: |
+        cd ${{github.workspace}}/build
+        rm -rf *
+        g++ --version
+        cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ARCHON}} -DINSTR=${{env.INSTR}} ..
+
+    - name: Build Archon
+      # Build your program with the given configuration
+      run: |
+        cd ${{github.workspace}}/build
+        make
+  
+  
+  # Comment AstroCam out for now
+  # build-astrocam:
+  #   runs-on: ubuntu-20.04
+
+  #   steps:
+  #   - uses: actions/checkout@v4
+
+  #   - name: Install dependecies
+  #     run: .github/workflows/install-deps.sh
+  #     shell: bash
+
+  #   - name: Install ARC64PCI
+  #     run: |
+  #       cd ${{github.workspace}}/..
+  #       git clone https://github.com/CaltechOpticalObservatories/Arc64PCI.git
+  #       cd Arc64PCI
+  #       g++ --version
+  #       make
+
+  #   - name: Install ARC-API
+  #     run: |
+  #       cd ${{github.workspace}}/..
+  #       git clone https://github.com/CaltechOpticalObservatories/ARC_API_36.git
+  #       cd ARC_API_36
+  #       g++ --version
+  #       make
+
+  #   - name: Configure CMake AstroCam
+  #     run: |
+  #       cd ${{github.workspace}}/build
+  #       rm -rf * 
+  #       cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ASTROCAM}} -DINSTR=${{env.INSTR}} ..
+
+  #   - name: Build AstroCam
+  #     # Build your program with the given configuration
+  #     run: |
+  #       cd ${{github.workspace}}/build
+  #       make
