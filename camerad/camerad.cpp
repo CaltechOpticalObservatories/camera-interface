@@ -622,6 +622,7 @@ void doit(Network::TcpSocket sock) {
                     }
 #endif
 #ifdef STA_ARCHON
+#ifdef DET_HXRG
     else
     if (cmd=="video") {
         ret = server.video();
@@ -644,6 +645,7 @@ void doit(Network::TcpSocket sock) {
         ret = server.hwindow( args, retstring );
         if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
     }
+#endif
     else
     if (cmd=="roi") {
                     ret = server.region_of_interest( args, retstring );
