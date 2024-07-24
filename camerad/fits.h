@@ -189,6 +189,16 @@ class FITS_file {
       std::string function = "FITS_file::close_file";
       std::stringstream message;
 
+      const std::lock_guard<std::mutex> lock(this->fits_mutex);
+
+message.str(""); message << "[DEBUG] fits_name=" << this->fits_name;
+logwrite(function, message.str());
+
+      if ( ! this->pFits ) {
+        logwrite( function, "ERROR invalid pFits pointer" );
+        return;
+      }
+
       // Nothing to do if not open
       //
       if ( ! this->file_open ) {
@@ -197,8 +207,6 @@ class FITS_file {
 #endif
         return;
       }
-
-      const std::lock_guard<std::mutex> lock(this->fits_mutex);
 
 /**
       // Iterate through the system-defined FITS keyword databases and add them to the primary header.
@@ -253,6 +261,10 @@ class FITS_file {
         // Write the checksum
         //
         this->pFits->pHDU().writeChecksum();
+
+        // Deallocate the CCfits object and close the FITS file
+        //
+        this->pFits->destroy();
       }
       catch (CCfits::FitsError& error){
         message.str(""); message << "ERROR writing checksum and closing file: " << error.message();
@@ -264,10 +276,6 @@ class FITS_file {
         logwrite(function, message.str());
         this->file_open.store( false, std::memory_order_seq_cst );   // must set this false on exception
       }
-
-      // Deallocate the CCfits object and close the FITS file
-      //
-      this->pFits->destroy();
 
       // Let the world know that the file is closed
       //
@@ -361,10 +369,10 @@ class FITS_file {
       }
       std::thread([&]() {                                    // create the detached thread here
         if (info.ismex) {
-          this->write_mex_thread( array, info );
+          this->write_mex_thread( array, info, this );
         }
         else {
-          this->write_image_thread( array, info );
+          this->write_image_thread( array, info, this );
         }
         this->threadcount--;                                 // decrement threadcount
       }).detach();
@@ -423,6 +431,7 @@ class FITS_file {
      * @brief      This is where the data are actually written for flat fits files
      * @param[in]  T &data, reference to the data
      * @param[in]  Camera::Information &info, reference to the info structure
+     * @param[in]  FITS_file *self, pointer to this-> object
      * @return     nothing
      *
      * This is the worker thread, to write the data using CCFits,
@@ -430,14 +439,9 @@ class FITS_file {
      *
      */
     template <class T>
-    void write_image_thread( std::valarray<T> &data, Camera::Information &info ) {
+    void write_image_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
       std::string function = "FITS_file::write_image_thread";
       std::stringstream message;
-
-      if ( !data.size() ) {
-        logwrite( function, "ERROR: bad data" );
-        return;
-      }
 
 #ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] input data=" << demangle( typeid(T).name() )
@@ -445,26 +449,36 @@ class FITS_file {
       logwrite( function, message.str() );
 #endif
 
+      if ( self==nullptr ) {
+        logwrite( function, "ERROR: bad self pointer" );
+        return;
+      }
+
+      if ( !data.size() ) {
+        logwrite( function, "ERROR: bad data" );
+        return;
+      }
+
       // This makes the thread wait while another thread is writing images. This
       // function is really for single image writing, it's here just in case.
       //
       int wait = FITS_WRITE_WAIT;
-      while ( this->writing_file.load( std::memory_order_seq_cst ) ) {
+      while ( self->writing_file.load( std::memory_order_seq_cst ) ) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (--wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for last frame to complete. "
-                                   << "unable to write " << this->fits_name;
+                                   << "unable to write " << self->fits_name;
           logwrite(function, message.str());
-          this->writing_file.store( false, std::memory_order_seq_cst );
-          this->error = true;    // tells the calling function that I had an error
+          self->writing_file.store( false, std::memory_order_seq_cst );
+          self->error = true;    // tells the calling function that I had an error
           return;
         }
       }
 
       // Lock the mutex and set the semaphore for file writing
       //
-      const std::lock_guard<std::mutex> lock(this->fits_mutex);
-      this->writing_file.store( true, std::memory_order_seq_cst );
+      const std::lock_guard<std::mutex> lock(self->fits_mutex);
+      self->writing_file.store( true, std::memory_order_seq_cst );
 
       // Set the FITS system to verbose mode so it writes error messages
       //
@@ -475,18 +489,18 @@ class FITS_file {
       try {
         long fpixel(1);        // start with the first pixel always
         auto nelements = info.section_size;
-        this->pFits->pHDU().write( fpixel, nelements, data );
-        this->pFits->flush();  // make sure the image is written to disk
+        self->pFits->pHDU().write( fpixel, nelements, data );
+        self->pFits->flush();  // make sure the image is written to disk
       }
       catch ( CCfits::FitsError& error ) {
-        message.str(""); message << "ERROR FITS file error thrown: " << error.message() << " writing " << this->fits_name;
+        message.str(""); message << "ERROR FITS file error thrown: " << error.message() << " writing " << self->fits_name;
         logwrite(function, message.str());
-        this->writing_file.store( false, std::memory_order_seq_cst );
-        this->error = true;    // tells the calling function that I had an error
+        self->writing_file.store( false, std::memory_order_seq_cst );
+        self->error = true;    // tells the calling function that I had an error
         return;
       }
 
-      this->writing_file.store( false, std::memory_order_seq_cst );
+      self->writing_file.store( false, std::memory_order_seq_cst );
     }
     /**************** FITS_file::write_image_thread ***************************/
 
@@ -497,6 +511,7 @@ class FITS_file {
      * @brief      This is where the data are actually written for multi-extensions
      * @param[in]  T &data, reference to the data
      * @param[in]  Camera::Information &info, reference to the info structure
+     * @param[in]  FITS_file *self, pointer to this-> object
      * @return     nothing
      *
      * This is the worker thread, to write the data using CCFits,
@@ -504,15 +519,20 @@ class FITS_file {
      *
      */
     template <class T>
-    void write_mex_thread( std::valarray<T> &data, Camera::Information &info ) {
+    void write_mex_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
       std::string function = "FITS_file::write_mex_thread";
       std::stringstream message;
 
+      if ( self==nullptr ) {
+        logwrite( function, "ERROR: bad self pointer" );
+        return;
+      }
+
 #ifdef LOGLEVEL_DEBUG
-      message.str(""); message << "[DEBUG] " << this->fits_name << ": info.extension="
+      message.str(""); message << "[DEBUG] " << self->fits_name << ": info.extension="
                                << info.extension.load( std::memory_order_seq_cst )
                                << " datatype=" << info.datatype
-                               << " this->framen=" << this->framen << " axes=";
+                               << " self->framen=" << self->framen << " axes=";
       for ( auto aa : info.axes ) message << aa << " ";
       logwrite( function, message.str() );
 #endif
@@ -532,25 +552,25 @@ class FITS_file {
       // thread will only start writing once the extension number matches the
       // number of frames already written.
       //
-      int last_threadcount = this->threadcount.load( std::memory_order_seq_cst );
+      int last_threadcount = self->threadcount.load( std::memory_order_seq_cst );
       int wait = FITS_WRITE_WAIT;
-      while ( info.extension.load( std::memory_order_seq_cst ) != this->framen.load( std::memory_order_seq_cst ) ) {
+      while ( info.extension.load( std::memory_order_seq_cst ) != self->framen.load( std::memory_order_seq_cst ) ) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        if (this->threadcount.load( std::memory_order_seq_cst ) >= last_threadcount) {  // threads are not completing
+        if (self->threadcount.load( std::memory_order_seq_cst ) >= last_threadcount) {  // threads are not completing
           wait--;                                                                       // start decrementing wait timer
         }
         else {                                                                          // a thread was completed so things are still working
-          last_threadcount = this->threadcount.load( std::memory_order_seq_cst );       // reset last threadcount
+          last_threadcount = self->threadcount.load( std::memory_order_seq_cst );       // reset last threadcount
           wait = FITS_WRITE_WAIT;                                                       // reset wait timer
         }
         if (wait < 0) {
           message.str(""); message << "ERROR: timeout waiting for frame write."
                                    << " threadcount=" << threadcount 
                                    << " extension=" << info.extension.load( std::memory_order_seq_cst )
-                                   << " framen=" << this->framen;
+                                   << " framen=" << self->framen;
           logwrite(function, message.str());
-          this->writing_file.store( false, std::memory_order_seq_cst );
-          this->error = true;    // tells the calling function that I had an error
+          self->writing_file.store( false, std::memory_order_seq_cst );
+          self->error = true;    // tells the calling function that I had an error
           return;
         }
       }
@@ -561,8 +581,8 @@ class FITS_file {
 
       // Lock the mutex and set the semaphore for file writing
       //
-      const std::lock_guard<std::mutex> lock(this->fits_mutex);
-      this->writing_file.store( true, std::memory_order_seq_cst );
+      const std::lock_guard<std::mutex> lock(self->fits_mutex);
+      self->writing_file.store( true, std::memory_order_seq_cst );
 
       // write the primary image into the FITS file
       //
@@ -585,12 +605,12 @@ class FITS_file {
 
         message.str("");     message << "adding " << axes[0] << " x " << axes[1];
         if ( num_axis==3 ) { message << " x " << axes[2]; }
-                             message << " frame to extension " << extname << " in file " << this->fits_name;
+                             message << " frame to extension " << extname << " in file " << self->fits_name;
         logwrite(function, message.str());
 
         // Add the extension here using a local, unique pointer for automatic cleanup
         //
-        std::unique_ptr<CCfits::ExtHDU> imageExt( pFits->addImage( extname, bpix, axes ) );
+        std::unique_ptr<CCfits::ExtHDU> imageExt( self->pFits->addImage( extname, bpix, axes ) );
 
         if ( ! imageExt ) {
           logwrite( function, "ERROR adding FITS image extension" );
@@ -601,7 +621,7 @@ class FITS_file {
         for ( keyit  = info.extkeys.keydb.begin();
               keyit != info.extkeys.keydb.end();
               keyit++ ) {
-          this->add_key( extname, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+          self->add_key( extname, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
         }
 
         // Add AMPSEC keys
@@ -615,7 +635,7 @@ class FITS_file {
             int y2 = info.amp_section.at( info.extension ).at( 3 );
 
             message.str(""); message << "[" << x1 << ":" << x2 << "," << y1 << ":" << y2 << "]";
-            this->imageExt->addKey( "AMPSEC", message.str(), "amplifier section" );
+            self->imageExt->addKey( "AMPSEC", message.str(), "amplifier section" );
           }
           catch ( std::out_of_range & ) {
             logwrite( function, "ERROR: no amplifier section referenced for this extension" );
@@ -640,20 +660,20 @@ class FITS_file {
           logwrite( function, "ERROR: imageExt is NULL!" );
           return;
         }
-        this->pFits->flush();
+        self->pFits->flush();
       }
       catch (CCfits::FitsError& error){
-        message.str(""); message << "ERROR FITS file error thrown: " << error.message() << " writing " << this->fits_name;
+        message.str(""); message << "ERROR FITS file error thrown: " << error.message() << " writing " << self->fits_name;
         logwrite(function, message.str());
-        this->writing_file.store( false, std::memory_order_seq_cst );
-        this->error = true;    // tells the calling function that I had an error
+        self->writing_file.store( false, std::memory_order_seq_cst );
+        self->error = true;    // tells the calling function that I had an error
         return;
       }
 
       // increment number of frames written
       //
-      this->framen++;
-      this->writing_file.store( false, std::memory_order_seq_cst );
+      self->framen++;
+      self->writing_file.store( false, std::memory_order_seq_cst );
     }
     /**************** FITS_file::write_mex_thread *****************************/
 

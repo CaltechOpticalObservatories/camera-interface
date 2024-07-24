@@ -8883,6 +8883,8 @@ namespace Archon {
     if ( error != NO_ERROR ) logwrite( function, "ERROR writing coadd image to disk" );
     if ( self->camera.is_aborted() ) logwrite( function, "closing aborted coadd image" );
     self->cds_info.exposure_aborted = self->camera.is_aborted();
+message.str(""); message << "[DEBUG] will close " << self->camera_info.fits_name;
+logwrite( function, message.str() );
     self->cds_file.close_file(  (self->camera.writekeys_when=="after"?true:false), self->cds_info );
 
 //cv::destroyAllWindows();
