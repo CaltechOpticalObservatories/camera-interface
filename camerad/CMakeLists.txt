@@ -59,7 +59,7 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
         find_library(CARC_FITS "CArcFitsFile3.6" NAMES "libCArcFitsFile3.6.so" PATHS ${ARCAPI_DIR}/Release)
 
 # ----------------------------------------------------------------------------
-# AstroCam ARC-64/66 PCI/e interfaces
+# STA Archon interfaces
 # ----------------------------------------------------------------------------
 
 elseif(${INTERFACE_TYPE} STREQUAL "Archon")
@@ -74,6 +74,12 @@ elseif(${INTERFACE_TYPE} STREQUAL "Archon")
                 "${ARCHON_INCLUDE}"
                 )
         add_library( interface STATIC "${INTERFACE_SOURCE}" )
+        if (${DETECTOR_TYPE} STREQUAL "Hxrg")
+            message(STATUS "compiling for HXRG detector")
+            add_definitions(-DDET_HXRG)
+        else()
+            message(STATUS "compiling for CCD detector")
+        endif()
 else()
         message(FATAL_ERROR " unknown interface type: " ${INTERFACE_TYPE})
 endif()

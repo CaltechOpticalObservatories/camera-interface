@@ -8,10 +8,14 @@
 # valid types are: "AstroCam" | "Archon"
 # ----------------------------------------------------------------------------
 
-# Interface type can be set via command line ( Archo | AstroCam )
-
+# Interface type can be set via command line ( Archon | AstroCam )
 IF(NOT DEFINED INTERFACE_TYPE)
     set(INTERFACE_TYPE "Archon")
+endif()
+
+# Detectpr type can be set via command line ( Hxrg | Ccd )
+if(NOT DEFINED DETECTOR_TYPE)
+    set(DETECTOR_TYPE "Ccd")
 endif()
 # ----------------------------------------------------------------------------
 

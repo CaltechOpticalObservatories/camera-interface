@@ -10,6 +10,7 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   INTERFACE_TYPE_ARCHON: Archon
   INTERFACE_TYPE_ASTROCAM: AstroCam
+  DETECTOR_TYPE_HXRG: Hxrg
   INSTR: generic
 
 jobs:
@@ -30,7 +31,7 @@ jobs:
         cd ${{github.workspace}}/build
         rm -rf *
         g++ --version
-        cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ARCHON}} -DINSTR=${{env.INSTR}} ..
+        cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ARCHON}} -DDETECTOR_TYPE=${{env.DETECTOR_TYPE_HXRG}} -DINSTR=${{env.INSTR}} ..
 
     - name: Build Archon
       # Build your program with the given configuration
