@@ -2,8 +2,10 @@
 Camera Detector Controller Interface Software
 
 ## Requirements:
-- Cmake 3.12 or higher
-- cfitsio and CCFits libraries (expected in /usr/local/lib)
+
+ - Cmake 3.12 or higher
+ - cfitsio and CCFits libraries (expected in /usr/local/lib)
+
 
 | Archon controllers | ARC controllers |
 | -----------------------| ----------------|
@@ -30,13 +32,14 @@ Camera Detector Controller Interface Software
 |--------|-----------------|
 |`% cmake -DINSTR=generic ..`  | `% cmake -DINSTR=generic -DINTERFACE_TYPE=AstroCam ..` |
 
+
 - compile the sources,
 
 ```
    % make
 ```
 
-- run the program using one of these forms,
+ - run the program using one of these forms, 
 
 ```
    % ../bin/camerad <file.cfg>
@@ -44,13 +47,13 @@ Camera Detector Controller Interface Software
    % ../bin/camerad -d -f <file.cfg>
 ```   
 
-where <file.cfg> is an appropriate configuration file. See the example .cfg files
-in the Config directory of this distribution. Note that the -f option specifies
-a config file and the -d option forces it to run as a daemon, overriding any
-DAEMON=no setting in the configuration file.
+   where <file.cfg> is an appropriate configuration file. See the example .cfg files
+   in the Config directory of this distribution. Note that the -f option specifies 
+   a config file and the -d option forces it to run as a daemon, overriding any 
+   DAEMON=no setting in the configuration file.
 
-- Note that only when INTERFACE_TYPE is set to Archon will the emulator software
-  be compiled.
+ - Note that only when INTERFACE_TYPE is set to Archon will the emulator software
+ be compiled.
 
 ---
 
