@@ -5,53 +5,46 @@ Camera Detector Controller Interface Software
 
  - Cmake 3.12 or higher
  - cfitsio and CCFits libraries (expected in /usr/local/lib)
- 
-### For ARC controllers,
-  - g++ 8.3 (and c++17)
-  - ARC API 3.6 and Arc66PCIe driver
- 
-### For Archon
- - g++ 4.8 or higher (and c++11)
+
+
+| Archon controllers | ARC controllers |
+| -----------------------| ----------------|
+| g++ 8.1 or higher (and c++17) | g++ 8.3 (and c++17) |
+|                               | ARC API 3.6 and Arc66PCIe driver |
+
 
 ## Build instructions:
 
- - edit the toplevel CMakeLists.txt file to un-comment ONE of the following two lines
- according to the controller interface you are using:
+- change to the build directory
 
-```
-set(INTERFACE_TYPE "Archon")
-#set(INTERFACE_TYPE "AstroCam")
-```
+- To start with a clean build, delete the contents of the build
+  directory, including the subdirectory CMakeFiles/,
+  but not the `.gitignore file`. For example:
 
- - change to the build directory
-
- - To start with a clean build, delete the contents of the build
-   directory, including the subdirectory CMakeFiles/, 
-   but not the `.gitignore file`. For example:
-   
 ```
    % cd build
    % rm -Rf *
 ```
 
- - create the Makefile by running cmake (from the build directory),
+- create the Makefile by running cmake (from the build directory),
 
-```
-   % cmake ..
-```
+| Archon                       | ARC                                                    |
+|------------------------------|--------------------------------------------------------|
+| `$ cmake -DINSTR=generic ..` | `$ cmake -DINSTR=generic -DINTERFACE_TYPE=AstroCam ..` |
+
 
 - compile the sources,
 
 ```
-   % make
+   $ make
 ```
 
  - run the program using one of these forms, 
 
 ```
-   % ../bin/camerad <file.cfg>
-   % ../bin/camerad -f <file.cfg>
-   % ../bin/camerad -d -f <file.cfg>
+   $ ../bin/camerad <file.cfg>
+   $ ../bin/camerad -f <file.cfg>
+   $ ../bin/camerad -d -f <file.cfg>
 ```   
 
    where <file.cfg> is an appropriate configuration file. See the example .cfg files
