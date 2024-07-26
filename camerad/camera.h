@@ -46,7 +46,7 @@ namespace Camera {
       std::stringstream lasterrorstring;     //!< a place to preserve an error message
 
     public:
-      Camera() : image_dir("/tmp"), base_name("image"), fits_naming("true"), 
+      Camera() : image_dir("/tmp"), base_name("image"), fits_naming("time"),
                  dirmode(0), image_num(0), is_datacube(false), is_longerror(false), is_cubeamps(false), _abortstate(false),
                  autodir_state(true), abortstate(false), writekeys_when("before") { }
 
