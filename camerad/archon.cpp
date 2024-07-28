@@ -4966,7 +4966,7 @@ namespace Archon {
       exposure_timeout_time = 1000; //ms
 
     } else {
-      exposure_timeout_time = (this->camera_info.exposure_time) + 1000;
+      exposure_timeout_time = (this->camera_info.exposure_time / this->camera_info.exposure_factor) * 1000 + 1000;
     }
 
     // Now start polling the Archon for the last remaining portion of the exposure delay
