@@ -4958,7 +4958,7 @@ namespace Archon {
       return NO_ERROR;
     }
 
-    // Set the time-out value. If the exposure time is less than a second, set
+    // Set the time-out value in ms. If the exposure time is less than a second, set
     // the timeout to 1 second. Otherwise, set it to the exposure time plus
     // 1 second.
     //
@@ -4966,7 +4966,7 @@ namespace Archon {
       exposure_timeout_time = 1000; //ms
 
     } else {
-      exposure_timeout_time = (this->camera_info.exposure_time) + 1000;
+      exposure_timeout_time = (this->camera_info.exposure_time / this->camera_info.exposure_factor) * 1000 + 1000;
     }
 
     // Now start polling the Archon for the last remaining portion of the exposure delay
