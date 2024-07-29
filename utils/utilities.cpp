@@ -49,7 +49,7 @@ std::mutex generate_tmpfile_mtx;
     if ( itr != end && ++itr != end ) {
       return *itr;
     }
-    return 0;
+    return nullptr;
   }
   /***** getCmdOption *********************************************************/
 
@@ -64,9 +64,9 @@ std::mutex generate_tmpfile_mtx;
    */
   int my_hardware_concurrency() {
     std::ifstream cpuinfo( "/proc/cpuinfo" );
-    return std::count( std::istream_iterator<std::string>(cpuinfo),
+    return static_cast<int>(std::count( std::istream_iterator<std::string>(cpuinfo),
                        std::istream_iterator<std::string>(),
-                       std::string("processor") );
+                       std::string("processor") ));
   }
   /***** my_hardware_concurrency **********************************************/
 
@@ -80,7 +80,7 @@ std::mutex generate_tmpfile_mtx;
    *
    */
   int cores_available() {
-    unsigned int cores = std::thread::hardware_concurrency();
+    int cores = static_cast<int>(std::thread::hardware_concurrency());
     return cores ? cores : my_hardware_concurrency();
   }
   /***** cores_available ******************************************************/
@@ -120,7 +120,7 @@ std::mutex generate_tmpfile_mtx;
     tokens.clear();
 
     // If the string is zero length, return now with no tokens
-    if (str.length() == 0) { return(0); }
+    if (str.empty()) { return(0); }
 
     // Skip delimiters at beginning.
     std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
@@ -132,7 +132,7 @@ std::mutex generate_tmpfile_mtx;
     unsigned int quote_start = str.find(quote); //finds first quote mark
     bool quotes_found = false;
 
-    if (quote_start != std::string::npos) {
+    if (quote_start <= str.length()) {
     }
     else {
       quote_start = -1;
@@ -155,7 +155,7 @@ std::mutex generate_tmpfile_mtx;
 
       // If the next character is a quote, grab between the quotes 
       if (std::string::npos != lastPos && lastPos == quote_start){
-        pos = str.find_first_of("\"", lastPos + 1) + 1;
+        pos = str.find_first_of('\"', lastPos + 1) + 1;
         quotes_found = true;
       }
       // Otherwise, find next "non-delimiter"
@@ -163,7 +163,7 @@ std::mutex generate_tmpfile_mtx;
         pos = str.find_first_of(delimiters, lastPos);
       }
     }
-    return(tokens.size());
+    return static_cast<int>(tokens.size());
   }
   /***** Tokenize *************************************************************/
 
@@ -190,12 +190,12 @@ std::mutex generate_tmpfile_mtx;
     devlist.clear(); ndev=0;                     // empty the dev and arg list vectors
     arglist.clear(); narg=0;
 
-    std::size_t devdelim = str.find( ":" );      // position of device delimiter
+    std::size_t devdelim = str.find( ':' );      // position of device delimiter
 
     // If there is a device delimiter then build a vector of the device numbers
     //
     if ( devdelim != std::string::npos ) {
-      std::string dev_str = str.substr( 0, str.find( ":" ) );
+      std::string dev_str = str.substr( 0, str.find( ':' ) );
       std::vector<std::string> tokens;
       Tokenize( dev_str, tokens, "," );          // Tokenize the dev string on the comma ","
       for ( const auto &tok : tokens ) {
@@ -211,7 +211,7 @@ std::mutex generate_tmpfile_mtx;
           return;
         }
       }
-      ndev = devlist.size();
+      ndev = static_cast<int>(devlist.size());
     }
 
     // Anything left, look for space-delimited tokens for the arg list
@@ -222,10 +222,8 @@ std::mutex generate_tmpfile_mtx;
     for ( const auto &tok : tokens ) {
       arglist.push_back( tok );
     }
-    narg = arglist.size();
-
-    return;
-  }
+    narg = static_cast<int>(arglist.size());
+ }
   /***** Tokenize *************************************************************/
 
 
@@ -317,8 +315,8 @@ std::mutex generate_tmpfile_mtx;
   long get_time( const std::string &tmzone_in, int &year, int &mon, int &mday, int &hour, int &min, int &sec, int &usec ) {
     std::stringstream current_time;      // String to contain the time
     std::time_t t = std::time(nullptr);  // Container for system time
-    struct timespec timenow;             // Time of day container
-    struct tm mytime;                    // GMT time container
+    timespec timenow{};             // Time of day container
+    tm mytime{};                    // GMT time container
     long error = 0;
 
     // Get the system time, return a bad timestamp on error
@@ -401,7 +399,7 @@ std::mutex generate_tmpfile_mtx;
   std::string timestamp_from( const std::string &tmzone_in, struct timespec &time_in ) {
     std::stringstream current_time;    // String to contain the time
     std::time_t t=std::time(nullptr);  // Container for system time
-    struct tm time;                    // time container
+    tm time{};                          // time container
 
     // Convert the input time to local or GMT
     //
@@ -452,8 +450,8 @@ std::mutex generate_tmpfile_mtx;
   std::string get_system_date( const std::string &tmzone_in ) {
     std::stringstream current_date;    // String to contain the return value
     std::time_t t=std::time(nullptr);  // Container for system time
-    struct timespec timenow;;          // Time of day container
-    struct tm mytime;                // time container
+    timespec timenow{};         // Time of day container
+    tm mytime{};                // time container
 
     // Get the system time, return a bad datestamp on error
     //
@@ -502,8 +500,8 @@ std::mutex generate_tmpfile_mtx;
   std::string get_file_time( const std::string &tmzone_in ) {
     std::stringstream current_time;    // String to contain the time
     std::time_t t=std::time(nullptr);  // Container for system time
-    struct timespec timenow;           // Time of day container
-    struct tm mytime;                  // time container
+    timespec timenow{};           // Time of day container
+    tm mytime{};                  // time container
 
     // Get the system time, return a bad timestamp on error
     //
@@ -536,9 +534,9 @@ std::mutex generate_tmpfile_mtx;
    *
    */
   double get_clock_time() {
-    struct timespec data;  // Container for the current time
+    timespec data{};  // Container for the current time
     if (clock_gettime(CLOCK_REALTIME, &data) != 0) return 0;
-    return ( data.tv_sec + (data.tv_nsec / 1000000000.0) );
+    return ( static_cast<double>(data.tv_sec) + (static_cast<double>(data.tv_nsec) / 1000000000.0) );
   }
   /***** get_clock_time *******************************************************/
 
@@ -551,13 +549,14 @@ std::mutex generate_tmpfile_mtx;
    * @return     0 on success, 1 on error
    *
    */
-  long timeout( int wholesec, std::string next ) {
+  long timeout( int wholesec, const std::string &next ) {
 
     std::time_t t=std::time(nullptr);  // Container for system time
-    struct timespec timenow;           // Time of day container
-    struct tm mytime;                  // GMT time container
+    timespec timenow{};           // Time of day container
+    tm mytime{};                  // GMT time container
     long error=0;
-    int nsec, sec;
+    int nsec=0;
+    int sec=0;
 
     // sleep for any requested whole number of seconds
     //
@@ -573,7 +572,7 @@ std::mutex generate_tmpfile_mtx;
       t = timenow.tv_sec;
       if ( gmtime_r( &t, &mytime ) == nullptr ) error = 1;
       sec  = mytime.tm_sec;    // current second
-      nsec = timenow.tv_nsec;  // current nanosecond
+      nsec = static_cast<int>(timenow.tv_nsec);  // current nanosecond
     }
 
     // sleep for the required fraction to get to the next whole number
@@ -583,9 +582,7 @@ std::mutex generate_tmpfile_mtx;
       if (nsec < 999999999) {
         std::this_thread::sleep_for( std::chrono::nanoseconds( 999999999-nsec ) );
       }
-    }
-    else
-    if ( !error && next == "min" ) {
+    } else if ( !error && next == "min" ) {
       if (sec < 59) {
         std::this_thread::sleep_for( std::chrono::seconds( 59-sec ) );
       }
@@ -593,7 +590,6 @@ std::mutex generate_tmpfile_mtx;
         std::this_thread::sleep_for( std::chrono::nanoseconds( 999999999-nsec ) );
       }
     }
-
     return error;
   }
   /***** timeout **************************************************************/
@@ -615,32 +611,30 @@ std::mutex generate_tmpfile_mtx;
    * @return     double, 0 on error
    *
    */
-  double mjd_from( struct timespec &time_in ) {
+  double mjd_from( timespec &time_in ) {
     std::time_t t=std::time(nullptr);  // Container for system time
-    struct tm time;                    // GMT time container
-    double a, y, m;
-    double jdn, jd;
+    tm time{};                    // GMT time container
 
     // Convert the input time to GMT
     //
     t = time_in.tv_sec;
     if ( gmtime_r( &t, &time ) == nullptr ) return 0.;
 
-    a = std::floor((14 - (time.tm_mon + 1)) / 12);
-    y = (time.tm_year + 1900) +4800 - a;
-    m = (time.tm_mon + 1) + 12 * a - 3;
-    jdn = time.tm_mday
-        + std::floor((153 * m + 2) / 5)
-        + 365 * y
-        + std::floor(y / 4)
-        - std::floor(y / 100)
-        + std::floor(y / 400)
-        - 32045;
+    double a = std::floor((14 - (time.tm_mon + 1)) / 12);
+    double y = (time.tm_year + 1900) + 4800 - a;
+    double m = (time.tm_mon + 1) + 12 * a - 3;
+    double jdn = time.tm_mday
+                 + std::floor((153 * m + 2) / 5)
+                 + 365 * y
+                 + std::floor(y / 4)
+                 - std::floor(y / 100)
+                 + std::floor(y / 400)
+                 - 32045;
 
-    jd = jdn + (time.tm_hour - 12) / 24.
-             + time.tm_min / 1440.
-             + time.tm_sec / 86400.
-             + (time_in.tv_nsec/1000000000.)/86400.;
+    double jd = jdn + (time.tm_hour - 12) / 24.
+                + time.tm_min / 1440.
+                + time.tm_sec / 86400.
+                + (static_cast<double>(time_in.tv_nsec) / 1000000000.) / 86400.;
 
     return( jd - 2400000.5 );
   }
@@ -675,7 +669,7 @@ std::mutex generate_tmpfile_mtx;
     Tokenize( v2, tokens2, "." );
 
     // Compare each token.
-    // As soon as one is greater than the other then return.
+    // As soon as one is greater than the other, then return.
     //
     for (size_t i=0,j=0; ( i < tokens1.size() && j < tokens2.size() ); i++,j++) {
       try {
@@ -750,8 +744,8 @@ std::mutex generate_tmpfile_mtx;
     // convert result to a string
     //
     std::stringstream str;
-    for (int i = 0; i < MD5_BLOCK_SIZE; ++i) {
-      str << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(result[i]);
+    for (unsigned char i : result) {
+      str << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(i);
     }
 
     hash = str.str();
@@ -770,7 +764,7 @@ std::mutex generate_tmpfile_mtx;
    *
    */
   bool is_owner( const std::filesystem::path &filename ) {
-    struct stat fstat;
+    struct stat fstat{};
     if ( stat( filename.c_str(), &fstat ) == 0 ) {
       // Check if the effective user ID matches the file's owner ID
       return geteuid() == fstat.st_uid;
@@ -789,7 +783,7 @@ std::mutex generate_tmpfile_mtx;
    *
    */
   bool has_write_permission( const std::filesystem::path &filename ) {
-    struct stat fstat;
+    struct stat fstat{};
     if ( stat( filename.c_str(), &fstat ) == 0 ) {
       // Check if the effective user ID has write permission
       return fstat.st_mode & S_IWUSR;
