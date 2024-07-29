@@ -4939,7 +4939,8 @@ namespace Archon {
 
     std::cerr << "exposure progress: ";
     while ((now - (waittime + start_time) < 0) && !this->abort) {
-      timeout(0.010);  // sleep 10 msec = 1e6 Archon ticks
+      // sleep 10 msec = 1e6 Archon ticks
+      std::this_thread::sleep_for( std::chrono::milliseconds( 10 ));
       increment += 1000000;
       now = get_clock_time();
       this->camera_info.exposure_progress = (double)increment / (double)(prediction - this->start_timer);
@@ -5002,8 +5003,8 @@ namespace Archon {
         break;
       }
 
-      timeout( 0.001 );      // a little pause to slow down the requests to Archon
-
+      // a little pause to slow down the requests to Archon
+      std::this_thread::sleep_for( std::chrono::milliseconds( 1 ));
       // Added protection against infinite loops, probably will never be invoked
       // because an Archon error getting the timer would exit the loop.
       // exposure_timeout_time is in msec, and it's a little more than 1 msec to get
