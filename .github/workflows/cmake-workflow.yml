@@ -53,20 +53,22 @@ jobs:
         cd ${{github.workspace}}
         shopt -s expand_aliases
         alias cam="bin/socksend -h localhost -p 3031"
-        val=$(cam open)
-        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
+        function check { if [ $1 != "DONE" ]; then echo "$1 FAILED"; exit 1; else echo $1; fi }
         
-        val=$(cam load)
-        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
+        command_open=$(cam open)
+        check command_open
         
-        val=$(cam exptime 1500)
-        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
+        command_load=$(cam load)
+        check command_load
         
-        val=$(cam expose)
-        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
+        command=$(cam exptime 1500)
+        check command
         
-        val=$(cam printstatus)
-        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
+        command=$(cam expose)
+        check command
+        
+        command=$(cam printstatus)
+        check command
 
   # Comment AstroCam out for now
   # build-astrocam:
