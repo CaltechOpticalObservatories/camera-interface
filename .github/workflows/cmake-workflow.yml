@@ -43,10 +43,8 @@ jobs:
         cd ${{github.workspace}}
         bin/emulator Config/test.cfg &
         bin/camerad Config/test.cfg --foreground &
-        telnet localhost 3031
-        open
-        load
-        ^]
+        bin/socksend -h localhost -p 3031 open
+        bin/socksend -h localhost -p 3031 load
   
   # Comment AstroCam out for now
   # build-astrocam:
