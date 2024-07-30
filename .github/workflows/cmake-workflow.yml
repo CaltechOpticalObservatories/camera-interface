@@ -53,16 +53,25 @@ jobs:
         cd ${{github.workspace}}
         shopt -s expand_aliases
         alias cam="bin/socksend -h localhost -p 3031"
-        cam open
+        val=$(cam open)
+        if [ $val != "DONE" ]; then return 1
+        
         cam load
-        cam native poweron
+        val=$(cam open)
+        if [ $val != "DONE" ]; then return 1
+        
         cam exptime 1500
-        cam mode DEFAULT
-        cam imdir /tmp
-        cam basename eraseme
+        val=$(cam open)
+        if [ $val != "DONE" ]; then return 1
+        
         cam expose
+        val=$(cam open)
+        if [ $val != "DONE" ]; then return 1
+        
         cam printstatus
-  
+        val=$(cam open)
+        if [ $val != "DONE" ]; then return 1
+
   # Comment AstroCam out for now
   # build-astrocam:
   #   runs-on: ubuntu-20.04
