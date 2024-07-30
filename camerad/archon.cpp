@@ -6052,6 +6052,7 @@ namespace Archon {
     this->camera_info.exposure_factor = ( this->is_longexposure ? 1 : 1000 );
     message.str(""); message << this->camera_info.exposure_time << ( this->is_longexposure ? " sec" : " msec" );
     state_out = ( this->is_longexposure ? "true, exptime = " : "false, exptime = " ) + message.str();
+    logwrite(state_out);
 
     // if no error then set the parameter on the Archon
     //
