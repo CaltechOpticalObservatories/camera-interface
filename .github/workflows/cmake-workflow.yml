@@ -13,7 +13,7 @@ env:
   INSTR: generic
 
 jobs:
-  build-archon:
+  Archon:
     runs-on: ubuntu-latest
 
     steps:
@@ -37,7 +37,16 @@ jobs:
       run: |
         cd ${{github.workspace}}/build
         make
-  
+
+    - name: E2E Tests
+      run: |
+        cd ${{github.workspace}}
+        bin/emulator Config/test.cfg &
+        bin/camerad Config/test.cfg
+        telnet localhost 3031
+        open
+        load
+        ^]
   
   # Comment AstroCam out for now
   # build-astrocam:
