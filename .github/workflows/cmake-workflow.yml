@@ -42,7 +42,7 @@ jobs:
       run: |
         cd ${{github.workspace}}
         bin/emulator Config/test.cfg &
-        bin/camerad Config/test.cfg
+        bin/camerad Config/test.cfg --foreground &
         telnet localhost 3031
         open
         load
