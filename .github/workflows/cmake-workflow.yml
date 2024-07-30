@@ -51,8 +51,16 @@ jobs:
     - name: Run test commands
       run: |
         cd ${{github.workspace}}
-        bin/socksend -h localhost -p 3031 open
-        bin/socksend -h localhost -p 3031 load
+        alias cam="bin/socksend -h localhost -p 3031"
+        cam open
+        cam load
+        cam native poweron
+        cam exptime 1500
+        cam mode DEFAULT
+        cam imdir /tmp
+        cam basename eraseme
+        cam expose
+        cam printstatus
   
   # Comment AstroCam out for now
   # build-astrocam:
