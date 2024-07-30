@@ -908,3 +908,13 @@ std::mutex generate_tmpfile_mtx;
     }
   }
   /***** generate_temp_filename ***********************************************/
+
+/***** rtrim ***********************************************/
+/**
+ * @s      string from which to trim trailing whitespaces
+ *
+ */
+void rtrim(std::string &s) {          /// trim off trailing whitespace from a string
+    s.erase( std::find_if( s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); } ).base(), s.end() );
+  }
+/***** rtrim ***********************************************/

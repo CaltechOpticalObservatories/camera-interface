@@ -103,9 +103,7 @@ bool ends_with( const std::string &str, std::string_view suffix );
 std::string generate_temp_filename( const std::string &prefix );
 
 
-static void rtrim(std::string &s) {          /// trim off trailing whitespace from a string
-  s.erase( std::find_if( s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); } ).base(), s.end() );
-}
+void rtrim(std::string &s);
 
 inline bool caseCompareChar( char a, char b ) { return ( std::toupper(a) == std::toupper(b) ); }
 
