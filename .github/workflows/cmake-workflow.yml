@@ -51,6 +51,7 @@ jobs:
     - name: Run test commands
       run: |
         cd ${{github.workspace}}
+        shopt -s expand_aliases
         alias cam="bin/socksend -h localhost -p 3031"
         cam open
         cam load
