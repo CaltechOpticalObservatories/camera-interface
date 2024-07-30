@@ -54,19 +54,19 @@ jobs:
         shopt -s expand_aliases
         alias cam="bin/socksend -h localhost -p 3031"
         val=$(cam open)
-        if [ $val != "DONE" ]; then return 1; else echo $val; fi
+        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
         
         val=$(cam load)
-        if [ $val != "DONE" ]; then return 1; else echo $val; fi
+        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
         
         val=$(cam exptime 1500)
-        if [ $val != "DONE" ]; then return 1; else echo $val; fi
+        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
         
         val=$(cam expose)
-        if [ $val != "DONE" ]; then return 1; else echo $val; fi
+        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
         
         val=$(cam printstatus)
-        if [ $val != "DONE" ]; then return 1; else echo $val; fi
+        if [ $val != "DONE" ]; then exit 1; else echo $val; fi
 
   # Comment AstroCam out for now
   # build-astrocam:
