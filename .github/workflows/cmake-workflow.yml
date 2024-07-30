@@ -38,11 +38,19 @@ jobs:
         cd ${{github.workspace}}/build
         make
 
-    - name: E2E Tests
+    - name: Start Emulator
       run: |
         cd ${{github.workspace}}
         bin/emulator Config/test.cfg &
+
+    - name: Start camera-daemon
+      run: |
+        cd ${{github.workspace}}
         bin/camerad Config/test.cfg --foreground &
+
+    - name: Run test commands
+      run: |
+        cd ${{github.workspace}}
         bin/socksend -h localhost -p 3031 open
         bin/socksend -h localhost -p 3031 load
   
