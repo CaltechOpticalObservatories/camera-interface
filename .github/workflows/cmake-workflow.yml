@@ -2,7 +2,7 @@ name: CMake workflow
 
 on:
   push:
-    branches: [ "fix-cmake-warning" ]
+    branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
 
