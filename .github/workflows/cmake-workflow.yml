@@ -41,12 +41,12 @@ jobs:
     - name: Start Emulator
       run: |
         cd ${{github.workspace}}
-        bin/emulator Config/test.cfg &
+        bin/emulator Config/demo/demo.cfg &
 
     - name: Start camera-daemon
       run: |
         cd ${{github.workspace}}
-        bin/camerad Config/test.cfg --foreground &
+        bin/camerad Config/demo/demo.cfg --foreground &
 
     - name: Run test commands
       run: |
