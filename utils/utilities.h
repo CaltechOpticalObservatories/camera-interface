@@ -63,7 +63,7 @@ std::string timestamp_from( const std::string &tmzone_in, struct timespec &time_
 
 
 inline std::string get_timestamp(const std::string &tz) {  /// return current time in formatted string "YYYY-MM-DDTHH:MM:SS.sss"
-  struct timespec timenow;
+  struct timespec timenow{};
   clock_gettime( CLOCK_REALTIME, &timenow );
   return timestamp_from( tz, timenow );
 }
@@ -80,12 +80,12 @@ std::string get_file_time( const std::string &tmzone_in );
 
 double get_clock_time();
 
-long timeout( int wholesec=0, std::string next="" );  /// wait until next integral second or minute
+long timeout( int wholesec=0, const std::string &next="" );  /// wait until next integral second or minute
 
 double mjd_from( struct timespec &time_n );         /// modified Julian date from input timespec struct
 
 inline double mjd_now() {                           /// modified Julian date now
-  struct timespec timenow;
+  timespec timenow{};
   clock_gettime( CLOCK_REALTIME, &timenow );
   return( mjd_from( timenow ) );
 }
@@ -103,9 +103,7 @@ bool ends_with( const std::string &str, std::string_view suffix );
 std::string generate_temp_filename( const std::string &prefix );
 
 
-static inline void rtrim(std::string &s) {          /// trim off trailing whitespace from a string
-  s.erase( std::find_if( s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); } ).base(), s.end() );
-}
+void rtrim(std::string &s);
 
 inline bool caseCompareChar( char a, char b ) { return ( std::toupper(a) == std::toupper(b) ); }
 
@@ -145,12 +143,12 @@ std::string to_string_prec( const T value_in, const int prec = 6 ) {
 class InterruptableSleepTimer {
   private:
     std::timed_mutex _mut;
-    std::atomic<bool> _locked;        // track whether the mutex is locked
+    std::atomic<bool> _locked{};        // track whether the mutex is locked
     std::atomic<bool> _run;
 
-    inline void _lock() { _mut.lock(); _locked = true; }       // lock mutex
+    void _lock() { _mut.lock(); _locked = true; }       // lock mutex
 
-    inline void _unlock() { _locked = false; _mut.unlock(); }  // unlock mutex
+    void _unlock() { _locked = false; _mut.unlock(); }  // unlock mutex
 
   public:
     // lock on creation
@@ -168,7 +166,7 @@ class InterruptableSleepTimer {
       }
     }
 
-    inline bool running() { return _run; }
+    bool running() { return _run; }
 
     // called by any thread except the creator
     // waits until wake is called or the specified time passes
@@ -186,13 +184,13 @@ class InterruptableSleepTimer {
     // where wake has already been called.
     // should only be called by the creating thread
     //
-    inline void stop() {
+    void stop() {
       if ( _locked ) {
         _run = false;
         _unlock();
       }
     }
-    inline void start() {
+    void start() {
       if ( ! _locked ) {
         _lock();
         _run = true;
@@ -213,7 +211,7 @@ class InterruptableSleepTimer {
 class Time {
   public:
     static timespec getTimeNow() {
-      struct timespec timenow;
+      timespec timenow{};
       clock_gettime( CLOCK_REALTIME, &timenow );
       return timenow;
     }
