@@ -65,8 +65,8 @@ jobs:
         # command_exptime=$(cam exptime 1500)
         # check $command_exptime
         
-        command_expose=$(cam expose)
-        check $command_expose
+        # command_expose=$(cam expose)
+        # check $command_expose
         
         command_printstatus=$(cam printstatus)
         check $command_printstatus

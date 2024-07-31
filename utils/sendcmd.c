@@ -16,20 +16,19 @@
 
 int main(int argc, char *argv[])
 {
-   int sock, timeout;
+   int sock, timeout=10;
    struct timeval tvstart, tvend;
    int bufsize = 8192;
    int nread, len;
    char *message = (char*)malloc(bufsize);
    char *response = (char*)malloc(bufsize);
    char *hostname = (char*)malloc (30);
-   int i, port, mode;
    struct sockaddr_in address;
-   struct hostent *host_struct; 
+   struct hostent *host_struct;
+   int mode = 0;    		/* 0: wait, 1: not wait*/
 
-   mode = 0;    		/* 0: wait, 1: not wait*/
-   timeout = 10;
-   i = 1;
+   int port = 3031;         // set default port
+   int i = 1;
    if (argc > 1) 
 	while (i < argc) {
 		if (argv[i][0] == '-') {
