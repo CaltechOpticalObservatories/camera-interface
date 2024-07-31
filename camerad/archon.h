@@ -146,6 +146,7 @@ namespace Archon {
       std::mutex archon_mutex;               //!< protects Archon from being accessed by multiple threads,
                                              //!< use in conjunction with archon_busy flag
       std::string exposeparam;               //!< param name to trigger exposure when set =1
+      std::string longexposeparam;           //!< param name to support long exposure timer
 
       std::string shutenableparam;           //!< param name to enable shutter open on expose
       int shutenable_enable;                 //!< the value which enables shutter enable

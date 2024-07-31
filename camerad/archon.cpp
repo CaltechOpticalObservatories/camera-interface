@@ -121,7 +121,7 @@ namespace Archon {
     // and the new config file may not have everything defined.
     // This ensures nothing is carried over from any previous config.
     //
-    this->camera_info.hostname = "";
+    this->camera_info.hostname.clear();
     this->archon.sethost( "" );
     this->camera_info.port = -1;
     this->archon.setport( -1 );
@@ -129,12 +129,12 @@ namespace Archon {
     this->is_longexposure = false;
     this->n_hdrshift = 16;
 
-    this->camera.firmware[0] = "";
+    this->camera.firmware[0].clear();
 
-    this->exposeparam = "";
-    this->trigin_exposeparam = "";
-    this->trigin_untimedparam = "";
-    this->trigin_readoutparam = "";
+    this->exposeparam.clear();
+    this->trigin_exposeparam.clear();
+    this->trigin_untimedparam.clear();
+    this->trigin_readoutparam.clear();
 
     this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
     this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
@@ -186,6 +186,14 @@ namespace Archon {
           this->camera.log_error( function, "setting cubeamps" );
           return ERROR;
         }
+      }
+
+      if ( config.param[entry] == "LONGEXPOSURE_PARAM" ) {                     // Archon parameter to support long exposure timer
+        this->longexposeparam = config.arg[entry];
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
+        applied++;
       }
 
       if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {             // EXPOSE_PARAM
@@ -3606,18 +3614,32 @@ namespace Archon {
     }
     if ( this->camera_info.exposure_factor == -1 ||
          this->camera_info.exposure_unit.empty() ) {
-      logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
-      this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
-      // read the Archon configuration memory
+      // longexposure requires ACF support, indicated in the config file
+      // If configured then try to read it.
       //
-      std::string lexp;
-      if ( read_parameter( "longexposure", lexp ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" ); return ERROR; }
+      if ( !this->longexposeparam.empty() ) {
+        logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
+        this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
-      // Tell the server these values
-      //
-      std::string retval;
-      if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
+        // read the Archon configuration memory
+        //
+        std::string lexp;
+        if ( read_parameter( this->longexposeparam, lexp ) != NO_ERROR ) {
+          logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" );
+          return ERROR;
+        }
+
+        // Tell the server these values
+        //
+        std::string retval;
+        if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
+      }
+      else {  // longexposure not configured, therefore not supported, therefore disable it
+        this->is_longexposure = false;
+        this->camera_info.exposure_unit   = ( this->is_longexposure ? "sec" : "msec" );
+        this->camera_info.exposure_factor = ( this->is_longexposure ? 1 : 1000 );
+      }
     }
 
     // If nseq_in is not supplied then set nseq to 1.
@@ -4375,18 +4397,33 @@ namespace Archon {
         }
         if ( this->camera_info.exposure_factor == -1 ||
              this->camera_info.exposure_unit.empty() ) {
+
+          // longexposure requires ACF support, indicated in the config file
+          // If configured then try to read it.
+          //
+          if ( !this->longexposeparam.empty() ) {
+
             logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
             this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
             // read the Archon configuration memory
             //
             std::string lexp;
-            if ( read_parameter( "longexposure", lexp ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" ); return ERROR; }
+            if ( read_parameter( this->longexposeparam, lexp ) != NO_ERROR ) {
+              logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" );
+              return ERROR;
+            }
 
             // Tell the server these values
             //
             std::string retval;
             if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
+          }
+          else {  // longexposure not configured, therefore not supported, therefore disable it
+            this->is_longexposure = false;
+            this->camera_info.exposure_unit   = ( this->is_longexposure ? "sec" : "msec" );
+            this->camera_info.exposure_factor = ( this->is_longexposure ? 1 : 1000 );
+          }
         }
 
         // If nseq_in is not supplied then set nseq to 1.
@@ -4606,18 +4643,32 @@ namespace Archon {
       }
       if ( this->camera_info.exposure_factor == -1 ||
            this->camera_info.exposure_unit.empty() ) {
+
+        // longexposure requires ACF support, indicated in the config file
+        // If configured then try to read it.
+        //
+        if ( !this->longexposeparam.empty() ) {
           logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
           this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
           // read the Archon configuration memory
           //
           std::string lexp;
-          if ( read_parameter( "longexposure", lexp ) != NO_ERROR ) { logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" ); return ERROR; }
+          if ( read_parameter( this->longexposeparam, lexp ) != NO_ERROR ) {
+            logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" );
+            return ERROR;
+          }
 
           // Tell the server these values
           //
           std::string retval;
           if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
+        }
+        else {  // longexposure not configured, therefore not supported, therefore disable it
+          this->is_longexposure = false;
+          this->camera_info.exposure_unit   = ( this->is_longexposure ? "sec" : "msec" );
+          this->camera_info.exposure_factor = ( this->is_longexposure ? 1 : 1000 );
+        }
       }
 
       // If nseq_in is not supplied then set nseq to 1.
@@ -6013,9 +6064,8 @@ namespace Archon {
   /**************** Archon::Interface::copy_keydb *****************************/
 
 
-  /**************** Archon::Interface::longexposure ***************************/
+  /***** Archon::Interface::longexposure **************************************/
   /**
-   * @fn     longexposure
    * @brief  set/get longexposure mode
    * @param  string
    * @return ERROR or NO_ERROR
@@ -6025,6 +6075,13 @@ namespace Archon {
     std::string function = "Archon::Interface::longexposure";
     std::stringstream message;
     long error = NO_ERROR;
+
+    // Requires ACF support, indicated by setting LONGEXPOSURE_PARAM in the config file
+    //
+    if ( this->longexposeparam.empty() ) {
+      logwrite( function, "ERROR empty LONGEXPOSURE_PARAM: longexposure not supported" );
+      return ERROR;
+    }
 
     // If something is passed then try to use it to set the longexposure state
     //
@@ -6063,7 +6120,7 @@ namespace Archon {
 
     return error;
   }
-  /**************** Archon::Interface::longexposure ***************************/
+  /***** Archon::Interface::longexposure **************************************/
 
 
   /**************** Archon::Interface::heater *********************************/
