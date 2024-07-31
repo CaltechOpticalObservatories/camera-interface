@@ -2,7 +2,7 @@ name: CMake workflow
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "e2e-tests" ]
   pull_request:
     branches: [ "master" ]
 
