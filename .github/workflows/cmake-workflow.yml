@@ -11,10 +11,9 @@ env:
   INTERFACE_TYPE_ARCHON: Archon
   INTERFACE_TYPE_ASTROCAM: AstroCam
   DETECTOR_TYPE_HXRG: Hxrg
-  INSTR: generic
 
 jobs:
-  build-archon:
+  Archon:
     runs-on: ubuntu-latest
 
     steps:
@@ -31,15 +30,47 @@ jobs:
         cd ${{github.workspace}}/build
         rm -rf *
         g++ --version
-        cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ARCHON}} -DDETECTOR_TYPE=${{env.DETECTOR_TYPE_HXRG}} -DINSTR=${{env.INSTR}} ..
+        cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ARCHON}} -DDETECTOR_TYPE=${{env.DETECTOR_TYPE_HXRG}} ..
+
 
     - name: Build Archon
       # Build your program with the given configuration
       run: |
         cd ${{github.workspace}}/build
         make
-  
-  
+
+    - name: Start Emulator
+      run: |
+        cd ${{github.workspace}}
+        bin/emulator Config/demo/demo.cfg &
+
+    - name: Start camera-daemon
+      run: |
+        cd ${{github.workspace}}
+        bin/camerad Config/demo/demo.cfg --foreground &
+
+    - name: Run test commands
+      run: |
+        cd ${{github.workspace}}
+        shopt -s expand_aliases
+        alias cam="bin/socksend -h localhost -p 3031"
+        function check { if [ $1 != "DONE" ]; then echo $1; exit 1; else echo $1; fi }
+        
+        command_open=$(cam open)
+        check $command_open
+        
+        command_load=$(cam load)
+        check $command_load
+        
+        # command_exptime=$(cam exptime 1500)
+        # check $command_exptime
+        
+        command_expose=$(cam expose)
+        check $command_expose
+        
+        command_printstatus=$(cam printstatus)
+        check $command_printstatus
+
   # Comment AstroCam out for now
   # build-astrocam:
   #   runs-on: ubuntu-20.04
@@ -71,7 +102,7 @@ jobs:
   #     run: |
   #       cd ${{github.workspace}}/build
   #       rm -rf * 
-  #       cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ASTROCAM}} -DINSTR=${{env.INSTR}} ..
+  #       cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ASTROCAM}} -DDETECTOR_TYPE=${{env.DETECTOR_TYPE_HXRG}} ..
 
   #   - name: Build AstroCam
   #     # Build your program with the given configuration
