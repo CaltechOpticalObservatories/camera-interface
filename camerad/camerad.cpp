@@ -6,6 +6,7 @@
  *
  */
 
+#include <filesystem>
 #include "build_date.h"
 #include "camerad.h"
 #include "daemonize.h"
@@ -70,6 +71,7 @@ void doit(Network::TcpSocket sock);         // the worker thread
 int main(int argc, char **argv) {
   std::string function = "Camera::main";
   std::stringstream message;
+  std::string cwd = std::filesystem::current_path().string();
   long ret=NO_ERROR;
 
   // Daemonize by default, but allow command line arg to keep it as
@@ -77,7 +79,7 @@ int main(int argc, char **argv) {
   //
   if ( ! cmdOptionExists( argv, argv+argc, "--foreground" ) ) {
     logwrite( function, "starting daemon" );
-    Daemon::daemonize( Camera::DAEMON_NAME, "/tmp", "", "", "" );
+    Daemon::daemonize( Camera::DAEMON_NAME, cwd, "", "", "" );
   }
 
   // capture these signals
@@ -622,6 +624,7 @@ void doit(Network::TcpSocket sock) {
                     }
 #endif
 #ifdef STA_ARCHON
+#ifdef DET_HXRG
     else
     if (cmd=="video") {
         ret = server.video();
@@ -644,6 +647,7 @@ void doit(Network::TcpSocket sock) {
         ret = server.hwindow( args, retstring );
         if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
     }
+#endif
     else
     if (cmd=="roi") {
                     ret = server.region_of_interest( args, retstring );
