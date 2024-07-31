@@ -9,9 +9,13 @@
 # ----------------------------------------------------------------------------
 
 # Interface type can be set via command line ( Archo | AstroCam )
-
 IF(NOT DEFINED INTERFACE_TYPE)
     set(INTERFACE_TYPE "Archon")
+endif()
+
+
+IF(NOT DEFINED INSTR)
+    set(INSTR "generic")
 endif()
 # ----------------------------------------------------------------------------
 
