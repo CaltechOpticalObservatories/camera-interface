@@ -62,8 +62,8 @@ jobs:
         command_load=$(cam load)
         check $command_load
         
-        command_exptime=$(cam exptime 1500)
-        check $command_exptime
+        # command_exptime=$(cam exptime 1500)
+        # check $command_exptime
         
         command_expose=$(cam expose)
         check $command_expose
