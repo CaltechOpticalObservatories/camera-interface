@@ -39,6 +39,11 @@ jobs:
         cd ${{github.workspace}}/build
         make
 
+    - name: Run Unit Tests
+      run: |
+        cd ${{github.workspace}}
+        bin/run_unit_tests
+
     - name: Start Emulator
       run: |
         cd ${{github.workspace}}
