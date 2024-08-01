@@ -35,7 +35,7 @@ If you encounter any problems or have questions about this project, please open 
 3. **Create the Makefile by running CMake** (from the build directory):
 
    | Archon                 | ARC                              |
-       |------------------------|----------------------------------|
+   |------------------------|----------------------------------|
    | `$ cmake ..`           | `$ cmake -DINTERFACE_TYPE=AstroCam ..` |
 
 4. **Compile the sources:**
