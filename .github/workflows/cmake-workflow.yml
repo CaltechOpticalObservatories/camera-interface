@@ -13,7 +13,7 @@ env:
   DETECTOR_TYPE_HXRG: Hxrg
 
 jobs:
-  Archon:
+  Archon-build:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,7 +25,7 @@ jobs:
         .github/workflows/install-deps.sh
       shell: bash
     
-    - name: Configure CMake Archon
+    - name: Configure CMake for Archon Interface
       run: |
         cd ${{github.workspace}}/build
         rm -rf *
@@ -33,11 +33,15 @@ jobs:
         cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ARCHON}} -DDETECTOR_TYPE=${{env.DETECTOR_TYPE_HXRG}} ..
 
 
-    - name: Build Archon
-      # Build your program with the given configuration
+    - name: Build
       run: |
         cd ${{github.workspace}}/build
         make
+
+    - name: Run Unit Tests
+      run: |
+        cd ${{github.workspace}}
+        bin/run_unit_tests
 
     - name: Start Emulator
       run: |
@@ -49,7 +53,7 @@ jobs:
         cd ${{github.workspace}}
         bin/camerad Config/demo/demo.cfg --foreground &
 
-    - name: Run test commands
+    - name: Run E2E tests
       run: |
         cd ${{github.workspace}}
         shopt -s expand_aliases
@@ -72,7 +76,7 @@ jobs:
         check $command_printstatus
 
   # Comment AstroCam out for now
-  # build-astrocam:
+  # AstroCam-build:
   #   runs-on: ubuntu-20.04
 
   #   steps:

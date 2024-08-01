@@ -1,61 +1,80 @@
-# camera-interface
+# Camera Interface
+
 Camera Detector Controller Interface Software
 
-## Requirements:
+## Reporting Issues
 
- - Cmake 3.12 or higher
- - cfitsio and CCFits libraries (expected in /usr/local/lib)
+If you encounter any problems or have questions about this project, please open an issue on the [GitHub Issues page](https://github.com/CaltechOpticalObservatories/camera-interface/issues). Your feedback helps us improve the project!
 
+## Requirements
 
-| Archon controllers | ARC controllers |
-| -----------------------| ----------------|
-| g++ 8.1 or higher (and c++17) | g++ 8.3 (and c++17) |
-|                               | ARC API 3.6 and Arc66PCIe driver |
+- **CMake** 3.12 or higher
+- **cfitsio** and **CCFits** libraries (expected in `/usr/local/lib`)
 
+### Controller Compatibility
 
-## Build instructions:
+| Archon Controllers                  | ARC Controllers                              |
+|------------------------------------|----------------------------------------------|
+| `g++ 8.1` or higher (and C++17)    | `g++ 8.3` (and C++17)                        |
+|                                    | ARC API 3.6 and Arc66PCIe driver             |
 
-- change to the build directory
+## Build Instructions
 
-- To start with a clean build, delete the contents of the build
-  directory, including the subdirectory CMakeFiles/,
-  but not the `.gitignore file`. For example:
+1. **Change to the build directory:**
 
-```
-   % cd build
-   % rm -Rf *
-```
+    ```bash
+    $ cd build
+    ```
 
-- create the Makefile by running cmake (from the build directory),
+2. **Start with a clean build:** Delete the contents of the build directory, including the `CMakeFiles/` subdirectory, but **not** the `.gitignore` file.
 
-| Archon                       | ARC                                                    |
-|------------------------------|--------------------------------------------------------|
-| `$ cmake -DINSTR=generic ..` | `$ cmake -DINSTR=generic -DINTERFACE_TYPE=AstroCam ..` |
+    ```bash
+    $ rm -Rf *
+    ```
 
+3. **Create the Makefile by running CMake** (from the build directory):
 
-- compile the sources,
+   | Archon                 | ARC                              |
+       |------------------------|----------------------------------|
+   | `$ cmake ..`           | `$ cmake -DINTERFACE_TYPE=AstroCam ..` |
 
-```
-   $ make
-```
+4. **Compile the sources:**
 
- - run the program using one of these forms, 
+    ```bash
+    $ make
+    ```
 
-```
-   $ ../bin/camerad <file.cfg>
-   $ ../bin/camerad -f <file.cfg>
-   $ ../bin/camerad -d -f <file.cfg>
-```   
+5. **Run the Camera Server:**
 
-   where <file.cfg> is an appropriate configuration file. See the example .cfg files
-   in the Config directory of this distribution. Note that the -f option specifies 
-   a config file and the -d option forces it to run as a daemon, overriding any 
-   DAEMON=no setting in the configuration file.
+    - **As a foreground process:**
 
- - Note that only when INTERFACE_TYPE is set to Archon will the emulator software
- be compiled.
+        ```bash
+        $ ../bin/camerad <file.cfg> --foreground
+        ```
+
+    - **As a daemon:**
+
+        ```bash
+        $ ../bin/camerad -d <file.cfg>
+        ```
+
+   *Replace `<file.cfg>` with an appropriate configuration file. See the example `.cfg` files in the `Config` and `Config/demo` directories.*
+
+6. **(Optional) Run the Archon Emulator:**
+
+    ```bash
+    $ ../bin/emulator <file.cfg>
+    ```
+
+   *Note: The emulator software will only be compiled when `INTERFACE_TYPE` is set to Archon (default).*
+
+7. **(Optional) Run Unit Tests:**
+
+    ```bash
+    $ ../bin/run_unit_tests
+    ```
 
 ---
 
-David Hale <dhale@astro.caltech.edu>
-
+David Hale  
+<dhale@astro.caltech.edu>
