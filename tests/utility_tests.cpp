@@ -1,9 +1,14 @@
 #include "gtest/gtest.h"
 #include "../utils/utilities.h"
 
-TEST(UtilitiesTest, TimeStampFromTest) {
+TEST(UtilitiesTest, TimeStampNotLocalTest) {
     struct timespec timezero{};
     EXPECT_EQ(timestamp_from("GMT", timezero), "1970-01-01T00:00:00.000000");
+}
+
+TEST(UtilitiesTest, TimeStampLocalTest) {
+    struct timespec timezero{};
+    EXPECT_EQ(timestamp_from("local", timezero), "1969-12-31T16:00:00.000000");
 }
 
 int main(int argc, char **argv) {
