@@ -26,7 +26,7 @@ If you encounter any problems or have questions about this project, please open 
     $ cd build
     ```
 
-2. **Start with a clean build:** Delete the contents of the build directory, including the `CMakeFiles/` subdirectory, but **not** the `.gitignore` file. For example:
+2. **Start with a clean build:** Delete the contents of the build directory, including the `CMakeFiles/` subdirectory, but **not** the `.gitignore` file.
 
     ```bash
     $ rm -Rf *
