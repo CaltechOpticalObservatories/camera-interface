@@ -2,7 +2,7 @@ name: CMake workflow
 
 on:
   push:
-    branches: [ "G!-1-unit-tests" ]
+    branches: [ "GT-1-unit-tests" ]
   pull_request:
     branches: [ "master" ]
 
