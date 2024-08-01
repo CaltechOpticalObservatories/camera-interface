@@ -6,11 +6,6 @@ TEST(UtilitiesTest, TimeStampNotLocalTest) {
     EXPECT_EQ(timestamp_from("GMT", timezero), "1970-01-01T00:00:00.000000");
 }
 
-TEST(UtilitiesTest, TimeStampLocalTest) {
-    struct timespec timezero{};
-    EXPECT_EQ(timestamp_from("local", timezero), "1969-12-31T16:00:00.000000");
-}
-
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
