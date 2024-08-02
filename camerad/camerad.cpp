@@ -732,6 +732,14 @@ void doit(Network::TcpSocket sock) {
     if (cmd=="trigin") {
                     ret = server.trigin(args);
                     }
+    else
+    if (cmd=="autofetch") {
+                ret = server.autofetch(args, retstring);
+                if (!retstring.empty()) {
+                    sock.Write(retstring);
+                    sock.Write( " ");
+                }
+    }
 #endif
     else
     if (cmd=="expose") {
