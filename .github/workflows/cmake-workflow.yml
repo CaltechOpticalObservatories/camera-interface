@@ -30,13 +30,14 @@ jobs:
         cd ${{github.workspace}}/build
         rm -rf *
         g++ --version
-        cmake -DINTERFACE_TYPE=${{env.INTERFACE_TYPE_ARCHON}} -DDETECTOR_TYPE=${{env.DETECTOR_TYPE_HXRG}} ..
+        cmake -DDETECTOR_TYPE=${{env.DETECTOR_TYPE_HXRG}} ..
 
 
     - name: Build
       run: |
         cd ${{github.workspace}}/build
         make
+        make run_unit_tests
 
     - name: Run Unit Tests
       run: |

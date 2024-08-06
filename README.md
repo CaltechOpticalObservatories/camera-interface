@@ -10,6 +10,7 @@ If you encounter any problems or have questions about this project, please open 
 
 - **CMake** 3.12 or higher
 - **cfitsio** and **CCFits** libraries (expected in `/usr/local/lib`)
+- **gtest** (Google Test) library (needed to run unit tests)
 
 ### Controller Compatibility
 
