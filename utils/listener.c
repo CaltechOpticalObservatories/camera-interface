@@ -21,20 +21,19 @@
 
 #define MSGBUFSIZE 256
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     if (argc < 3) {
-       printf("Command line args should be multicast group and port\n");
-       printf("(e.g. for SSDP, `listener 239.255.255.250 1900`)\n");
-       return 1;
+        printf("Command line args should be multicast group and port\n");
+        printf("(e.g. for SSDP, `listener 239.255.255.250 1900`)\n");
+        return 1;
     }
 
-    char* group = argv[1]; // e.g. 239.255.255.250 for SSDP
+    char *group = argv[1]; // e.g. 239.255.255.250 for SSDP
     int port = atoi(argv[2]); // 0 if error, which is an invalid port
 
-    char *filterstr=NULL;
+    char *filterstr = NULL;
 
-    if ( argc==4 ) filterstr = argv[3];
+    if (argc == 4) filterstr = argv[3];
 
     // create what looks like an ordinary UDP socket
     //
@@ -49,11 +48,11 @@ int main(int argc, char *argv[])
     u_int yes = 1;
     if (
         setsockopt(
-            fd, SOL_SOCKET, SO_REUSEADDR, (char*) &yes, sizeof(yes)
+            fd, SOL_SOCKET, SO_REUSEADDR, (char *) &yes, sizeof(yes)
         ) < 0
-    ){
-       perror("Reusing ADDR failed");
-       return 1;
+    ) {
+        perror("Reusing ADDR failed");
+        return 1;
     }
 
     // set up destination address
@@ -66,7 +65,7 @@ int main(int argc, char *argv[])
 
     // bind to receive address
     //
-    if (bind(fd, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
+    if (bind(fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
         perror("bind");
         return 1;
     }
@@ -78,9 +77,9 @@ int main(int argc, char *argv[])
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     if (
         setsockopt(
-            fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*) &mreq, sizeof(mreq)
+            fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &mreq, sizeof(mreq)
         ) < 0
-    ){
+    ) {
         perror("setsockopt");
         return 1;
     }
@@ -103,11 +102,10 @@ int main(int argc, char *argv[])
             return 1;
         }
         msgbuf[nbytes] = '\0';
-        if ( filterstr != NULL ) {
-          if ( strstr(msgbuf, filterstr) != NULL ) puts(msgbuf);
-        }
-        else puts(msgbuf);
-     }
+        if (filterstr != NULL) {
+            if (strstr(msgbuf, filterstr) != NULL) puts(msgbuf);
+        } else puts(msgbuf);
+    }
 
     return 0;
 }
