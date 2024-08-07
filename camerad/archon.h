@@ -233,7 +233,7 @@ namespace Archon {
 
         long wait_for_exposure();
 
-        long wait_for_readout();
+        long wait_for_readout(bool is_autofetch = true);
 
         long hwait_for_readout();
 

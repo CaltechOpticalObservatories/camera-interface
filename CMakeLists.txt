@@ -52,3 +52,13 @@ add_subdirectory(${PROJECT_BASE_DIR}/common)
 add_subdirectory(${PROJECT_BASE_DIR}/camerad)
 add_subdirectory(${PROJECT_BASE_DIR}/emulator)
 add_subdirectory(${PROJECT_BASE_DIR}/tests EXCLUDE_FROM_ALL)
+
+## Custom clean target
+#add_custom_target(custom_clean
+#        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/cmake_clean.cmake
+#        COMMAND ${CMAKE_COMMAND} -E rm -Rf ${CMAKE_BINARY_DIR}
+#        COMMENT "Custom clean steps"
+#)
+
+# Make the custom clean target depend on the default clean target
+#add_dependencies(custom_clean clean)
