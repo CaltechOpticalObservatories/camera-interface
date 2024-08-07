@@ -8,14 +8,13 @@
 
 #include "emulator-server.h"
 
-Emulator::Server server;
+//Emulator::Server server;
+std::unique_ptr<Emulator::Server> server;
 
-/** signal_handler ***********************************************************/
+/***** signal_handler *********************************************************/
 /**
- * @fn     signal_handler
- * @brief  handles ctrl-C
- * @param  int signo
- * @return nothing
+ * @brief      handles ctrl-C
+ * @param[in]  signo
  *
  */
 void signal_handler(int signo) {
@@ -23,22 +22,22 @@ void signal_handler(int signo) {
   switch (signo) {
     case SIGINT:
       std::cerr << function << "received INT\n";
-      server.exit_cleanly();                  // shutdown the server
+      server->exit_cleanly();                  // shutdown the server
       break;
     case SIGHUP:
       std::cerr << function << "caught SIGHUP\n";
-      server.configure_controller();
+      server->configure_controller();
       break;
     case SIGPIPE:
       std::cerr << function << "caught SIGPIPE\n";
       break;
     default:
-      server.exit_cleanly();                  // shutdown the server
+      server->exit_cleanly();                  // shutdown the server
       break;
   }
   return;
 }
-/** signal_handler ***********************************************************/
+/***** signal_handler *********************************************************/
 
 
 int  main(int argc, char **argv);           // main thread (just gets things started)
@@ -46,12 +45,12 @@ void block_main(Network::TcpSocket sock);   // this thread handles requests on b
 void doit(Network::TcpSocket sock);         // the worker thread
 
 
-/** main *********************************************************************/
+/***** main *******************************************************************/
 /**
- * @fn     main
- * @brief  the main function
- * @param  int argc, char** argv
- * @return 0
+ * @brief      the main function
+ * @param[in]  argc
+ * @param[in]  argv
+ * @return     0
  *
  */
 int main(int argc, char **argv) {
@@ -62,54 +61,92 @@ int main(int argc, char **argv) {
   signal(SIGPIPE, signal_handler);
   signal(SIGHUP, signal_handler);
 
+  std::string instrument;
+
+  if ( cmdOptionExists( argv, argv+argc, "-i" ) ) {
+    char* instrument_cstr = getCmdOption( argv, argv+argc, "-i" );
+    if ( instrument_cstr != nullptr ) {
+      instrument = std::string( instrument_cstr );
+      server = std::make_unique<Emulator::Server>(instrument);
+    }
+    else {
+      std::cout << get_timestamp() << function << "ERROR missing or invalid instrument specified with -i <instrument>\n";
+      exit(1);
+    }
+  }
+  else {
+    std::cout << get_timestamp() << function << "ERROR no instrument specified with -i <instrument>\n";
+    exit(1);
+  }
+
+  // If an ImageInfo class pointer is not created then the instrument type
+  // was wrong.
+  //
+  if ( server->image == nullptr ) {
+    std::cerr << get_timestamp() << function
+              << "ERROR could not construct ImageInfo class for instrument " << instrument << ".\n";
+    exit(1);
+  }
+  else {
+    std::cout << get_timestamp() << function << "constructed instrument \"" << instrument << "\"\n";
+  }
+
+  if ( cmdOptionExists( argv, argv+argc, "-f" ) ) {
+    char* filename = getCmdOption( argv, argv+argc, "-f" );
+    if ( filename ) {
+      server->config.filename = std::string( filename );
+    }
+  }
+
   // get the configuration file from the command line
   //
   long ret;
   if (argc>1) {
-    server.config.filename = std::string( argv[1] );
-    ret = server.config.read_config(server.config);      // read configuration file specified on command line
+    server->config.filename = std::string( argv[1] );
+    ret = server->config.read_config(server->config);      // read configuration file specified on command line
   }
   else {
     std::cerr << function << "ERROR: no configuration file specified\n";
-    server.exit_cleanly();
+    server->exit_cleanly();
   }
 
-  std::cerr << function << server.config.n_entries << " lines read from " << server.config.filename << "\n";
+  std::cerr << function << server->config.n_entries << " lines read from " << server->config.filename << "\n";
 
-  if (ret==NO_ERROR) ret=server.configure_server();      // get needed values out of read-in configuration file for the server
+  if (ret==NO_ERROR) ret=server->configure_server();      // get needed values out of read-in configuration file for the server
 
-  if (ret==NO_ERROR) ret=server.configure_controller();  // get needed values out of read-in configuration file for the controller
+  if (ret==NO_ERROR) ret=server->configure_controller();  // get needed values out of read-in configuration file for the controller
 
   if (ret != NO_ERROR) {
     std::cerr << function << "ERROR: unable to configure system\n";
-    server.exit_cleanly();
+    server->exit_cleanly();
   }
 
-  if ( server.emulatorport == -1 ) {
+  if ( server->emulatorport == -1 ) {
     std::cerr << function << "ERROR: emulator server port not configured\n";
-    server.exit_cleanly();
+    server->exit_cleanly();
   }
 
   // create a thread for a single listening port
   // The TcpSocket object is instantiated with (PORT#, BLOCKING_STATE, POLL_TIMEOUT_MSEC, THREAD_ID#)
   //
 
-  Network::TcpSocket s(server.emulatorport, true, -1, 0); // instantiate TcpSocket object
-  s.Listen();                                             // create a listening socket
+  Network::TcpSocket s(server->emulatorport, true, -1, 0); // instantiate TcpSocket object
+  if ( s.Listen() < 0 ) {                                 // create a listening socket
+    std::cerr << function << "ERROR: could not create listening socket on port " << server->emulatorport << "\n";
+    server->exit_cleanly();
+  }
   std::thread(block_main, s).detach();                    // spawn a thread to handle requests on this socket
 
   for (;;) pause();                                       // main thread suspends
   return 0;
 }
-/** main *********************************************************************/
+/***** main *******************************************************************/
 
 
-/** block_main ***************************************************************/
+/***** block_main *************************************************************/
 /**
- * @fn     block_main
- * @brief  main function for blocking connection thread
- * @param  Network::TcpSocket sock, socket object
- * @return nothing
+ * @brief      main function for blocking connection thread
+ * @param[in]  sock  server listening socket object
  *
  * accepts a socket connection and processes the request by
  * calling function doit()
@@ -125,22 +162,19 @@ void block_main(Network::TcpSocket sock) {
   }
   return;
 }
-/** block_main ***************************************************************/
+/***** block_main *************************************************************/
 
 
-/** doit *********************************************************************/
+/***** doit *******************************************************************/
 /**
- * @fn     doit
- * @brief  the workhorse of each thread connetion
- * @param  int thr
- * @return nothin
- *
- * stays open until closed by client
+ * @brief      the workhorse of each thread connetion
+ * @details    stays open until closed by client
+ * @param[in]  sock  server listening socket object
  *
  */
 void doit(Network::TcpSocket sock) {
   std::string function = "(Emulator::doit) ";
-  char  buf[BUFSIZE+1];
+  char  buf[Emulator::BUFSIZE+1];
   long  ret;
   std::stringstream message;
   std::stringstream retstream;
@@ -150,7 +184,7 @@ void doit(Network::TcpSocket sock) {
   bool connection_open=true;
 
   while (connection_open) {
-    memset(buf,  '\0', BUFSIZE);  // init buffers
+    memset(buf,  '\0', Emulator::BUFSIZE);  // init buffers
 
     retstream.str("");            // empty the return message stream
 
@@ -169,7 +203,7 @@ void doit(Network::TcpSocket sock) {
 
     // Data available, now read from connected socket...
     //
-    if ( (ret=sock.Read(buf, (size_t)BUFSIZE)) <= 0 ) {
+    if ( ( ret=sock.Read( buf, static_cast<size_t>(Emulator::BUFSIZE) ) ) <= 0 ) {
       if (ret<0) {                // could be an actual read error
         std::cerr << function << "Read error: " << strerror(errno) << "\n";
       }
@@ -220,25 +254,25 @@ void doit(Network::TcpSocket sock) {
 #ifdef STA_ARCHON
     if (cmd.compare("SYSTEM")==0) {
                     std::string retstring;
-                    ret = server.system_report( cmd, retstring );
+                    ret = server->system_report( cmd, retstring );
                     retstream << ( ret==ERROR ? "?" : "<" ) << ref << retstring;
                     }
     else
     if (cmd.compare("STATUS")==0) {
                     std::string retstring;
-                    ret = server.status_report( retstring );
+                    ret = server->status_report( retstring );
                     retstream << ( ret==ERROR ? "?" : "<" ) << ref << retstring;
                     }
     else
     if (cmd.compare("TIMER")==0) {
                     std::string retstring;
-                    ret = server.timer_report( retstring );
+                    ret = server->timer_report( retstring );
                     retstream << ( ret==ERROR ? "?" : "<" ) << ref << "TIMER=" << retstring;
                     }
     else
     if (cmd.compare("FRAME")==0) {
                     std::string retstring;
-                    ret = server.frame_report( retstring );
+                    ret = server->frame_report( retstring );
                     retstream << ( ret==ERROR ? "?" : "<" ) << ref << retstring;
                     }
     else
@@ -251,18 +285,18 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare(0,5,"FETCH")==0) {
-                    ret = server.fetch_data( ref, cmd, sock );
+                    ret = server->fetch_data( ref, cmd, sock );
                     retstream.str("");      // FETCH returns no message
                     }
     else
     if (cmd.compare(0,7,"WCONFIG")==0) {
-                    ret = server.wconfig( cmd );
+                    ret = server->wconfig( cmd );
                     retstream << ( ret==ERROR ? "?" : "<" ) << ref;
                     }
     else
     if (cmd.compare(0,7,"RCONFIG")==0) {
                     std::string retstring;
-                    ret = server.rconfig( cmd, retstring );
+                    ret = server->rconfig( cmd, retstring );
                     retstream << ( ret==ERROR ? "?" : "<" ) << ref << retstring;
                     }
     else
@@ -279,12 +313,12 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("POWERON")==0) {
-                    server.poweron = true;
+                    server->poweron = true;
                     retstream << "<" << ref;
                     }
     else
     if (cmd.compare("POWEROFF")==0) {
-                    server.poweron = false;
+                    server->poweron = false;
                     retstream << "<" << ref;
                     }
     else
@@ -297,22 +331,22 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare(0,9,"LOADPARAM")==0) {
-                    ret = server.write_parameter( cmd.substr(14) );
+                    ret = server->write_parameter( cmd.substr(14) );
                     retstream << ( ret==ERROR ? "?" : "<" ) << ref;
                     }
     else
     if (cmd.compare(0,9,"PREPPARAM")==0) {
-//                  server.write_parameter( cmd.substr(14) );
+//                  server->write_parameter( cmd.substr(14) );
                     retstream << "<" << ref;
                     }
     else
     if (cmd.compare(0,13,"FASTLOADPARAM")==0) {
-                    ret = server.write_parameter( cmd.substr(14) );
+                    ret = server->write_parameter( cmd.substr(14) );
                     retstream << ( ret==ERROR ? "?" : "<" ) << ref;
                     }
     else
     if (cmd.compare(0,13,"FASTPREPPARAM")==0) {
-//                  server.write_parameter( cmd.substr(14) );
+//                  server->write_parameter( cmd.substr(14) );
                     retstream << "<" << ref;
                     }
     else
@@ -364,5 +398,5 @@ void doit(Network::TcpSocket sock) {
   sock.Close();
   return;
 }
-/** doit *********************************************************************/
+/***** doit *******************************************************************/
 

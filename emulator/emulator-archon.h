@@ -1,18 +1,18 @@
 /**
- * @file    archon.h
- * @brief   
- * @details 
+ * @file    emulator-archon.h
+ * @brief   header for interface to Archon emulator
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
-#ifndef EMULATOR_ARCHON_H
-#define EMULATOR_ARCHON_H
+#pragma once
 
 #include <atomic>
 #include <chrono>
 #include <numeric>
 #include <functional>
+#include <unordered_map>
 #include <thread>
+#include <chrono>
 #include <fenv.h>
 
 #include "utilities.h"
@@ -22,24 +22,37 @@
 #include "logentry.h"
 #include "network.h"
 
-#define BLOCK_LEN 1024             //!< Archon block size in bytes
+#include "generic.h"
+#include "nirc2.h"
 
 namespace Archon {
 
   // Archon hardware-based constants.
   // These shouldn't change unless there is a significant hardware change.
   //
-  const int nbufs = 3;             //!< total number of frame buffers  //TODO rename to maxnbufs?
-  const int nmods = 12;            //!< number of modules per controller
-  const int nadchan = 4;           //!< number of channels per ADC module
+  constexpr const int NBUFS = 3;        //!< total number of frame buffers  //TODO rename to maxnbufs?
+  constexpr const int NMODS = 12;       //!< number of modules per controller
+  constexpr const int NADCHAN = 4;      //!< number of channels per ADC module
+  constexpr const int BLOCKLEN = 1024;  //!< Archon block size in bytes
 
   class Interface {
     private:
+      std::string instr;
+      std::atomic<bool> abort{false};
+      std::atomic<bool> exposing{false};
       unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
 
+      // Declare a map to contain image types for each recognized instrument.
+      //
+      static std::unordered_map<std::string, std::function<std::unique_ptr<ImageInfoBase>()>> ImageInfoMap;
+
+      static void initialize_image_info_map();
+
     public:
-      Interface();
-      ~Interface();
+
+      std::unique_ptr<ImageInfoBase> image;   ///!< smart pointer to the base class
+
+      Interface( const std::string &instr );
 
       // Class Objects
       //
@@ -59,9 +72,22 @@ namespace Archon {
         int  linecount;              //!< from "LINECOUNT=" in ACF file
         int  pixelcount;             //!< from "PIXELCOUNT=" in ACF file
         int  readtime;               //!< from "READOUT_TIME=" in configuration file
+        double pixel_time;           //!< PIXEL_TIME
+        double pixel_skip_time;      //!< PIXEL_SKIP_TIME
+        double row_overhead_time;    //!< ROW_OVERHEAD_TIME
+        double row_skip_time;        //!< ROW_SKIP_TIME
+        double frame_start_time;     //!< FRAME_START_TIME
+        double fs_pulse_time;        //!< FS_PULSE_TIME
+        int  imwidth;                //!< 
+        int  imheight;               //!< 
+        int  readouttime;            //!< 
         int  exptime;                //!< requested exposure time in msec from WCONFIG
         int  exposure_factor;        //!< multiplier for exptime relative to 1 sec (=1 for sec, =1000 for msec, etc.)
-      } image;
+        bool iscds;                  //!< is this a CDS exposure? (NIRC2)
+        int utr_samples;             //!< number of UTR samples (NIRC2)
+        int mcds_samples;            //!< number of MCDS samples (NIRC2)
+        int numsamples;              //!< number of samples, larger of utr,mcds (NIRC2)
+      } fimage;
 
       /**
        * @var     struct frame_data_t frame
@@ -98,16 +124,15 @@ namespace Archon {
       long timer_report(std::string &retstring);
       unsigned long  get_timer();
       long frame_report(std::string &retstring);
-      long fetch_data(std::string ref, std::string cmd, Network::TcpSocket &sock);      //!< 
+      long fetch_data( const std::string &ref, const std::string &cmd, Network::TcpSocket &sock );      //!< 
       long wconfig(std::string buf);         //!< 
       long rconfig(std::string buf, std::string &retstring);         
       long write_parameter(std::string buf);
-      static void dothread_expose(frame_data_t &frame, image_t &image, int numexpose);
+      static void dothread_expose( Archon::Interface &iface, int numexpose );
 
 // TODO ***** below here need to check what's needed **********************************************************
 
       int  msgref;                           //!< Archon message reference identifier, matches reply to command
-      bool abort;
       std::vector<int> gain;                 //!< digital CDS gain (from TAPLINE definition)
       std::vector<int> offset;               //!< digital CDS offset (from TAPLINE definition)
       bool modeselected;                     //!< true if a valid mode has been selected, false otherwise
@@ -222,5 +247,3 @@ namespace Archon {
   };
 
 }
-
-#endif

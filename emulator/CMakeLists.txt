@@ -10,7 +10,7 @@ include_directories( ${PROJECT_BASE_DIR}/utils
                      ${PROJECT_BASE_DIR}/camerad 
                      ${PROJECT_BASE_DIR}/common )
 
-add_definitions( -Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb )
+add_definitions( -Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb )
 
 if( ${INTERFACE_TYPE} STREQUAL "Archon" )
         add_definitions(-DSTA_ARCHON)
