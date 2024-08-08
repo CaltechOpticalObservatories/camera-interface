@@ -32,11 +32,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define POLLTIMEOUT 60000              /// default Poll timeout in msec
-#define LISTENQ 64                     /// listen(3n) backlog 
-#define UDPMSGLEN 256                  /// UDP message length
-
 namespace Network {
+
+  constexpr const int POLLTIMEOUT = 60000;      /// default Poll timeout in msec
+  constexpr const int LISTENQ = 64;             /// listen(3n) backlog
+  constexpr const int UDPMSGLEN = 256;          /// UDP message length
+  constexpr const int CONNECT_TIMEOUT_SEC = 3;  /// Connect() timeout in seconds
 
   /** TcpSocket ***************************************************************/
   /**
