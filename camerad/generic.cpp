@@ -24,22 +24,21 @@
 #include "logentry.h"
 
 namespace Archon {
-
-      /**************** Archon::Interface::region_of_interest *****************/
-      /**
-       * @fn         region_of_interest
-       * @brief      define a region of interest
-       * @param[in]  args
-       * @param[out] retstring
-       * @return     
-       *
-       */
-      long Interface::region_of_interest( std::string args, std::string &retstring ) {
+    /**************** Archon::Interface::region_of_interest *****************/
+    /**
+     * @fn         region_of_interest
+     * @brief      define a region of interest
+     * @param[in]  args
+     * @param[out] retstring
+     * @return
+     *
+     */
+    long Interface::region_of_interest(std::string args, std::string &retstring) {
         std::string function = "Archon::Interface::region_of_interest";
         std::stringstream message;
-        this->camera.log_error( function, "ROI not supported" );
-        return( ERROR );
-      }
-      /**************** Archon::Interface::region_of_interest *****************/
+        this->camera.log_error(function, "ROI not supported");
+        return (ERROR);
+    }
 
+    /**************** Archon::Interface::region_of_interest *****************/
 }
