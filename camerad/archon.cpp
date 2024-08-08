@@ -5078,16 +5078,17 @@ namespace Archon {
 
       int retval;
       char buffer[4096];
-      char header[13];
+      char header[25];
 
       if (!is_autofetch) {
         error = this->get_frame_status();
       } else {
-        retval = this->archon.Read(header, 12);
+        retval = this->archon.Read(header, 24);
         message.str(""); message << "code " << retval << " reading Archon frame header: " << header;
 
         if (strncmp(header, "<SFAUTOFETCH", 12) != 0) {
           logwrite( function, "READ AUTOFETCH HEADER!" );
+          logwrite( function, message.str() );
         }
       }
 
