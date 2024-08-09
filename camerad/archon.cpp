@@ -822,6 +822,10 @@ namespace Archon {
 
     // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
     //
+    if(this->is_autofetch) {
+      logwrite( function, "AUTOFETCH IS ON");
+    }
+
     if ( (cmd.compare(0,7,"WCONFIG") != 0) &&
          (cmd.compare(0,5,"TIMER") != 0)   &&
          (cmd.compare(0,6,"STATUS") != 0)  &&
@@ -897,13 +901,18 @@ namespace Archon {
       this->camera.log_error( function, message.str() );
 
     } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
-      error = ERROR;
-      // std::string hdr = reply;
-      try {
+      if (this->is_autofetch) {
+        logwrite( function, "auto fetch mode");
+        error = NO_ERROR;
+      } else {
+        error = ERROR;
+        // std::string hdr = reply;
+        try {
           scmd.erase(scmd.find('\n'), 1);
-      } catch(...) { }
-      message.str(""); message << "command-reply mismatch for command: " + scmd + ": expected " + check + " but received " + reply ;
-      this->camera.log_error( function, message.str() );
+        } catch(...) { }
+        message.str(""); message << "command-reply mismatch for command: " + scmd + ": expected " + check + " but received " + reply ;
+        this->camera.log_error( function, message.str() );
+      }
 
     } else {                                           // command and reply are a matched pair
       error = NO_ERROR;
