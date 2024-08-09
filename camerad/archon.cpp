@@ -5094,11 +5094,18 @@ namespace Archon {
       } else {
         logwrite( function, "AUTOFETCH MODE" );
         retval = this->archon.Read(buffer, 2048);
-        message.str(""); message << "code " << retval << " reading Archon frame header: " << buffer;
+        std::string buffer_str(buffer);
+        size_t pos = buffer_str.find("<SFAUTOFETCH=");
+
+
+        message.str(""); message << "code " << retval << " reading Archon frame header: " << buffer_str.substr(pos + 3);
+
 
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "READ AUTOFETCH HEADER!" );
           logwrite( function, message.str() );
+
+          done = true;
         }
       }
 
