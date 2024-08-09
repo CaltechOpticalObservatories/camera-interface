@@ -201,6 +201,7 @@ class FITS_file {
         return;
       }
 
+/**
       // Iterate through the system-defined FITS keyword databases and add them to the primary header.
       //
       Common::FitsKeys::fits_key_t::iterator keyit;
@@ -209,6 +210,7 @@ class FITS_file {
            keyit++) {
         this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
       }
+**/
 
       // Write the user keys on close, if specified
       //
@@ -605,7 +607,6 @@ class FITS_file {
         //
         this->imageExt = self->pFits->addImage(extname, info.datatype, axes);
 
-/***
         // Add extension-only keys now
         //
         if (info.datatype == SHORT_IMG) {
@@ -623,7 +624,6 @@ class FITS_file {
               keyit++ ) {
           this->add_key( false, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
         }
-***/
 
         // Add AMPSEC keys
         //
@@ -717,6 +717,7 @@ class FITS_file {
      * 
      */
     void add_key( bool primary, std::string keyword, std::string type, std::string value, std::string comment ) {
+return;
       std::string function = "FITS_file::add_key";
       std::stringstream message;
 
