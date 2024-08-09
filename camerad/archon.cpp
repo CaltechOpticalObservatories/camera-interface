@@ -5091,15 +5091,16 @@ namespace Archon {
         logwrite( function, " READ IN AUTOFETCH MODE" );
         retval = this->archon.Read(buffer, 20);
         std::string buffer_str(buffer);
-        const size_t pos = buffer_str.find("<SFAUTOFETCH=");
-
-        message.str(""); message << "code " << retval << " Frame Buffer Index: " << buffer_str.substr(13, 1);
+        // const size_t pos = buffer_str.find("<SFAUTOFETCH=");
+        const int frame_index = std::stoi(buffer_str.substr(13, 1));
+        message.str(""); message << "code " << retval << " Frame Buffer Index: " << std::to_string(frame_index);
 
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "READ AUTOFETCH HEADER!" );
           logwrite( function, message.str() );
 
-          this->frame.index = std::stoi(buffer_str.substr(13, 1));
+          this->frame.index = frame_index;
+          currentframe = this->frame.bufframen[this->frame.index];
 
           done = true;
           error = NO_ERROR;
