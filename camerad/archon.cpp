@@ -5173,7 +5173,7 @@ namespace Archon {
     //
     while ( done == false && not this->camera.is_aborted() ) {
 
-      std::this_thread::sleep_for( std::chrono::microseconds( 100 ) );  // reduces polling frequency
+      std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );  // reduces polling frequency
       error = this->get_frame_status();
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
