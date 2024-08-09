@@ -5099,6 +5099,8 @@ namespace Archon {
           logwrite( function, "READ AUTOFETCH HEADER!" );
           logwrite( function, message.str() );
 
+          this->frame.index = std::stoi(buffer_str.substr(13, 1));
+
           done = true;
           error = NO_ERROR;
           break;
