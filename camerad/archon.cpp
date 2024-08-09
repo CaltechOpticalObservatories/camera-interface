@@ -822,10 +822,6 @@ namespace Archon {
 
     // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
     //
-    if(this->is_autofetch) {
-      logwrite( function, "AUTOFETCH IS ON");
-    }
-
     if ( (cmd.compare(0,7,"WCONFIG") != 0) &&
          (cmd.compare(0,5,"TIMER") != 0)   &&
          (cmd.compare(0,6,"STATUS") != 0)  &&
@@ -5092,14 +5088,12 @@ namespace Archon {
       if (!this->is_autofetch) {
         error = this->get_frame_status();
       } else {
-        logwrite( function, "AUTOFETCH MODE" );
-        retval = this->archon.Read(buffer, 2048);
+        logwrite( function, " READ IN AUTOFETCH MODE" );
+        retval = this->archon.Read(buffer, 4096);
         std::string buffer_str(buffer);
-        size_t pos = buffer_str.find("<SFAUTOFETCH=");
+        const size_t pos = buffer_str.find("<SFAUTOFETCH=");
 
-
-        message.str(""); message << "code " << retval << " reading Archon frame header: " << buffer_str.substr(pos + 3);
-
+        message.str(""); message << "code " << retval << " Frame Buffer Index: " << buffer_str.substr(15, 3) << " Autofetch header: " << buffer_str;
 
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "READ AUTOFETCH HEADER!" );
