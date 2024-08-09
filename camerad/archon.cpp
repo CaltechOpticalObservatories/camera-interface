@@ -5041,7 +5041,7 @@ namespace Archon {
    * This function polls the Archon frame status until a new frame is ready.
    *
    */
-  long Interface::wait_for_readout(bool is_autofetch) {
+  long Interface::wait_for_readout() {
     std::string function = "Archon::Interface::wait_for_readout";
     std::stringstream message;
     long error = NO_ERROR;
@@ -5078,15 +5078,16 @@ namespace Archon {
 
       int retval;
       char buffer[4096];
-      char header[25];
+      // char header[25];
 
-      if (!is_autofetch) {
+      if (!this->is_autofetch) {
         error = this->get_frame_status();
       } else {
-        retval = this->archon.Read(header, 24);
-        message.str(""); message << "code " << retval << " reading Archon frame header: " << header;
+        logwrite( function, "AUTOFETCH MODE" );
+        retval = this->archon.Read(buffer, 2048);
+        message.str(""); message << "code " << retval << " reading Archon frame header: " << buffer;
 
-        if (strncmp(header, "<SFAUTOFETCH", 12) != 0) {
+        if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "READ AUTOFETCH HEADER!" );
           logwrite( function, message.str() );
         }
