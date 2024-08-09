@@ -214,6 +214,7 @@ class FITS_file {
 
       // Write the user keys on close, if specified
       //
+/**
       if ( writekeys ) {
         logwrite( function, "writing user-defined keys after exposure" );
         Common::FitsKeys::fits_key_t::iterator keyit;
@@ -266,6 +267,7 @@ class FITS_file {
         this->file_open.store( false, std::memory_order_seq_cst );   // must set this false on exception
       }
 
+***/
       // Deallocate the CCfits object and close the FITS file
       //
       this->pFits->destroy();
@@ -607,6 +609,7 @@ class FITS_file {
         //
         this->imageExt = self->pFits->addImage(extname, info.datatype, axes);
 
+/***
         // Add extension-only keys now
         //
         if (info.datatype == SHORT_IMG) {
@@ -624,6 +627,7 @@ class FITS_file {
               keyit++ ) {
           this->add_key( false, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
         }
+***/
 
         // Add AMPSEC keys
         //
@@ -717,6 +721,7 @@ class FITS_file {
      * 
      */
     void add_key( bool primary, std::string keyword, std::string type, std::string value, std::string comment ) {
+return;
       std::string function = "FITS_file::add_key";
       std::stringstream message;
 
