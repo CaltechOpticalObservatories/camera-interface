@@ -5082,24 +5082,26 @@ namespace Archon {
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
       int retval;
-      char buffer[4096];
+      char buffer[20];
       // char header[25];
 
       if (!this->is_autofetch) {
         error = this->get_frame_status();
       } else {
         logwrite( function, " READ IN AUTOFETCH MODE" );
-        retval = this->archon.Read(buffer, 4096);
+        retval = this->archon.Read(buffer, 20);
         std::string buffer_str(buffer);
         const size_t pos = buffer_str.find("<SFAUTOFETCH=");
 
-        message.str(""); message << "code " << retval << " Frame Buffer Index: " << buffer_str.substr(15, 3) << " Autofetch header: " << buffer_str;
+        message.str(""); message << "code " << retval << " Frame Buffer Index: " << buffer_str.substr(13, 1);
 
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "READ AUTOFETCH HEADER!" );
           logwrite( function, message.str() );
 
           done = true;
+          error = NO_ERROR;
+          break;
         }
       }
 
