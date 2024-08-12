@@ -2537,6 +2537,8 @@ namespace Archon {
     std::stringstream message;
     long error = NO_ERROR;
 
+    logwrite( function, "READ FRAME" );
+
     if ( ! this->modeselected ) {
       this->camera.log_error( function, "no mode selected" );
       return ERROR;
@@ -2815,7 +2817,7 @@ namespace Archon {
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
 
-    logwrite( function, "READ FRAME" );
+    logwrite( function, "READ FRAME WITH FRAME TYPE" );
 
     int retval;
     int bufready;
