@@ -3634,6 +3634,46 @@ namespace Archon {
   /**************** Archon::Interface::add_filename_key ***********************/
 
 
+  /***** Archon::Interface::get_status_key ************************************/
+  /**
+   * @brief      get value for the indicated key from the Archon "STATUS" string
+   * @param[in]  key    key to extract from STATUS
+   * @param[out] value  value of key
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::get_status_key( std::string key, std::string &value ) {
+      std::string function = "Archon::Interface::get_status_key";
+      std::stringstream message;
+      std::string reply;
+
+      long error = this->archon_cmd( STATUS, reply );  // first the whole reply in one string
+
+      if ( error != NO_ERROR ) return error;
+
+      std::vector<std::string> lines, tokens;
+      Tokenize( reply, lines, " " );                   // then each line in a separate token "lines"
+
+      for ( auto line : lines ) {
+          Tokenize( line, tokens, "=" );                 // break each line into tokens to get KEY=value
+          if ( tokens.size() != 2 ) continue;            // need 2 tokens
+          try {
+              if ( tokens.at(0) == key ) {                 // looking for the KEY
+                  value = tokens.at(1);                      // found the KEY= status here
+                  break;                                     // done looking
+              } else continue;
+          }
+          catch (std::out_of_range &) {                  // should be impossible
+              this->camera.log_error( function, "token out of range" );
+              return(ERROR);
+          }
+      }
+
+      return( NO_ERROR );
+  }
+  /***** Archon::Interface::get_status_key ************************************/
+
+
   /**************** Archon::Interface::expose *********************************/
   /**
    * @fn     expose
