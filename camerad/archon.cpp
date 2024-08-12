@@ -900,7 +900,7 @@ namespace Archon {
     } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
       if (this->is_autofetch) {
         logwrite( function, "auto fetch mode");
-        error = NO_ERROR;
+        // error = NO_ERROR;
       } else {
         error = ERROR;
         // std::string hdr = reply;
