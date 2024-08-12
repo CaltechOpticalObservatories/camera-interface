@@ -5100,11 +5100,11 @@ namespace Archon {
           logwrite( function, message.str() );
 
           this->frame.index = frame_index;
-          currentframe = this->frame.bufframen[this->frame.index];
+          // currentframe = this->frame.bufframen[this->frame.index];
 
-          done = true;
-          error = NO_ERROR;
-          break;
+          //done = true;
+          //error = NO_ERROR;
+          //break;
         }
       }
 
@@ -5127,6 +5127,8 @@ namespace Archon {
         logwrite( function, "ERROR: unable to get frame status" );
         break;
       }
+
+      logwrite( function, "GET CURRENT FRAME" );
 
       // get current frame number and check the status of its buffer
       currentframe = this->frame.bufframen[this->frame.index];
