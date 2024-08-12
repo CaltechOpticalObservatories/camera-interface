@@ -217,6 +217,9 @@ namespace Archon {
 
         void add_filename_key();
 
+        long power( std::string state_in, std::string &retstring );     /// wrapper for do_power
+        long do_power( std::string state_in, std::string &retstring );  /// set/get Archon power state
+
         long expose(std::string nseq_in);
 
         long hexpose(std::string nseq_in);
