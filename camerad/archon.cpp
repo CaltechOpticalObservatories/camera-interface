@@ -2135,9 +2135,12 @@ namespace Archon {
 
     // send FRAME command to get frame buffer status
     //
-    if ( (error = this->archon_cmd(FRAME, reply)) ) {
-      if ( error == ERROR ) logwrite( function, "ERROR: sending FRAME command" );  // don't log here if BUSY
-      return error;
+
+    if (!this->is_autofetch) {
+      if ( (error = this->archon_cmd(FRAME, reply)) ) {
+        if ( error == ERROR ) logwrite( function, "ERROR: sending FRAME command" );  // don't log here if BUSY
+        return error;
+      }
     }
 
     // First Tokenize breaks the single, continuous reply string into vector of individual strings,
