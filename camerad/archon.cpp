@@ -5094,13 +5094,11 @@ namespace Archon {
         std::string buffer_str(buffer);
 
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
-          // const size_t pos = buffer_str.find("<SFAUTOFETCH=");
+          logwrite( function, "AUTOFETCH HEADER FOUND!" );
           const int frame_index = std::stoi(buffer_str.substr(13, 1));
-          message.str(""); message << "code " << retval << " Frame Buffer Index: " << std::to_string(frame_index);
-
-
           logwrite( function, message.str() );
 
+          logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
           this->frame.index = frame_index;
         } else {
           logwrite( function, "NO AUTOFETCH HEADER FOUND! IDLING FOR 3 SECONDS..." );
