@@ -2141,6 +2141,8 @@ namespace Archon {
         if ( error == ERROR ) logwrite( function, "ERROR: sending FRAME command" );  // don't log here if BUSY
         return error;
       }
+    } else {
+      logwrite( function, "get_frame_status: AUTOFETCH ON, not sending FRAME command");
     }
 
     // First Tokenize breaks the single, continuous reply string into vector of individual strings,
