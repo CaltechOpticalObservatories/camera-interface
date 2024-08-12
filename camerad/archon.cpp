@@ -2814,6 +2814,9 @@ namespace Archon {
   long Interface::read_frame(Camera::frame_type_t frame_type) {
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
+
+    logwrite( function, "READ FRAME" );
+
     int retval;
     int bufready;
     char check[5], header[5];
@@ -5100,8 +5103,8 @@ namespace Archon {
             this->frame.index = frame_index;
           }
         } else {
-          logwrite( function, "NO AUTOFETCH HEADER FOUND!" );
-          // std::this_thread::sleep_for(std::chrono::seconds(3));
+          logwrite( function, "NO AUTOFETCH HEADER FOUND! SLEEP 3 seconds..." );
+          std::this_thread::sleep_for(std::chrono::seconds(3));
 
           error = this->get_frame_status();
         }
