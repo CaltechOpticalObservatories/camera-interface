@@ -898,10 +898,6 @@ namespace Archon {
       this->camera.log_error( function, message.str() );
 
     } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
-      if (this->is_autofetch) {
-        logwrite( function, "auto fetch mode");
-        // error = NO_ERROR;
-      } else {
         error = ERROR;
         // std::string hdr = reply;
         try {
@@ -909,8 +905,6 @@ namespace Archon {
         } catch(...) { }
         message.str(""); message << "command-reply mismatch for command: " + scmd + ": expected " + check + " but received " + reply ;
         this->camera.log_error( function, message.str() );
-      }
-
     } else {                                           // command and reply are a matched pair
       error = NO_ERROR;
 
@@ -5079,12 +5073,10 @@ namespace Archon {
     // The last frame was recorded before the readout was triggered in get_frame().
     //
     while (!done && !this->abort) {
-
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
       int retval;
       char buffer[20];
-      // char header[25];
 
       if (!this->is_autofetch) {
         error = this->get_frame_status();
@@ -5098,11 +5090,15 @@ namespace Archon {
           const int frame_index = std::stoi(buffer_str.substr(13, 1));
           logwrite( function, message.str() );
 
-          logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
-          this->frame.index = frame_index;
+          if (this->frame.index != frame_index) {
+            logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
+            this->frame.index = frame_index;
+          }
         } else {
-          logwrite( function, "NO AUTOFETCH HEADER FOUND! IDLING FOR 3 SECONDS..." );
-          std::this_thread::sleep_for(std::chrono::seconds(3));
+          logwrite( function, "NO AUTOFETCH HEADER FOUND!" );
+          // std::this_thread::sleep_for(std::chrono::seconds(3));
+
+          error = this->get_frame_status();
         }
       }
 
