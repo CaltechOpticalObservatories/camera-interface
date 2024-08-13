@@ -5177,6 +5177,8 @@ namespace Archon {
     // After exiting while loop, one update to ensure accurate ASYNC message
     // reporting of LINECOUNT.
     //
+    logwrite( function, "EXITED WHILE LOOP" );
+
     if ( error == NO_ERROR ) {
       error = this->get_frame_status();
       if ( error != NO_ERROR ) {
