@@ -64,8 +64,8 @@ jobs:
         
         echo "TEST3"
         
-        command_exptime=$(cam exptime 1500)
-        check $command_exptime
+        # command_exptime=$(cam exptime 0)
+        # check $command_exptime
         
         command_expose=$(cam expose)
         check $command_expose
