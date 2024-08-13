@@ -5101,8 +5101,11 @@ namespace Archon {
         retval = this->archon.Read(buffer, 1024);
         std::string buffer_str(buffer);
 
+        size_t autofetchEnd = buffer_str.find('>');
+
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "AUTOFETCH HEADER FOUND!" );
+          logwrite( function, "AUTOFETCH END: " + std::to_string(autofetchEnd) );
           const int frame_index = std::stoi(buffer_str.substr(13, 1));
           logwrite( function, message.str() );
 
@@ -5112,7 +5115,7 @@ namespace Archon {
           }
         } else {
           logwrite( function, "NO AUTOFETCH HEADER FOUND! SLEEP 3 seconds...");
-          logwrite( function, "BUFFER: " + buffer_str.substr(0, 100) );
+          logwrite( function, "BUFFER: " + buffer_str.substr(0, autofetchEnd) );
           std::this_thread::sleep_for(std::chrono::seconds(3));
 
           //error = this->get_frame_status();
