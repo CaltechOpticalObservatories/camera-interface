@@ -5106,7 +5106,7 @@ namespace Archon {
           const int frame_index = std::stoi(buffer_str.substr(13, 1));
 
           // read rest of buffer frame
-          retval = this->archon.Read(buffer, 1244);
+          retval = this->archon.Read(buffer, 1246);
 
           if (this->frame.index != frame_index) {
             logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
@@ -5119,7 +5119,7 @@ namespace Archon {
           retval = this->archon.Read(buffer, 1004);
         } else {
           logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND!");
-          logwrite( function, "BUFFER CONTENT: " + buffer_str );
+          logwrite( function, "BUFFER CONTENT: " + buffer_str.substr(0, 100) + "..." );
         }
       }
 
