@@ -5092,13 +5092,13 @@ namespace Archon {
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
       int retval;
-      char buffer[2048];
+      char buffer[1266];
 
       if (!this->is_autofetch) {
         error = this->get_frame_status();
       } else {
         logwrite( function, " READ IN AUTOFETCH MODE" );
-        retval = this->archon.Read(buffer, 2048);
+        retval = this->archon.Read(buffer, 1266);
         std::string buffer_str(buffer);
 
         size_t autofetchEnd = buffer_str.find("<XF");
@@ -5106,7 +5106,7 @@ namespace Archon {
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "AUTOFETCH HEADER FOUND!" );
           logwrite( function, "AUTOFETCH END: " + std::to_string(autofetchEnd) );
-          const int frame_index = std::stoi(buffer_str.substr(13, 1));
+          const int frame_index = std::stoi(buffer_str);
           logwrite( function, message.str() );
 
           if (this->frame.index != frame_index) {
@@ -5115,7 +5115,7 @@ namespace Archon {
           }
         } else {
           logwrite( function, "NO AUTOFETCH HEADER FOUND! SLEEP 3 seconds...");
-          logwrite( function, "BUFFER: " + buffer_str.substr(0, autofetchEnd) );
+          logwrite( function, "BUFFER: " + buffer_str.substr(0, 100) );
           std::this_thread::sleep_for(std::chrono::seconds(3));
 
           //error = this->get_frame_status();
