@@ -5114,17 +5114,33 @@ namespace Archon {
             logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
             this->frame.index = frame_index;
           }
+
+          if (int x = buffer_str.find("<XF") != std::string::npos) {
+            logwrite( function, "FOUND <XF IN <AUTOFETCH: " + std::to_string(x) );
+          }
         } else if(strncmp(header, "<XF", 3) == 0) {
           logwrite( function, "FOUND XF HEADER");
 
           // read rest of buffer frame
-          retval = this->archon.Read(buffer, 1244);
+          retval = this->archon.Read(buffer, 1024);
           std::string buffer_str(buffer);
-        } else {
-          logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! SLEEP 3 SECONDS...");
-          std::this_thread::sleep_for(std::chrono::seconds(3));
 
-          logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
+          if (int x = buffer_str.find("<XF") != std::string::npos) {
+            logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
+          }
+        } else {
+          logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! ");
+          // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
+
+          // read rest of buffer frame
+          retval = this->archon.Read(buffer, 1024);
+          std::string buffer_str(buffer);
+
+          if (int x = buffer_str.find("<XF") != std::string::npos) {
+            logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
+          }
+
+          std::this_thread::sleep_for(std::chrono::seconds(3));
         }
       }
 
