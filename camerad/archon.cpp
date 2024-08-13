@@ -4059,11 +4059,6 @@ namespace Archon {
         std::string reg;
         long error = NO_ERROR;
 
-        this->set_parameter("Start", 1);
-        usleep(1000);
-        this->set_camera_mode("VIDEORXR");
-        usleep(1000);
-
         // H2RG manual says to pull this value low for 100 ns
         // however, currently it is pulled low for ~1000 usec
         this->set_parameter("H2RGMainReset", 1);
