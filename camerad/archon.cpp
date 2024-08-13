@@ -2474,6 +2474,8 @@ namespace Archon {
     uint64_t maxoffset = this->frame.bufbase[this->frame.index];
     uint64_t maxaddr = maxoffset + maxblocks;
 
+    logwrite( function, "FETCH");
+
     if ( bufaddr > maxaddr ) {
       message.str(""); message << "fetch Archon buffer requested address 0x" << std::hex << bufaddr << " exceeds 0x" << maxaddr;
       this->camera.log_error( function, message.str() );
@@ -2637,6 +2639,8 @@ namespace Archon {
         unsigned int block, bufblocks=0;
         long error = ERROR;
         int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
+
+        logwrite( function, "H READ FRAME");
 
         // Archon buffer number of the last frame read into memory
         // Archon frame index is 1 biased so add 1 here
@@ -5088,13 +5092,13 @@ namespace Archon {
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
       int retval;
-      char buffer[20];
+      char buffer[1024];
 
       if (!this->is_autofetch) {
         error = this->get_frame_status();
       } else {
         logwrite( function, " READ IN AUTOFETCH MODE" );
-        retval = this->archon.Read(buffer, 20);
+        retval = this->archon.Read(buffer, 1024);
         std::string buffer_str(buffer);
 
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
