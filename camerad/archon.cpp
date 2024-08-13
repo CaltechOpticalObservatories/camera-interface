@@ -5111,10 +5111,11 @@ namespace Archon {
             this->frame.index = frame_index;
           }
         } else {
-          logwrite( function, "NO AUTOFETCH HEADER FOUND! SLEEP 3 seconds..." );
+          logwrite( function, "NO AUTOFETCH HEADER FOUND! SLEEP 3 seconds...");
+          logwrite( function, "BUFFER: " + buffer_str );
           std::this_thread::sleep_for(std::chrono::seconds(3));
 
-          error = this->get_frame_status();
+          //error = this->get_frame_status();
         }
       }
 
