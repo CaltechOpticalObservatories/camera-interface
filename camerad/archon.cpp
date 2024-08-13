@@ -3569,6 +3569,8 @@ namespace Archon {
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
+    logwrite( function, "RUN EXPOSE: " + nseq_in );
+
     if ( ! this->modeselected ) {
       this->camera.log_error( function, "no mode selected" );
       return ERROR;
