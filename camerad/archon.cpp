@@ -5119,7 +5119,9 @@ namespace Archon {
           // read rest of buffer frame
           retval = this->archon.Read(buffer, 1004);
         } else {
-          logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND!");
+          logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! SLEEP 3 SECONDS...");
+          std::this_thread::sleep_for(std::chrono::seconds(3));
+
           // logwrite( function, "BUFFER CONTENT: " + buffer_str.substr(0, 100) + "..." );
         }
       }
