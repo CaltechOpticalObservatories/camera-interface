@@ -5101,7 +5101,7 @@ namespace Archon {
         retval = this->archon.Read(buffer, 2048);
         std::string buffer_str(buffer);
 
-        size_t autofetchEnd = buffer_str.find('>');
+        size_t autofetchEnd = buffer_str.find("<XF");
 
         if (strncmp(buffer, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "AUTOFETCH HEADER FOUND!" );
