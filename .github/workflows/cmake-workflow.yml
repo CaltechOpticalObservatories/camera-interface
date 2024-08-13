@@ -22,9 +22,7 @@ jobs:
       run: |
         cd ${{github.workspace}}/build
         rm -rf *
-        g++ --version
         cmake ..
-
 
     - name: Build
       run: |
@@ -40,7 +38,7 @@ jobs:
     - name: Start Emulator
       run: |
         cd ${{github.workspace}}
-        bin/emulator Config/demo/demo.cfg &
+        bin/emulator Config/demo/demo.cfg -i generic &
 
     - name: Start camera-daemon
       run: |
@@ -53,10 +51,6 @@ jobs:
         shopt -s expand_aliases
         alias cam="bin/socksend -h localhost -p 3031"
         function check { if [ $1 != "DONE" ]; then echo $1; exit 1; else echo $1; fi }
-        
-        echo "TEST"
-        
-        bin/socksend -h localhost -p 3031 open
 
         echo "TEST 1/2"
 
@@ -70,11 +64,11 @@ jobs:
         
         echo "TEST3"
         
-        # command_exptime=$(cam exptime 1500)
-        # check $command_exptime
+        command_exptime=$(cam exptime 1500)
+        check $command_exptime
         
-        # command_expose=$(cam expose)
-        # check $command_expose
+        command_expose=$(cam expose)
+        check $command_expose
         
         command_printstatus=$(cam printstatus)
         check $command_printstatus
