@@ -5115,7 +5115,8 @@ namespace Archon {
             this->frame.index = frame_index;
           }
 
-          if (int x = buffer_str.find("<XF") != std::string::npos) {
+          int x = buffer_str.find("<XF");
+          if (x != std::string::npos) {
             logwrite( function, "FOUND <XF IN <AUTOFETCH: " + std::to_string(x) );
           }
         } else if(strncmp(header, "<XF", 3) == 0) {
@@ -5125,7 +5126,8 @@ namespace Archon {
           retval = this->archon.Read(buffer, 1024);
           std::string buffer_str(buffer);
 
-          if (int x = buffer_str.find("<XF") != std::string::npos) {
+          int x = buffer_str.find("<XF");
+          if (x != std::string::npos) {
             logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
           }
         } else {
@@ -5136,7 +5138,8 @@ namespace Archon {
           retval = this->archon.Read(buffer, 1024);
           std::string buffer_str(buffer);
 
-          if (int x = buffer_str.find("<XF") != std::string::npos) {
+          int x = buffer_str.find("<XF");
+          if (x != std::string::npos) {
             logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
           }
 
