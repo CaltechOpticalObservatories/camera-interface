@@ -5123,7 +5123,7 @@ namespace Archon {
           logwrite( function, "FOUND XF HEADER");
 
           // read rest of buffer frame
-          retval = this->archon.Read(buffer, 1024);
+          retval = this->archon.Read(buffer, 1008);
           std::string buffer_str(buffer);
 
           int x = buffer_str.find("<XF");
@@ -5135,7 +5135,7 @@ namespace Archon {
           // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
 
           // read rest of buffer frame
-          retval = this->archon.Read(buffer, 1024);
+          retval = this->archon.Read(buffer, 1008);
           std::string buffer_str(buffer);
 
           int x = buffer_str.find("<XF");
