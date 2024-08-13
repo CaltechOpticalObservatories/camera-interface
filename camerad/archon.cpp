@@ -5092,13 +5092,13 @@ namespace Archon {
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
       int retval;
-      char buffer[1024];
+      char buffer[2048];
 
       if (!this->is_autofetch) {
         error = this->get_frame_status();
       } else {
         logwrite( function, " READ IN AUTOFETCH MODE" );
-        retval = this->archon.Read(buffer, 1024);
+        retval = this->archon.Read(buffer, 2048);
         std::string buffer_str(buffer);
 
         size_t autofetchEnd = buffer_str.find('>');
