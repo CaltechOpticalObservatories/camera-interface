@@ -5112,7 +5112,7 @@ namespace Archon {
           }
         } else {
           logwrite( function, "NO AUTOFETCH HEADER FOUND! SLEEP 3 seconds...");
-          logwrite( function, "BUFFER: " + buffer_str );
+          logwrite( function, "BUFFER: " + buffer_str.substr(0, 100) );
           std::this_thread::sleep_for(std::chrono::seconds(3));
 
           //error = this->get_frame_status();
