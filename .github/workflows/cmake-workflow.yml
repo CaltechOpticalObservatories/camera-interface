@@ -56,6 +56,10 @@ jobs:
         
         echo "TEST"
         
+        bin/socksend -h localhost -p 3031 open
+
+        echo "TEST 1/2"
+
         command_open=$(cam open)
         check $command_open
         
