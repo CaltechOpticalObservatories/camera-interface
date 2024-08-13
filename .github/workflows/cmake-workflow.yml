@@ -54,11 +54,17 @@ jobs:
         alias cam="bin/socksend -h localhost -p 3031"
         function check { if [ $1 != "DONE" ]; then echo $1; exit 1; else echo $1; fi }
         
+        echo "TEST"
+        
         command_open=$(cam open)
         check $command_open
         
+        echo "TEST2"
+        
         command_load=$(cam load)
         check $command_load
+        
+        echo "TEST3"
         
         # command_exptime=$(cam exptime 1500)
         # check $command_exptime
