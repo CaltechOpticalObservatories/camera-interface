@@ -45,6 +45,10 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 set(CMAKE_C_COMPILER /usr/bin/g++)
 set(CMAKE_CXX_COMPILER /usr/bin/g++)
 
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    include_directories(/usr/local/include)
+endif()
+
 find_package(Threads)
 
 add_subdirectory(${PROJECT_BASE_DIR}/utils)
