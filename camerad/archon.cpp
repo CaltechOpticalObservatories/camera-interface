@@ -5093,7 +5093,7 @@ namespace Archon {
 
       int retval;
       char header[20];
-      char buffer[1266];
+      char buffer[1264];
 
       if (!this->is_autofetch) {
         error = this->get_frame_status();
@@ -5107,7 +5107,7 @@ namespace Archon {
           const int frame_index = std::stoi(header_str.substr(13, 1));
 
           // read rest of buffer frame
-          retval = this->archon.Read(buffer, 1246);
+          retval = this->archon.Read(buffer, 1244);
           std::string buffer_str(buffer);
 
           if (this->frame.index != frame_index) {
@@ -5124,7 +5124,7 @@ namespace Archon {
           logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! SLEEP 3 SECONDS...");
           std::this_thread::sleep_for(std::chrono::seconds(3));
 
-          // logwrite( function, "BUFFER CONTENT: " + buffer_str.substr(0, 100) + "..." );
+          logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
         }
       }
 
