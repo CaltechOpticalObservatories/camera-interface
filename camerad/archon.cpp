@@ -5296,6 +5296,8 @@ namespace Archon {
           }
         } else {
           logwrite( function, "Nothing to read on socket" );
+          std::this_thread::sleep_for(std::chrono::milliseconds(500));
+          continue;
         }
       }
 
