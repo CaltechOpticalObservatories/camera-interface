@@ -69,6 +69,8 @@ namespace Camera {
         std::map<int, int> readout_time;
         //!< readout time in msec for given controller device number, read from .cfg file
 
+        std::string power_status;              //!< archon power status
+
         void log_error(std::string function, std::string message);
 
         std::string get_longerror();

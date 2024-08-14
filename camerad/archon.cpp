@@ -103,6 +103,108 @@ namespace Archon {
   }
   /**************** Archon::Interface::interface ******************************/
 
+  /***** Archon::Interface::do_power ******************************************/
+  /**
+   * @brief      set/get the power state
+   * @param[in]  state_in    input string contains requested power state
+   * @param[out] retstring   return string contains the current power state
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::do_power(std::string state_in, std::string &retstring) {
+    std::string function = "Archon::Interface::do_power";
+    std::stringstream message;
+    long error = ERROR;
+
+    if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
+      this->camera.log_error( function, "connection not open to controller" );
+      return( ERROR );
+    }
+
+    // set the Archon power state as requested
+    //
+    if ( !state_in.empty() ) {                                  // received something
+      std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
+      if ( state_in == "ON" ) {
+        error = this->archon_cmd( POWERON );                    // send POWERON command to Archon
+        if ( error == NO_ERROR ) std::this_thread::sleep_for( std::chrono::seconds(2) );         // wait 2s to ensure power is stable
+      }
+      else
+      if ( state_in == "OFF" ) {
+        error = this->archon_cmd( POWEROFF );                   // send POWEROFF command to Archon
+        if ( error == NO_ERROR ) std::this_thread::sleep_for( std::chrono::milliseconds(200) );  // wait 200ms to ensure power is off
+      }
+      else {
+        message.str(""); message << "unrecognized argument " << state_in << ": expected {on|off}";
+        this->camera.log_error( function, message.str() );
+        return( ERROR );
+      }
+      if ( error != NO_ERROR ) {
+        message.str(""); message << "setting Archon power " << state_in;
+        this->camera.log_error( function, message.str() );
+        return( ERROR );
+      }
+    }
+
+    // Read the Archon power state directly from Archon
+    //
+    std::string power;
+    error = get_status_key( "POWER", power );
+
+    if ( error != NO_ERROR ) return( ERROR );
+
+    int status=-1;
+
+    try { status = std::stoi( power ); }
+    catch (std::invalid_argument &) {
+      this->camera.log_error( function, "unable to convert power status message to integer" );
+      return(ERROR);
+    }
+    catch (std::out_of_range &) {
+      this->camera.log_error( function, "power status out of range" );
+      return(ERROR);
+    }
+
+    // set the power status (or not) depending on the value extracted from the STATUS message
+    //
+    switch( status ) {
+      case -1:                                                  // no POWER token found in status message
+        this->camera.log_error( function, "unable to find power in Archon status message" );
+        return( ERROR );
+      case  0:                                                  // usually an internal error
+        this->camera.power_status = "UNKNOWN";
+        break;
+      case  1:                                                  // no configuration applied
+        this->camera.power_status = "NOT_CONFIGURED";
+        break;
+      case  2:                                                  // power is off
+        this->camera.power_status = "OFF";
+        break;
+      case  3:                                                  // some modules powered, some not
+        this->camera.power_status = "INTERMEDIATE";
+        break;
+      case  4:                                                  // power is on
+        this->camera.power_status = "ON";
+        break;
+      case  5:                                                  // system is in standby
+        this->camera.power_status = "STANDBY";
+        break;
+      default:                                                  // should be impossible
+        message.str(""); message << "unknown power status: " << status;
+        this->camera.log_error( function, message.str() );
+        return( ERROR );
+    }
+
+    message.str(""); message << "POWER:" << this->camera.power_status;
+    this->camera.async.enqueue( message.str() );
+
+    retstring = this->camera.power_status;
+
+    return(NO_ERROR);
+  }
+  /***** Archon::Interface::do_power ******************************************/
+
+
 
   /***** Archon::Interface::configure_controller ******************************/
   /**
@@ -3546,6 +3648,46 @@ namespace Archon {
   /**************** Archon::Interface::add_filename_key ***********************/
 
 
+  /***** Archon::Interface::get_status_key ************************************/
+  /**
+   * @brief      get value for the indicated key from the Archon "STATUS" string
+   * @param[in]  key    key to extract from STATUS
+   * @param[out] value  value of key
+   * @return     ERROR or NO_ERROR
+   *
+   */
+  long Interface::get_status_key( std::string key, std::string &value ) {
+      std::string function = "Archon::Interface::get_status_key";
+      std::stringstream message;
+      std::string reply;
+
+      long error = this->archon_cmd( STATUS, reply );  // first the whole reply in one string
+
+      if ( error != NO_ERROR ) return error;
+
+      std::vector<std::string> lines, tokens;
+      Tokenize( reply, lines, " " );                   // then each line in a separate token "lines"
+
+      for ( auto line : lines ) {
+          Tokenize( line, tokens, "=" );                 // break each line into tokens to get KEY=value
+          if ( tokens.size() != 2 ) continue;            // need 2 tokens
+          try {
+              if ( tokens.at(0) == key ) {                 // looking for the KEY
+                  value = tokens.at(1);                      // found the KEY= status here
+                  break;                                     // done looking
+              } else continue;
+          }
+          catch (std::out_of_range &) {                  // should be impossible
+              this->camera.log_error( function, "token out of range" );
+              return(ERROR);
+          }
+      }
+
+      return( NO_ERROR );
+  }
+  /***** Archon::Interface::get_status_key ************************************/
+
+
   /**************** Archon::Interface::expose *********************************/
   /**
    * @fn     expose
@@ -3922,9 +4064,9 @@ namespace Archon {
     * @return ERROR or NO_ERROR
     *
     * NOTE: this assumes LVDS is module 10
-    * This function does the following:
-    *  1) Pulse low on MainResetB
-    *  2) sets output to Pad B and HIGHOHM
+    * This function sets output to Pad B and HIGHOHM
+    * The register reset of H2RGMainReset is already done
+    * if you power on and then setp Start 1
     *
     */
     long Interface::hsetup() {
@@ -3933,17 +4075,13 @@ namespace Archon {
         std::string reg;
         long error = NO_ERROR;
 
-        // H2RG manual says to pull this value low for 100 ns
-        // however, currently it is pulled low for ~1000 usec
-        this->set_parameter("H2RGMainReset", 1);
-        usleep(1500);  // to be sure we are done with the reset
-        this->set_parameter("H2RGMainReset", 0);
-        usleep(1000);  // to be sure we are done with the reset
-
         // Enable output to Pad B and HIGHOHM
         error = this->inreg("10 1 16402");      // 0100 000000010010
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
+        std::this_thread::sleep_for(std::chrono::seconds(1));
 
         if (error != NO_ERROR) {
             message.str(""); message << "enabling output to Pad B and HIGHOHM";

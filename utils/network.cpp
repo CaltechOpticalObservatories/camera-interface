@@ -605,11 +605,9 @@ namespace Network {
   /**************** Network::TcpSocket::Poll **********************************/
 
 
-  /**************** Network::TcpSocket::Connect *******************************/
+  /***** Network::TcpSocket::Connect ******************************************/
   /**
-   * @fn         Connect
    * @brief      connect to this->host on this->port
-   * @param[in]  none
    * @return     0 on success, -1 on error
    *
    * this->host and this->port need to be specified prior to calling Connect()
@@ -617,10 +615,13 @@ namespace Network {
    *
    * getaddrinfo() will allocate memory which must be freed by TcpSocket::Close()
    *
+   * connect will timeout after CONNECT_TIMEOUT_SEC seconds (defined in network.h)
+   *
    */
   int TcpSocket::Connect() {
     std::string function = "Network::TcpSocket::Connect";
     std::stringstream errstm;
+    int flags=-1;
 
     struct addrinfo hints = {0};       /// destination for getaddrinfo
 
@@ -638,7 +639,7 @@ namespace Network {
       errstm << "error " << errno << " connecting to " << this->host << "/" << this->port
                          << " : " << gai_strerror(status);
       logwrite(function, errstm.str());
-      return(-1);
+      return -1;
     }
 
     // Loop though the results returned by getaddrinfo and attempt to create a socket and connect to it.
@@ -651,36 +652,95 @@ namespace Network {
 
       if (this->fd == -1) continue;    // try another entry in the sock addr struct
 
+      // before setting to non-block get the current flags
+      //
+      if ((flags = fcntl(this->fd, F_GETFL, 0)) < 0) {
+        errstm << "error " << errno << " getting socket file descriptor flags: " << std::strerror(errno);
+        logwrite(function, errstm.str());
+        return -1;
+      }
+
+      // set socket to non-blocking so that it can timeout on failure to connect
+      //
+      if ( fcntl( this->fd, F_SETFL, flags | O_NONBLOCK ) == -1 ) {
+        errstm << "error " << errno << " setting non-block flag on fd " << this->fd << ": " << std::strerror(errno);
+        logwrite(function, errstm.str());
+        return -1;
+      }
+
       // connect to the socket file descriptor
       //
-      if ( connect( this->fd, sa->ai_addr, sa->ai_addrlen ) == -1 ) {
+      int retval = connect( this->fd, sa->ai_addr, sa->ai_addrlen );
+      if ( retval == 0 ) {
+        break;                                  // connected immediately
+      }
+      else if ( retval == -1 && errno == EINPROGRESS ) {
+        // didn't connect immediately so call select to wait for it,
+        // which will provide the timeout mechanism
+        //
+        struct timeval timeout;
+        timeout.tv_sec  = CONNECT_TIMEOUT_SEC;  // timeout in seconds
+        timeout.tv_usec = 0;
+        fd_set wfds;                            // set of write file descriptors for select
+        FD_ZERO( &wfds );                       // zero the set
+        FD_SET( this->fd, &wfds );              // add this fd to the set
+
+        // on success, select will return the number of fds ready
+        //
+        retval = select( this->fd+1, NULL, &wfds, NULL, &timeout );
+        if ( retval == 0 ) {                    // none ready is timeout
+          errstm << "timeout (" << errno << ") connecting to " << this->host << "/" << this->port
+                 << ": " << std::strerror(errno);
+          logwrite(function, errstm.str());
+          return -1;
+        }
+        if ( retval == -1 ) {                   // error calling select
+          errstm << "error " << errno << " connecting to " << this->host << "/" << this->port
+                 << " on fd " << this->fd << ": " << std::strerror(errno);
+          logwrite(function, errstm.str());
+          return -1;
+        }
+
+        // select got an fd but still must check if socket is usable
+        //
+        int err;
+        socklen_t len = sizeof(err);
+        retval = getsockopt( this->fd, SOL_SOCKET, SO_ERROR, &err, &len );
+        if ( retval != 0 ) {
+          errstm << "error " << errno << " getting socket error code for fd " << this->fd << ": " << std::strerror(errno);
+          logwrite(function, errstm.str());
+          return -1;
+        }
+        if ( err != 0 ) {
+          errstm << "error " << errno << " connecting to " << this->host << "/" << this->port
+                 << " on fd " << this->fd << ": " << std::strerror(errno);
+          logwrite(function, errstm.str());
+          return -1;
+        }
+
+        break;  // by now it's a success
+      }
+      else {
         errstm << "error " << errno << " connecting to " << this->host << "/" << this->port 
                            << " on fd " << this->fd << ": " << std::strerror(errno);
         logwrite(function, errstm.str());
-        return (-1);
-      } else break;
+        return -1;
+      }
     }
 
-    int flags;
-    if ((flags = fcntl(this->fd, F_GETFL, 0)) < 0) {
-      errstm << "error " << errno << " getting socket file descriptor flags: " << std::strerror(errno);
-      logwrite(function, errstm.str());
-      return(-1);
-    }
-
-//  flags |= O_NONBLOCK;
-
-    if (fcntl(this->fd, F_SETFL, flags) < 0) {
+    // restore flags
+    //
+    if ( flags >= 0 && (fcntl(this->fd, F_SETFL, flags) < 0) ) {
       errstm << "error " << errno << " setting socket file descriptor flags: " << std::strerror(errno);
       logwrite(function, errstm.str());
-      return(-1);
+      return -1;
     }
 
     this->connection_open = (this->fd >= 0 ? true : false);
 
     return (this->fd >= 0 ? 0 : -1);
   }
-  /**************** Network::TcpSocket::Connect *******************************/
+  /***** Network::TcpSocket::Connect ******************************************/
 
 
   /**************** Network::TcpSocket::Close *********************************/

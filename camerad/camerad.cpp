@@ -795,6 +795,12 @@ void doit(Network::TcpSocket sock) {
             ret = server.interface(retstring);
             sock.Write(retstring);
             sock.Write(" ");
+        } else if (cmd =="power") {
+            ret = server.power( args, retstring );
+            if (!retstring.empty()) {
+                sock.Write(retstring);
+                sock.Write(" ");
+            }
         } else if (cmd == "test") {
             ret = server.test(args, retstring);
             if (!retstring.empty()) {
