@@ -5225,6 +5225,8 @@ namespace Archon {
     double clock_now     = get_clock_time();                   // get_clock_time returns seconds
     double clock_timeout = clock_now + waittime/1000.;         // must receive frame by this time
 
+    unsigned int xf_package_counter = 0;
+
     // Poll frame status until current frame is not the last frame and the buffer is ready to read.
     // The last frame was recorded before the readout was triggered in get_frame().
     //
@@ -5262,7 +5264,7 @@ namespace Archon {
             logwrite( function, "AUTOFETCH HEADER: " + header_str + buffer_str);
 
             // stop after printing the autofetch header
-            break;
+            //break;
 
             if (this->frame.index != frame_index) {
               logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
@@ -5275,6 +5277,9 @@ namespace Archon {
             }
           } else if(strncmp(header, "<XF", 3) == 0) {
             logwrite( function, "FOUND XF HEADER");
+
+            // increase xf counter
+            xf_package_counter++;
 
             // read rest of buffer frame
             retval = this->archon.Read(buffer, 1008);
@@ -5298,7 +5303,7 @@ namespace Archon {
             }
           }
         } else {
-          logwrite( function, "Nothing to read on socket" );
+          logwrite( function, "Nothing to read on socket, xf counter: " + std::to_string(xf_package_counter) );
           std::this_thread::sleep_for(std::chrono::milliseconds(500));
           continue;
         }
