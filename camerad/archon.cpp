@@ -5245,9 +5245,6 @@ namespace Archon {
         logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
         if (this->archon.Bytes_ready() > 0) {
-          logwrite( function, "+Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
-          break;
-
           retval = this->archon.Read(header, 20);
           std::string header_str(header);
           if (retval <= 0) {
