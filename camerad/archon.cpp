@@ -5241,10 +5241,14 @@ namespace Archon {
         logwrite( function, "READ IN AUTOFETCH MODE" );
         retval = this->archon.Read(header, 20);
         std::string header_str(header);
+        if (retval <= 0) {
+          this->camera.log_error( function, "reading Archon" );
+          break;
+        }
 
         if (strncmp(header, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "AUTOFETCH HEADER FOUND!" );
-          const int frame_index = std::stoi(header_str.substr(13, 1));
+          const unsigned int frame_index = std::stoi(header_str.substr(13, 1));
 
           // read rest of buffer frame
           retval = this->archon.Read(buffer, 1244);
@@ -5323,7 +5327,7 @@ namespace Archon {
       // enough time has passed to trigger a timeout error.
       //
 
-      logwrite( function, "CHECKING FROM TIMEOUT");
+      logwrite( function, "CHECKING FOR TIMEOUT");
       if (clock_now > clock_timeout) {
         logwrite( function, "TIMED OUT");
         done = true;
