@@ -884,6 +884,8 @@ namespace Network {
     char buf[2];
     memset(buf,'\0',2);
 
+    logwrite( function, "Reading from socket");
+
     // get the time now for timeout purposes
     //
     std::chrono::steady_clock::time_point tstart = std::chrono::steady_clock::now();
@@ -910,6 +912,7 @@ namespace Network {
 
       auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tnow - tstart).count();
 
+      logwrite( function, "POLLTIMEOUT: " + POLLTIMEOUT);
       if ( elapsed > POLLTIMEOUT ) {
         message << "ERROR: timeout waiting for data on fd " << this->fd;
         logwrite( function, message.str() );
