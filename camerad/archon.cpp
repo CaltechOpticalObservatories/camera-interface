@@ -5293,7 +5293,7 @@ namespace Archon {
           logwrite( function, "Nothing to read on socket" );
           break;
         }
-
+      }
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
       // (300 attempts, ~10000us between attempts)
