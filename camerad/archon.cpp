@@ -5322,7 +5322,10 @@ namespace Archon {
       // If the frame isn't done by the predicted time then
       // enough time has passed to trigger a timeout error.
       //
+
+      logwrite( function, "CHECKING FROM TIMEOUT");
       if (clock_now > clock_timeout) {
+        logwrite( function, "TIMED OUT");
         done = true;
         error = ERROR;
         message.str(""); message << "timeout waiting for new frame exceeded " << waittime << ". lastframe = " << this->lastframe;
