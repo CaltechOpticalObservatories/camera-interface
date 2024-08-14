@@ -5239,56 +5239,60 @@ namespace Archon {
         error = this->get_frame_status();
       } else {
         logwrite( function, "READ IN AUTOFETCH MODE" );
-        retval = this->archon.Read(header, 20);
-        std::string header_str(header);
-        if (retval <= 0) {
-          this->camera.log_error( function, "reading Archon" );
-          break;
-        }
-        logwrite( function, "READING HEADER DONE" );
-
-        if (strncmp(header, "<SFAUTOFETCH", 12) == 0) {
-          logwrite( function, "AUTOFETCH HEADER FOUND!" );
-          const int frame_index = std::stoi(header_str.substr(13, 1));
-
-          // read rest of buffer frame
-          retval = this->archon.Read(buffer, 1244);
-          std::string buffer_str(buffer);
-
-          if (this->frame.index != frame_index) {
-            logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
-            this->frame.index = frame_index;
+        if (this->archon.Bytes_ready() > 0) {
+          retval = this->archon.Read(header, 20);
+          std::string header_str(header);
+          if (retval <= 0) {
+            this->camera.log_error( function, "reading Archon" );
+            break;
           }
+          logwrite( function, "READING HEADER DONE" );
 
-          long unsigned int x = buffer_str.find("<XF");
-          if (x != std::string::npos) {
-            logwrite( function, "FOUND <XF IN <AUTOFETCH: " + std::to_string(x) );
-          }
-        } else if(strncmp(header, "<XF", 3) == 0) {
-          logwrite( function, "FOUND XF HEADER");
+          if (strncmp(header, "<SFAUTOFETCH", 12) == 0) {
+            logwrite( function, "AUTOFETCH HEADER FOUND!" );
+            const int frame_index = std::stoi(header_str.substr(13, 1));
 
-          // read rest of buffer frame
-          retval = this->archon.Read(buffer, 1008);
-          std::string buffer_str(buffer);
+            // read rest of buffer frame
+            retval = this->archon.Read(buffer, 1244);
+            std::string buffer_str(buffer);
 
-          long unsigned int x = buffer_str.find("<XF");
-          if (x != std::string::npos) {
-            logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
+            if (this->frame.index != frame_index) {
+              logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
+              this->frame.index = frame_index;
+            }
+
+            long unsigned int x = buffer_str.find("<XF");
+            if (x != std::string::npos) {
+              logwrite( function, "FOUND <XF IN <AUTOFETCH: " + std::to_string(x) );
+            }
+          } else if(strncmp(header, "<XF", 3) == 0) {
+            logwrite( function, "FOUND XF HEADER");
+
+            // read rest of buffer frame
+            retval = this->archon.Read(buffer, 1008);
+            std::string buffer_str(buffer);
+
+            long unsigned int x = buffer_str.find("<XF");
+            if (x != std::string::npos) {
+              logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
+            }
+          } else {
+            logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! ");
+            // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
+
+            // read rest of buffer frame
+            retval = this->archon.Read(buffer, 1008);
+            std::string buffer_str(buffer);
+
+            long unsigned int x = buffer_str.find("<XF");
+            if (x != std::string::npos) {
+              logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
+            }
           }
         } else {
-          logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! ");
-          // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
-
-          // read rest of buffer frame
-          retval = this->archon.Read(buffer, 1008);
-          std::string buffer_str(buffer);
-
-          long unsigned int x = buffer_str.find("<XF");
-          if (x != std::string::npos) {
-            logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
-          }
+          logwrite( function, "Nothing to read on socket" );
+          break;
         }
-      }
 
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
