@@ -5226,6 +5226,7 @@ namespace Archon {
     double clock_timeout = clock_now + waittime/1000.;         // must receive frame by this time
 
     unsigned int xf_package_counter = 0;
+    bool found_autofetch_header = false;
 
     // Poll frame status until current frame is not the last frame and the buffer is ready to read.
     // The last frame was recorded before the readout was triggered in get_frame().
@@ -5257,6 +5258,7 @@ namespace Archon {
 
           if (strncmp(header, "<SFAUTOFETCH", 12) == 0) {
             logwrite( function, "AUTOFETCH HEADER FOUND!" );
+            found_autofetch_header = true;
             const int frame_index = std::stoi(header_str.substr(13, 1));
             currentframe = this->frame.bufframen[this->frame.index];
 
@@ -5267,7 +5269,7 @@ namespace Archon {
             logwrite( function, "AUTOFETCH HEADER: " + header_str + buffer_str);
 
             // stop after printing the autofetch header
-            break;
+            // break;
 
             if (this->frame.index != frame_index) {
               logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
@@ -5308,6 +5310,9 @@ namespace Archon {
         } else {
           logwrite( function, "Nothing to read on socket, xf counter: " + std::to_string(xf_package_counter) );
           std::this_thread::sleep_for(std::chrono::milliseconds(500));
+          if (found_autofetch_header) {
+            done = true;
+          }
           continue;
         }
       }
