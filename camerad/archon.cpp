@@ -5239,7 +5239,8 @@ namespace Archon {
         error = this->get_frame_status();
       } else {
         logwrite( function, "READ IN AUTOFETCH MODE" );
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+        std::this_thread::sleep_for(std::chrono::seconds(3));
 
         if (this->archon.Bytes_ready() > 0) {
           retval = this->archon.Read(header, 20);
