@@ -5248,7 +5248,7 @@ namespace Archon {
 
         if (strncmp(header, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "AUTOFETCH HEADER FOUND!" );
-          const unsigned int frame_index = std::stoi(header_str.substr(13, 1));
+          const int frame_index = std::stoi(header_str.substr(13, 1));
 
           // read rest of buffer frame
           retval = this->archon.Read(buffer, 1244);
@@ -5259,7 +5259,7 @@ namespace Archon {
             this->frame.index = frame_index;
           }
 
-          int x = buffer_str.find("<XF");
+          long unsigned int x = buffer_str.find("<XF");
           if (x != std::string::npos) {
             logwrite( function, "FOUND <XF IN <AUTOFETCH: " + std::to_string(x) );
           }
@@ -5270,7 +5270,7 @@ namespace Archon {
           retval = this->archon.Read(buffer, 1008);
           std::string buffer_str(buffer);
 
-          int x = buffer_str.find("<XF");
+          long unsigned int x = buffer_str.find("<XF");
           if (x != std::string::npos) {
             logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
           }
@@ -5284,7 +5284,7 @@ namespace Archon {
           retval = this->archon.Read(buffer, 1008);
           std::string buffer_str(buffer);
 
-          int x = buffer_str.find("<XF");
+          long unsigned int x = buffer_str.find("<XF");
           if (x != std::string::npos) {
             logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
           }
@@ -5315,21 +5315,21 @@ namespace Archon {
 
       logwrite( function, "GET CURRENT FRAME" );
 
-      // get current frame number and check the status of its buffer
-      currentframe = this->frame.bufframen[this->frame.index];
-      if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
-        done  = true;
-        error = NO_ERROR;
-        break;
+      if (!this->is_autofetch) {
+        // get current frame number and check the status of its buffer
+        currentframe = this->frame.bufframen[this->frame.index];
+        if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
+          done  = true;
+          error = NO_ERROR;
+          break;
+        }
       }
 
       // If the frame isn't done by the predicted time then
       // enough time has passed to trigger a timeout error.
       //
-
       logwrite( function, "CHECKING FOR TIMEOUT");
       if (clock_now > clock_timeout) {
-        logwrite( function, "TIMED OUT");
         done = true;
         error = ERROR;
         message.str(""); message << "timeout waiting for new frame exceeded " << waittime << ". lastframe = " << this->lastframe;
