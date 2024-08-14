@@ -5245,6 +5245,7 @@ namespace Archon {
           this->camera.log_error( function, "reading Archon" );
           break;
         }
+        logwrite( function, "READING HEADER DONE" );
 
         if (strncmp(header, "<SFAUTOFETCH", 12) == 0) {
           logwrite( function, "AUTOFETCH HEADER FOUND!" );
@@ -5286,8 +5287,6 @@ namespace Archon {
           if (x != std::string::npos) {
             logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
           }
-
-          std::this_thread::sleep_for(std::chrono::seconds(1));
         }
       }
 
@@ -5313,20 +5312,17 @@ namespace Archon {
 
       logwrite( function, "GET CURRENT FRAME" );
 
-      if (!this->is_autofetch) {
-        // get current frame number and check the status of its buffer
-        currentframe = this->frame.bufframen[this->frame.index];
-        if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
-          done  = true;
-          error = NO_ERROR;
-          break;
-        }
+      // get current frame number and check the status of its buffer
+      currentframe = this->frame.bufframen[this->frame.index];
+      if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
+        done  = true;
+        error = NO_ERROR;
+        break;
       }
 
       // If the frame isn't done by the predicted time then
       // enough time has passed to trigger a timeout error.
       //
-      logwrite( function, "CHECKING FOR TIMEOUT");
       if (clock_now > clock_timeout) {
         done = true;
         error = ERROR;
