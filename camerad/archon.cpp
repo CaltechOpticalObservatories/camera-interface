@@ -5240,6 +5240,8 @@ namespace Archon {
       } else {
         logwrite( function, "READ IN AUTOFETCH MODE" );
         if (this->archon.Bytes_ready() > 0) {
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+
           retval = this->archon.Read(header, 20);
           std::string header_str(header);
           if (retval <= 0) {
@@ -5291,6 +5293,7 @@ namespace Archon {
           }
         } else {
           logwrite( function, "Nothing to read on socket" );
+          break;
         }
       }
 
