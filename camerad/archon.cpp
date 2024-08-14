@@ -4061,11 +4061,11 @@ namespace Archon {
 
         // Enable output to Pad B and HIGHOHM
         error = this->inreg("10 1 16402");      // 0100 000000010010
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
 
         if (error != NO_ERROR) {
             message.str(""); message << "enabling output to Pad B and HIGHOHM";
