@@ -1128,6 +1128,8 @@ namespace Archon {
     std::stringstream scmd;
     long error = NO_ERROR;
 
+    logwrite( function, "PREP PARAMETER: " + paramname );
+
     // Prepare to apply it to the system -- will be loaded on next EXTLOAD signal
     //
     scmd << "FASTPREPPARAM " << paramname << " " << value;
