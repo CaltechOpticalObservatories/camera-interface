@@ -5240,7 +5240,6 @@ namespace Archon {
       } else {
         logwrite( function, "READ IN AUTOFETCH MODE" );
         logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
-        std::this_thread::sleep_for(std::chrono::seconds(2));
 
         if (this->archon.Bytes_ready() > 0) {
           retval = this->archon.Read(header, 20);
@@ -5254,10 +5253,13 @@ namespace Archon {
           if (strncmp(header, "<SFAUTOFETCH", 12) == 0) {
             logwrite( function, "AUTOFETCH HEADER FOUND!" );
             const int frame_index = std::stoi(header_str.substr(13, 1));
+            currentframe = this->frame.bufframen[this->frame.index];
 
             // read rest of buffer frame
             retval = this->archon.Read(buffer, 1244);
             std::string buffer_str(buffer);
+
+            logwrite( function, "AUTOFETCH HEADER: " + header_str + buffer_str);
 
             if (this->frame.index != frame_index) {
               logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
@@ -5294,7 +5296,6 @@ namespace Archon {
           }
         } else {
           logwrite( function, "Nothing to read on socket" );
-          break;
         }
       }
 
