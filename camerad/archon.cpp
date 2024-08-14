@@ -5274,8 +5274,6 @@ namespace Archon {
           if (x != std::string::npos) {
             logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
           }
-
-          std::this_thread::sleep_for(std::chrono::microseconds(500));
         } else {
           logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! ");
           // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
