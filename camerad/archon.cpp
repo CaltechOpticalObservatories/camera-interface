@@ -4059,20 +4059,13 @@ namespace Archon {
         std::string reg;
         long error = NO_ERROR;
 
-        // H2RG manual says to pull this value low for 100 ns
-        // however, currently it is pulled low for ~1000 usec
-        this->set_parameter("H2RGMainReset", 1);
-        usleep(1000);  // to be sure we are done with the reset
-        this->set_parameter("H2RGMainReset", 0);
-        usleep(1000);  // to be sure we are done with the reset
-
         // Enable output to Pad B and HIGHOHM
         error = this->inreg("10 1 16402");      // 0100 000000010010
-        usleep(1000);
+        sleep(1);
         if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
-        usleep(1000);
+        sleep(1);
         if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-        usleep(1000);
+        sleep(1);
 
         if (error != NO_ERROR) {
             message.str(""); message << "enabling output to Pad B and HIGHOHM";
