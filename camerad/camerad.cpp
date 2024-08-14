@@ -755,6 +755,9 @@ void doit(Network::TcpSocket sock) {
         } else if (cmd == "trigin") {
             ret = server.trigin(args);
         }
+        else if ( cmd == "fetchlog" ) {
+          ret = server.fetchlog();
+        }
 #endif
         else if (cmd == "expose") {
             ret = server.expose(args);
