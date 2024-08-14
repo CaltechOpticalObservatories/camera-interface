@@ -4048,9 +4048,9 @@ namespace Archon {
     * @return ERROR or NO_ERROR
     *
     * NOTE: this assumes LVDS is module 10
-    * This function does the following:
-    *  1) Pulse low on MainResetB
-    *  2) sets output to Pad B and HIGHOHM
+    * This function sets output to Pad B and HIGHOHM
+    * The register reset of H2RGMainReset is already done
+    * if you power on and then setp Start 1
     *
     */
     long Interface::hsetup() {
