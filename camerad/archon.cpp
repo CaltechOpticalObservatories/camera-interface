@@ -5261,6 +5261,9 @@ namespace Archon {
 
             logwrite( function, "AUTOFETCH HEADER: " + header_str + buffer_str);
 
+            // stop after printing the autofetch header
+            break;
+
             if (this->frame.index != frame_index) {
               logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
               this->frame.index = frame_index;
