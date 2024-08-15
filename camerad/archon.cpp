@@ -4016,11 +4016,11 @@ namespace Archon {
               // const int frame_index = std::stoi(header_str.substr(13, 1));
 
               // Read rest of autofetch header
-              retval = this->archon.Read(autofetch_header, 244);
+              retval = this->archon.Read(autofetch_header, 236);
               std::string autofetch_header_str(autofetch_header);
 
               // read rest of buffer frame
-              retval = this->archon.Read(buffer, 1016);
+              retval = this->archon.Read(buffer, 1024);
               std::string buffer_str(buffer);
 
               logwrite( function, "AUTOFETCH HEADER: " + header_str);
@@ -4046,7 +4046,7 @@ namespace Archon {
               xf_package_counter++;
 
               // read rest of buffer frame
-              retval = this->archon.Read(buffer, 1016);
+              retval = this->archon.Read(buffer, 1024);
               std::string buffer_str(buffer);
 
               long unsigned int x = buffer_str.find("<XF");
@@ -4058,7 +4058,7 @@ namespace Archon {
               // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
 
               // read rest of buffer frame
-              retval = this->archon.Read(buffer, 1016);
+              retval = this->archon.Read(buffer, 1024);
               std::string buffer_str(buffer);
 
               long unsigned int x = buffer_str.find("<XF");
@@ -4072,15 +4072,15 @@ namespace Archon {
             continue;
           }
 
-          do {
-            toread = BLOCK_LEN - bytesread;
-            if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-              bytesread += retval;         // this will get zeroed after each block
-              totalbytesread += retval;    // this won't (used only for info purposes)
-              std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-              ptr_image += retval;         // advance pointer
-            }
-          } while (bytesread < BLOCK_LEN);
+          // do {
+          //   toread = BLOCK_LEN - bytesread;
+          //   if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+          //     bytesread += retval;         // this will get zeroed after each block
+          //     totalbytesread += retval;    // this won't (used only for info purposes)
+          //     std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+          //     ptr_image += retval;         // advance pointer
+          //   }
+          // } while (bytesread < BLOCK_LEN);
 
         } else {
           error = read_frame();                                           // then read the frame buffer to host (and write file) when frame ready.
