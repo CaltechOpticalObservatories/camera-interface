@@ -3985,7 +3985,7 @@ namespace Archon {
           int retval;
           // int bufready;
           // char check[5];
-          char autofetch_header[248];
+          char autofetch_header[300];
           char header[4];
           char *ptr_image;
           int bytesread, totalbytesread, toread;
@@ -4016,7 +4016,7 @@ namespace Archon {
               // const int frame_index = std::stoi(header_str.substr(13, 1));
 
               // Read rest of autofetch header
-              retval = this->archon.Read(autofetch_header, 236);
+              retval = this->archon.Read(autofetch_header, 300);
               std::string autofetch_header_str(autofetch_header);
 
               // read rest of buffer frame
@@ -4034,7 +4034,7 @@ namespace Archon {
               //   this->frame.index = frame_index;
               // }
 
-              unsigned int x;
+              long unsigned int x;
               if (x != std::string::npos) {
                 x = buffer_str.find("<XF");
                 logwrite( function, "FOUND <XF IN <AUTOFETCH: " + std::to_string(x) );
