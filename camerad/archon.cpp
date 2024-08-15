@@ -1694,20 +1694,27 @@ namespace Archon {
           if (line.find_first_of('=', 0) == std::string::npos) {
             continue;
           }
+
           Tokenize(line, tokens, "=");                            // separate into KEY, VALUE tokens
           if (tokens.empty()) {
             continue;                                             // nothing to do here if no tokens (ie no "=")
           }
-          if (!tokens.empty() ) {                               // at least one token is the key
-            key   = tokens[0];                                    // KEY
-            value = "";                                           // VALUE can be empty (e.g. labels not required)
-            this->configmap[ tokens[0] ].line  = linecount;
-            this->configmap[ tokens[0] ].value = value;
-          }
-          if (tokens.size() > 1 ) {                               // if a second token then that's the value
+
+          key = tokens[0];                                        // not empty so at least one token is the KEY
+          value.clear();                                          // VALUE can be empty (e.g. labels not required)
+
+          if ( tokens.size() > 1 ) {                              // at least one more token is the value
             value = tokens[1];                                    // VALUE (there is a second token)
-            this->configmap[ tokens[0] ].value = tokens[1];
           }
+
+          if ( tokens.size() > 2 ) {                              // more tokens are possible
+            for ( size_t i=2; i<tokens.size(); ++i ) {            // loop through remaining tokens
+              value += "=" + tokens[i];                           // and put them back together as the VALUE
+            }
+          }
+
+          this->configmap[ tokens[0] ].line  = linecount;
+          this->configmap[ tokens[0] ].value = value;
       } // end else
 
       // Form the WCONFIG command to Archon and
