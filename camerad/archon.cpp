@@ -4016,7 +4016,7 @@ namespace Archon {
               // const int frame_index = std::stoi(header_str.substr(13, 1));
 
               // Read rest of autofetch header
-              retval = this->archon.Read(autofetch_header, 300);
+              retval = this->archon.Read(autofetch_header, 600);
               std::string autofetch_header_str(autofetch_header);
 
               // read rest of buffer frame
@@ -4028,11 +4028,6 @@ namespace Archon {
 
               // stop after printing the autofetch header
               // break;
-
-              // if (this->frame.index != frame_index) {
-              //   logwrite( function, "SET FRAME INDEX TO: " + std::to_string(frame_index) );
-              //   this->frame.index = frame_index;
-              // }
 
               long unsigned int x;
               if (x != std::string::npos) {
