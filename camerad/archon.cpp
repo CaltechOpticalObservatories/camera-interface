@@ -5339,6 +5339,7 @@ namespace Archon {
       } else {
         logwrite( function, "READ IN AUTOFETCH MODE" );
         logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+        break;
       }
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
@@ -5359,8 +5360,6 @@ namespace Archon {
         logwrite( function, "ERROR: unable to get frame status" );
         break;
       }
-
-      logwrite( function, "GET CURRENT FRAME" );
 
       // get current frame number and check the status of its buffer
       currentframe = this->frame.bufframen[this->frame.index];
