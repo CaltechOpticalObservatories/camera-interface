@@ -3979,6 +3979,9 @@ namespace Archon {
         }
 
         if (this->is_autofetch) {
+          logwrite( function, "AUTOFETCH READ FRAME");
+          std::this_thread::sleep_for(std::chrono::seconds(2));
+
           int retval;
           // int bufready;
           // char check[5];
