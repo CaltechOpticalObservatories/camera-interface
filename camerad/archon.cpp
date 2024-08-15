@@ -4016,7 +4016,7 @@ namespace Archon {
               // const int frame_index = std::stoi(header_str.substr(13, 1));
 
               // Read rest of autofetch header
-              retval = this->archon.Read(autofetch_header, 1000);
+              retval = this->archon.Read(autofetch_header, 1260);
               std::string autofetch_header_str(autofetch_header);
 
               // read rest of buffer frame
