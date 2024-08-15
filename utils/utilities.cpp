@@ -842,6 +842,23 @@ const std::string &tchar(const std::string &str) {
 /***** tchar ****************************************************************/
 
 
+/***** strip_newline **********************************************************/
+/**
+ * @brief      strip newline and cr chars from a string
+ * @details    this makes a local copy of the original string which is not changed
+ * @param[in]  str_in  reference to input string
+ * @return     string
+ *
+ */
+const std::string strip_newline( const std::string &str_in ) {
+  std::string str = str_in;
+  str.erase( std::remove( str.begin(), str.end(), '\n' ), str.end() );
+  str.erase( std::remove( str.begin(), str.end(), '\r' ), str.end() );
+  return str;
+}
+/***** strip_newline **********************************************************/
+
+
 /***** strip_control_characters *********************************************/
 /**
  * @brief      strip all leading and trailing control chars from a string

@@ -12,6 +12,7 @@
 #include <chrono>
 #include <numeric>
 #include <fenv.h>
+#include <string_view>
 
 #include "utilities.h"
 #include "common.h"
@@ -57,6 +58,9 @@
 #define REV_VCPU           std::string("1.0.784")
 
 namespace Archon {
+
+    constexpr std::string_view QUIET = "quiet";  // allows sending commands without logging
+
     // Archon hardware-based constants.
     // These shouldn't change unless there is a significant hardware change.
     //
@@ -101,6 +105,8 @@ namespace Archon {
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
         int taplines;
+        int configlines;  //!< number of configuration lines
+        bool logwconfig;  //!< optionally log WCONFIG commands
         std::vector<int> gain; //!< digital CDS gain (from TAPLINE definition)
         std::vector<int> offset; //!< digital CDS offset (from TAPLINE definition)
         bool modeselected; //!< true if a valid mode has been selected, false otherwise
@@ -172,9 +178,9 @@ namespace Archon {
 
         long native(const std::string &cmd);
 
-        long archon_cmd(const std::string &cmd);
+        long archon_cmd(std::string cmd);
 
-        long archon_cmd(const std::string &cmd, std::string &reply);
+        long archon_cmd(std::string cmd, std::string &reply);
 
         long read_parameter(const std::string &paramname, std::string &valstring);
 
