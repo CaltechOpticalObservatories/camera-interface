@@ -4023,7 +4023,7 @@ namespace Archon {
           totalbytesread = 0;
           // Read the frame contents
           //
-          if (this->archon.Bytes_ready() > 0) {
+          if ((toread = this->archon.Bytes_ready()) > 0) {
             char buffer[1024];
 
             int retval = this->archon.Read(header, 4);
@@ -4067,7 +4067,7 @@ namespace Archon {
                 if(strncmp(header, "<XF", 3) == 0) {
                   logwrite( function, "FOUND XF HEADER");
 
-                  this->archon.Read(ptr_image, 1024);
+                  this->archon.Read(ptr_image, 1016);
                   ptr_image += 1;
                 }
                 // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
