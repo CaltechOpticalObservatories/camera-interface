@@ -1,5 +1,5 @@
 //
-// Simple listener.c program for UDP multicast
+// Simple listener.cpp program for UDP multicast
 //
 // Adapted from:
 // http://ntrg.cs.tcd.ie/undergrad/4ba2/multicast/antony/example.html
