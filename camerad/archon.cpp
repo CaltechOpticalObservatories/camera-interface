@@ -3191,6 +3191,9 @@ namespace Archon {
         error = ERROR;
         break;                         // break out of for loop
       }
+
+      logwrite(function,  "check: " + std::string(check) + ", header: " + header);
+
       if (header[0] == '?') {  // Archon retured an error
         message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ") << " data";
         this->camera.log_error( function, message.str() );
