@@ -4065,7 +4065,7 @@ namespace Archon {
                 logwrite( function, "bytes remaining to read: " + toread);
 
                 this->archon.Read(header, 4);
-                if(strncmp(header, "<XF ", 4) == 0) {
+                if(strncmp(header, "<XF", 3) == 0) {
                   logwrite( function, "FOUND XF HEADER");
 
                   this->archon.Read(ptr_image, 1024);
