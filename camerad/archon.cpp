@@ -2701,118 +2701,69 @@ namespace Archon {
     } else {
         // IMAGE, or IMAGE+RAW
         // datacube was already set = true in the expose function
-      if (this->is_autofetch) {
-        logwrite( function, "AUTOFETCH READ FRAME");
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-
-        int retval;
-        // int bufready;
-        // char check[5];
-        char autofetch_header[300];
-        char header[4];
-        char *ptr_image;
-        int bytesread, totalbytesread;
-        int toread;
-        // uint64_t bufaddr;
-        // unsigned int block, bufblocks=0;
-        unsigned int xf_package_counter = 0;
-        bool found_autofetch_header = false;
-
-        bytesread = 0;
-        ptr_image = this->image_data;
-        totalbytesread = 0;
-        // Read the frame contents
-        //
-        if ((toread = this->archon.Bytes_ready()) > 0) {
-          char buffer[1024];
-
-          retval = this->archon.Read(header, 4);
-          std::string header_str(header);
-          if (retval <= 0) {
-            this->camera.log_error( function, "reading Archon" );
-          }
-          logwrite( function, "READING HEADER DONE" );
-
-          if (strncmp(header, "<SFA", 4) == 0) {
-            logwrite( function, "AUTOFETCH HEADER FOUND!" );
-            found_autofetch_header = true;
-            // const int frame_index = std::stoi(header_str.substr(13, 1));
-
-            // Read rest of autofetch header
-            retval = this->archon.Read(autofetch_header, 1260);
-            std::string autofetch_header_str(autofetch_header);
-
-            // // read rest of buffer frame
-            // retval = this->archon.Read(buffer, 1024);
-            // std::string buffer_str(buffer);
-
-            logwrite( function, "AUTOFETCH HEADER: " + header_str);
-            logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
-
-            // stop after printing the autofetch header
-            // break;
-
-            // long unsigned int x;
-            // if (x != std::string::npos) {
-            //   x = buffer_str.find("<XF");
-            //   logwrite( function, "FOUND <XF IN <AUTOFETCH: " + std::to_string(x) );
-            // }
-
-            do {
-              toread = this->archon.Bytes_ready();
-              logwrite( function, "bytes remaining to read: " + toread);
-
-              this->archon.Read(header, 4);
-              if(strncmp(header, "<XF", 3) == 0) {
-                logwrite( function, "FOUND XF HEADER");
-
-                this->archon.Read(ptr_image, 1024);
-                ptr_image += 1;
-              }
-              // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-              //   bytesread += retval;         // this will get zeroed after each block
-              //   totalbytesread += retval;    // this won't (used only for info purposes)
-              //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-              //   ptr_image += retval;         // advance pointer
-              // }
-            } while (toread > 1024);
-
-
-          // } else if(strncmp(header, "<XF", 3) == 0) {
-          //   logwrite( function, "FOUND XF HEADER");
-          //
-          //   // increase xf counter
-          //   xf_package_counter++;
-          //
-          //   // read rest of buffer frame
-          //   retval = this->archon.Read(buffer, 1024);
-          //   std::string buffer_str(buffer);
-          //
-          //   long unsigned int x = buffer_str.find("<XF");
-          //   if (x != std::string::npos) {
-          //     logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
-          //   }
-          // } else {
-          //   logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! ");
-          //   // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
-          //
-          //   // read rest of buffer frame
-          //   retval = this->archon.Read(buffer, 1024);
-          //   std::string buffer_str(buffer);
-          //
-          //   long unsigned int x = buffer_str.find("<XF");
-          //   if (x != std::string::npos) {
-          //     logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
-          //   }
-          }
-        } else {
-          logwrite( function, "Nothing to read on socket, xf counter: " + std::to_string(xf_package_counter) );
-          std::this_thread::sleep_for(std::chrono::milliseconds(500));
-          // continue;
-        }
-      } else {
+      // if (this->is_autofetch) {
+      //   logwrite( function, "AUTOFETCH READ FRAME");
+      //   std::this_thread::sleep_for(std::chrono::seconds(2));
+      //
+      //   int retval;
+      //   char autofetch_header[300];
+      //   char header[4];
+      //   char *ptr_image;
+      //   int bytesread, totalbytesread;
+      //   int toread;
+      //   unsigned int xf_package_counter = 0;
+      //
+      //   bytesread = 0;
+      //   ptr_image = this->image_data;
+      //   totalbytesread = 0;
+      //   // Read the frame contents
+      //   //
+      //   if ((toread = this->archon.Bytes_ready()) > 0) {
+      //     char buffer[1024];
+      //
+      //     retval = this->archon.Read(header, 4);
+      //     std::string header_str(header);
+      //     if (retval <= 0) {
+      //       this->camera.log_error( function, "reading Archon" );
+      //     }
+      //
+      //     if (strncmp(header, "<SFA", 4) == 0) {
+      //       logwrite( function, "AUTOFETCH HEADER FOUND!" );
+      //
+      //       // Read rest of autofetch header
+      //       retval = this->archon.Read(autofetch_header, 1260);
+      //       std::string autofetch_header_str(autofetch_header);
+      //
+      //       logwrite( function, "AUTOFETCH HEADER: " + header_str);
+      //       logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
+      //
+      //       do {
+      //         toread = this->archon.Bytes_ready();
+      //         logwrite( function, "bytes remaining to read: " + toread);
+      //
+      //         this->archon.Read(header, 4);
+      //         if(strncmp(header, "<XF", 3) == 0) {
+      //           logwrite( function, "FOUND XF HEADER");
+      //
+      //           this->archon.Read(ptr_image, 1024);
+      //           ptr_image += 1;
+      //         }
+      //         // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+      //         //   bytesread += retval;         // this will get zeroed after each block
+      //         //   totalbytesread += retval;    // this won't (used only for info purposes)
+      //         //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+      //         //   ptr_image += retval;         // advance pointer
+      //         // }
+      //       } while (toread > 1028);
+      //     }
+      //   } else {
+      //     logwrite( function, "Nothing to read on socket, xf counter: " + std::to_string(xf_package_counter) );
+      //     std::this_thread::sleep_for(std::chrono::milliseconds(500));
+      //     // continue;
+      //   }
+      // } else {
         error = this->read_frame(Camera::FRAME_IMAGE);
-      }
+      // }
                                     // read image frame
       if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading image frame" ); return error; }
       error = this->write_frame();                                                // write image frame
@@ -3166,11 +3117,14 @@ namespace Archon {
     // send the FETCH command.
     // This will take the archon_busy semaphore, but not release it -- must release in this function!
     //
-    error = this->fetch(bufaddr, bufblocks);
-    if ( error != NO_ERROR ) {
-      logwrite( function, "ERROR: fetching Archon buffer" );
-      return error;
+    if (!this->is_autofetch) {
+      error = this->fetch(bufaddr, bufblocks);
+      if ( error != NO_ERROR ) {
+        logwrite( function, "ERROR: fetching Archon buffer" );
+        return error;
+      }
     }
+
 
     // Read the data from the connected socket into memory, one block at a time
     //
