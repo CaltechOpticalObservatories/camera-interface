@@ -3123,6 +3123,8 @@ namespace Archon {
         logwrite( function, "ERROR: fetching Archon buffer" );
         return error;
       }
+    } else {
+      logwrite( function, "READ FRAME AUTOFETCH");
     }
 
 
