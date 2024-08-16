@@ -4012,7 +4012,8 @@ namespace Archon {
           char autofetch_header[300];
           char header[4];
           char *ptr_image;
-          int bytesread, totalbytesread, toread;
+          int bytesread, totalbytesread;
+          int toread;
           // uint64_t bufaddr;
           // unsigned int block, bufblocks=0;
           unsigned int xf_package_counter = 0;
@@ -4026,7 +4027,7 @@ namespace Archon {
           if ((toread = this->archon.Bytes_ready()) > 0) {
             char buffer[1024];
 
-            int retval = this->archon.Read(header, 4);
+            retval = this->archon.Read(header, 4);
             std::string header_str(header);
             if (retval <= 0) {
               this->camera.log_error( function, "reading Archon" );
