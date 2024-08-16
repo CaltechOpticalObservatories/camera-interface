@@ -42,8 +42,14 @@ set(PROJECT_BASE_DIR $ENV{PWD}/../)
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
-set(CMAKE_C_COMPILER /usr/bin/g++)
-set(CMAKE_CXX_COMPILER /usr/bin/g++)
+
+# Find the G++ compiler
+find_program(GXX_COMPILER NAMES g++)
+if(GXX_COMPILER)
+    message(STATUS "Found G++ at ${GXX_COMPILER}")
+else()
+    message(FATAL_ERROR "G++ compiler not found!")
+endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories(/usr/local/include)

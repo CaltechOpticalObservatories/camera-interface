@@ -24,13 +24,13 @@ add_library(network STATIC
 )
 
 add_library(md5 STATIC
-        ${PROJECT_UTILS_DIR}/md5.c
+        ${PROJECT_UTILS_DIR}/md5.cpp
 )
 
 add_executable(listener
-        ${PROJECT_UTILS_DIR}/listener.c
+        ${PROJECT_UTILS_DIR}/listener.cpp
 )
 
 add_executable(socksend
-        ${PROJECT_UTILS_DIR}/sendcmd.c
+        ${PROJECT_UTILS_DIR}/sendcmd.cpp
 )

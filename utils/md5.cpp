@@ -1,5 +1,5 @@
 /*********************************************************************
-* Filename:   md5.c
+* Filename:   md5.cpp
 * Author:     Brad Conte (brad AT bradconte.com)
 * Copyright:
 * Disclaimer: This code is presented "as is" without any guarantees.
