@@ -30,11 +30,20 @@ endif ()
 
 cmake_minimum_required(VERSION 3.12)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+find_program(GXX_COMPILER NAMES g++)
+
+if(GXX_COMPILER)
+    message(STATUS "Found g++: ${GXX_COMPILER}")
+    set(CMAKE_CXX_COMPILER ${GXX_COMPILER})
+else()
+    message(FATAL_ERROR "g++ compiler not found. Please install g++ and try again.")
+endif()
 
 project(camera)
+
+set(CMAKE_GXX_STANDARD 17)
+set(CMAKE_GXX_STANDARD_REQUIRED ON)
+set(CMAKE_GXX_EXTENSIONS OFF)
 
 # Run "cmake .." from the project's build/ directory!
 #
@@ -43,13 +52,6 @@ set(PROJECT_BASE_DIR $ENV{PWD}/../)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 
-# Find the G++ compiler
-find_program(GXX_COMPILER NAMES g++)
-if(GXX_COMPILER)
-    message(STATUS "Found G++ at ${GXX_COMPILER}")
-else()
-    message(FATAL_ERROR "G++ compiler not found!")
-endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories(/usr/local/include)

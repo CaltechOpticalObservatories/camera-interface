@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 set(PROJECT_TESTS_DIR ${PROJECT_BASE_DIR}/tests)
 
 # Find the Google Test library
-find_package(GTest REQUIRED)
+find_package(GTest)
 
 add_executable(
         run_unit_tests utility_tests.cpp) # List all unit test source files here
