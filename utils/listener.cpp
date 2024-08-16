@@ -7,31 +7,38 @@
 // Changes:
 // * Compiles for Linux
 // * Takes the port and group on the command line
+// * adopted c++ idiomataic practices
 //
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <time.h>
 
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstring>
+#include <iostream>
 
-#define MSGBUFSIZE 256
+constexpr size_t MSGBUFSIZE=256;
 
 int main(int argc, char *argv[]) {
     if (argc < 3) {
-        printf("Command line args should be multicast group and port\n");
-        printf("(e.g. for SSDP, `listener 239.255.255.250 1900`)\n");
+        std::cout << "Command line args should be multicast group and port\n";
+        std::cout << "e.g. for SSDP, `listener 239.255.255.250 1900`)\n";
         return 1;
     }
 
     char *group = argv[1]; // e.g. 239.255.255.250 for SSDP
-    int port = atoi(argv[2]); // 0 if error, which is an invalid port
+    int port;
+    try {
+      port = std::stoi(argv[2]);
+      if ( port < 1 ) throw std::out_of_range("invalid port number");
+    }
+    catch (...) {
+      std::cerr << "invalid port number\n";
+      return 1;
+    }
 
-    char *filterstr = NULL;
+    char *filterstr = nullptr;
 
     if (argc == 4) filterstr = argv[3];
 
@@ -39,7 +46,7 @@ int main(int argc, char *argv[]) {
     //
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
-        perror("socket");
+        std::cerr << "socket: " << std::strerror(errno) << "\n";
         return 1;
     }
 
@@ -51,7 +58,7 @@ int main(int argc, char *argv[]) {
             fd, SOL_SOCKET, SO_REUSEADDR, (char *) &yes, sizeof(yes)
         ) < 0
     ) {
-        perror("Reusing ADDR failed");
+        std::cerr << "Reusing ADDR: " << std::strerror(errno) << "\n";
         return 1;
     }
 
@@ -66,7 +73,7 @@ int main(int argc, char *argv[]) {
     // bind to receive address
     //
     if (bind(fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-        perror("bind");
+        std::cerr << "bind: " << std::strerror(errno) << "\n";
         return 1;
     }
 
@@ -80,7 +87,7 @@ int main(int argc, char *argv[]) {
             fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &mreq, sizeof(mreq)
         ) < 0
     ) {
-        perror("setsockopt");
+        std::cerr << "setsockopt: " << std::strerror(errno) << "\n";
         return 1;
     }
 
@@ -98,13 +105,13 @@ int main(int argc, char *argv[]) {
             &addrlen
         );
         if (nbytes < 0) {
-            perror("recvfrom");
+            std::cerr << "recvfrom: " << std::strerror(errno) << "\n";
             return 1;
         }
         msgbuf[nbytes] = '\0';
-        if (filterstr != NULL) {
-            if (strstr(msgbuf, filterstr) != NULL) puts(msgbuf);
-        } else puts(msgbuf);
+        if (filterstr != nullptr) {
+            if (strstr(msgbuf, filterstr) != nullptr) std::cout << msgbuf << "\n";
+        } else std::cout << msgbuf << "\n";
     }
 
     return 0;
