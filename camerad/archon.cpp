@@ -4079,32 +4079,32 @@ namespace Archon {
               } while (toread > BLOCK_LEN);
 
 
-            } else if(strncmp(header, "<XF", 3) == 0) {
-              logwrite( function, "FOUND XF HEADER");
-
-              // increase xf counter
-              xf_package_counter++;
-
-              // read rest of buffer frame
-              retval = this->archon.Read(buffer, 1024);
-              std::string buffer_str(buffer);
-
-              long unsigned int x = buffer_str.find("<XF");
-              if (x != std::string::npos) {
-                logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
-              }
-            } else {
-              logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! ");
-              // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
-
-              // read rest of buffer frame
-              retval = this->archon.Read(buffer, 1024);
-              std::string buffer_str(buffer);
-
-              long unsigned int x = buffer_str.find("<XF");
-              if (x != std::string::npos) {
-                logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
-              }
+            // } else if(strncmp(header, "<XF", 3) == 0) {
+            //   logwrite( function, "FOUND XF HEADER");
+            //
+            //   // increase xf counter
+            //   xf_package_counter++;
+            //
+            //   // read rest of buffer frame
+            //   retval = this->archon.Read(buffer, 1024);
+            //   std::string buffer_str(buffer);
+            //
+            //   long unsigned int x = buffer_str.find("<XF");
+            //   if (x != std::string::npos) {
+            //     logwrite( function, "FOUND <XF in <XF: " + std::to_string(x) );
+            //   }
+            // } else {
+            //   logwrite( function, "NO AUTOFETCH OR XF HEADER FOUND! ");
+            //   // logwrite( function, "BUFFER CONTENT: " + header_str + "..." );
+            //
+            //   // read rest of buffer frame
+            //   retval = this->archon.Read(buffer, 1024);
+            //   std::string buffer_str(buffer);
+            //
+            //   long unsigned int x = buffer_str.find("<XF");
+            //   if (x != std::string::npos) {
+            //     logwrite( function, "FOUND <XF IN rest of buffer: " + std::to_string(x) );
+            //   }
             }
           } else {
             logwrite( function, "Nothing to read on socket, xf counter: " + std::to_string(xf_package_counter) );
