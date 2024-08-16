@@ -4067,15 +4067,15 @@ namespace Archon {
                 if(strncmp(header, "<XF", 3) == 0) {
                   logwrite( function, "FOUND XF HEADER");
 
-                  // this->archon.Read(ptr_image, 1024);
-                  // ptr_image += 1;
+                  this->archon.Read(ptr_image, 1024);
+                  ptr_image += 1;
                 }
-                if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-                  bytesread += retval;         // this will get zeroed after each block
-                  totalbytesread += retval;    // this won't (used only for info purposes)
-                  std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-                  ptr_image += retval;         // advance pointer
-                }
+                // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+                //   bytesread += retval;         // this will get zeroed after each block
+                //   totalbytesread += retval;    // this won't (used only for info purposes)
+                //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+                //   ptr_image += retval;         // advance pointer
+                // }
               } while (toread > BLOCK_LEN);
 
 
