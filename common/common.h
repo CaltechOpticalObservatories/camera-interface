@@ -16,11 +16,12 @@
 
 #include "logentry.h"
 
-const long NOTHING = -1;
-const long NO_ERROR = 0;
-const long ERROR = 1;
-const long BUSY = 2;
-const long TIMEOUT = 3;
+constexpr long NOTHING = -1;
+constexpr long NO_ERROR = 0;
+constexpr long ERROR = 1;
+constexpr long BUSY = 2;
+constexpr long TIMEOUT = 3;
+constexpr long HELP = 4;
 
 namespace Common {
     /**************** Common::FitsKeys ******************************************/
