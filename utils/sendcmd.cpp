@@ -1,4 +1,4 @@
-/* client.c */
+
 #include <fcntl.h>
 #include <sys/time.h>
 #include<sys/socket.h>

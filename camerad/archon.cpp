@@ -32,6 +32,8 @@ namespace Archon {
     this->frame.next_index = 0;
     this->abort = false;
     this->taplines = 0;
+    this->configlines = 0;
+    this->logwconfig = false;
     this->image_data = nullptr;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
@@ -866,11 +868,11 @@ namespace Archon {
    * @return ERROR, BUSY or NO_ERROR
    *
    */
-  long Interface::archon_cmd(const std::string& cmd) { // use this form when the calling
+  long Interface::archon_cmd(std::string cmd) { // use this form when the calling
     std::string reply;                          // function doesn't need to look at the reply
     return( archon_cmd(cmd, reply) );
   }
-  long Interface::archon_cmd(const std::string& cmd, std::string &reply) {
+  long Interface::archon_cmd(std::string cmd, std::string &reply) {
     std::string function = "Archon::Interface::archon_cmd";
     std::stringstream message;
     int     retval;
@@ -915,6 +917,15 @@ namespace Archon {
       return ERROR;
     }
 
+    // This allows sending commands that don't get logged,
+    // by prepending QUIET, which gets removed here if present.
+    //
+    bool quiet=false;
+    if ( cmd.find(QUIET)==0 ) {
+      cmd.erase(0, QUIET.length());
+      quiet=true;
+    }
+
     std::stringstream  sscmd;         // sscmd = stringstream, building command
     sscmd << prefix << cmd << "\n";
     std::string scmd = sscmd.str();   // scmd = string, command to send
@@ -925,10 +936,10 @@ namespace Archon {
 
     // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
     //
-    if ( (cmd.compare(0,7,"WCONFIG") != 0) &&
-         (cmd.compare(0,5,"TIMER") != 0)   &&
-         (cmd.compare(0,6,"STATUS") != 0)  &&
-         (cmd.compare(0,5,"FRAME") != 0) ) {
+    if ( !quiet && (cmd.compare(0,7,"WCONFIG") != 0) &&
+                   (cmd.compare(0,5,"TIMER") != 0)   &&
+                   (cmd.compare(0,6,"STATUS") != 0)  &&
+                   (cmd.compare(0,5,"FRAME") != 0) ) {
       // erase newline for logging purposes
       std::string fcmd = scmd;
       try {
@@ -937,6 +948,10 @@ namespace Archon {
       message.str(""); message << "sending command: " << fcmd;
       logwrite(function, message.str());
     }
+
+    // optionally log WCONFIG commands
+    //
+    if ( this->logwconfig && cmd.find("WCONFIG")!=std::string::npos ) logwrite( function, strip_newline(cmd) );
 
     // send the command
     //
@@ -1011,10 +1026,10 @@ namespace Archon {
       error = NO_ERROR;
 
       // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
-      if ( (cmd.compare(0,7,"WCONFIG") != 0) &&
-           (cmd.compare(0,5,"TIMER") != 0)   &&
-           (cmd.compare(0,6,"STATUS") != 0)  &&
-           (cmd.compare(0,5,"FRAME") != 0) ) {
+      if ( !quiet && (cmd.compare(0,7,"WCONFIG") != 0) &&
+                     (cmd.compare(0,5,"TIMER") != 0)   &&
+                     (cmd.compare(0,6,"STATUS") != 0)  &&
+                     (cmd.compare(0,5,"FRAME") != 0) ) {
         message.str("");
         message << "command 0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << this->msgref << " success";
         logwrite(function, message.str());
@@ -1681,20 +1696,27 @@ namespace Archon {
           if (line.find_first_of('=', 0) == std::string::npos) {
             continue;
           }
+
           Tokenize(line, tokens, "=");                            // separate into KEY, VALUE tokens
           if (tokens.empty()) {
             continue;                                             // nothing to do here if no tokens (ie no "=")
           }
-          if (!tokens.empty() ) {                               // at least one token is the key
-            key   = tokens[0];                                    // KEY
-            value = "";                                           // VALUE can be empty (e.g. labels not required)
-            this->configmap[ tokens[0] ].line  = linecount;
-            this->configmap[ tokens[0] ].value = value;
-          }
-          if (tokens.size() > 1 ) {                               // if a second token then that's the value
+
+          key = tokens[0];                                        // not empty so at least one token is the KEY
+          value.clear();                                          // VALUE can be empty (e.g. labels not required)
+
+          if ( tokens.size() > 1 ) {                              // at least one more token is the value
             value = tokens[1];                                    // VALUE (there is a second token)
-            this->configmap[ tokens[0] ].value = tokens[1];
           }
+
+          if ( tokens.size() > 2 ) {                              // more tokens are possible
+            for ( size_t i=2; i<tokens.size(); ++i ) {            // loop through remaining tokens
+              value += "=" + tokens[i];                           // and put them back together as the VALUE
+            }
+          }
+
+          this->configmap[ tokens[0] ].line  = linecount;
+          this->configmap[ tokens[0] ].value = value;
       } // end else
 
       // Form the WCONFIG command to Archon and
@@ -1708,9 +1730,11 @@ namespace Archon {
               << key << "=" << value << "\n";
         // send the WCONFIG command here
         if (error == NO_ERROR) error = this->archon_cmd(sscmd.str());
+        linecount++;
       } // end if ( !key.empty() && !value.empty() )
-      linecount++;
     } // end while ( getline(filestream, line) )
+
+    this->configlines = linecount;  // save the number of configuration lines
 
     // re-enable background polling
     //
@@ -8177,6 +8201,80 @@ namespace Archon {
       retstring = "delta=" + std::to_string( m ) + " stddev=" + std::to_string( stdev );
         // end if (testname==timer)
 
+    } else if (testname == "rconfigmap") {
+        // ----------------------------------------------------
+        // rconfigmap <filter>
+        // reports the configmap (what should have been written)
+        // ----------------------------------------------------
+      std::string filter;
+      if ( tokens.size() > 1 ) {
+        if ( tokens[1] == "line" ) filter="LINE";
+        else
+        if ( tokens[1] == "mod" ) filter="MOD";
+        else
+        if ( tokens[1] == "param" ) filter="PARAMETER";
+        else
+        if ( tokens[1] == "state" ) filter="STATE";
+        else
+        if ( tokens[1] == "vcpu" ) filter="VCPU";
+      }
+      for ( const auto &[k,v] : this->configmap ) {
+        if ( k.find(filter)!=std::string::npos ) {
+          message.str(""); message << "RCONFIG"
+                                   << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
+                                   << v.line << ": " << k << "=" << v.value;
+          logwrite( function, message.str() );
+        }
+      }
+      error = NO_ERROR;
+    } else if (testname == "rconfig") {
+        // ----------------------------------------------------
+        // rconfig <filter>
+        // reads config directly from Archon
+        // ----------------------------------------------------
+      std::string filter;
+      if ( tokens.size() > 1 ) {
+        if ( tokens[1] == "line" ) filter="LINE";
+        else
+        if ( tokens[1] == "mod" ) filter="MOD";
+        else
+        if ( tokens[1] == "param" ) filter="PARAMETER";
+        else
+        if ( tokens[1] == "state" ) filter="STATE";
+        else
+        if ( tokens[1] == "vcpu" ) filter="VCPU";
+      }
+      for ( int line=0; line < this->configlines; line++ ) {
+        // form the RCONFIG command to send to Archon (without logging each command)
+        //
+        std::stringstream cmd;
+        cmd.str(""); cmd << QUIET
+                         << "RCONFIG"
+                         << std::uppercase << std::setfill('0') << std::setw(4) << std::hex << line;
+        std::string reply;
+        error = this->archon_cmd(cmd.str(), reply);               // send RCONFIG command here
+        if ( reply.find(filter)!=std::string::npos ) {
+          message.str(""); message << "RCONFIG"
+                                   << std::uppercase << std::setfill('0') << std::setw(4) << std::hex << line
+                                   << ": " << strip_newline(reply);
+          logwrite( function, message.str() );
+        }
+      }
+      error = NO_ERROR;
+    } else if (testname == "logwconfig") {
+        // ----------------------------------------------------
+        // logwconfig [ <state> ]
+        // set/get state of logwconfig, to optionally log WCONFIG commands
+        // ----------------------------------------------------
+      if ( tokens.size() > 1 ) {
+        if ( tokens[1] == "true" ) this->logwconfig=true;
+        else
+        if ( tokens[1] == "false" ) this->logwconfig=false;
+      }
+      retstring = ( this->logwconfig ? "true" : "false" );
+      message.str(""); message << "logwconfig " << retstring;
+      logwrite( function, message.str() );
+      error = NO_ERROR;
     } else {
         // ----------------------------------------------------
         // invalid test name

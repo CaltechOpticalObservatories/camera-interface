@@ -762,6 +762,8 @@ void doit(Network::TcpSocket sock) {
                 sock.Write(retstring);
                 sock.Write( " ");
             }
+        else if ( cmd == "fetchlog" ) {
+          ret = server.fetchlog();
         }
 #endif
         else if (cmd == "expose") {

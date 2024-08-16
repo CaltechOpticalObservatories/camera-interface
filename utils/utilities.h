@@ -110,6 +110,8 @@ bool has_write_permission(const std::filesystem::path &filename);
 
 const std::string &tchar(const std::string &str);
 
+const std::string strip_newline( const std::string &str_in );
+
 std::string strip_control_characters(const std::string &str);
 
 bool starts_with(const std::string &str, std::string_view prefix);
