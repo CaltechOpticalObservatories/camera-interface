@@ -3125,6 +3125,17 @@ namespace Archon {
       }
     } else {
       logwrite( function, "READ FRAME AUTOFETCH");
+
+      // Read autofetch header
+      char autofetch_header[1264];
+
+      retval = this->archon.Read(autofetch_header, 1264);
+      if (strncmp(autofetch_header, "<SFA", 4) == 0) {
+        logwrite( function, "AUTOFETCH HEADER FOUND!" );
+        std::string autofetch_header_str(autofetch_header);
+
+        logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
+      }
     }
 
 
