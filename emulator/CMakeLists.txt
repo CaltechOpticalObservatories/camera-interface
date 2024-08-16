@@ -6,6 +6,8 @@ cmake_minimum_required( VERSION 3.12 )
 
 set( EMULATOR_DIR ${PROJECT_BASE_DIR}/emulator )
 
+add_definitions( -Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb )
+
 include_directories( ${PROJECT_BASE_DIR}/utils 
                      ${PROJECT_BASE_DIR}/camerad 
                      ${PROJECT_BASE_DIR}/common )
