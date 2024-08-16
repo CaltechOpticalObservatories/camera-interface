@@ -720,7 +720,7 @@ int compare_versions(const std::string &v1, const std::string &v2) {
 /***** md5_file *************************************************************/
 /**
  * @brief      compute the md5sum of a file
- * @details    This makes use of an external source, md5.h and md5.c
+ * @details    This makes use of an external source, md5.h and md5.cpp
  * @param[in]  filename  const reference to filename to process
  * @param[out] hash      reference to a string to contain result
  *
