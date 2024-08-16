@@ -4064,12 +4064,12 @@ namespace Archon {
                 toread = this->archon.Bytes_ready();
                 logwrite( function, "bytes remaining to read: " + toread);
 
-                this->archon.Read(header, 4);
+                this->archon.Read(header, 1024);
                 if(strncmp(header, "<XF", 3) == 0) {
                   logwrite( function, "FOUND XF HEADER");
 
-                  this->archon.Read(ptr_image, 1016);
-                  ptr_image += 1;
+                  // this->archon.Read(ptr_image, 1016);
+                  // ptr_image += 1;
                 }
                 // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
                 //   bytesread += retval;         // this will get zeroed after each block
