@@ -1,148 +1,125 @@
 
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/time.h>
-#include<sys/socket.h>
-#include<sys/types.h>
-#include<netinet/in.h>
-#include<unistd.h>
-#include<stdlib.h>
-#include<stdio.h>
-#include<string.h>
-#include<errno.h>
-#include<netdb.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <netdb.h>
+
 #include <iostream>
+#include <cstring>
+#include <vector>
 
-#define SEND_LEN	0
+constexpr size_t BUFSIZE=8192;
+constexpr std::string_view usage() {
+  return "usage: sendcmd [-h hostname] [-p port] [-t timeout] [-m mode] command\n";
+}
 
-int main(int argc, char *argv[])
-{
-   int sock, timeout=10;
-   struct timeval tvstart, tvend;
-   int bufsize = 8192;
-   int nread, len;
-   char *message = (char*)malloc(bufsize);
-   char *response = (char*)malloc(bufsize);
-   char *hostname = (char*)malloc (30);
-   struct sockaddr_in address;
-   struct hostent *host_struct;
-   int mode = 0;    		/* 0: wait, 1: not wait*/
+int main(int argc, char *argv[]) {
+  int sock;
+  int timeout=10;
+  struct timeval tvstart, tvend;
+  int nread;
+  std::string message;
+  std::vector<char> response(BUFSIZE);
+  std::string hostname = "localhost";
+  struct sockaddr_in address;
+  struct hostent *host_struct;
+  int mode = 0;     // 0: wait, 1: not wait
+  int port = 3031;  // set default port
 
-   int port = 3031;         // set default port
-   int i = 1;
-   if (argc > 1) 
-	while (i < argc) {
-		if (argv[i][0] == '-') {
-			if (argv[i][1] == 'h')
-				{hostname = argv[i+1]; i++;}
-			else
-				if (argv[i][1] == 'p')
-					{port = atoi (argv[i+1]); i++;}
-			else
-				if (argv[i][1] == 't')
-                        		{timeout = atoi(argv[i+1]); i++;} 
-			else
-				if (argv[i][1] == 'm')
-                                	{mode = atoi (argv[i+1]); i++;}
-			else
-//				if (argv[i][1] == '?')
-                                	{printf ("usage: sendcmd [-h hostname] [-p port] [-t timeout] [-m mode] command\n"); return (0);}
-		} else
-			message = argv[i];
-		i++;
-   	}
-   if ((host_struct = gethostbyname (hostname)) == NULL){
-	   printf ("ERROR %d getting_mem\n", errno);
-           return (-errno);
-   }
-    
-   if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-     	printf("ERROR %d creating_socket\n", errno);
-	return (-errno);
-   }
+  if ( argc==1 ) { std::cout << usage(); return 0; }
 
-   if (fcntl (sock, F_SETFL, O_NONBLOCK) <0){
-		printf ("ERROR %d setting_socket", errno);
-		close (sock);
-                return (-errno);
-   }
+  try {
+  for ( size_t i=1; i<argc; ++i ) {
+    if (argv[i][0] == '-') {
+      switch ( argv[i][1] ) {
+        case 'h' : if ( i+1 < argc ) hostname = argv[++i];
+                   else { std::cout << usage(); return 1; }
+                   break;
+        case 'p' : port = std::stoi( argv[++i] );
+                   break;
+        case 't' : timeout = std::stoi( argv[++i] );
+                   break;
+        case 'm' : mode = std::stoi( argv[++i] );
+                   break;
+        default:   std::cout << usage();
+                   return 0;
+      }
+    } else message = argv[i];
+  }
+  }
+  catch (...) { std::cout << usage(); return -1; }
 
-    bcopy (host_struct->h_addr, (char *) &address.sin_addr.s_addr, host_struct->h_length); 
-   address.sin_family = AF_INET;
-   address.sin_port = htons(port);
+  if ( ( host_struct = gethostbyname( hostname.c_str() ) ) == nullptr ) {
+    std::cerr << "ERROR getting_mem: " << std::strerror(errno) << "\n";
+    return -errno;
+  }
 
-   if (gettimeofday (&tvstart, NULL) <0) {
-        printf ("ERROR %d reading_time\n", errno);
-	close (sock);
-	return (-errno);
-   }
+  if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    std::cerr << "ERROR creating socket: " << std::strerror(errno) << "\n";
+    return -errno;
+  }
 
-   if ((connect(sock,(struct sockaddr *) &address, sizeof(address)) == -1) && (errno != EINPROGRESS)) {
-	printf ("ERROR %d connecting\n", errno);
-	close (sock);
-	return (-errno);
-   }
+  if (fcntl (sock, F_SETFL, O_NONBLOCK) <0){
+    std::cerr << "ERROR setting socket: " << std::strerror(errno) << "\n";
+    close (sock);
+    return -errno;
+  }
 
-   len = strlen (message);
-   message[len]='\n';
-   message[len+1]='\0';
-   len++;
+  std::memcpy( &address.sin_addr.s_addr, host_struct->h_addr, host_struct->h_length );
+  address.sin_family = AF_INET;
+  address.sin_port = htons(port);
 
-#if SEND_LEN
-   char *stringlen = malloc(10);
+  if (gettimeofday (&tvstart, nullptr) <0) {
+    std::cerr << "ERROR reading time: " << std::strerror(errno) << "\n";
+    close (sock);
+    return -errno;
+  }
 
-   sprintf (stringlen, "%08d", len);
-   printf ("%s", stringlen);
-   while ((nread = write (sock, stringlen, 8)) < 0) {
-           if (errno != EAGAIN) {
-                   printf ("ERROR %d writing_len\n", errno);
-                   close (sock);
-                   return (-errno);
-           }
-           gettimeofday (&tvend, NULL);
-           if (tvend.tv_sec - tvstart.tv_sec >= timeout) {
-                   printf ("ERROR %d TIMEOUT\n", -ETIME);
-                   close (sock);
-                   return (-ETIME);
-           }
-   }
-#endif
+  if ( (connect(sock, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) == -1) &&
+      (errno != EINPROGRESS) ) {
+    std::cerr << "ERROR connecting: " << std::strerror(errno) << "\n";
+    close (sock);
+    return -errno;
+  }
 
-   while ((nread = write (sock, message, len)) < 0) {
-           if (errno != EAGAIN) {
-                   printf ("ERROR %d writing_message\n", errno);
-                   close (sock);
-                   return (-errno);
-           }
-           gettimeofday (&tvend, NULL);
-           if (tvend.tv_sec - tvstart.tv_sec >= timeout) {
-                   printf ("ERROR %d TIMEOUT\n", -ETIME);
-                   close (sock);
-                   return (-ETIME);
-           }
-   }
+  message += "\n";
 
-   if (mode == 0) {
-  	while ((nread = read (sock, response, bufsize)) < 0) {
-		if (errno != EAGAIN) {
-			printf ("(sendcmd) ERROR %d reading\n", errno);
-			std::cerr << "(sendcmd) nread:" << nread << " response:" << response << "\n";
-			close (sock);
-			return (-errno);
-		}
-		usleep (10000);
-		gettimeofday (&tvend, NULL);
-		if (tvend.tv_sec - tvstart.tv_sec >= timeout) {
-        		printf ("ERROR %d TIMEOUT\n", -ETIME);
-        		close (sock);
-        		return (-ETIME);
-		}
-   	}
-   }
-  if (mode == 0)
-  	printf("%s\n", response);
-  else
-	printf("cmd_sent\n");
+  while ( ( nread = write( sock, message.c_str(), message.size() ) ) < 0 ) {
+    if (errno != EAGAIN) {
+      std::cerr << "ERROR writing message: " << std::strerror(errno) << "\n";
+      close (sock);
+      return -errno;
+    }
+    gettimeofday (&tvend, nullptr);
+    if (tvend.tv_sec - tvstart.tv_sec >= timeout) {
+      std::cerr << "TIMEOUT: " << std::strerror(errno) << "\n";
+      close (sock);
+      return -ETIME;
+    }
+  }
 
-  return (close(sock));
+  if (mode == 0) {
+    while ( ( nread = read( sock, response.data(), BUFSIZE ) ) < 0 ) {
+      if (errno != EAGAIN) {
+        std::cerr << "(sendcmd) nread:" << nread << " error:" << std::strerror(errno) << "\n";
+        close (sock);
+        return -errno;
+      }
+      usleep( 10000 );
+      gettimeofday (&tvend, nullptr);
+      if (tvend.tv_sec - tvstart.tv_sec >= timeout) {
+        std::cerr << "TIMEOUT: " << std::strerror(errno) << "\n";
+        close (sock);
+        return -ETIME;
+      }
+    }
+    std::cout << std::string( response.data(), nread ) << "\n";
+  }
+  else std::cout << "cmd_sent\n";
+
+  return close(sock);
 }
 

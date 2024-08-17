@@ -9,29 +9,36 @@
 *             This implementation uses little endian byte order.
 *
 * obtained from https://github.com/B-Con/crypto-algorithms
+* adopted c++ idiomataic practices, David Hale <dhale@asto.caltech.edu>
 *********************************************************************/
 
 /*************************** HEADER FILES ***************************/
-#include <stdlib.h>
-#include <memory.h>
+#include <cstdlib>
+#include <cstring>
 #include "md5.h"
 
 /****************************** MACROS ******************************/
-#define ROTLEFT(a,b) ((a << b) | (a >> (32-b)))
-
-#define F(x,y,z) ((x & y) | (~x & z))
-#define G(x,y,z) ((x & z) | (y & ~z))
-#define H(x,y,z) (x ^ y ^ z)
-#define I(x,y,z) (y ^ (x | ~z))
-
-#define FF(a,b,c,d,m,s,t) { a += F(b,c,d) + m + t; \
-                            a = b + ROTLEFT(a,s); }
-#define GG(a,b,c,d,m,s,t) { a += G(b,c,d) + m + t; \
-                            a = b + ROTLEFT(a,s); }
-#define HH(a,b,c,d,m,s,t) { a += H(b,c,d) + m + t; \
-                            a = b + ROTLEFT(a,s); }
-#define II(a,b,c,d,m,s,t) { a += I(b,c,d) + m + t; \
-                            a = b + ROTLEFT(a,s); }
+constexpr uint32_t ROTLEFT(uint32_t a, uint32_t b) { return (a << b) | (a >> (32 - b)); }
+constexpr uint32_t F(uint32_t x, uint32_t y, uint32_t z) { return (x & y ) | ( ~x & z ); }
+constexpr uint32_t G(uint32_t x, uint32_t y, uint32_t z) { return (x & z) | ( y & ~z ); }
+constexpr uint32_t H(uint32_t x, uint32_t y, uint32_t z) { return x ^ y ^ z; }
+constexpr uint32_t I(uint32_t x, uint32_t y, uint32_t z) { return y ^ ( x | ~z ); }
+constexpr void FF(uint32_t &a, uint32_t b, uint32_t c, uint32_t d, uint32_t m, uint32_t s, uint32_t t) {
+  a += F(b, c, d) + m + t;
+  a = b + ROTLEFT(a, s);
+}
+constexpr void GG(uint32_t &a, uint32_t b, uint32_t c, uint32_t d, uint32_t m, uint32_t s, uint32_t t) {
+  a += G(b, c, d) + m + t;
+  a = b + ROTLEFT(a, s);
+}
+constexpr void HH(uint32_t &a, uint32_t b, uint32_t c, uint32_t d, uint32_t m, uint32_t s, uint32_t t) {
+  a += H(b, c, d) + m + t;
+  a = b + ROTLEFT(a, s);
+}
+constexpr void II(uint32_t &a, uint32_t b, uint32_t c, uint32_t d, uint32_t m, uint32_t s, uint32_t t) {
+  a += I(b, c, d) + m + t;
+  a = b + ROTLEFT(a, s);
+}
 
 /*********************** FUNCTION DEFINITIONS ***********************/
 void md5_transform(MD5_CTX *ctx, const BYTE data[]) {
