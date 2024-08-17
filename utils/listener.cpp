@@ -7,7 +7,7 @@
 // Changes:
 // * Compiles for Linux
 // * Takes the port and group on the command line
-// * adopted c++ idiomataic practices
+// * adopted c++ idiomatic practices
 //
 
 #include <sys/types.h>
