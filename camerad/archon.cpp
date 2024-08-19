@@ -3837,7 +3837,7 @@ namespace Archon {
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
-    logwrite( function, "RUN EXPOSE: " + nseq_in );
+    logwrite( function, "RUN EXPOSE" );
 
     if ( ! this->modeselected ) {
       this->camera.log_error( function, "no mode selected" );
@@ -3929,7 +3929,9 @@ namespace Archon {
     //
     this->camera_info.extension = 0;
 
-    error = this->get_frame_status();  // TODO is this needed here?
+    if (!this->is_autofetch) {
+      error = this->get_frame_status();  // TODO is this needed here?
+    }
 
     if (error != NO_ERROR) {
       logwrite( function, "ERROR: unable to get frame status" );
