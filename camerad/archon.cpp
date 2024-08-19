@@ -5414,15 +5414,19 @@ namespace Archon {
     //
     logwrite( function, "EXITED WHILE LOOP" );
 
-    if ( error == NO_ERROR ) {
-      error = this->get_frame_status();
-      if ( error != NO_ERROR ) {
-        logwrite( function, "ERROR: unable to get frame status" );
-        return error;
+    // don't run get_frame_status() in autofetch mode
+    if (!this->is_autofetch) {
+      if ( error == NO_ERROR ) {
+        error = this->get_frame_status();
+        if ( error != NO_ERROR ) {
+          logwrite( function, "ERROR: unable to get frame status" );
+          return error;
+        }
+        message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.index ];
+        this->camera.async.enqueue( message.str() );
       }
-      message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.index ];
-      this->camera.async.enqueue( message.str() );
     }
+
 
     if ( error != NO_ERROR ) {
       return error;
