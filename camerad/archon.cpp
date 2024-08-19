@@ -2631,10 +2631,13 @@ namespace Archon {
       return ERROR;
     }
 
-    if (this->archon_cmd(scmd) == ERROR) {
-      logwrite( function, "ERROR: sending FETCH command. Aborting read." );
-      this->archon_cmd(UNLOCK);                                             // unlock all buffers
-      return ERROR;
+    // disable sending fetch command in autofetch mode
+    if (!this->is_autofetch) {
+      if (this->archon_cmd(scmd) == ERROR) {
+        logwrite( function, "ERROR: sending FETCH command. Aborting read." );
+        this->archon_cmd(UNLOCK);                                             // unlock all buffers
+        return ERROR;
+      }
     }
 
     message.str(""); message << "reading " << (this->camera_info.frame_type==Camera::FRAME_RAW?"raw":"image") << " with " << scmd;
@@ -2868,15 +2871,14 @@ namespace Archon {
                                  << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
         logwrite(function, message.str());
 
-        if (!this->is_autofetch) {
-            // send the FETCH command.
-            // This will take the archon_busy semaphore, but not release it -- must release in this function!
-            //
-            error = this->fetch(bufaddr, bufblocks);
-            if (error != NO_ERROR) {
-                logwrite(function, "ERROR: fetching Archon buffer");
-                return error;
-            }
+
+        // send the FETCH command.
+        // This will take the archon_busy semaphore, but not release it -- must release in this function!
+        //
+        error = this->fetch(bufaddr, bufblocks);
+        if (error != NO_ERROR) {
+            logwrite(function, "ERROR: fetching Archon buffer");
+            return error;
         }
 
         // Read the data from the connected socket into memory, one block at a time
