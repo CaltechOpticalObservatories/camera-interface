@@ -3200,6 +3200,9 @@ namespace Archon {
           retval = this->archon.Read(autofetch_header, 1260);
           std::string autofetch_header_str(autofetch_header);
           logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
+
+          // Read next header
+          this->archon.Read(header, 4);
         }
       }
 
