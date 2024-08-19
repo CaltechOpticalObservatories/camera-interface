@@ -2702,72 +2702,11 @@ namespace Archon {
       }
 
     } else {
-        // IMAGE, or IMAGE+RAW
-        // datacube was already set = true in the expose function
-      // if (this->is_autofetch) {
-      //   logwrite( function, "AUTOFETCH READ FRAME");
-      //   std::this_thread::sleep_for(std::chrono::seconds(2));
-      //
-      //   int retval;
-      //   char autofetch_header[300];
-      //   char header[4];
-      //   char *ptr_image;
-      //   int bytesread, totalbytesread;
-      //   int toread;
-      //   unsigned int xf_package_counter = 0;
-      //
-      //   bytesread = 0;
-      //   ptr_image = this->image_data;
-      //   totalbytesread = 0;
-      //   // Read the frame contents
-      //   //
-      //   if ((toread = this->archon.Bytes_ready()) > 0) {
-      //     char buffer[1024];
-      //
-      //     retval = this->archon.Read(header, 4);
-      //     std::string header_str(header);
-      //     if (retval <= 0) {
-      //       this->camera.log_error( function, "reading Archon" );
-      //     }
-      //
-      //     if (strncmp(header, "<SFA", 4) == 0) {
-      //       logwrite( function, "AUTOFETCH HEADER FOUND!" );
-      //
-      //       // Read rest of autofetch header
-      //       retval = this->archon.Read(autofetch_header, 1260);
-      //       std::string autofetch_header_str(autofetch_header);
-      //
-      //       logwrite( function, "AUTOFETCH HEADER: " + header_str);
-      //       logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
-      //
-      //       do {
-      //         toread = this->archon.Bytes_ready();
-      //         logwrite( function, "bytes remaining to read: " + toread);
-      //
-      //         this->archon.Read(header, 4);
-      //         if(strncmp(header, "<XF", 3) == 0) {
-      //           logwrite( function, "FOUND XF HEADER");
-      //
-      //           this->archon.Read(ptr_image, 1024);
-      //           ptr_image += 1;
-      //         }
-      //         // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-      //         //   bytesread += retval;         // this will get zeroed after each block
-      //         //   totalbytesread += retval;    // this won't (used only for info purposes)
-      //         //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-      //         //   ptr_image += retval;         // advance pointer
-      //         // }
-      //       } while (toread > 1028);
-      //     }
-      //   } else {
-      //     logwrite( function, "Nothing to read on socket, xf counter: " + std::to_string(xf_package_counter) );
-      //     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      //     // continue;
-      //   }
-      // } else {
-        error = this->read_frame(Camera::FRAME_IMAGE);
-      // }
-                                    // read image frame
+      // IMAGE, or IMAGE+RAW
+      // datacube was already set = true in the expose function
+      error = this->read_frame(Camera::FRAME_IMAGE);
+
+      // read image frame
       if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading image frame" ); return error; }
       error = this->write_frame();                                                // write image frame
       if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing image frame" ); return error; }
@@ -3175,7 +3114,12 @@ namespace Archon {
 
       // Check message header
       //
-      SNPRINTF(check, "<%02X:", this->msgref);
+      if (this->is_autofetch) {
+        logwrite( function, "replaced header: " + std::to_string(this->msgref) + " with: <XF:" );
+        sprintf(check, "<XF:");
+      } else {
+        SNPRINTF(check, "<%02X:", this->msgref);
+      }
 
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
@@ -3195,9 +3139,6 @@ namespace Archon {
           retval = this->archon.Read(autofetch_header, 1260);
           std::string autofetch_header_str(autofetch_header);
           logwrite( function, "AUTOFETCH HEADER: " + std::string(header) + autofetch_header_str);
-
-          logwrite( function, "replaced header: " + std::to_string(this->msgref) + " with: <XF:" );
-          sprintf(check, "<XF:");
 
           // Read next header
           this->archon.Read(header, 4);
