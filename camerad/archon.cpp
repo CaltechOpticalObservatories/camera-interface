@@ -3175,12 +3175,7 @@ namespace Archon {
 
       // Check message header
       //
-      if (this->is_autofetch) {
-        sprintf(check, "<XF:");
-        logwrite( function, "replaced header: " + std::to_string(this->msgref) + " with: <XF:" );
-      } else {
-        SNPRINTF(check, "<%02X:", this->msgref);
-      }
+      SNPRINTF(check, "<%02X:", this->msgref);
 
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
@@ -3199,7 +3194,10 @@ namespace Archon {
           logwrite( function, "AUTOFETCH HEADER FOUND!" );
           retval = this->archon.Read(autofetch_header, 1260);
           std::string autofetch_header_str(autofetch_header);
-          logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
+          logwrite( function, "AUTOFETCH HEADER: " + std::string(header) + autofetch_header_str);
+
+          logwrite( function, "replaced header: " + std::to_string(this->msgref) + " with: <XF:" );
+          sprintf(check, "<XF:");
 
           // Read next header
           this->archon.Read(header, 4);
@@ -5355,8 +5353,7 @@ namespace Archon {
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
       if (this->is_autofetch) {
-        logwrite( function, "READ IN AUTOFETCH MODE" );
-        logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+        logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
         if (this->archon.Bytes_ready() > 0) {
           done = true;
           break;
