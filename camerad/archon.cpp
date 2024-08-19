@@ -3124,7 +3124,7 @@ namespace Archon {
         return error;
       }
     } else {
-      logwrite( function, "READ FRAME AUTOFETCH");
+      logwrite( function, "READ FRAME: AUTOFETCH MODE");
 
       // Read autofetch header
       char autofetch_header[1264];
@@ -3143,7 +3143,6 @@ namespace Archon {
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
-
       if (!this->is_autofetch) {
         // Are there data to read?
         if ( (retval=this->archon.Poll()) <= 0) {
@@ -3195,8 +3194,6 @@ namespace Archon {
         error = ERROR;
         break;                         // break out of for loop
       }
-
-      logwrite(function,  "check: " + std::string(check) + ", header: " + header);
 
       if (header[0] == '?') {  // Archon retured an error
         message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ") << " data";
