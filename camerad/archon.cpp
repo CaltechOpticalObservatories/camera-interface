@@ -3925,14 +3925,18 @@ namespace Archon {
     }
     this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
 
-    // initiate the exposure here
-    //
-    error = this->prep_parameter(this->exposeparam, nseqstr);
-    if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
-    if ( error != NO_ERROR ) {
-      logwrite( function, "ERROR: could not initiate exposure" );
-      return error;
+    // disable prep parameters in autofetch mode
+    if (!this->is_autofetch) {
+      // initiate the exposure here
+      //
+      error = this->prep_parameter(this->exposeparam, nseqstr);
+      if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
+      if ( error != NO_ERROR ) {
+        logwrite( function, "ERROR: could not initiate exposure" );
+        return error;
+      }
     }
+
 
     // get system time and Archon's timer after exposure starts
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
