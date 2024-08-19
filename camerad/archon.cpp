@@ -3186,8 +3186,6 @@ namespace Archon {
         break;                         // break out of for loop
       }
 
-
-
       if (this->is_autofetch) {
         // Read autofetch header
         char autofetch_header[1260];
@@ -5351,9 +5349,9 @@ namespace Archon {
       if (!this->is_autofetch) {
         error = this->get_frame_status();
       } else {
-        logwrite( function, "READ IN AUTOFETCH MODE" );
-        logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
-        break;
+        // logwrite( function, "READ IN AUTOFETCH MODE" );
+        // logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+        // break;
       }
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
