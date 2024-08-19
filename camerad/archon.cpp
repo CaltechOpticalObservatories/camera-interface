@@ -3133,7 +3133,6 @@ namespace Archon {
       if (strncmp(autofetch_header, "<SFA", 4) == 0) {
         logwrite( function, "AUTOFETCH HEADER FOUND!" );
         std::string autofetch_header_str(autofetch_header);
-
         logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
       }
     }
@@ -3184,7 +3183,8 @@ namespace Archon {
 
       // Check message header
       //
-      SNPRINTF(check, "<%02X:", this->msgref)
+      // SNPRINTF(check, "<%02X:", this->msgref)
+      sprintf(check, "<XF:");
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
         this->camera.log_error( function, message.str() );
