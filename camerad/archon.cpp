@@ -5346,7 +5346,7 @@ namespace Archon {
     while (!done && !this->abort) {
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
-      if (!this->is_autofetch) {
+      if (this->is_autofetch) {
         logwrite( function, "READ IN AUTOFETCH MODE" );
         logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
         if (this->archon.Bytes_ready() > 0) {
