@@ -5347,11 +5347,14 @@ namespace Archon {
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
       if (!this->is_autofetch) {
-        error = this->get_frame_status();
+        logwrite( function, "READ IN AUTOFETCH MODE" );
+        logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+        if (this->archon.Bytes_ready() > 0) {
+          done = true;
+          break;
+        }
       } else {
-        // logwrite( function, "READ IN AUTOFETCH MODE" );
-        // logwrite( function, "Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
-        // break;
+        error = this->get_frame_status();
       }
 
       // If Archon is busy then ignore it, keep trying for up to ~ 3 second
