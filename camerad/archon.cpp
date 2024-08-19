@@ -3116,26 +3116,14 @@ namespace Archon {
                              << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
     logwrite(function, message.str());
 
-    // send the FETCH command.
-    // This will take the archon_busy semaphore, but not release it -- must release in this function!
-    //
     if (!this->is_autofetch) {
+      // send the FETCH command.
+      // This will take the archon_busy semaphore, but not release it -- must release in this function!
+      //
       error = this->fetch(bufaddr, bufblocks);
       if ( error != NO_ERROR ) {
         logwrite( function, "ERROR: fetching Archon buffer" );
         return error;
-      }
-    } else {
-      logwrite( function, "READ FRAME: AUTOFETCH MODE");
-
-      // Read autofetch header
-      char autofetch_header[1264];
-
-      retval = this->archon.Read(autofetch_header, 1264);
-      if (strncmp(autofetch_header, "<SFA", 4) == 0) {
-        logwrite( function, "AUTOFETCH HEADER FOUND!" );
-        std::string autofetch_header_str(autofetch_header);
-        logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
       }
     }
 
@@ -3186,6 +3174,7 @@ namespace Archon {
       //
       if (this->is_autofetch) {
         sprintf(check, "<XF:");
+        logwrite( function, "replaced header: " + std::to_string(this->msgref) + " with: <XF:" );
       } else {
         SNPRINTF(check, "<%02X:", this->msgref);
       }
@@ -3196,6 +3185,23 @@ namespace Archon {
         error = ERROR;
         break;                         // break out of for loop
       }
+
+
+
+      if (this->is_autofetch) {
+        // Read autofetch header
+        char autofetch_header[1260];
+
+        logwrite( function, "READ FRAME: AUTOFETCH MODE");
+
+        if (strncmp(header, "<SFA", 4) == 0) {
+          logwrite( function, "AUTOFETCH HEADER FOUND!" );
+          retval = this->archon.Read(autofetch_header, 1260);
+          std::string autofetch_header_str(autofetch_header);
+          logwrite( function, "AUTOFETCH HEADER: " + autofetch_header_str);
+        }
+      }
+
 
       if (header[0] == '?') {  // Archon retured an error
         message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ") << " data";
