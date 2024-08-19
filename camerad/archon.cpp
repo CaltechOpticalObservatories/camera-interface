@@ -3076,11 +3076,14 @@ namespace Archon {
                              << " data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
     logwrite(function, message.str());
 
-    // Lock the frame buffer before reading it
-    //
-    if ( this->lock_buffer(bufready) == ERROR) {
+    // don't lock frame buffer in autofetch mode
+    if (!this->is_autofetch) {
+      // Lock the frame buffer before reading it
+      //
+      if ( this->lock_buffer(bufready) == ERROR) {
         logwrite( function, "ERROR locking frame buffer" );
         return (ERROR);
+      }
     }
 
     // Send the FETCH command to read the memory buffer from the Archon backplane.
