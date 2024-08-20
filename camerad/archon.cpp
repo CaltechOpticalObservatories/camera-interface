@@ -2670,8 +2670,6 @@ namespace Archon {
     std::stringstream message;
     long error = NO_ERROR;
 
-    logwrite( function, "READ FRAME" );
-
     if ( ! this->modeselected ) {
       this->camera.log_error( function, "no mode selected" );
       return ERROR;
@@ -3154,13 +3152,13 @@ namespace Archon {
         break;                         // break out of for loop
 
       }
-      // else if (strncmp(header, check, 4) != 0) {
-      //   message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
-      //                            << " data. header=" << header << " check=" << check;
-      //   this->camera.log_error( function, message.str() );
-      //   error = ERROR;
-      //   break;                         // break out of for loop
-      // }
+      else if (strncmp(header, check, 4) != 0) {
+        message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
+                                 << " data. header=" << header << " check=" << check;
+        this->camera.log_error( function, message.str() );
+        error = ERROR;
+        break;                         // break out of for loop
+      }
 
       // Read the frame contents
       //
