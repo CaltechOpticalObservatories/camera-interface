@@ -16,7 +16,6 @@
 #include <fstream>
 #include <array>
 #include <utility>
-#include <chrono>
 
 namespace Archon {
 
@@ -1143,8 +1142,6 @@ namespace Archon {
     std::stringstream scmd;
     long error = NO_ERROR;
 
-    logwrite( function, "PREP PARAMETER: " + paramname );
-
     // Prepare to apply it to the system -- will be loaded on next EXTLOAD signal
     //
     scmd << "FASTPREPPARAM " << paramname << " " << value;
@@ -2264,13 +2261,13 @@ namespace Archon {
     // send FRAME command to get frame buffer status
     //
 
-    if (!this->is_autofetch) {
+    if (this->is_autofetch) {
+      logwrite( function, "AUTOFETCH MODE: not sending FRAME command");
+    } else {
       if ( (error = this->archon_cmd(FRAME, reply)) ) {
         if ( error == ERROR ) logwrite( function, "ERROR: sending FRAME command" );  // don't log here if BUSY
         return error;
       }
-    } else {
-      logwrite( function, "get_frame_status: AUTOFETCH ON, not sending FRAME command");
     }
 
     // First Tokenize breaks the single, continuous reply string into vector of individual strings,
@@ -2602,8 +2599,6 @@ namespace Archon {
     uint64_t maxoffset = this->frame.bufbase[this->frame.index];
     uint64_t maxaddr = maxoffset + maxblocks;
 
-    logwrite( function, "FETCH");
-
     if ( bufaddr > maxaddr ) {
       message.str(""); message << "fetch Archon buffer requested address 0x" << std::hex << bufaddr << " exceeds 0x" << maxaddr;
       this->camera.log_error( function, message.str() );
@@ -2770,8 +2765,6 @@ namespace Archon {
         unsigned int block, bufblocks=0;
         long error = ERROR;
         int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
-
-        logwrite( function, "H READ FRAME");
 
         // Archon buffer number of the last frame read into memory
         // Archon frame index is 1 biased so add 1 here
@@ -2950,9 +2943,6 @@ namespace Archon {
   long Interface::read_frame(Camera::frame_type_t frame_type) {
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
-
-    logwrite( function, "READ FRAME WITH FRAME TYPE" );
-
     int retval;
     int bufready;
     char check[5], header[5];
@@ -3073,6 +3063,7 @@ namespace Archon {
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
+      // Disable polling in eautofetch mode
       if (!this->is_autofetch) {
         // Are there data to read?
         if ( (retval=this->archon.Poll()) <= 0) {
@@ -3111,7 +3102,6 @@ namespace Archon {
       if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
 
       // Check message header
-      //
       if (this->is_autofetch) {
         logwrite( function, "replaced header: " + std::to_string(this->msgref) + " with: <XF:" );
         sprintf(check, "<XF:");
@@ -3126,24 +3116,22 @@ namespace Archon {
         break;                         // break out of for loop
       }
 
+      // Read autofetch header
       if (this->is_autofetch) {
-        // Read autofetch header
-        char autofetch_header[1260];
-
-        logwrite( function, "READ FRAME: AUTOFETCH MODE");
-
         if (strncmp(header, "<SFA", 4) == 0) {
-          logwrite( function, "AUTOFETCH HEADER FOUND!" );
+          logwrite( function, "AUTOFETCH HEADER: FOUND" );
           std::string autofetch_header_str;
           retval = this->archon.Read(autofetch_header_str, '\n');
-          // autofetch_header_str(autofetch_header);
-          logwrite( function, "AUTOFETCH HEADER: " + std::string(header) + autofetch_header_str);
 
           // Read next header
-          this->archon.Read(header, 4);
+          if ( (retval=this->archon.Read(header, 4)) != 4 ) {
+            message.str(""); message << "code " << retval << " reading Archon frame header";
+            this->camera.log_error( function, message.str() );
+            error = ERROR;
+            break;                         // break out of for loop
+          }
         }
       }
-
 
       if (header[0] == '?') {  // Archon retured an error
         message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ") << " data";
@@ -3152,13 +3140,10 @@ namespace Archon {
         error = ERROR;
         break;                         // break out of for loop
 
-      }
-      else if (strncmp(header, check, 4) != 0) {
-        char buffer[1000];
+      } else if (strncmp(header, check, 4) != 0) {
         message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
-        this->archon.Read(buffer, 1000);
-        this->camera.log_error( function, message.str() + " : " + buffer );
+        this->camera.log_error( function, message.str() );
         error = ERROR;
         break;                         // break out of for loop
       }
@@ -3778,8 +3763,6 @@ namespace Archon {
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
-    logwrite( function, "RUN EXPOSE" );
-
     if ( ! this->modeselected ) {
       this->camera.log_error( function, "no mode selected" );
       return ERROR;
@@ -3870,6 +3853,7 @@ namespace Archon {
     //
     this->camera_info.extension = 0;
 
+    // Don't send get_frame_status in autofetch mode
     if (!this->is_autofetch) {
       error = this->get_frame_status();  // TODO is this needed here?
     }
@@ -3888,7 +3872,6 @@ namespace Archon {
       logwrite( function, "ERROR: could not initiate exposure" );
       return error;
     }
-
 
     // get system time and Archon's timer after exposure starts
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
@@ -5295,9 +5278,11 @@ namespace Archon {
     while (!done && !this->abort) {
       if (this->is_longexposure) usleep( 10000 );  // reduces polling frequency
 
+      // Don't run get_frame status in autofetch mode
       if (this->is_autofetch) {
-        logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+        // Check if data is ready on socket
         if (this->archon.Bytes_ready() > 0) {
+          logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
           done = true;
           break;
         }
@@ -5360,7 +5345,6 @@ namespace Archon {
     // After exiting while loop, one update to ensure accurate ASYNC message
     // reporting of LINECOUNT.
     //
-    logwrite( function, "EXITED WHILE LOOP" );
 
     // don't run get_frame_status() in autofetch mode
     if (!this->is_autofetch) {
