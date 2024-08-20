@@ -2801,7 +2801,6 @@ namespace Archon {
                                  << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
         logwrite(function, message.str());
 
-
         // send the FETCH command.
         // This will take the archon_busy semaphore, but not release it -- must release in this function!
         //
