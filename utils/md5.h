@@ -11,10 +11,11 @@
 #pragma once
 
 /*************************** HEADER FILES ***************************/
-#include <stddef.h>
+#include <cstddef>
+#include <cstdint>
 
 /****************************** MACROS ******************************/
-#define MD5_BLOCK_SIZE 16               // MD5 outputs a 16 byte digest
+constexpr size_t MD5_BLOCK_SIZE=16;     // MD5 outputs a 16 byte digest
 
 /**************************** DATA TYPES ****************************/
 typedef unsigned char BYTE;             // 8-bit byte
