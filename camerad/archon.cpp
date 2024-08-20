@@ -3134,8 +3134,9 @@ namespace Archon {
 
         if (strncmp(header, "<SFA", 4) == 0) {
           logwrite( function, "AUTOFETCH HEADER FOUND!" );
-          retval = this->archon.Read(autofetch_header, '\n');
-          std::string autofetch_header_str(autofetch_header);
+          std::string autofetch_header_str;
+          retval = this->archon.Read(autofetch_header_str, '\n');
+          // autofetch_header_str(autofetch_header);
           logwrite( function, "AUTOFETCH HEADER: " + std::string(header) + autofetch_header_str);
 
           // Read next header
