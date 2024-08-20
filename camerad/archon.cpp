@@ -3153,9 +3153,11 @@ namespace Archon {
 
       }
       else if (strncmp(header, check, 4) != 0) {
+        char buffer[1000];
         message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
-        this->camera.log_error( function, message.str() );
+        this->archon.Read(buffer, 1000);
+        this->camera.log_error( function, message.str() + " : " + buffer );
         error = ERROR;
         break;                         // break out of for loop
       }
