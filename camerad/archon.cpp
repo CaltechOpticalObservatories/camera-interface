@@ -3826,6 +3826,7 @@ namespace Archon {
       if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
     }
 
+    logwrite( function, "SEQUENCE NUMBERS");
     // If nseq_in is not supplied then set nseq to 1.
     // Add any pre-exposures onto the number of sequences.
     //
@@ -3854,6 +3855,8 @@ namespace Archon {
     // set datacube true and then send "expose" without a number.
     //
     this->camera_info.extension = 0;
+
+    logwrite( function, "NOT GETTING FRAME STATUS");
 
     // Don't send get_frame_status in autofetch mode
     if (!this->is_autofetch) {
