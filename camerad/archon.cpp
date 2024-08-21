@@ -3045,6 +3045,7 @@ namespace Archon {
                              << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
     logwrite(function, message.str());
 
+    // Dont't send fetch command in autofetch mode
     if (!this->is_autofetch) {
       // send the FETCH command.
       // This will take the archon_busy semaphore, but not release it -- must release in this function!
@@ -3062,7 +3063,7 @@ namespace Archon {
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
-      // Disable polling in eautofetch mode
+      // Disable polling in autofetch mode
       if (!this->is_autofetch) {
         // Are there data to read?
         if ( (retval=this->archon.Poll()) <= 0) {
