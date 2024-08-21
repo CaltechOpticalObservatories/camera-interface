@@ -3763,6 +3763,8 @@ namespace Archon {
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
+    logwrite( function, "EXPOSE");
+
     if ( ! this->modeselected ) {
       this->camera.log_error( function, "no mode selected" );
       return ERROR;
@@ -3864,6 +3866,8 @@ namespace Archon {
     }
     this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
 
+    logwrite( function, "PREP PRARAMETERS");
+
     // initiate the exposure here
     //
     error = this->prep_parameter(this->exposeparam, nseqstr);
@@ -3872,6 +3876,8 @@ namespace Archon {
       logwrite( function, "ERROR: could not initiate exposure" );
       return error;
     }
+
+    logwrite( function, "PREP PRARAMETERS: DONE");
 
     // get system time and Archon's timer after exposure starts
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
