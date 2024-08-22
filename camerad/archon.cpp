@@ -2801,13 +2801,15 @@ namespace Archon {
                                  << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
         logwrite(function, message.str());
 
-        // send the FETCH command.
-        // This will take the archon_busy semaphore, but not release it -- must release in this function!
-        //
-        error = this->fetch(bufaddr, bufblocks);
-        if (error != NO_ERROR) {
+        if (!this->is_autofetch) {
+          // send the FETCH command.
+          // This will take the archon_busy semaphore, but not release it -- must release in this function!
+          //
+          error = this->fetch(bufaddr, bufblocks);
+          if (error != NO_ERROR) {
             logwrite(function, "ERROR: fetching Archon buffer");
             return error;
+          }
         }
 
         // Read the data from the connected socket into memory, one block at a time
