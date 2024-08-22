@@ -3763,8 +3763,6 @@ namespace Archon {
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
-    logwrite( function, "EXPOSE");
-
     if ( ! this->modeselected ) {
       this->camera.log_error( function, "no mode selected" );
       return ERROR;
@@ -3825,8 +3823,6 @@ namespace Archon {
       std::string retval;
       if ( this->longexposure( lexp, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting longexposure" ); return ERROR; }
     }
-
-    logwrite( function, "SEQUENCE NUMBERS");
     // If nseq_in is not supplied then set nseq to 1.
     // Add any pre-exposures onto the number of sequences.
     //
@@ -3856,8 +3852,6 @@ namespace Archon {
     //
     this->camera_info.extension = 0;
 
-    logwrite( function, "NOT GETTING FRAME STATUS");
-
     // Don't send get_frame_status in autofetch mode
     if (!this->is_autofetch) {
       error = this->get_frame_status();  // TODO is this needed here?
@@ -3869,8 +3863,6 @@ namespace Archon {
     }
     this->lastframe = this->frame.bufframen[this->frame.index];     // save the last frame number acquired (wait_for_readout will need this)
 
-    logwrite( function, "PREP PRARAMETERS");
-
     // initiate the exposure here
     //
     error = this->prep_parameter(this->exposeparam, nseqstr);
@@ -3879,8 +3871,6 @@ namespace Archon {
       logwrite( function, "ERROR: could not initiate exposure" );
       return error;
     }
-
-    logwrite( function, "PREP PRARAMETERS: DONE");
 
     // get system time and Archon's timer after exposure starts
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
@@ -4553,8 +4543,6 @@ namespace Archon {
         int nseq, finalframe, nread, currentindex;
 
         std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
-
-        logwrite( function, "H Expose");
 
         if ( ! this->modeselected ) {
             this->camera.log_error( function, "no mode selected" );
@@ -5369,7 +5357,6 @@ namespace Archon {
         this->camera.async.enqueue( message.str() );
       }
     }
-
 
     if ( error != NO_ERROR ) {
       return error;
