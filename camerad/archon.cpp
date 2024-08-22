@@ -3103,7 +3103,6 @@ namespace Archon {
 
       // Check message header
       if (this->is_autofetch) {
-        logwrite( function, "replaced header: " + std::to_string(this->msgref) + " with: <XF:" );
         sprintf(check, "<XF:");
       } else {
         SNPRINTF(check, "<%02X:", this->msgref);
