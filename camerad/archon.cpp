@@ -3123,11 +3123,11 @@ namespace Archon {
       if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
 
       // Check message header
-      if (this->is_autofetch) {
-        sprintf(check, "<XF:");
-      } else {
+      //if (this->is_autofetch) {
+      //  sprintf(check, "<XF:");
+      //} else {
         SNPRINTF(check, "<%02X:", this->msgref);
-      }
+      //}
 
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
@@ -3160,7 +3160,11 @@ namespace Archon {
         error = ERROR;
         break;                         // break out of for loop
 
-      } else if (strncmp(header, check, 4) != 0) {
+      }
+
+      bool is_correct_header_autofetch = this->is_autofetch && (strncmp(header, check, 4) != 0 || strncmp(header, "<XF:", 4) != 0);
+
+      if (strncmp(header, check, 4) != 0 || is_correct_header_autofetch) {
         message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
         this->camera.log_error( function, message.str() );
