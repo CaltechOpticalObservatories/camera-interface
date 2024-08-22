@@ -2799,6 +2799,7 @@ namespace Archon {
                                  << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
         logwrite(function, message.str());
 
+        // don't fetch in autofetch mode
         if (!this->is_autofetch) {
           // send the FETCH command.
           // This will take the archon_busy semaphore, but not release it -- must release in this function!
@@ -2816,24 +2817,26 @@ namespace Archon {
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
         for (block=0; block<bufblocks; block++) {
-
+          // Disable polling in autofetch mode
+          if (!this->is_autofetch) {
             // Are there data to read?
             if ( (retval=this->archon.Poll()) <= 0) {
-                if (retval==0) {
-                    message.str("");
-                    message << "Poll timeout waiting for Archon frame data";
-                    error = ERROR;
-                }  // TODO should error=TIMEOUT?
+              if (retval==0) {
+                message.str("");
+                message << "Poll timeout waiting for Archon frame data";
+                error = ERROR;
+              }  // TODO should error=TIMEOUT?
 
-                if (retval<0)  {
-                    message.str("");
-                    message << "Poll error waiting for Archon frame data";
-                    error = ERROR;
-                }
+              if (retval<0)  {
+                message.str("");
+                message << "Poll error waiting for Archon frame data";
+                error = ERROR;
+              }
 
-                if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
-                break;                         // breaks out of for loop
+              if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
+              break;                         // breaks out of for loop
             }
+          }
 
             // Wait for a block+header Bytes to be available
             // (but don't wait more than 1 second -- this should be tens of microseconds or less)
@@ -2861,6 +2864,24 @@ namespace Archon {
                 error = ERROR;
                 break;                         // break out of for loop
             }
+
+            // Read autofetch header
+            if (this->is_autofetch) {
+              if (strncmp(header, "<SFA", 4) == 0) {
+                logwrite( function, "AUTOFETCH HEADER: FOUND" );
+                std::string autofetch_header_str;
+                retval = this->archon.Read(autofetch_header_str, '\n');
+
+                // Read next header
+                if ( (retval=this->archon.Read(header, 4)) != 4 ) {
+                  message.str(""); message << "code " << retval << " reading Archon frame header";
+                  this->camera.log_error( function, message.str() );
+                  error = ERROR;
+                  break;                         // break out of for loop
+                }
+              }
+            }
+
             if (header[0] == '?') {  // Archon retured an error
                 message.str(""); message << "Archon returned \'?\' reading image data";
                 this->camera.log_error( function, message.str() );
@@ -4634,8 +4655,12 @@ namespace Archon {
         // set datacube true and then send "expose" without a number.
         this->camera_info.extension = 0;
 
+        // Don't get frame status in autofetch mode
+        if (!this->is_autofetch) {
+          error = this->get_frame_status();
+        }
+
         // initialize frame parameters (index, etc.)
-        error = this->get_frame_status();
         currentindex = this->frame.index;
 
         if (error != NO_ERROR) {
