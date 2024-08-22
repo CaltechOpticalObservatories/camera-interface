@@ -761,22 +761,17 @@ void doit(Network::TcpSocket sock) {
 #endif
         else if (cmd == "expose") {
             ret = server.expose(args);
-        } else if (cmd == "exptime") {
-            // Neither controller allows fractional exposure times
-            // so catch that here.
-            //
-            if (args.find(".") != std::string::npos) {
-                ret = ERROR;
-                logwrite(function, "ERROR: fractional exposure times not allowed");
-                // empty the args string so that a call to exptime returns the current exptime
-                //
-                args = "";
-                server.exptime(args, retstring);
-            } else { ret = server.exptime(args, retstring); }
+        }
+        else if (cmd == "exptime") {
+            ret = server.exptime(args, retstring);
             if (!retstring.empty()) {
                 sock.Write(retstring);
                 sock.Write(" ");
             }
+        }
+        else if (!retstring.empty()) {
+                sock.Write(retstring);
+                sock.Write(" ");
         } else if (cmd == "bias") {
             ret = server.bias(args, retstring);
             if (!retstring.empty()) {

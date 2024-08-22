@@ -60,6 +60,8 @@
 namespace Archon {
 
     constexpr std::string_view QUIET = "quiet";  // allows sending commands without logging
+    constexpr uint32_t MSEC_TO_TICK = 100000;    // Archon clock ticks per millisecond
+    constexpr uint32_t MAX_EXPTIME  = 0xFFFFF;   // Archon parameters are limited to 20 bits
 
     // Archon hardware-based constants.
     // These shouldn't change unless there is a significant hardware change.
@@ -111,7 +113,7 @@ namespace Archon {
         std::vector<int> offset; //!< digital CDS offset (from TAPLINE definition)
         bool modeselected; //!< true if a valid mode has been selected, false otherwise
         bool firmwareloaded; //!< true if firmware is loaded, false otherwise
-        bool is_longexposure; //!< true for long exposure mode (exptime in sec), false for exptime in msec
+        bool longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
         bool is_window; //!< true if in window mode for h2rg, false if not
         bool is_autofetch;
         int win_hstart;
@@ -152,6 +154,7 @@ namespace Archon {
         std::mutex archon_mutex;
         //!< protects Archon from being accessed by multiple threads,
                                                     //!< use in conjunction with archon_busy flag
+        std::string longexposeparam; //!< param name to control longexposure in ACF (empty=not supported)
         std::string exposeparam; //!< param name to trigger exposure when set =1
 
         std::string shutenableparam; //!< param name to enable shutter open on expose
