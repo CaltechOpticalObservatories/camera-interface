@@ -149,10 +149,10 @@ namespace Camera {
      */
     class ExposureTime {
       private:
-        uint32_t    _value;         // exposure time in the current units
-        bool        _set;           // has it been set using the class value() function?
-        std::string _unit;          // "s" for seconds, "ms" for milliseconds
-        bool        _longexposure;  // true for s, false for ms
+        uint32_t    _value;            // exposure time in the current units
+        bool        _is_set;           // has it been set using the class value() function?
+        std::string _unit;             // "s" for seconds, "ms" for milliseconds
+        bool        _is_longexposure;  // true for s, false for ms
 
       public:
         /**
@@ -166,7 +166,7 @@ namespace Camera {
          *
          */
         explicit ExposureTime( uint32_t time=0, const std::string &u="ms" )
-                   : _value(0), _set(false), _unit(u), _longexposure(u=="s") {
+                   : _value(0), _is_set(false), _unit(u), _is_longexposure(u=="s") {
           if ( u != "ms" && u != "s" ) throw std::invalid_argument("invalid unit, expected \"s\" or \"ms\"");
           this->value(time);
         }
@@ -181,7 +181,7 @@ namespace Camera {
             if ( _unit != newunit ) {
               _value = ( newunit == "ms" ? _value*1000 : _value/1000 );
               _unit = newunit;
-              _longexposure = ( newunit == "s" );
+              _is_longexposure = ( newunit == "s" );
             }
           }
           else throw std::invalid_argument("invalid unit, expected \"s\" or \"ms\"");
@@ -205,7 +205,7 @@ namespace Camera {
          * @brief      return the longexposure state
          * @return     true | false
          */
-	bool longexposure() const { return _longexposure; }
+	bool is_longexposure() const { return _is_longexposure; }
 
         /**
          * @brief      return the exposure time in units of milliseconds
@@ -239,15 +239,15 @@ namespace Camera {
          */
         void value( uint32_t time ) {
           _value = time;
-          _set   = true;
+          _is_set = true;
         }
 
         /**
-         * @brief      return _set flag
+         * @brief      return _is_set flag
          * @details    allows checking if a user has explicitly set the exposure time.
          * @return     true | false
          */
-	bool set() const { return _set; }
+	bool is_set() const { return _is_set; }
 
         /**
          * @brief      overload operators to perform in the correct units
@@ -328,9 +328,6 @@ namespace Camera {
         int extension; //!< extension number for data cubes
         bool shutterenable; //!< set true to allow the controller to open the shutter on expose, false to disable it
         std::string shutteractivate; //!< shutter activation state
-//      int32_t exposure_time; //!< exposure time in exposure_unit
-//      std::string exposure_unit; //!< exposure time unit
-//      int exposure_factor; //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
         double exposure_progress; //!< exposure progress (fraction)
         int num_pre_exposures; //!< pre-exposures are exposures taken but not saved
         std::string fits_name; //!< contatenation of Camera's image_dir + image_name + image_num
@@ -358,9 +355,6 @@ namespace Camera {
             this->iscube = false;
             this->datatype = -1;
             this->type_set = false; //!< set true when datatype has been defined
-//          this->exposure_time = -1; //!< default exposure time is undefined
-//          this->exposure_unit = ""; //!< default exposure unit is undefined
-//          this->exposure_factor = -1; //!< default factor is undefined
             this->shutteractivate = "";
             this->num_pre_exposures = 0; //!< default is no pre-exposures
         }

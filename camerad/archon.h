@@ -113,7 +113,7 @@ namespace Archon {
         std::vector<int> offset; //!< digital CDS offset (from TAPLINE definition)
         bool modeselected; //!< true if a valid mode has been selected, false otherwise
         bool firmwareloaded; //!< true if firmware is loaded, false otherwise
-        bool longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
+        bool is_longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
         bool is_window; //!< true if in window mode for h2rg, false if not
         bool is_autofetch;
         int win_hstart;

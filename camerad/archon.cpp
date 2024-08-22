@@ -36,7 +36,7 @@ namespace Archon {
     this->image_data = nullptr;
     this->image_data_bytes = 0;
     this->image_data_allocated = 0;
-    this->longexposure_set = false;
+    this->is_longexposure_set = false;
     this->is_window = false;
     this->is_autofetch = false;
     this->win_hstart = 0;
@@ -3756,7 +3756,7 @@ namespace Archon {
     // same default values that the ACF has, rather than hope that the ACF programmer picks
     // their defaults to match mine.
     //
-    if ( ! this->camera_info.exposure_time.set() ) {
+    if ( ! this->camera_info.exposure_time.is_set() ) {
       logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
       this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
 
@@ -3774,7 +3774,7 @@ namespace Archon {
       if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
     }
 
-    if ( ! this->longexposure_set && ! this->longexposeparam.empty() ) {
+    if ( ! this->is_longexposure_set && ! this->longexposeparam.empty() ) {
       logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
       this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
@@ -4530,7 +4530,7 @@ namespace Archon {
         // This ensures that, if the client doesn't set these values then the server will have the
         // same default values that the ACF has, rather than hope that the ACF programmer picks
         // their defaults to match mine.
-        if ( ! this->camera_info.exposure_time.set() ) {
+        if ( ! this->camera_info.exposure_time.is_set() ) {
             logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
             this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
 
@@ -4548,7 +4548,7 @@ namespace Archon {
             if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
         }
 
-        if ( ! this->longexposure_set && ! this->longexposeparam.empty() ) {
+        if ( ! this->is_longexposure_set && ! this->longexposeparam.empty() ) {
             logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
             this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
@@ -4770,7 +4770,7 @@ namespace Archon {
       // same default values that the ACF has, rather than hope that the ACF programmer picks
       // their defaults to match mine.
       //
-      if ( ! this->camera_info.exposure_time.set() ) {
+      if ( ! this->camera_info.exposure_time.is_set() ) {
           logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
           this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
 
@@ -4784,7 +4784,7 @@ namespace Archon {
           std::string retval;
           if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
       }
-      if ( ! this->longexposure_set && ! this->longexposeparam.empty() ) {
+      if ( ! this->is_longexposure_set && ! this->longexposeparam.empty() ) {
           logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
           this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
@@ -5272,7 +5272,7 @@ namespace Archon {
     //
     while (!done && !this->abort) {
 
-      if ( this->camera_info.exposure_time.longexposure() ) std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );
+      if ( this->camera_info.exposure_time.is_longexposure() ) std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );
       error = this->get_frame_status();
 
       if (error == ERROR) {
@@ -6257,12 +6257,12 @@ namespace Archon {
           this->camera.log_error( function, message.str() );
           return ERROR;
         }
-        this->longexposure_set = true;
+        this->is_longexposure_set = true;
 
         // Set the longexposure param and re-set the exposure time in the current unit
         //
         std::stringstream cmd;
-        cmd << this->longexposeparam << " " << ( this->camera_info.exposure_time.longexposure() ? 1 : 0 );
+        cmd << this->longexposeparam << " " << ( this->camera_info.exposure_time.is_longexposure() ? 1 : 0 );
         error |= this->set_parameter( cmd.str() );
         cmd.str(""); cmd << "exptime " << this->camera_info.exposure_time.value();
         error |= this->set_parameter( cmd.str() );
@@ -6276,7 +6276,7 @@ namespace Archon {
 
     // prepare the return value
     //
-    message.str(""); message << ( this->camera_info.exposure_time.longexposure() ? "true " : "false " )
+    message.str(""); message << ( this->camera_info.exposure_time.is_longexposure() ? "true " : "false " )
                              << this->camera_info.exposure_time.value() << " "
                              << this->camera_info.exposure_time.unit();
     retstring = message.str();
