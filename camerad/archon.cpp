@@ -2695,11 +2695,9 @@ namespace Archon {
       }
 
     } else {
-      // IMAGE, or IMAGE+RAW
-      // datacube was already set = true in the expose function
-      error = this->read_frame(Camera::FRAME_IMAGE);
-
-      // read image frame
+        // IMAGE, or IMAGE+RAW
+        // datacube was already set = true in the expose function
+      error = this->read_frame(Camera::FRAME_IMAGE);                              // read image frame
       if ( error != NO_ERROR ) { logwrite( function, "ERROR: reading image frame" ); return error; }
       error = this->write_frame();                                                // write image frame
       if ( error != NO_ERROR ) { logwrite( function, "ERROR: writing image frame" ); return error; }
