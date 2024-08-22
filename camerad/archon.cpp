@@ -3123,11 +3123,11 @@ namespace Archon {
       if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
 
       // Check message header
-      if (this->is_autofetch) {
-        sprintf(check, "<XF:");
-      } else {
+      // if (this->is_autofetch) {
+        // sprintf(check, "<XF:");
+      // } else {
         SNPRINTF(check, "<%02X:", this->msgref);
-      }
+      // }
 
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
