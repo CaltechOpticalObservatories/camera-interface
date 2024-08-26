@@ -885,8 +885,8 @@ namespace Archon {
     std::stringstream message;
     int     retval;
     char    check[4];
-    char    buffer[4096];                   //!< temporary buffer for holding Archon replies
-    // std::string buffer_str;
+    // char    buffer[4096];                   //!< temporary buffer for holding Archon replies
+    std::string buffer_str;
     int     error = NO_ERROR;
 
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
@@ -939,9 +939,13 @@ namespace Archon {
     sscmd << prefix << cmd << "\n";
     std::string scmd = sscmd.str();   // scmd = string, command to send
 
-    // build the command checksum: msgref used to check that reply matches command
-    //
-    SNPRINTF(check, "<%02X", this->msgref)
+    if (this->is_autofetch) {
+     sprintf(check, "<XF:");
+    } else {
+      // build the command checksum: msgref used to check that reply matches command
+      //
+      SNPRINTF(check, "<%02X", this->msgref)
+    }
 
     // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
     //
@@ -1013,20 +1017,20 @@ namespace Archon {
           break;
         }
       }
-      memset(buffer, '\0', 2048);                    // init temporary buffer
-      retval = this->archon.Read(buffer, 2048);      // read into temp buffer
-      // retval = this->archon.Read(buffer_str, '\n');
+      // memset(buffer, '\0', 2048);                    // init temporary buffer
+      // retval = this->archon.Read(buffer, 2048);      // read into temp buffer
+      retval = this->archon.Read(buffer_str, '\n');
       if (retval <= 0) {
         this->camera.log_error( function, "reading Archon" );
         break;
       }
 
-      reply.append(buffer);                          // append read buffer into the reply string
-
-      if (reply.compare(0, 7, "<SFAUTO") == 0) {
-        logwrite( function, "AUTOFETCH HEADER: FOUND \n CONTINUE");
-        continue;
+      if (buffer_str.compare(0, 4, "<SFA") == 0) {
+        logwrite( function, "AUTOFETCH HEADER: FOUND \n Continue");
+      } else {
+        reply.append(buffer_str);  // append read buffer into the reply string
       }
+
     } while(retval>0 && reply.find('\n') == std::string::npos);
 
     // If there was an Archon error then clear the busy flag and get out now
