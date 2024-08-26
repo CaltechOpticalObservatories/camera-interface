@@ -2542,6 +2542,8 @@ namespace Archon {
     std::stringstream message;
     std::stringstream sscmd;
 
+    logwrite(function, "Locking buffer");
+
     sscmd.str("");
     sscmd << "LOCK" << buffer;
     if ( this->archon_cmd(sscmd.str()) ) {
