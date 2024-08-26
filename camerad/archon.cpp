@@ -3244,9 +3244,11 @@ namespace Archon {
       logwrite( function, message.str() );
     }
 
-    // Unlock the frame buffer
-    //
-    if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+    if (!this->is_autofetch) {
+      // Unlock the frame buffer
+      //
+      if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+    }
 
     // On success, write the value to the log and return
     //
