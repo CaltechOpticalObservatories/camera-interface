@@ -2576,6 +2576,11 @@ namespace Archon {
     std::vector<std::string> tokens;
     long error;
 
+    if (this->is_autofetch) {
+      logwrite(function, "Autofetch: not running get_timer()");
+      return NO_ERROR;
+    }
+
     // send TIMER command to get frame buffer status
     //
     if ( (error = this->archon_cmd(TIMER, reply)) != NO_ERROR ) {
