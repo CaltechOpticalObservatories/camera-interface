@@ -2917,7 +2917,7 @@ namespace Archon {
                 error = ERROR;
                 break;                         // break out of for loop
 
-            } else if (strncmp(header, check, 4) != 0) {
+            } else if (strncmp(header, check, 4) != 0 && !this->is_autofetch) {
                 message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
                 this->camera.log_error( function, message.str() );
                 error = ERROR;
