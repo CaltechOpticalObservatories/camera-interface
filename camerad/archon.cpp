@@ -979,20 +979,20 @@ namespace Archon {
     if ( (cmd.compare(0,5,"FETCH")==0)
         && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
 
-    std::set<std::string> allowed_commands = {"AUTOFETCH", "FASTPREPPARAM", "TIMER"};
-    bool starts_with_prefix = false;
-    for (const auto& allowed_command : allowed_commands) {
-      if (starts_with(cmd, allowed_command)) {
-        starts_with_prefix = true;
-        break;
-      }
-    }
-
-    if (this->is_autofetch && !starts_with_prefix) {
-      logwrite( function, "Autofetch mode: not running command " + cmd);
-      this->archon_busy = false;
-      return NO_ERROR;
-    }
+    // std::set<std::string> allowed_commands = {"AUTOFETCH", "FASTPREPPARAM", "TIMER"};
+    // bool starts_with_prefix = false;
+    // for (const auto& allowed_command : allowed_commands) {
+    //   if (starts_with(cmd, allowed_command)) {
+    //     starts_with_prefix = true;
+    //     break;
+    //   }
+    // }
+    //
+    // if (this->is_autofetch && !starts_with_prefix) {
+    //   logwrite( function, "Autofetch mode: not running command " + cmd);
+    //   this->archon_busy = false;
+    //   return NO_ERROR;
+    // }
 
     // For all other commands, receive the reply
     //
@@ -1039,6 +1039,11 @@ namespace Archon {
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
       this->camera.log_error( function, message.str() );
 
+    } else if (reply.compare(0, 7, "<SFAUTO")) {
+        logwrite( function, "AUTOFETCH HEADER: FOUND");
+
+        this->archon_busy = false;
+        return NO_ERROR;
     } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
         error = ERROR;
         // std::string hdr = reply;
