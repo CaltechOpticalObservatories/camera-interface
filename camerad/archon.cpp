@@ -940,7 +940,7 @@ namespace Archon {
     std::string scmd = sscmd.str();   // scmd = string, command to send
 
     if (this->is_autofetch) {
-      std::strcpy(check, "<XF:");
+      sprintf(check, "<XF");
     } else {
       // build the command checksum: msgref used to check that reply matches command
       //
