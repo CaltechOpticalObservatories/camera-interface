@@ -1039,7 +1039,7 @@ namespace Archon {
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
       this->camera.log_error( function, message.str() );
 
-    } else if (reply.compare(0, 7, "<SFAUTO")) {
+    } else if (reply.compare(0, 7, "<SFAUTO") == 0) {
         logwrite( function, "AUTOFETCH HEADER: FOUND");
 
         this->archon_busy = false;
