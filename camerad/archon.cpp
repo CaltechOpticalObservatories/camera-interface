@@ -1020,6 +1020,12 @@ namespace Archon {
           this->camera.log_error( function, "reading Archon" );
           break;
         }
+
+        if (buffer_str.compare(0, 7, "<SFAUTO") == 0) {
+          logwrite( function, "AUTOFETCH HEADER: FOUND \n CONTINUE");
+          continue;
+        }
+
         reply.append(buffer_str);                          // append read buffer into the reply string
       } while(retval>0 && reply.find('\n') == std::string::npos);
 
@@ -1041,11 +1047,6 @@ namespace Archon {
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
       this->camera.log_error( function, message.str() );
 
-    } else if (reply.compare(0, 7, "<SFAUTO") == 0) {
-        logwrite( function, "AUTOFETCH HEADER: FOUND");
-
-        this->archon_busy = false;
-        return NO_ERROR;
     } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
         error = ERROR;
         // std::string hdr = reply;
