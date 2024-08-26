@@ -885,7 +885,8 @@ namespace Archon {
     std::stringstream message;
     int     retval;
     char    check[4];
-    char    buffer[4096];                       //!< temporary buffer for holding Archon replies
+    // char    buffer[4096];                   //!< temporary buffer for holding Archon replies
+    std::string buffer_str;
     int     error = NO_ERROR;
 
     logwrite( function, "ARCHON COMMAND: " + cmd);
@@ -1012,13 +1013,14 @@ namespace Archon {
           if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
           break;
         }
-        memset(buffer, '\0', 2048);                    // init temporary buffer
-        retval = this->archon.Read(buffer, 2048);      // read into temp buffer
+        // memset(buffer, '\0', 2048);                    // init temporary buffer
+        // retval = this->archon.Read(buffer, 2048);      // read into temp buffer
+        retval = this->archon.Read(buffer_str, '\n');
         if (retval <= 0) {
           this->camera.log_error( function, "reading Archon" );
           break;
         }
-        reply.append(buffer);                          // append read buffer into the reply string
+        reply.append(buffer_str);                          // append read buffer into the reply string
       } while(retval>0 && reply.find('\n') == std::string::npos);
 
     // If there was an Archon error then clear the busy flag and get out now
