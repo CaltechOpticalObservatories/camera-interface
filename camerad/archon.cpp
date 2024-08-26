@@ -4061,10 +4061,14 @@ namespace Archon {
         #endif
         if ( !this->camera.datacube() || this->camera.cubeamps() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-          if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
-            logwrite( function, "ERROR: could not get start time" );
-            return ERROR;
+
+          if (!this->is_autofetch) {
+            if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
+              logwrite( function, "ERROR: could not get start time" );
+              return ERROR;
+            }
           }
+
           this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->camera.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
           if ( error != NO_ERROR ) {
