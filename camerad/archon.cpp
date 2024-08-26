@@ -887,6 +887,8 @@ namespace Archon {
     char    buffer[4096];                       //!< temporary buffer for holding Archon replies
     int     error = NO_ERROR;
 
+    logwrite( function, "ARCHON COMMAND" + cmd);
+
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
       this->camera.log_error( function, "connection not open to controller" );
       return ERROR;
@@ -3139,9 +3141,6 @@ namespace Archon {
       // Read autofetch header
       if (this->is_autofetch) {
         logwrite( function, "reading headers in autofetch mode" );
-
-        bool is_correct_header_autofetch = this->is_autofetch && (strncmp(header, check, 4) != 0 || strncmp(header, "<XF:", 4) != 0);
-
         if (strncmp(header, "<SFA", 4) == 0) {
           logwrite( function, "AUTOFETCH HEADER: FOUND" );
           std::string autofetch_header_str;
@@ -3155,17 +3154,10 @@ namespace Archon {
             break;                         // break out of for loop
           }
         }
-        else if (strncmp(header, check, 4) != 0 || is_correct_header_autofetch) {
-          message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
-                                   << " data. header=" << header << " check=" << check;
-          this->camera.log_error( function, message.str() );
-          error = ERROR;
-          break;                         // break out of for loop
-        }
-      } else {
-        logwrite( function, "Read header not in autofetch mode" );
 
-        if (strncmp(header, check, 4) != 0) {
+        bool is_correct_header_autofetch = this->is_autofetch && (strncmp(header, check, 4) != 0 || strncmp(header, "<XF:", 4) != 0);
+
+        if (strncmp(header, check, 4) != 0 || is_correct_header_autofetch) {
           message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
                                    << " data. header=" << header << " check=" << check;
           this->camera.log_error( function, message.str() );
