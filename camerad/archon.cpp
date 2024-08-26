@@ -3948,9 +3948,12 @@ namespace Archon {
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
     //
     this->camera_info.start_time = get_timestamp();                 // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-    if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
-      logwrite( function, "ERROR: could not get start time" );
-      return ERROR;
+
+    if (!this->is_autofetch) {
+      if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
+        logwrite( function, "ERROR: could not get start time" );
+        return ERROR;
+      }
     }
     this->camera.set_fitstime(this->camera_info.start_time);        // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
     error=this->camera.get_fitsname(this->camera_info.fits_name);   // assemble the FITS filename
