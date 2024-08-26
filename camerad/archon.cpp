@@ -1022,7 +1022,10 @@ namespace Archon {
       }
 
       if (buffer_str.compare(0, 4, "<SFA") == 0) {
-        logwrite( function, "AUTOFETCH HEADER: FOUND \n Continue");
+        logwrite( function, "AUTOFETCH HEADER: FOUND \n Break");
+
+        this->archon_busy = false;
+        return NO_ERROR;
       } else {
         reply.append(buffer_str);  // append read buffer into the reply string
       }
