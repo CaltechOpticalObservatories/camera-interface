@@ -998,7 +998,8 @@ namespace Archon {
     // For all other commands, receive the reply
     //
     reply.clear();                                   // zero reply buffer
-      do {
+    do {
+      if (!this->is_autofetch) {
         if ( (retval=this->archon.Poll()) <= 0) {
           if (retval==0) {
             message.str("");
@@ -1013,21 +1014,22 @@ namespace Archon {
           if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
           break;
         }
-        // memset(buffer, '\0', 2048);                    // init temporary buffer
-        // retval = this->archon.Read(buffer, 2048);      // read into temp buffer
-        retval = this->archon.Read(buffer_str, '\n');
-        if (retval <= 0) {
-          this->camera.log_error( function, "reading Archon" );
-          break;
-        }
+      }
+      // memset(buffer, '\0', 2048);                    // init temporary buffer
+      // retval = this->archon.Read(buffer, 2048);      // read into temp buffer
+      retval = this->archon.Read(buffer_str, '\n');
+      if (retval <= 0) {
+        this->camera.log_error( function, "reading Archon" );
+        break;
+      }
 
-        if (buffer_str.compare(0, 7, "<SFAUTO") == 0) {
-          logwrite( function, "AUTOFETCH HEADER: FOUND \n CONTINUE");
-          continue;
-        }
+      if (buffer_str.compare(0, 7, "<SFAUTO") == 0) {
+        logwrite( function, "AUTOFETCH HEADER: FOUND \n CONTINUE");
+        continue;
+      }
 
-        reply.append(buffer_str);                          // append read buffer into the reply string
-      } while(retval>0 && reply.find('\n') == std::string::npos);
+      reply.append(buffer_str);                          // append read buffer into the reply string
+    } while(retval>0 && reply.find('\n') == std::string::npos);
 
     // If there was an Archon error then clear the busy flag and get out now
     //
