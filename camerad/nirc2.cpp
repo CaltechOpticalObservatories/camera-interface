@@ -582,6 +582,7 @@ namespace Archon {
 
         retstring = message.str();
 
+        debug( "ROI "+retstring );
         return( error );
       }
       /***** Archon::Interface::region_of_interest ****************************/

@@ -13,7 +13,9 @@
 #include "logentry.h"
 
 std::mutex loglock;
+std::mutex debuglock;
 std::ofstream filestream;      /// IO stream class
+std::ofstream debugstream;     /// IO stream class
 unsigned int nextday = 86410;  /// number of seconds until a new day
 bool to_stderr = true;         /// write to stderr
 std::string tmzone_log="";     /// optional time zone for logging
@@ -36,6 +38,7 @@ std::string tmzone_log="";     /// optional time zone for logging
 long init_log( std::string name, std::string logpath, std::string logstderr, std::string logtmzone ) {
   std::string function = "init_log";
   std::stringstream filename;
+  std::stringstream debugfile;
   std::stringstream message;
   int year, mon, mday, hour, min, sec, usec;
   long error = 0;
@@ -52,6 +55,10 @@ long init_log( std::string name, std::string logpath, std::string logstderr, std
                       << std::setw(4) << year
                       << std::setw(2) << mon
                       << std::setw(2) << mday << ".log";
+  debugfile << logpath << "/debug_" << std::setfill('0')
+                       << std::setw(4) << year
+                       << std::setw(2) << mon
+                       << std::setw(2) << mday << ".log";
 
   // number of seconds until a new day
   //
@@ -61,6 +68,7 @@ long init_log( std::string name, std::string logpath, std::string logstderr, std
   //
   try {
     filestream.open(filename.str(), std::ios_base::app);
+    debugstream.open(debugfile.str(), std::ios_base::app);
   }
   catch(...) {
     message << "ERROR: opening log file " << filename.str() << ": " << std::strerror(errno);
@@ -90,8 +98,8 @@ long init_log( std::string name, std::string logpath, std::string logstderr, std
  */
 void close_log() {
   if (filestream.is_open() == true) {
-    filestream.flush();
-    filestream.close();
+    filestream.flush(); debugstream.flush();
+    filestream.close(); debugstream.close();
   }
 }
 /** close_log ****************************************************************/
@@ -127,4 +135,17 @@ void logwrite(std::string function, std::string message) {
   if ( to_stderr ) std::cerr << logmsg.str();    // send to standard error unless restricted
 }
 /** logwrite *****************************************************************/
+
+void debug(const std::string &message) {
+  auto now = std::chrono::system_clock::now();
+  auto t   = std::chrono::system_clock::to_time_t(now);
+  auto usec = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
+  std::tm mytime;
+  localtime_r( &t, &mytime );
+
+  std::lock_guard<std::mutex> lock(debuglock);
+  debugstream << std::put_time( &mytime, "%Y-%m-%d %H:%M:%S" ) << "." << std::setfill('0') << std::setw(6) << usec.count()
+              << " " << message << "\n";
+  debugstream.flush();
+}
 

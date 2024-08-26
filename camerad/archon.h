@@ -313,6 +313,7 @@ namespace Archon {
        *
        */
       void nirc2() {
+        debug( "NIRC2_ENTRY" );
 #ifdef LOGLEVEL_DEBUG
         std::stringstream message;
         message.str(""); message << "[DEBUG] this->rows=" << this->rows 
@@ -335,6 +336,7 @@ namespace Archon {
         int workindex=0;
         this->nirc2( workindex, image, work );  // this is where the actual deinterlacing takes place
 
+        debug( "NIRC2_EXIT" );
         return;
       }
       /***** Archon::DeInterlace::nirc2 ***************************************/
@@ -774,6 +776,7 @@ namespace Archon {
         this->frame_rows = height;
         this->frame_cols = width;
         this->depth = depth;
+        debug( "DEINTERLACE_CLASS_CONSTRUCTED" );
       }
       /***** Archon::DeInterlace::DeInterlace *********************************/
 
@@ -784,6 +787,7 @@ namespace Archon {
 #ifdef LOGLEVEL_DEBUG
         logwrite( "Archon::DeInterlace::~DeInterlace", "[DEBUG] deconstructed" );
 #endif
+        debug( "DEINTERLACE_CLASS_DESTRUCTED" );
       }
 
 
@@ -812,6 +816,7 @@ namespace Archon {
        *
        */
       void do_deinterlace() {
+        debug( "DO_DEINTERLACE_ENTRY" );
         std::string function = "Archon::DeInterlace::do_deinterlace";
         std::stringstream message;
 
@@ -837,6 +842,7 @@ namespace Archon {
             logwrite( function, message.str() );
         }
 
+        debug( "DO_DEINTERLACE_EXIT" );
         return;
       }
       /***** Archon::DeInterlace::do_deinterlace ******************************/

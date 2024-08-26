@@ -61,6 +61,7 @@ class FITS_file {
      *
      */
     long open_file( bool writekeys, Camera::Information & info ) {
+      debug( "OPEN_FILE_ENTRY filename="+this->fits_name );
       std::string function = "FITS_file::open_file";
       std::stringstream message;
 
@@ -172,6 +173,7 @@ class FITS_file {
       this->error = false;
 
       delete [] axes;
+      debug( "OPEN_FILE_EXIT filename="+this->fits_name );
       return (0);
     }
     /**************** FITS_file::open_file ************************************/
@@ -189,6 +191,7 @@ class FITS_file {
      *
      */
     void close_file( bool writekeys, Camera::Information & info ) {
+      debug( "CLOSE_FILE_ENTRY filename="+this->fits_name );
       std::string function = "FITS_file::close_file";
       std::stringstream message;
 
@@ -294,6 +297,7 @@ class FITS_file {
       }
 
       this->fits_name="";
+      debug( "CLOSE_FILE_EXIT filename="+this->fits_name );
     }
     /**************** FITS_file::close_file ***********************************/
 
@@ -311,6 +315,7 @@ class FITS_file {
      */
     template <class T>
     long write_image(T* data, Camera::Information& info) {
+      debug( "WRITE_IMAGE_ENTRY filename="+this->fits_name );
       std::string function = "FITS_file::write_image";
       std::stringstream message;
 
@@ -412,6 +417,7 @@ class FITS_file {
       }
 #endif
 
+      debug( "WRITE_IMAGE_EXIT filename="+this->fits_name);
       return ( this->error.load( std::memory_order_seq_cst ) ? ERROR : NO_ERROR );
     }
     /**************** FITS_file::write_image **********************************/
@@ -432,6 +438,7 @@ class FITS_file {
      */
     template <class T>
     void write_image_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
+      debug( "WRITE_IMAGE_THREAD_ENTRY filename="+this->fits_name );
       std::string function = "FITS_file::write_image_thread";
       std::stringstream message;
 
@@ -484,6 +491,7 @@ class FITS_file {
         return;
       }
 
+      debug( "WRITE_IMAGE_THREAD_EXIT filename="+this->fits_name );
       self->writing_file.store( false, std::memory_order_seq_cst );
     }
     /**************** FITS_file::write_image_thread ***************************/
@@ -504,6 +512,7 @@ class FITS_file {
      */
     template <class T>
     void write_mex_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
+      debug( "WRITE_MEX_THREAD_ENTRY filename="+this->fits_name+" framen="+std::to_string(this->framen) );
       std::string function = "FITS_file::write_mex_thread";
       std::stringstream message;
 
@@ -671,6 +680,7 @@ class FITS_file {
         return;
       }
 
+      debug( "WRITE_MEX_THREAD_EXIT filename="+this->fits_name+" framen="+std::to_string(this->framen) );
       // increment number of frames written
       //
       this->framen++;
