@@ -997,29 +997,31 @@ namespace Archon {
     // For all other commands, receive the reply
     //
     reply.clear();                                   // zero reply buffer
-    do {
-      if ( (retval=this->archon.Poll()) <= 0) {
-        if (retval==0) {
+    if (!this->is_autofetch) {
+      do {
+        if ( (retval=this->archon.Poll()) <= 0) {
+          if (retval==0) {
             message.str("");
             message << "Poll timeout waiting for response from Archon command (maybe unrecognized command?)";
             error = TIMEOUT;
-        }
-        if (retval<0)  {
+          }
+          if (retval<0)  {
             message.str("");
             message << "Poll error waiting for response from Archon command";
             error = ERROR;
+          }
+          if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
+          break;
         }
-        if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
-        break;
-      }
-      memset(buffer, '\0', 2048);                    // init temporary buffer
-      retval = this->archon.Read(buffer, 2048);      // read into temp buffer
-      if (retval <= 0) {
-        this->camera.log_error( function, "reading Archon" );
-        break; 
-      }
-      reply.append(buffer);                          // append read buffer into the reply string
-    } while(retval>0 && reply.find('\n') == std::string::npos);
+        memset(buffer, '\0', 2048);                    // init temporary buffer
+        retval = this->archon.Read(buffer, 2048);      // read into temp buffer
+        if (retval <= 0) {
+          this->camera.log_error( function, "reading Archon" );
+          break;
+        }
+        reply.append(buffer);                          // append read buffer into the reply string
+      } while(retval>0 && reply.find('\n') == std::string::npos);
+    }
 
     // If there was an Archon error then clear the busy flag and get out now
     //
@@ -1039,11 +1041,11 @@ namespace Archon {
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
       this->camera.log_error( function, message.str() );
 
-    } else if (reply.compare(0, 7, "<SFAUTO") == 0) {
-        logwrite( function, "AUTOFETCH HEADER: FOUND");
-
-        this->archon_busy = false;
-        return NO_ERROR;
+    // } else if (reply.compare(0, 7, "<SFAUTO") == 0) {
+    //     logwrite( function, "AUTOFETCH HEADER: FOUND");
+    //
+    //     this->archon_busy = false;
+    //     return NO_ERROR;
     } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
         error = ERROR;
         // std::string hdr = reply;
