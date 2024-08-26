@@ -979,7 +979,7 @@ namespace Archon {
     if ( (cmd.compare(0,5,"FETCH")==0)
         && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
 
-    std::set<std::string> allowed_commands = {"AUTOFETCH", "EXPOSE", "TIMER"};
+    std::set<std::string> allowed_commands = {"AUTOFETCH", "FASTPREPPARAM", "TIMER"};
     bool starts_with_prefix = false;
     for (const auto& allowed_command : allowed_commands) {
       if (starts_with(cmd, allowed_command)) {
