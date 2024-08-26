@@ -997,7 +997,7 @@ namespace Archon {
     //
     reply.clear();                                   // zero reply buffer
     do {
-      // if (!this->is_autofetch) {
+      if (!this->is_autofetch) {
         if ( (retval=this->archon.Poll()) <= 0) {
           if (retval==0) {
             message.str("");
@@ -1012,7 +1012,7 @@ namespace Archon {
           if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
           break;
         }
-      // }
+      }
       memset(buffer, '\0', 2048);                    // init temporary buffer
       retval = this->archon.Read(buffer, 2048);      // read into temp buffer
       // retval = this->archon.Read(buffer_str, '\n');
