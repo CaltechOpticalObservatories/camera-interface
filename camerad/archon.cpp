@@ -979,7 +979,7 @@ namespace Archon {
     if ( (cmd.compare(0,5,"FETCH")==0)
         && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
 
-    std::set<std::string> stringSet = {"autofetch", "expose"};
+    std::set<std::string> stringSet = {"autofetch", "expose", "timer"};
     if (this->is_autofetch && stringSet.count(cmd) == 0) {
       logwrite( function, "Autofetch mode: not running command " + cmd);
       this->archon_busy = false;
