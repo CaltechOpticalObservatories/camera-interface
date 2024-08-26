@@ -939,13 +939,9 @@ namespace Archon {
     sscmd << prefix << cmd << "\n";
     std::string scmd = sscmd.str();   // scmd = string, command to send
 
-    if (this->is_autofetch) {
-      sprintf(check, "<XF");
-    } else {
-      // build the command checksum: msgref used to check that reply matches command
-      //
-      SNPRINTF(check, "<%02X", this->msgref)
-    }
+    // build the command checksum: msgref used to check that reply matches command
+    //
+    SNPRINTF(check, "<%02X", this->msgref)
 
     // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
     //
@@ -1051,7 +1047,7 @@ namespace Archon {
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
       this->camera.log_error( function, message.str() );
 
-    } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
+    } else if (reply.compare(0, 3, check)!=0 && reply.compare(0, 3, "<XF")!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
         error = ERROR;
         // std::string hdr = reply;
         try {
