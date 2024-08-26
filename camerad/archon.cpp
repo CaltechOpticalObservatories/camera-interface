@@ -15,6 +15,7 @@
 #include <string>
 #include <fstream>
 #include <array>
+#include <set>
 #include <utility>
 
 namespace Archon {
@@ -978,8 +979,10 @@ namespace Archon {
     if ( (cmd.compare(0,5,"FETCH")==0)
         && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
 
-    if (this->is_autofetch) {
+    std::set<std::string> stringSet = {"autofetch", "expose"};
+    if (this->is_autofetch && stringSet.count(cmd) == 0) {
       logwrite( function, "Autofetch mode: not running command " + cmd);
+      this->archon_busy = false;
       return NO_ERROR;
     }
 
