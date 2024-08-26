@@ -889,8 +889,6 @@ namespace Archon {
     // std::string buffer_str;
     int     error = NO_ERROR;
 
-    logwrite( function, "ARCHON COMMAND: " + cmd);
-
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
       this->camera.log_error( function, "connection not open to controller" );
       return ERROR;
