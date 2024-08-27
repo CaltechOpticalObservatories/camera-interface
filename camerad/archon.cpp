@@ -1013,6 +1013,8 @@ namespace Archon {
 
         if (buffer_str.compare(0, 4, "<SFA") == 0) {
           logwrite( function, "AUTOFETCH HEADER: FOUND -> Ignore");
+          this->archon_busy = false;
+          return NO_ERROR;
         }
       }
 
