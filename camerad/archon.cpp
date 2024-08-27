@@ -1014,13 +1014,13 @@ namespace Archon {
         }
 
         if (buffer_str.compare(0, 4, "<SFA") == 0) {
-          logwrite( function, "AUTOFETCH HEADER: FOUND \n Read again");
+          logwrite( function, "AUTOFETCH HEADER: FOUND -> Ignore");
 
-          retval = this->archon.Read(buffer_str, '\n');
-          if (retval <= 0) {
-            this->camera.log_error( function, "reading Archon" );
-            break;
-          }
+          // retval = this->archon.Read(buffer_str, '\n');
+          // if (retval <= 0) {
+          //   this->camera.log_error( function, "reading Archon" );
+          //   break;
+          // }
         }
       }
 
