@@ -978,7 +978,7 @@ namespace Archon {
         && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
 
     // Don't wait for reply on expose in autofetch mode
-    if ( (cmd.compare(0,20,"FASTPREPPARAM Expose")==0) ) {
+    if ( (cmd.compare(0,20,"FASTPREPPARAM Expose")==0) || (cmd.compare(0,20,"FASTLOADPARAM Expose")==0) ) {
       logwrite(function, "Expose in AUTOFETCH MODE");
       this->archon_busy = false;
       return (NO_ERROR);
