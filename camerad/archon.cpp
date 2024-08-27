@@ -4136,6 +4136,11 @@ namespace Archon {
 
       }  // end of sequence loop, while (nseq-- > 0)
 
+      // ASYNC status message on completion of each sequence
+      message.str(""); message << "READOUT SEQUENCE " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" ) << " (" << nread << " of " << nseq << " read)";
+      this->camera.async.enqueue( message.str() );
+      error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
+
     } else if ( mode == "RAW") {
       error = this->get_frame_status();                             // Get the current frame buffer status
       if (error != NO_ERROR) {
