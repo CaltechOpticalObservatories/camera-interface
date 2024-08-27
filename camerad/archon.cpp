@@ -3206,7 +3206,7 @@ namespace Archon {
 
       }
 
-      if (strncmp(header, check, 4)) {
+      if (strncmp(header, check, 4) && strncmp(header, "<XF:", 4)) {
         message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
         this->camera.log_error( function, message.str() );
