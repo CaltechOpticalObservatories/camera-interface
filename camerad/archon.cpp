@@ -5412,21 +5412,22 @@ namespace Archon {
         }
       } else {
         error = this->get_frame_status();
-      }
 
-      if (error == ERROR) {
-        done = true;
-        logwrite( function, "ERROR: unable to get frame status" );
-        break;
-      }
 
-      // get current frame number and check the status of its buffer
-      currentframe = this->frame.bufframen[this->frame.index];
+        if (error == ERROR) {
+          done = true;
+          logwrite( function, "ERROR: unable to get frame status" );
+          break;
+        }
 
-      if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
-        done  = true;
-        error = NO_ERROR;
-        break;
+        // get current frame number and check the status of its buffer
+        currentframe = this->frame.bufframen[this->frame.index];
+
+        if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
+          done  = true;
+          error = NO_ERROR;
+          break;
+        }
       }
 
       // If the frame isn't done by the predicted time then
