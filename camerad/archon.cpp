@@ -885,8 +885,8 @@ namespace Archon {
     std::stringstream message;
     int     retval;
     char    check[4];
-    // char    buffer[4096];                   //!< temporary buffer for holding Archon replies
-    std::string buffer_str;
+    char    buffer[4096];                   //!< temporary buffer for holding Archon replies
+    // std::string buffer_str;
     int     error = NO_ERROR;
 
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
@@ -1013,21 +1013,21 @@ namespace Archon {
           break;
         }
       }
-      // memset(buffer, '\0', 2048);                    // init temporary buffer
-      // retval = this->archon.Read(buffer, 2048);      // read into temp buffer
-      retval = this->archon.Read(buffer_str, '\n');
+      memset(buffer, '\0', 2048);                    // init temporary buffer
+      retval = this->archon.Read(buffer, 2048);      // read into temp buffer
+      // retval = this->archon.Read(buffer_str, '\n');
       if (retval <= 0) {
         this->camera.log_error( function, "reading Archon" );
         break;
       }
 
-      if (buffer_str.compare(0, 4, "<SFA") == 0) {
+      if (std::string(buffer).compare(0, 4, "<SFA") == 0) {
         logwrite( function, "AUTOFETCH HEADER: FOUND \n Break");
 
         this->archon_busy = false;
         return NO_ERROR;
       } else {
-        reply.append(buffer_str);  // append read buffer into the reply string
+        reply.append(buffer);  // append read buffer into the reply string
       }
 
     } while(retval>0 && reply.find('\n') == std::string::npos);
@@ -2851,7 +2851,7 @@ namespace Archon {
         std::cerr << "reading bytes: ";
         for (block=0; block<bufblocks; block++) {
           // Disable polling in autofetch mode
-          //if (!this->is_autofetch) {
+          if (!this->is_autofetch) {
             // Are there data to read?
             if ( (retval=this->archon.Poll()) <= 0) {
               if (retval==0) {
@@ -2869,7 +2869,7 @@ namespace Archon {
               if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
               break;                         // breaks out of for loop
             }
-          //}
+          }
 
             // Wait for a block+header Bytes to be available
             // (but don't wait more than 1 second -- this should be tens of microseconds or less)
@@ -3156,12 +3156,7 @@ namespace Archon {
       if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
 
       // Check message header
-      //if (this->is_autofetch) {
-      //  sprintf(check, "<XF:");
-      //} else {
-        SNPRINTF(check, "<%02X:", this->msgref);
-      //}
-
+      SNPRINTF(check, "<%02X:", this->msgref);
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
         this->camera.log_error( function, message.str() );
