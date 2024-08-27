@@ -2922,7 +2922,7 @@ namespace Archon {
               error = ERROR;
               break;                         // break out of for loop
 
-            } else if (strncmp(header, check, 4) != 0) {
+            } else if (strncmp(header, check, 4) != 0 && strncmp(header, "<XF:", 4) != 0) {
               message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
               this->camera.log_error( function, message.str() );
               error = ERROR;
@@ -4795,7 +4795,7 @@ namespace Archon {
             }
 
             // then read the frame buffer to host (and write file) when frame ready.
-            error = read_frame();
+            error = hread_frame();
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: reading frame buffer" );
                 return error;
@@ -4816,10 +4816,12 @@ namespace Archon {
         this->camera.async.enqueue( message.str() );
         error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
 
-        error = get_frame_status();
-        if ( error != NO_ERROR ) {
+        if (!this->is_autofetch) {
+          error = get_frame_status();
+          if ( error != NO_ERROR ) {
             logwrite( function, "ERROR: getting final frame status" );
             return error;
+          }
         }
 
         message.str(""); message << "Last frame read " << this->frame.frame << " from buffer " << this->frame.index + 1;
