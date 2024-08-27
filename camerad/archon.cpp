@@ -1009,18 +1009,10 @@ namespace Archon {
         // Don't wait for reply on expose in autofetch mode
         if ( (cmd.compare(0,20,"FASTPREPPARAM Expose")==0) || (cmd.compare(0,20,"FASTLOADPARAM Expose")==0) ) {
           logwrite(function, "Expose in AUTOFETCH MODE");
-          // this->archon_busy = false;
-          // return (NO_ERROR);
         }
 
         if (buffer_str.compare(0, 4, "<SFA") == 0) {
           logwrite( function, "AUTOFETCH HEADER: FOUND -> Ignore");
-
-          // retval = this->archon.Read(buffer_str, '\n');
-          // if (retval <= 0) {
-          //   this->camera.log_error( function, "reading Archon" );
-          //   break;
-          // }
         }
       }
 
@@ -5399,12 +5391,9 @@ namespace Archon {
           logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
           done = true;
           break;
-        } else {
-          logwrite( function, "AUTOFETCH MODE: No bytes ready on socket");
         }
       } else {
         error = this->get_frame_status();
-
 
         if (error == ERROR) {
           done = true;
