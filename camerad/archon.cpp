@@ -2851,7 +2851,7 @@ namespace Archon {
         std::cerr << "reading bytes: ";
         for (block=0; block<bufblocks; block++) {
           // Disable polling in autofetch mode
-          if (!this->is_autofetch) {
+          //if (!this->is_autofetch) {
             // Are there data to read?
             if ( (retval=this->archon.Poll()) <= 0) {
               if (retval==0) {
@@ -2869,7 +2869,7 @@ namespace Archon {
               if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
               break;                         // breaks out of for loop
             }
-          }
+          //}
 
             // Wait for a block+header Bytes to be available
             // (but don't wait more than 1 second -- this should be tens of microseconds or less)
