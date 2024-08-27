@@ -977,13 +977,6 @@ namespace Archon {
     if ( (cmd.compare(0,5,"FETCH")==0)
         && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
 
-    // Don't wait for reply on expose in autofetch mode
-    if ( (cmd.compare(0,20,"FASTPREPPARAM Expose")==0) || (cmd.compare(0,20,"FASTLOADPARAM Expose")==0) ) {
-      logwrite(function, "Expose in AUTOFETCH MODE");
-      this->archon_busy = false;
-      return (NO_ERROR);
-    }
-
     // For all other commands, receive the reply
     //
     reply.clear();                                   // zero reply buffer
@@ -1012,15 +1005,24 @@ namespace Archon {
         break;
       }
 
-      // if (buffer_str.compare(0, 4, "<SFA") == 0) {
-      //   logwrite( function, "AUTOFETCH HEADER: FOUND \n Read again");
-      //
-      //   retval = this->archon.Read(buffer_str, '\n');
-      //   if (retval <= 0) {
-      //     this->camera.log_error( function, "reading Archon" );
-      //     break;
-      //   }
-      // }
+      if (this->is_autofetch) {
+        // Don't wait for reply on expose in autofetch mode
+        if ( (cmd.compare(0,20,"FASTPREPPARAM Expose")==0) || (cmd.compare(0,20,"FASTLOADPARAM Expose")==0) ) {
+          logwrite(function, "Expose in AUTOFETCH MODE");
+          // this->archon_busy = false;
+          // return (NO_ERROR);
+        }
+
+        if (buffer_str.compare(0, 4, "<SFA") == 0) {
+          logwrite( function, "AUTOFETCH HEADER: FOUND \n Read again");
+
+          retval = this->archon.Read(buffer_str, '\n');
+          if (retval <= 0) {
+            this->camera.log_error( function, "reading Archon" );
+            break;
+          }
+        }
+      }
 
       reply.append(buffer_str);  // append read buffer into the reply string
 
