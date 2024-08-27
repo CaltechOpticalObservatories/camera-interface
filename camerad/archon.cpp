@@ -2915,20 +2915,18 @@ namespace Archon {
               }
             }
 
-            if (!this->is_autofetch) {
-              if (header[0] == '?') {  // Archon retured an error
-                message.str(""); message << "Archon returned \'?\' reading image data";
-                this->camera.log_error( function, message.str() );
-                this->fetchlog();      // check the Archon log for error messages
-                error = ERROR;
-                break;                         // break out of for loop
+            if (header[0] == '?') {  // Archon retured an error
+              message.str(""); message << "Archon returned \'?\' reading image data";
+              this->camera.log_error( function, message.str() );
+              this->fetchlog();      // check the Archon log for error messages
+              error = ERROR;
+              break;                         // break out of for loop
 
-              } else if (strncmp(header, check, 4) != 0) {
-                message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
-                this->camera.log_error( function, message.str() );
-                error = ERROR;
-                break;                         // break out of for loop
-              }
+            } else if (strncmp(header, check, 4) != 0) {
+              message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
+              this->camera.log_error( function, message.str() );
+              error = ERROR;
+              break;                         // break out of for loop
             }
 
             // Read the frame contents
