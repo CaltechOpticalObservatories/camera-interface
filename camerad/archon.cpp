@@ -5407,6 +5407,8 @@ namespace Archon {
           logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
           done = true;
           break;
+        } else {
+          logwrite( function, "AUTOFETCH MODE: No bytes ready on socket");
         }
       } else {
         error = this->get_frame_status();
@@ -5421,7 +5423,6 @@ namespace Archon {
       // get current frame number and check the status of its buffer
       currentframe = this->frame.bufframen[this->frame.index];
 
-      logwrite( function, "current frame: " + std::to_string(currentframe) + " last frame: " + std::to_string(this->lastframe) );
       if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
         done  = true;
         error = NO_ERROR;
