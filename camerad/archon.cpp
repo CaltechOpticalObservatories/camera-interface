@@ -3822,7 +3822,7 @@ namespace Archon {
     std::stringstream message;
     long error = NO_ERROR;
     std::string nseqstr;
-    int nseq;
+    int nseq, nread;
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
@@ -4015,7 +4015,7 @@ namespace Archon {
     //
     if ( mode != "RAW" ) {                                          // If not raw mode then
       int expcount = 0;                                             // counter used only for tracking pre-exposures
-
+      nread = 0;
       //
       // -- MAIN SEQUENCE LOOP --
       //
@@ -4125,6 +4125,12 @@ namespace Archon {
           this->camera.async.enqueue( message.str() );
           logwrite( function, message.str() );
         }
+
+        // ASYNC status message on completion of each readout
+        nread++;
+        message.str(""); message << "READOUT COMPLETE (" << nread << " of " << nseq << " read)";
+        this->camera.async.enqueue( message.str() );
+        logwrite( function, message.str() );
 
         if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
 
