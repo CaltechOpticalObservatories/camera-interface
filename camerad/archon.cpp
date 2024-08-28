@@ -2780,7 +2780,7 @@ namespace Archon {
         int bytesread, totalbytesread, toread;
         uint64_t bufaddr;
         unsigned int block, bufblocks=0;
-        long error = ERROR;
+        long error = NO_ERROR;
         int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
 
         // Archon buffer number of the last frame read into memory
