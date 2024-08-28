@@ -5554,6 +5554,7 @@ namespace Archon {
 
             // check for timeout
             if (clock_now > clock_timeout) {
+              this->camera.log_error( function, "Waiting for frame timed out" );
               error = ERROR;
               break;
             }
