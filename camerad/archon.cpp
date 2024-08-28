@@ -3171,16 +3171,6 @@ namespace Archon {
             break;                         // break out of for loop
           }
         }
-
-        // bool is_autofetch_frame_header = this->is_autofetch && strncmp(header, "<XF:", 4) != 0;
-        //
-        // if (strncmp(header, check, 4) != 0 && is_autofetch_frame_header) {
-        //   message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
-        //                            << " data. header=" << header << " check=" << check;
-        //   this->camera.log_error( function, message.str() );
-        //   error = ERROR;
-        //   break;                         // break out of for loop
-        // }
       }
 
       if (header[0] == '?') {  // Archon retured an error
