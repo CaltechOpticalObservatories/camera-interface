@@ -5531,6 +5531,29 @@ namespace Archon {
 #endif
         this->lastframe = currentframe;
 
+        // In Autofetch mode wait until bytes are ready on socket
+        if (this->is_autofetch) {
+          bool done = false;
+          double clock_now     = get_clock_time();                   // get_clock_time returns seconds
+          double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
+
+          while (!done && !this->abort) {
+            // Check if data is ready on socket
+            if (this->archon.Bytes_ready() > 0) {
+              logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+              done = true;
+              break;
+            }
+
+            // check for timeout
+            if (clock_now > clock_timeout) {
+              error = ERROR;
+              break;
+            }
+            clock_now = get_clock_time();
+          }
+        }
+
         // On success, write the value to the log and return
         //
         if (!this->abort) {
