@@ -2874,6 +2874,8 @@ namespace Archon {
             }
             if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
 
+
+            logwrite( function, "Start reading");
             // Check message header
             //
             SNPRINTF(check, "<%02X:", this->msgref)
@@ -3144,7 +3146,6 @@ namespace Archon {
       // Check message header
       SNPRINTF(check, "<%02X:", this->msgref);
 
-      logwrite( function, "Start reading");
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
         this->camera.log_error( function, message.str() );
