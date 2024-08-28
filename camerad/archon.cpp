@@ -2858,8 +2858,6 @@ namespace Archon {
             }
           }
 
-          logwrite( function, "still reading...");
-
             // Wait for a block+header Bytes to be available
             // (but don't wait more than 1 second -- this should be tens of microseconds or less)
             //
@@ -2880,8 +2878,6 @@ namespace Archon {
               break;
             }  // needed to also break out of for loop on error
 
-
-            logwrite( function, "Start reading");
             // Check message header
             //
             SNPRINTF(check, "<%02X:", this->msgref)
@@ -5519,7 +5515,9 @@ namespace Archon {
         message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
         logwrite(function, message.str());
 
-        usleep( 700 );  // tune for size of window
+        if (!this->is_autofetch) {
+          usleep( 700 );  // tune for size of window
+        }
 
         this->frame.index += 1;
 
