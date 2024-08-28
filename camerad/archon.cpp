@@ -3143,6 +3143,8 @@ namespace Archon {
 
       // Check message header
       SNPRINTF(check, "<%02X:", this->msgref);
+
+      logwrite( function, "Start reading");
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
         this->camera.log_error( function, message.str() );
