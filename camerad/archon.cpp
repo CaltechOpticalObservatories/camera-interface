@@ -2858,6 +2858,8 @@ namespace Archon {
             }
           }
 
+          logwrite( function, "still reading...");
+
             // Wait for a block+header Bytes to be available
             // (but don't wait more than 1 second -- this should be tens of microseconds or less)
             //
@@ -2873,7 +2875,10 @@ namespace Archon {
                     break;                       // breaks out of while loop
                 }
             }
-            if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
+            if ( error != NO_ERROR ) {
+              logwrite( function, "ERROR: reading Archon frame data" );
+              break;
+            }  // needed to also break out of for loop on error
 
 
             logwrite( function, "Start reading");
