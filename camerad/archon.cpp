@@ -2894,8 +2894,7 @@ namespace Archon {
                 logwrite( function, "AUTOFETCH HEADER FOUND" );
 
                 // read rest of the autofetch header
-                std::string autofetch_header_str;
-                retval = this->archon.Read(autofetch_header_str, '\n');
+                retval = this->archon.Read(nullptr, '\n');
 
                 // Read next header
                 logwrite( function, "Read next package" );
