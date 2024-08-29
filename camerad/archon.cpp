@@ -2937,12 +2937,12 @@ namespace Archon {
             if (strncmp(header, "<XF:", 4) == 0) {
               logwrite( function, "<XF header found");
             }
-            else if (strncmp(header, check, 4) != 0) {
-              message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
-              this->camera.log_error( function, message.str() );
-              error = ERROR;
-              break;                         // break out of for loop
-            }
+            // else if (strncmp(header, check, 4) != 0) {
+            //   message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
+            //   this->camera.log_error( function, message.str() );
+            //   error = ERROR;
+            //   break;                         // break out of for loop
+            // }
 
             if (!this->is_autofetch)
             {
