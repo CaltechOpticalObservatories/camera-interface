@@ -2901,12 +2901,24 @@ namespace Archon {
 
                 // Read next header
                 // logwrite( function, "Read next package" );
-                if ( (retval=this->archon.Read(header, 4)) != 4 ) {
+                if ( (retval=this->archon.Read(buffer, 1028)) != 1028 ) {
                   message.str(""); message << "code " << retval << " reading Archon frame header";
                   this->camera.log_error( function, message.str() );
                   error = ERROR;
                   break;                         // break out of for loop
                 }
+
+                logwrite( function, "read 1028 off socket");
+                // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+                //   bytesread += retval;         // this will get zeroed after each block
+                //   totalbytesread += retval;    // this won't (used only for info purposes)
+                //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+                //   ptr_image += retval;         // advance pointer
+                // }
+                strcpy(ptr_image, buffer + 4);
+                ptr_image += retval;
+
+                logwrite( function, "copied 1024 to image pointer");
               }
 
               // if (strncmp(buffer, "<SFA", 4) == 0) {
@@ -2932,19 +2944,22 @@ namespace Archon {
               break;                         // break out of for loop
             }
 
-            // Read the frame contents
-            //
-            bytesread = 0;
-            do {
+            if (!this->is_autofetch)
+            {
+              // Read the frame contents
+              //
+              bytesread = 0;
+              do {
                 toread = BLOCK_LEN - bytesread;
                 logwrite( function, "reading: " + std::to_string(toread) + " , bytesread: " + std::to_string(bytesread));
                 if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-                    bytesread += retval;         // this will get zeroed after each block
-                    totalbytesread += retval;    // this won't (used only for info purposes)
-                    std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-                    ptr_image += retval;         // advance pointer
+                  bytesread += retval;         // this will get zeroed after each block
+                  totalbytesread += retval;    // this won't (used only for info purposes)
+                  std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+                  ptr_image += retval;         // advance pointer
                 }
-            } while (bytesread < BLOCK_LEN);
+              } while (bytesread < BLOCK_LEN);
+            }
 
         } // end of loop: for (block=0; block<bufblocks; block++)
 
