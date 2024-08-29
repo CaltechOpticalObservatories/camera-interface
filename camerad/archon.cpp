@@ -2776,6 +2776,7 @@ namespace Archon {
         int retval;
         int bufready;
         char check[5], header[5];
+        char buffer[2301];
         char *ptr_image;
         int bytesread, totalbytesread, toread;
         uint64_t bufaddr;
@@ -2881,6 +2882,7 @@ namespace Archon {
             // Check message header
             //
             SNPRINTF(check, "<%02X:", this->msgref)
+            // if ( (retval=this->archon.Read(buffer, 2301)) != 2301 ) {
             if ( (retval=this->archon.Read(header, 4)) != 4 ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
                 this->camera.log_error( function, message.str() );
@@ -2905,6 +2907,10 @@ namespace Archon {
                   break;                         // break out of for loop
                 }
               }
+
+              // if (strncmp(buffer, "<SFA", 4) == 0) {
+              //
+              // }
             }
 
             if (header[0] == '?') {  // Archon retured an error
@@ -2930,6 +2936,7 @@ namespace Archon {
             bytesread = 0;
             do {
                 toread = BLOCK_LEN - bytesread;
+                logwrite( function, "reading: " + std::to_string(toread) + " , bytesread: " + std::to_string(bytesread));
                 if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
                     bytesread += retval;         // this will get zeroed after each block
                     totalbytesread += retval;    // this won't (used only for info purposes)
