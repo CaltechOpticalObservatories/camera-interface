@@ -2893,10 +2893,11 @@ namespace Archon {
             // Read autofetch header
             if (this->is_autofetch) {
               if (strncmp(header, "<SFA", 4) == 0) {
-                // logwrite( function, "AUTOFETCH HEADER FOUND" );
 
                 // read rest of the autofetch header
                 retval = this->archon.Read(autofetch_header_str, '\n');
+
+                logwrite( function, "AUTOFETCH HEADER FOUND, length: " + std::to_string(autofetch_header_str.length() + 4) );
 
                 // Read next header
                 // logwrite( function, "Read next package" );
