@@ -1006,11 +1006,11 @@ namespace Archon {
       }
 
       if (this->is_autofetch) {
-        // Don't wait for reply on expose in autofetch mode
         if ( (cmd.compare(0,20,"FASTPREPPARAM Expose")==0) || (cmd.compare(0,20,"FASTLOADPARAM Expose")==0) ) {
           logwrite(function, "Expose in AUTOFETCH MODE");
         }
 
+        // ignore autofetch header
         if (buffer_str.compare(0, 4, "<SFA") == 0) {
           logwrite( function, "AUTOFETCH HEADER: FOUND -> Ignore");
           this->archon_busy = false;
@@ -2891,11 +2891,14 @@ namespace Archon {
             // Read autofetch header
             if (this->is_autofetch) {
               if (strncmp(header, "<SFA", 4) == 0) {
-                logwrite( function, "AUTOFETCH HEADER: FOUND" );
+                logwrite( function, "AUTOFETCH HEADER FOUND" );
+
+                // read rest of the autofetch header
                 std::string autofetch_header_str;
                 retval = this->archon.Read(autofetch_header_str, '\n');
 
                 // Read next header
+                logwrite( function, "Read next package" );
                 if ( (retval=this->archon.Read(header, 4)) != 4 ) {
                   message.str(""); message << "code " << retval << " reading Archon frame header";
                   this->camera.log_error( function, message.str() );
@@ -2912,7 +2915,11 @@ namespace Archon {
               error = ERROR;
               break;                         // break out of for loop
 
-            } else if (strncmp(header, check, 4) != 0 && strncmp(header, "<XF:", 4) != 0) {
+            }
+            if (strncmp(header, "<XF:", 4) == 0) {
+              logwrite( function, "<XF header found");
+            }
+            else if (strncmp(header, check, 4) != 0) {
               message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
               this->camera.log_error( function, message.str() );
               error = ERROR;
