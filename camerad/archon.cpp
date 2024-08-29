@@ -2963,9 +2963,9 @@ namespace Archon {
         // On success, write the value to the log and return
         //
         if (error == NO_ERROR) {
-            // message.str(""); message << "successfully read " << std::dec << totalbytesread
-            //         << " image bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
-            // logwrite(function, message.str());
+            message.str(""); message << "successfully read " << std::dec << totalbytesread
+                    << " image bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
+            logwrite(function, message.str());
 
         } else {
             // Throw an error for any other errors
