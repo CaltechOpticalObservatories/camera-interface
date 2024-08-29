@@ -2835,6 +2835,7 @@ namespace Archon {
         ptr_image = this->image_data;
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
+        std::string autofetch_header_str;
         for (block=0; block<bufblocks; block++) {
           logwrite( function, "reading...");
           // Disable polling in autofetch mode
@@ -2894,7 +2895,7 @@ namespace Archon {
                 logwrite( function, "AUTOFETCH HEADER FOUND" );
 
                 // read rest of the autofetch header
-                retval = this->archon.Read(nullptr, '\n');
+                retval = this->archon.Read(autofetch_header_str, '\n');
 
                 // Read next header
                 logwrite( function, "Read next package" );
