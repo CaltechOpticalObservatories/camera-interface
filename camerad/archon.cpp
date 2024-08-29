@@ -2837,7 +2837,6 @@ namespace Archon {
         std::cerr << "reading bytes: ";
         std::string autofetch_header_str;
         for (block=0; block<bufblocks; block++) {
-          logwrite( function, "reading...");
           // Disable polling in autofetch mode
           if (!this->is_autofetch) {
             // Are there data to read?
@@ -2892,13 +2891,13 @@ namespace Archon {
             // Read autofetch header
             if (this->is_autofetch) {
               if (strncmp(header, "<SFA", 4) == 0) {
-                logwrite( function, "AUTOFETCH HEADER FOUND" );
+                // logwrite( function, "AUTOFETCH HEADER FOUND" );
 
                 // read rest of the autofetch header
                 retval = this->archon.Read(autofetch_header_str, '\n');
 
                 // Read next header
-                logwrite( function, "Read next package" );
+                // logwrite( function, "Read next package" );
                 if ( (retval=this->archon.Read(header, 4)) != 4 ) {
                   message.str(""); message << "code " << retval << " reading Archon frame header";
                   this->camera.log_error( function, message.str() );
@@ -2964,9 +2963,9 @@ namespace Archon {
         // On success, write the value to the log and return
         //
         if (error == NO_ERROR) {
-            message.str(""); message << "successfully read " << std::dec << totalbytesread
-                    << " image bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
-            logwrite(function, message.str());
+            // message.str(""); message << "successfully read " << std::dec << totalbytesread
+            //         << " image bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
+            // logwrite(function, message.str());
 
         } else {
             // Throw an error for any other errors
