@@ -13,6 +13,7 @@
 #include <numeric>
 #include <fenv.h>
 #include <string_view>
+#include <variant>
 
 #include "utilities.h"
 #include "common.h"
@@ -21,45 +22,47 @@
 #include "logentry.h"
 #include "network.h"
 #include "fits.h"
+#include "fits_queue.h"
 
-#define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
-#define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
-#define BLOCK_LEN 1024             //!< Archon block size
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
-
-// Archon commands
-//
-#define  SYSTEM        std::string("SYSTEM")
-#define  STATUS        std::string("STATUS")
-#define  FRAME         std::string("FRAME")
-#define  CLEARCONFIG   std::string("CLEARCONFIG")
-#define  POLLOFF       std::string("POLLOFF")
-#define  POLLON        std::string("POLLON")
-#define  APPLYALL      std::string("APPLYALL")
-#define  POWERON       std::string("POWERON")
-#define  POWEROFF      std::string("POWEROFF")
-#define  APPLYCDS      std::string("APPLYCDS")
-#define  APPLYSYSTEM   std::string("APPLYSYSTEM")
-#define  RESETTIMING   std::string("RESETTIMING")
-#define  LOADTIMING    std::string("LOADTIMING")
-#define  HOLDTIMING    std::string("HOLDTIMING")
-#define  RELEASETIMING std::string("RELEASETIMING")
-#define  LOADPARAMS    std::string("LOADPARAMS")
-#define  TIMER         std::string("TIMER")
-#define  FETCHLOG      std::string("FETCHLOG")
-#define  UNLOCK        std::string("LOCK0")
-
-// Minimum required backplane revisions for certain features
-//
-#define REV_RAMP           std::string("1.0.548")
-#define REV_SENSORCURRENT  std::string("1.0.758")
-#define REV_HEATERTARGET   std::string("1.0.1087")
-#define REV_FRACTIONALPID  std::string("1.0.1054")
-#define REV_VCPU           std::string("1.0.784")
 
 namespace Archon {
 
-    constexpr std::string_view QUIET = "quiet";  // allows sending commands without logging
+    constexpr int MAXADCCHANS =   16;            //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
+    constexpr int MAXADMCHANS =   72;            //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
+    constexpr int BLOCK_LEN   = 1024;            //!< Archon block size
+
+    // Archon commands
+    //
+    const std::string  SYSTEM        = "SYSTEM";
+    const std::string  STATUS        = "STATUS";
+    const std::string  FRAME         = "FRAME";
+    const std::string  CLEARCONFIG   = "CLEARCONFIG";
+    const std::string  POLLOFF       = "POLLOFF";
+    const std::string  POLLON        = "POLLON";
+    const std::string  APPLYALL      = "APPLYALL";
+    const std::string  POWERON       = "POWERON";
+    const std::string  POWEROFF      = "POWEROFF";
+    const std::string  APPLYCDS      = "APPLYCDS";
+    const std::string  APPLYSYSTEM   = "APPLYSYSTEM";
+    const std::string  RESETTIMING   = "RESETTIMING";
+    const std::string  LOADTIMING    = "LOADTIMING";
+    const std::string  HOLDTIMING    = "HOLDTIMING";
+    const std::string  RELEASETIMING = "RELEASETIMING";
+    const std::string  LOADPARAMS    = "LOADPARAMS";
+    const std::string  TIMER         = "TIMER";
+    const std::string  FETCHLOG      = "FETCHLOG";
+    const std::string  UNLOCK        = "LOCK0";
+
+    // Minimum required backplane revisions for certain features
+    //
+    const std::string REV_RAMP          = "1.0.548";
+    const std::string REV_SENSORCURRENT = "1.0.758";
+    const std::string REV_HEATERTARGET  = "1.0.1087";
+    const std::string REV_FRACTIONALPID = "1.0.1054";
+    const std::string REV_VCPU          = "1.0.784";
+
+    const std::string_view QUIET = "quiet";      // allows sending commands without logging
     constexpr uint32_t MSEC_TO_TICK = 100000;    // Archon clock ticks per millisecond
     constexpr uint32_t MAX_EXPTIME  = 0xFFFFF;   // Archon parameters are limited to 20 bits
 
@@ -81,12 +84,218 @@ namespace Archon {
     const int DEF_SHUTENABLE_ENABLE = 1;
     const int DEF_SHUTENABLE_DISABLE = 0;
 
+    /**
+     * @brief   deinterlacing modes
+     */
+    enum class DeInterlaceMode {
+      NONE,
+      RXRVIDEO
+    };
+
+    /***** PostProcessBase ***************************************************/
+    /**
+     * @brief   base class for PostProcess template class
+     * @details This is the polymorphic base class for the PostProcess
+     *          template class.
+     *
+     */
+    class PostProcessBase {
+      protected:
+        DeInterlaceMode _mode;
+        uint16_t _rows;
+        uint16_t _cols;
+        long _error;
+
+      public:
+        PostProcessBase( DeInterlaceMode mode ) : _mode(mode), _rows(0), _cols(0), _error(NO_ERROR) { }
+
+        virtual ~PostProcessBase() = default;
+
+        long get_error() const { return _error; }
+
+        void set_mode( DeInterlaceMode mode ) { _mode = mode; }
+
+        DeInterlaceMode get_mode() const { return _mode; }
+
+        void set_dimensions( uint16_t rows, uint16_t cols ) {
+          _rows = rows;
+          _cols = cols;
+        }
+    };
+    /***** PostProcessBase ***************************************************/
+
+    /***** PostProcess *******************************************************/
+    /**
+     * @brief   template class for deinterlacing
+     * @details This class is templated to handle the data types in the
+     *          variant. It stores pointers to the buffers needed for
+     *          deinterlacing, raw input, and the signal and reset output
+     *          buffers. The deinterlace() function performs the deinterlacing.
+     *
+     *          If the deinterlacing mode is not specified on class contruction
+     *          then DeInterlaceMode::NONE is used. The deinterlacing mode can
+     *          always be changed with the base class set_mode() function.
+     *
+     */
+    template <typename T>
+    class PostProcess : public PostProcessBase {
+      private:
+        T* rawbuf;
+        T* sigbuf;
+        T* resbuf;
+
+        // TODO move to a separate file
+        void deinterlace_RXRVIDEO() {
+          std::string function="Archon::PostProcess::deinterlace_RXRVIDEO";
+          std::stringstream message;
+
+          if ( _rows==0 || _cols==0 ) {
+            message.str(""); message << "ERROR invalid image dimensions rows=" << _rows << " cols=" << _cols
+                                     << ": cannot be zero";
+            logwrite( function, message.str() );
+            _error = ERROR;
+            return;
+          }
+
+          if ( rawbuf==nullptr || sigbuf==nullptr || resbuf==nullptr ) {
+            logwrite( function, "ERROR image buffers not initialized" );
+            _error = ERROR;
+            return;
+          }
+
+          logwrite( "PostProcess::deinterlace_RXRVIDEO", "actual deinterlacing here" );
+
+          for ( int row=0; row < _rows; ++row ) {
+            for ( int col=0; col < _cols; col+=64 ) {
+              std::memcpy( &sigbuf[row*_cols + col], &rawbuf[row*_cols*2 + col*2],      64*sizeof(T) );
+              std::memcpy( &resbuf[row*_cols + col], &rawbuf[row*_cols*2 + col*2 + 64], 64*sizeof(T) );
+            }
+          }
+          return;
+        }
+
+      public:
+        PostProcess(): PostProcessBase(DeInterlaceMode::NONE), rawbuf(nullptr), sigbuf(nullptr), resbuf(nullptr) { }
+        PostProcess( DeInterlaceMode mode ): PostProcessBase(mode), rawbuf(nullptr), sigbuf(nullptr), resbuf(nullptr) { }
+
+        /***** PostProcess::subtract_frames ***********************************/
+        /**
+         * @brief      performs the CDS subtraction
+         * @param[in]  image   T pointer to buffer with raw image
+         * @param[in]  signal  T pointer to buffer to hold signal frame
+         * @param[in]  reset   T pointer to buffer to hold reset frame
+         *
+         */
+        void subtract_frames( T* image, T* signal, T* reset ) {
+          std::string function="Archon::PostProcess::subtract_frames";
+          std::stringstream message;
+          message << "subtracting frames for datatype " << demangle(typeid(T).name());
+          logwrite( function, message.str() );
+          return;
+        }
+        /***** PostProcess::subtract_frames ***********************************/
+
+        /***** PostProcess::deinterlace ***************************************/
+        /**
+         * @brief      calls the appropriate deinterlacing mode function
+         * @param[in]  image   T pointer to buffer with raw image
+         * @param[in]  signal  T pointer to buffer to hold signal frame
+         * @param[in]  reset   T pointer to buffer to hold reset frame
+         *
+         */
+        void deinterlace( T* image, T* signal, T* reset ) {
+          std::string function="Archon::PostProcess::deinterlace";
+          std::stringstream message;
+
+          message << "deinterlacing for datatype " << demangle(typeid(T).name());
+          logwrite( function, message.str() );
+
+          this->rawbuf = image;
+          this->sigbuf = signal;
+          this->resbuf = reset;
+
+          switch ( _mode ) {
+            case DeInterlaceMode::RXRVIDEO:
+              logwrite( function, "selected mode RXRVIDEO" );
+              deinterlace_RXRVIDEO();
+              break;
+
+            default:
+              message.str(""); message << "ERROR unknown deinterlacing mode ";
+              logwrite( function, message.str() );
+          }
+
+          return;
+        }
+        /***** PostProcess::deinterlace ***************************************/
+    };
+    /***** PostProcess *******************************************************/
+
+    /***** DeInterlace *******************************************************/
+    /**
+     * @brief      visitor class for deinterlacing
+     * @details    This class uses a template operator() to handle each specific
+     *             PostProcess type specified by the std::variant. When
+     *             std::visit is called with an instance of this visitor class
+     *             and a PostProcess variant, it will invoke the appropriate
+     *             operator() based on the type of the PostProcess object. The
+     *             visitor passes void pointers to the buffers, casting them to
+     *             the correct type.
+     *
+     */
+    class DeInterlace {
+      private:
+        void* _image;
+        void* _signal;
+        void* _reset;
+
+      public:
+        DeInterlace( void* image, void* signal, void* reset )
+          : _image(image), _signal(signal), _reset(reset) { }
+
+        template <typename T>
+        void operator()(PostProcess<T> &obj) const {
+          obj.deinterlace( static_cast<T*>(_image), static_cast<T*>(_signal), static_cast<T*>(_reset) );
+        }
+    };
+    /***** DeInterlace *******************************************************/
+
+    /***** CDS_Subtact *******************************************************/
+    /**
+     * @brief      visitor class for CDS subtraction
+     * @details    This class uses a template operator() to handle each specific
+     *             PostProcess type specified by the std::variant. When
+     *             std::visit is called with an instance of this visitor class
+     *             and a PostProcess variant, it will invoke the appropriate
+     *             operator() based on the type of the PostProcess object. The
+     *             visitor passes void pointers to the buffers, casting them to
+     *             the correct type.
+     *
+     */
+    class CDS_Subtract {
+      private:
+        void* _image;
+        void* _signal;
+        void* _reset;
+
+      public:
+        CDS_Subtract( void* image, void* signal, void* reset )
+          : _image(image), _signal(signal), _reset(reset) { }
+
+        template <typename T>
+        void operator()(PostProcess<T> &obj) const {
+          obj.subtract_frames( static_cast<T*>(_image), static_cast<T*>(_signal), static_cast<T*>(_reset) );
+        }
+    };
+    /***** CDS_Subtract ******************************************************/
+
+
     class Interface {
-    private:
+      private:
         unsigned long int start_timer, finish_timer; //!< Archon internal timer, start and end of exposure
         int n_hdrshift; //!< number of right-shift bits for Archon buffer in HDR mode
 
-    public:
+      public:
         Interface();
 
         ~Interface();
@@ -99,6 +308,21 @@ namespace Archon {
         Camera::Camera camera; /// instantiate a Camera object
         Common::FitsKeys userkeys; //!< instantiate a Common object
         Common::FitsKeys systemkeys; //!< instantiate a Common object
+
+        FitsQueue cds_Queue;
+        FitsQueue unproc_Queue;
+
+        // Create a deinterlacer using a variant of acceptable data types
+        //
+        std::variant<PostProcess<int16_t>,
+                     PostProcess<uint16_t>,
+                     PostProcess<uint32_t>> postprocessor;
+
+        void set_dimensions( uint16_t r, uint16_t c ) {
+          auto SetDimensions = [rows=r, cols=c](auto &postprocessor) { postprocessor.set_dimensions(rows,cols); };
+          std::visit( SetDimensions, postprocessor );
+          return;
+        }
 
         Config config;
 
@@ -146,9 +370,12 @@ namespace Archon {
         float heater_target_min; //!< minimum heater target temperature
         float heater_target_max; //!< maximum heater target temperature
 
-        char *image_data; //!< image data buffer
-        uint32_t image_data_bytes; //!< requested number of bytes allocated for image_data rounded up to block size
-        uint32_t image_data_allocated; //!< allocated number of bytes for image_data
+        int ring_index;
+        std::vector<char*> signal_buf;      //!< signal frame data ring buffer
+        std::vector<char*> reset_buf;       //!< reset frame data ring buffer
+        char *image_data;                   //!< image data buffer
+        uint32_t image_data_bytes;          //!< requested number of bytes allocated for image_data rounded up to block size
+        uint32_t image_data_allocated;      //!< allocated number of bytes for image_data
 
         std::atomic<bool> archon_busy; //!< indicates a thread is accessing Archon
         std::mutex archon_mutex;
@@ -163,6 +390,7 @@ namespace Archon {
 
         // Functions
         //
+        void ring_index_inc() { if (++this->ring_index==2) this->ring_index=0; }
         static long interface(std::string &iface); //!< get interface type
         long configure_controller(); //!< get configuration parameters
         long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed

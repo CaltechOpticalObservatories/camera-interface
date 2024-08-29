@@ -963,5 +963,18 @@ void rtrim(std::string &s) {
     /// trim off trailing whitespace from a string
     s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
 }
-
 /***** rtrim ***********************************************/
+
+
+/***** demangle ********************************************/
+std::string demangle( const char* name ) {
+  int status=-4;
+
+  char* demangled_name = abi::__cxa_demangle( name, nullptr, nullptr, &status );
+
+  std::string result = (status==0) ? demangled_name : name;
+
+  std::free(demangled_name);
+
+  return result;
+}
