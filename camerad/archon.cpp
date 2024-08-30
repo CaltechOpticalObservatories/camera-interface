@@ -2771,7 +2771,7 @@ namespace Archon {
    * No write takes place here!
    *
    */
-    long Interface::hread_frame(int bytes_ready) {
+    long Interface::hread_frame() {
         std::string function = "Archon::Interface::hread_frame";
         std::stringstream message;
         int retval;
@@ -2892,11 +2892,11 @@ namespace Archon {
               break;                         // break out of for loop
             }
           }
+            int bytes_ready = this->archon.Bytes_ready();
 
             // Read autofetch header
             if (this->is_autofetch) {
               logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
-              logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
               if ( (retval=this->archon.Read(buffer, bytes_ready)) != bytes_ready ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
@@ -4820,17 +4820,15 @@ namespace Archon {
                 }
             }
 
-            int bytes_ready;
-
             // Wait for the readout into frame buffer,
-            error = this->hwait_for_readout(bytes_ready);
+            error = this->hwait_for_readout();
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: waiting for readout" );
                 return error;
             }
 
             // then read the frame buffer to host (and write file) when frame ready.
-            error = hread_frame(bytes_ready);
+            error = hread_frame();
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: reading frame buffer" );
                 return error;
@@ -5543,7 +5541,7 @@ namespace Archon {
      * This function polls the Archon frame status until a new frame is ready.
      *
      */
-    long Interface::hwait_for_readout(int &bytes_ready) {
+    long Interface::hwait_for_readout() {
         std::string function = "Archon::Interface::hwait_for_readout";
         std::stringstream message;
         long error = NO_ERROR;
@@ -5584,9 +5582,8 @@ namespace Archon {
 
           while (!done && !this->abort) {
             // Check if data is ready on socket
-            bytes_ready = this->archon.Bytes_ready();
+            int bytes_ready = this->archon.Bytes_ready();
             if (bytes_ready > 0) {
-
               logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
               done = true;
               break;
