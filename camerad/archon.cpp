@@ -2911,8 +2911,9 @@ namespace Archon {
                 char *newline_position = strchr(buffer, '\n');
                 if (newline_position == nullptr) {
                   logwrite( function, "no newline found in header");
+                  logwrite( function, "header without newline: " + string(buffer));
                 } else {
-                  long autofetch_header_end = buffer - newline_position;
+                  long autofetch_header_end = newline_position - buffer;
                   logwrite( function, "AUTOFETCH HEADER FOUND, length: " + std::to_string(autofetch_header_end) );
 
                   // Read next header
