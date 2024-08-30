@@ -2911,7 +2911,7 @@ namespace Archon {
                 char *newline_position = strchr(buffer, '\n');
                 if (newline_position == nullptr) {
                   logwrite( function, "no newline found in header");
-                  logwrite( function, "header without newline: " + string(buffer));
+                  // logwrite( function, "header without newline: " + string(buffer));
                 } else {
                   long autofetch_header_end = newline_position - buffer;
                   logwrite( function, "AUTOFETCH HEADER FOUND, length: " + std::to_string(autofetch_header_end) );
@@ -2933,6 +2933,9 @@ namespace Archon {
                   logwrite( function, "copied 1024 to image pointer");
                 }
               }
+              else if (strncmp(buffer, "<XF:", 4) == 0) {
+                logwrite( function, "<XF header found");
+              }
 
               // if (strncmp(buffer, "<SFA", 4) == 0) {
               //
@@ -2947,7 +2950,7 @@ namespace Archon {
               break;                         // break out of for loop
 
             }
-            if (strncmp(buffer, "<XF:", 4) == 0) {
+            if (strncmp(header, "<XF:", 4) == 0) {
               logwrite( function, "<XF header found");
             }
             // else if (strncmp(header, check, 4) != 0) {
