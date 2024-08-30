@@ -2895,6 +2895,8 @@ namespace Archon {
 
             // Read autofetch header
             if (this->is_autofetch) {
+              logwrite( function, "reading " + std::to_string(bytes_ready) + "bytes from the socket");
+
               if ( (retval=this->archon.Read(buffer, bytes_ready)) != bytes_ready ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
                 this->camera.log_error( function, message.str() );
@@ -2907,24 +2909,28 @@ namespace Archon {
                 // retval = this->archon.Read(autofetch_header_str, '\n');
 
                 char *newline_position = strchr(buffer, '\n');
-                long autofetch_header_end = buffer - newline_position;
-                logwrite( function, "AUTOFETCH HEADER FOUND, length: " + std::to_string(autofetch_header_end) );
+                if (newline_position == nullptr) {
+                  logwrite( function, "no newline found in header");
+                } else {
+                  long autofetch_header_end = buffer - newline_position;
+                  logwrite( function, "AUTOFETCH HEADER FOUND, length: " + std::to_string(autofetch_header_end) );
 
-                // Read next header
-                // logwrite( function, "Read next package" );
+                  // Read next header
+                  // logwrite( function, "Read next package" );
 
 
-                // logwrite( function, "read 1028 off socket");
-                // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-                //   bytesread += retval;         // this will get zeroed after each block
-                //   totalbytesread += retval;    // this won't (used only for info purposes)
-                //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-                //   ptr_image += retval;         // advance pointer
-                // }
-                strcpy(ptr_image, buffer + autofetch_header_end + 5);
-                ptr_image += retval;
+                  // logwrite( function, "read 1028 off socket");
+                  // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+                  //   bytesread += retval;         // this will get zeroed after each block
+                  //   totalbytesread += retval;    // this won't (used only for info purposes)
+                  //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+                  //   ptr_image += retval;         // advance pointer
+                  // }
+                  strcpy(ptr_image, buffer + autofetch_header_end + 5);
+                  ptr_image += retval;
 
-                logwrite( function, "copied 1024 to image pointer");
+                  logwrite( function, "copied 1024 to image pointer");
+                }
               }
 
               // if (strncmp(buffer, "<SFA", 4) == 0) {
