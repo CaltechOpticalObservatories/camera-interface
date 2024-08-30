@@ -4819,7 +4819,7 @@ namespace Archon {
             }
 
             // then read the frame buffer to host (and write file) when frame ready.
-            error = hread_frame();
+            error = hread_frame(bytes_ready);
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: reading frame buffer" );
                 return error;
