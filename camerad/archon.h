@@ -204,7 +204,7 @@ namespace Archon {
         long fetch(uint64_t bufaddr, uint32_t bufblocks);
 
         long read_frame(); //!< read Archon frame buffer into host memory
-        long hread_frame();
+        long hread_frame(int bytes_ready);
 
         long read_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory
         long write_frame(); //!< write (a previously read) Archon frame buffer to disk
@@ -249,7 +249,7 @@ namespace Archon {
 
         long wait_for_readout();
 
-        long hwait_for_readout();
+        long hwait_for_readout(int &bytes_ready);
 
         long get_parameter(std::string parameter, std::string &retstring);
 

@@ -16,6 +16,7 @@
 #include <fstream>
 #include <array>
 #include <utility>
+// #include <cstring>
 
 namespace Archon {
 
@@ -2770,13 +2771,13 @@ namespace Archon {
    * No write takes place here!
    *
    */
-    long Interface::hread_frame() {
+    long Interface::hread_frame(int bytes_ready) {
         std::string function = "Archon::Interface::hread_frame";
         std::stringstream message;
         int retval;
         int bufready;
         char check[5], header[5];
-        char buffer[2301];
+        char buffer[3000];
         char *ptr_image;
         int bytesread, totalbytesread, toread;
         uint64_t bufaddr;
@@ -2859,20 +2860,21 @@ namespace Archon {
             }
           }
 
+          if (!this->is_autofetch) {
             // Wait for a block+header Bytes to be available
             // (but don't wait more than 1 second -- this should be tens of microseconds or less)
             //
             auto start = std::chrono::steady_clock::now();               // start a timer now
 
             while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) {
-                auto now = std::chrono::steady_clock::now();             // check the time again
-                std::chrono::duration<double> diff = now-start;          // calculate the duration
-                if (diff.count() > 1) {                                  // break while loop if duration > 1 second
-                    std::cerr << "\n";
-                    this->camera.log_error( function, "timeout waiting for data from Archon" );
-                    error = ERROR;
-                    break;                       // breaks out of while loop
-                }
+              auto now = std::chrono::steady_clock::now();             // check the time again
+              std::chrono::duration<double> diff = now-start;          // calculate the duration
+              if (diff.count() > 1) {                                  // break while loop if duration > 1 second
+                std::cerr << "\n";
+                this->camera.log_error( function, "timeout waiting for data from Archon" );
+                error = ERROR;
+                break;                       // breaks out of while loop
+              }
             }
             if ( error != NO_ERROR ) {
               logwrite( function, "ERROR: reading Archon frame data" );
@@ -2884,38 +2886,42 @@ namespace Archon {
             SNPRINTF(check, "<%02X:", this->msgref)
             // if ( (retval=this->archon.Read(buffer, 2301)) != 2301 ) {
             if ( (retval=this->archon.Read(header, 4)) != 4 ) {
+              message.str(""); message << "code " << retval << " reading Archon frame header";
+              this->camera.log_error( function, message.str() );
+              error = ERROR;
+              break;                         // break out of for loop
+            }
+          }
+
+            // Read autofetch header
+            if (this->is_autofetch) {
+              if ( (retval=this->archon.Read(buffer, bytes_ready)) != bytes_ready ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
                 this->camera.log_error( function, message.str() );
                 error = ERROR;
                 break;                         // break out of for loop
-            }
+              }
 
-            // Read autofetch header
-            if (this->is_autofetch) {
-              if (strncmp(header, "<SFA", 4) == 0) {
-
+              if (strncmp(buffer, "<SFA", 4) == 0) {
                 // read rest of the autofetch header
-                retval = this->archon.Read(autofetch_header_str, '\n');
+                // retval = this->archon.Read(autofetch_header_str, '\n');
 
-                logwrite( function, "AUTOFETCH HEADER FOUND, length: " + std::to_string(autofetch_header_str.length() + 4) );
+                char *newline_position = strchr(buffer, '\n');
+                long autofetch_header_end = buffer - newline_position;
+                logwrite( function, "AUTOFETCH HEADER FOUND, length: " + std::to_string(autofetch_header_end) );
 
                 // Read next header
                 // logwrite( function, "Read next package" );
-                if ( (retval=this->archon.Read(buffer, 1028)) != 1028 ) {
-                  message.str(""); message << "code " << retval << " reading Archon frame header";
-                  this->camera.log_error( function, message.str() );
-                  error = ERROR;
-                  break;                         // break out of for loop
-                }
 
-                logwrite( function, "read 1028 off socket");
+
+                // logwrite( function, "read 1028 off socket");
                 // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
                 //   bytesread += retval;         // this will get zeroed after each block
                 //   totalbytesread += retval;    // this won't (used only for info purposes)
                 //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
                 //   ptr_image += retval;         // advance pointer
                 // }
-                strcpy(ptr_image, buffer + 4);
+                strcpy(ptr_image, buffer + autofetch_header_end + 5);
                 ptr_image += retval;
 
                 logwrite( function, "copied 1024 to image pointer");
@@ -4803,8 +4809,10 @@ namespace Archon {
                 }
             }
 
+            int bytes_ready;
+
             // Wait for the readout into frame buffer,
-            error = this->hwait_for_readout();
+            error = this->hwait_for_readout(bytes_ready);
             if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: waiting for readout" );
                 return error;
@@ -5524,7 +5532,7 @@ namespace Archon {
      * This function polls the Archon frame status until a new frame is ready.
      *
      */
-    long Interface::hwait_for_readout() {
+    long Interface::hwait_for_readout(int &bytes_ready) {
         std::string function = "Archon::Interface::hwait_for_readout";
         std::stringstream message;
         long error = NO_ERROR;
@@ -5565,8 +5573,10 @@ namespace Archon {
 
           while (!done && !this->abort) {
             // Check if data is ready on socket
-            if (this->archon.Bytes_ready() > 0) {
-              logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+            bytes_ready = this->archon.Bytes_ready();
+            if (bytes_ready > 0) {
+
+              logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
               done = true;
               break;
             }
