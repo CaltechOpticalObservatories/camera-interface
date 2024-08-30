@@ -2896,7 +2896,7 @@ namespace Archon {
             // Read autofetch header
             if (this->is_autofetch) {
               logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
-              logwrite( function, "bytes ready on socket: " + this->archon.Bytes_ready());
+              logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
               if ( (retval=this->archon.Read(buffer, bytes_ready)) != bytes_ready ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
