@@ -2947,7 +2947,7 @@ namespace Archon {
               break;                         // break out of for loop
 
             }
-            if (strncmp(header, "<XF:", 4) == 0) {
+            if (strncmp(buffer, "<XF:", 4) == 0) {
               logwrite( function, "<XF header found");
             }
             // else if (strncmp(header, check, 4) != 0) {
