@@ -2898,7 +2898,7 @@ namespace Archon {
               logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
               logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
-              if ( (retval=this->archon.Read(buffer, bytes_ready)) != bytes_ready ) {
+              if ( (retval=this->archon.Read(buffer, 3000)) != 3000 ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
                 this->camera.log_error( function, message.str() );
                 error = ERROR;
@@ -2931,6 +2931,7 @@ namespace Archon {
                   strcpy(ptr_image, buffer + autofetch_header_end + 5);
                   ptr_image += retval;
 
+                  totalbytesread = 1024;
                   logwrite( function, "copied 1024 to image pointer");
                 }
               }
