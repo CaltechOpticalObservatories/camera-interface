@@ -954,6 +954,57 @@ std::string generate_temp_filename(const std::string &prefix) {
 
 /***** generate_temp_filename ***********************************************/
 
+
+/***** validate_directory *****************************************************/
+/**
+ * @s      string from which to trim trailing whitespaces
+ *
+ */
+long validate_directory( const std::string directory ) {
+  std::string dontcare;
+  return( validate_directory( directory, 0077, dontcare ) );
+}
+long validate_directory( const std::string directory, mode_t mode, std::string &retstring ) {
+
+  // Tokenize the input string on the '/' character to get each requested
+  // subdirectory as a separate token.
+  //
+  std::vector<std::string> tokens;
+  Tokenize(directory, tokens, "/");
+
+  std::stringstream nextdir; // the next subdirectory to check and/or create
+
+  // Loop through each requested subdirectory to check if they exist.
+  // Try to create them if they don't exist.
+  //
+  for (const auto &tok : tokens) {
+    // The next directory to create --
+    // start from the bottom and append each successive token.
+    //
+    nextdir << "/" << tok;
+
+    // Check if each directory exists
+    //
+    DIR *dirp; // pointer to the directory
+    if ((dirp = opendir(nextdir.str().c_str())) == nullptr) {
+      // If directory doesn't exist then try to create it.
+      //
+      if ((mkdir(nextdir.str().c_str(), (S_IRWXU | mode))) != 0) {
+        // error creating date subdirectory
+        retstring.clear();
+        retstring="ERROR creating directory "+nextdir.str()+": "+strerror(errno);
+        return 1;
+      }
+    }
+    else {
+      closedir(dirp); // directory already existed so close it
+    }
+  }
+  return 0;
+}
+/***** validate_directory *****************************************************/
+
+
 /***** rtrim ***********************************************/
 /**
  * @s      string from which to trim trailing whitespaces

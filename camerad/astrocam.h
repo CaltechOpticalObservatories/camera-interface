@@ -484,7 +484,7 @@ namespace AstroCam {
 
 
       // The Controller class is a sub-class of Interface and is here to contain
-      // the Camera::Information class and FITS_file class objects.
+      // the Camera::Information class and bITS_file class objects.
       // There will be a vector of Controller class objects which matches the
       // vector of controller objects.
       //
@@ -499,7 +499,7 @@ namespace AstroCam {
           Controller() = default;       //!< class constructor
           Camera::Information info;     //!< this is the main controller info object
 //        Camera::FitsKeys userkeys;    //!< create a FitsKeys object for FITS keys specified by the user
-          FITS_file *pFits;             //!< FITS container object has to be a pointer here
+          bITS_file *pFits;             //!< FITS container object has to be a pointer here
 
           int error;
 
@@ -562,7 +562,7 @@ namespace AstroCam {
 
       bool useframes;                   //!< Not all firmware supports frames.
 
-      FITS_file fits_file;              //!< instantiate a FITS container object
+      bITS_file fits_file;              //!< instantiate a FITS container object
 
       typedef struct {
         ReadoutType readout_type;       //!< enum for readout type

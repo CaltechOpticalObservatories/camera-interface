@@ -30,6 +30,7 @@
 #include <string_view>
 #include <cctype>
 #include <cxxabi.h>
+#include <dirent.h>
 
 extern std::string tmzone_cfg; /// time zone if set in cfg file
 extern std::mutex generate_tmpfile_mtx;
@@ -120,6 +121,9 @@ bool starts_with(const std::string &str, std::string_view prefix);
 bool ends_with(const std::string &str, std::string_view suffix);
 
 std::string generate_temp_filename(const std::string &prefix);
+
+long validate_directory( const std::string directory );
+long validate_directory( const std::string directory, mode_t mode, std::string &retstring );
 
 void rtrim(std::string &s);
 

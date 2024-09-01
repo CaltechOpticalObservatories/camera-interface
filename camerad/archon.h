@@ -21,8 +21,8 @@
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
-#include "fits.h"
-#include "fits_queue.h"
+#include "fits.h"       // old
+#include "fits_file.h"  // new
 
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
 
@@ -304,13 +304,33 @@ namespace Archon {
         //
         Network::TcpSocket archon;
         Camera::Information camera_info; /// this is the main camera_info object
-        Camera::Information fits_info; /// used to copy the camera_info object to preserve info for FITS writing
-        Camera::Camera camera; /// instantiate a Camera object
-        Common::FitsKeys userkeys; //!< instantiate a Common object
-        Common::FitsKeys systemkeys; //!< instantiate a Common object
+        Camera::Information fits_info;   /// used to copy the camera_info object to preserve info for FITS writing
+        Camera::Camera camera;           /// instantiate a Camera object
+        Common::FitsKeys userkeys;       //!< instantiate a Common object
+        Common::FitsKeys systemkeys;     //!< instantiate a Common object
 
-        FitsQueue cds_Queue;
-        FitsQueue unproc_Queue;
+        template<typename T>
+        void copy_image_buf( const char* rawbuf, std::vector<T> &destbuf, size_t npix, size_t bpp ) {
+          destbuf.resize(npix);
+          for ( size_t i=0; i<npix; ++i ) {
+            std::memcpy( &destbuf[i], &rawbuf[i*bpp], sizeof(T) );
+          }
+          std::stringstream message;
+          message << "typed_buf is of type " << demangle(typeid(T).name());
+          logwrite( "Archon::Interface::copy_image_buf", message.str() );
+          return;
+        }
+
+        std::variant<std::vector<int16_t>,
+                     std::vector<uint16_t>,
+                     std::vector<uint32_t>> typed_buf;
+
+        struct typed_buf_ptr {
+          template<typename T>
+          void* operator()(const std::vector<T> &vec) const {
+            return ( vec.empty() ? nullptr : static_cast<void*>(const_cast<T*>(vec.data())) );
+          }
+        };
 
         // Create a deinterlacer using a variant of acceptable data types
         //
@@ -318,7 +338,7 @@ namespace Archon {
                      PostProcess<uint16_t>,
                      PostProcess<uint32_t>> postprocessor;
 
-        void set_dimensions( uint16_t r, uint16_t c ) {
+        void set_frame_dimensions( uint16_t r, uint16_t c ) {
           auto SetDimensions = [rows=r, cols=c](auto &postprocessor) { postprocessor.set_dimensions(rows,cols); };
           std::visit( SetDimensions, postprocessor );
           return;
@@ -326,8 +346,9 @@ namespace Archon {
 
         Config config;
 
-        FITS_file fits_file; //!< instantiate a FITS container object
+        bITS_file fits_file; //!< instantiate a FITS container object
 
+        int activebufs; //!< Archon controller number of active frame buffers
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
         int taplines;
@@ -370,12 +391,12 @@ namespace Archon {
         float heater_target_min; //!< minimum heater target temperature
         float heater_target_max; //!< maximum heater target temperature
 
-        int ring_index;
+        int ring_index;                     //!< index into ring buffer, counts 0,1,0,1,...
         std::vector<char*> signal_buf;      //!< signal frame data ring buffer
         std::vector<char*> reset_buf;       //!< reset frame data ring buffer
-        char *image_data;                   //!< image data buffer
-        uint32_t image_data_bytes;          //!< requested number of bytes allocated for image_data rounded up to block size
-        uint32_t image_data_allocated;      //!< allocated number of bytes for image_data
+        char *image_buf;                    //!< image data buffer
+        uint32_t image_buf_bytes;           //!< requested number of bytes allocated for image_buf rounded up to block size
+        uint32_t image_buf_allocated;       //!< allocated number of bytes for image_buf
 
         std::atomic<bool> archon_busy; //!< indicates a thread is accessing Archon
         std::mutex archon_mutex;
@@ -391,9 +412,10 @@ namespace Archon {
         // Functions
         //
         void ring_index_inc() { if (++this->ring_index==2) this->ring_index=0; }
+        int  prev_ring_index() { int i=this->ring_index-1; return( i<0 ? 1 : i ); }
         static long interface(std::string &iface); //!< get interface type
         long configure_controller(); //!< get configuration parameters
-        long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed
+        long prepare_image_buffer(); //!< prepare image_buf, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller
         long disconnect_controller(); //!< disconnect from archon controller
         long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING

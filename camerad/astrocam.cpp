@@ -242,8 +242,8 @@ namespace AstroCam {
     //
     for (int dev = 0; dev < this->numdev; dev++) {
       try {
-        // The Controller class holds the Camera::Information class and the FITS_file class,
-        // as well as wrappers for calling the functions inside the FITS_file class.
+        // The Controller class holds the Camera::Information class and the bITS_file class,
+        // as well as wrappers for calling the functions inside the bITS_file class.
         // Then a vector of Controller class objects is created, with one element for each ARC device.
         // This is where that vector is pushed.
         //
@@ -262,7 +262,7 @@ namespace AstroCam {
         this->controller.at(dev).connected = false;        // not yet connected
         this->controller.at(dev).firmwareloaded = false;   // no firmware loaded
 
-        FITS_file* pFits = new FITS_file();                // create a pointer to a FITS_file class object
+        bITS_file* pFits = new bITS_file();                // create a pointer to a bITS_file class object
         this->controller.at(dev).pFits = pFits;            // set the pointer to this object in the public vector
 
 #ifdef LOGLEVEL_DEBUG
@@ -2954,7 +2954,7 @@ server.camera.async.enqueue( "NOTICE:override nthreads=2 !!!" );
    * is a vector of Controller objects, one for each device.
    *
    * That pointer is cast to the appropriate type here, based on this->info.datatype,
-   * and then the FITS_file class write_image function is called with the correctly
+   * and then the bITS_file class write_image function is called with the correctly
    * typed buffer. write_image is a template class function so it just needs to
    * be called with a buffer of the appropriate type.
    *
