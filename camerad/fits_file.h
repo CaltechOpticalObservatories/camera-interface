@@ -348,7 +348,7 @@ private:
           this->compression = FITS_COMPRESSION_PLIO;
         }
         else {
-          message << "unknown compression type: " << compress;
+          message << "ERROR unknown compression type: " << compress;
           logwrite(function, message.str());
           message.str("");
         }
@@ -381,7 +381,7 @@ private:
         std::remove(this->fits_name.c_str());
       }
       else {
-        message << "unable to create file " << this->fits_name;
+        message << "ERROR unable to create file " << this->fits_name;
         logwrite(function, message.str());
         return(ERROR);
       }
@@ -408,7 +408,7 @@ private:
     }
     // Catch any errors from creating the FITS file and log them
     catch (CCfits::FitsException&){
-      message << "unable to open FITS file " << this->fits_name;
+      message << "ERROR unable to open FITS file " << this->fits_name;
       logwrite(function, message.str());
       return(ERROR);
     }
@@ -553,21 +553,13 @@ private:
     
     // Open the FITS file
     if (this->open_file(camera_info, timestamp, sequence, compress) != NO_ERROR){
-      message << "failed to open FITS file \"" << camera_info.image_name << "\", aborting";
+      message << "ERROR failed to open FITS file \"" << camera_info.image_name << "\", aborting";
       logwrite(function, message.str());
       return(ERROR);
     }
 
-assert(data != nullptr); // Ensure data pointer is not null
-assert(camera_info.image_size > 0); // Ensure size is positive
     try {
       // Move the data into a valarray, necessary to wite it using CCFITS
-message.str(""); message << "image_size=" << camera_info.image_size;
-logwrite( function, message.str() );
-if ( !data ) {
-  logwrite( function, "ERROR bad data buffer" );
-  return ERROR;
-}
       std::valarray<T> array(data, camera_info.image_size);
 
       // Set the first pixel value to 1, this tells the FITS system where it
@@ -589,7 +581,7 @@ if ( !data ) {
     }
     // Catch any errors from the FITS system and log them
     catch (CCfits::FitsError & error){
-      message << "FITS file error thrown: " << error.message();
+      message << "ERROR FITS file error thrown: " << error.message();
       logwrite(function, message.str());
       return(ERROR);
     }
@@ -601,7 +593,7 @@ if ( !data ) {
 
     // Close the FITS file
     if (this->close_file() != NO_ERROR){
-      message << "failed to close FITS file properly: " << this->fits_name;
+      message << "ERROR failed to close FITS file properly: " << this->fits_name;
       logwrite(function, message.str());
       return(ERROR);
     }
@@ -661,14 +653,19 @@ if ( !data ) {
         // at a time, or shift all five and then delete all at once.  This does
         // the former to lock the mutex for as short of a time as possible for
         // each image.
-        for (int i = 0; i < size; i++){
-          this->cube_frames.push_back(this->cube_cache[0]);
-
-          if (this->cache_mutex.try_lock_for(boost::chrono::milliseconds(1))){
-            boost::lock_guard<boost::timed_mutex> lock(this->cache_mutex,
-                                                       boost::adopt_lock_t());
-            this->cube_cache.pop_front();
+        try {
+          for (int i = 0; i < size; i++) {
+            if (this->cache_mutex.try_lock_for(boost::chrono::milliseconds(1))){
+              boost::lock_guard<boost::timed_mutex> lock(this->cache_mutex,
+                                                         boost::adopt_lock_t());
+              this->cube_frames.push_back(this->cube_cache[0]);
+              this->cube_cache.pop_front();
+            }
           }
+        }
+        catch ( std::exception &e ) {
+          message.str(""); message << "ERROR exception occured: " << e.what();
+          logwrite( function, message.str() );
         }
       }
       
@@ -692,7 +689,7 @@ if ( !data ) {
         error = this->open_file(this->open_info, this->open_timestamp,
                                 this->open_sequence, this->compression);
         if (error != NO_ERROR){
-          message << "failed to open FITS file \"" << this->fits_name
+          message << "ERROR failed to open FITS file \"" << this->fits_name
                   << "\", error code: " << error;
           logwrite(function, message.str());
           message.str("");
@@ -727,6 +724,11 @@ if ( !data ) {
 
         // Flush the FITS container to make sure the image is written to disk
         this->pFits->flush();
+
+        #ifdef LOGLEVEL_DEBUG
+        message << "[DEBUG] wrote extension " << this->cube_frames[0].camera_info.extension;
+        logwrite( function, message.str() ); message.str("");
+        #endif
         
         // Increment the frame counter
         this->num_frames++;
@@ -739,7 +741,7 @@ if ( !data ) {
       }
       // Catch any errors from the FITS system and log them
       catch (CCfits::FitsError & error){
-        message << "FITS file error thrown: " << error.message();
+        message << "ERROR FITS file error thrown: " << error.message();
         logwrite(function, message.str());
         message.str("");
       }
@@ -753,18 +755,26 @@ if ( !data ) {
         message.str("");
       }
       
+/******** temporarily (?) disable size and frame limit
+
       // If the cube has grown too large, close it
       if (this->cube_size >= this->max_size ||
           this->num_frames >= this->max_cube_frames){
         logwrite(function, "closing the cube file...");
+        #ifdef LOGLEVEL_DEBUG
+        message << "[DEBUG] cube_size=" << this->cube_size << " max_size=" << this->max_size
+                << " num_frames=" << this->num_frames << " max_frames=" << this->max_cube_frames;
+        logwrite( function,  message.str() ); message.str("");
+        #endif
         error = this->close_cube();
         if (error != NO_ERROR){
-          message << "there was a problem closing the FITS cube, error code: "
+          message << "ERROR there was a problem closing the FITS cube, error code: "
                   << error;
           logwrite(function, message.str());
           message.str("");
         }
       }
+********/
       
       // If the flag for a complete observation is set, and if the cache and
       // cube queues are empty, flag that the system can finish.
@@ -778,7 +788,7 @@ if ( !data ) {
     // Close the final cube
     error = this->close_cube();
     if (error != NO_ERROR){
-      message << "there was a problem closing the FITS cube, error code: "
+      message << "ERROR there was a problem closing the FITS cube, error code: "
               << error;
       logwrite(function, message.str());
       message.str("");
@@ -856,7 +866,7 @@ if ( !data ) {
     }
     // Catch any errors from the FITS system and log them
     catch (CCfits::FitsError & err) {
-      message << "error creating FITS header: " << err.message();
+      message << "ERROR creating FITS header: " << err.message();
       logwrite(function, message.str());
     }
   }
@@ -965,7 +975,7 @@ if ( !data ) {
     }
     // Catch any errors from the FITS system and log them
     catch (CCfits::FitsError & err) {
-      message << "error creating FITS header: " << err.message();
+      message << "ERROR creating FITS header: " << err.message();
       logwrite(function, message.str());
     }
   }
@@ -1051,7 +1061,7 @@ public:
     }
     // If the type us unknown, log an error and don't write the keyword
     else {
-      message << "unknown type: " << type << " for user keyword: " << keyword
+      message << "ERROR unknown type: " << type << " for user keyword: " << keyword
               << "=" << value << " / " << comment;
       logwrite(function, message.str());
     }
@@ -1088,7 +1098,7 @@ public:
         logwrite(function, "opening the cube file for writing...");
         error = this->open_file(camera_info, timestamp, sequence, compress);
         if (error != NO_ERROR){
-          message << "failed to open FITS file \"" << this->fits_name <<"\"";
+          message << "ERROR failed to open FITS file \"" << this->fits_name <<"\"";
           logwrite(function, message.str());
           return(ERROR);
         }
@@ -1109,7 +1119,7 @@ public:
       error = this->write_single_image(data, timestamp, sequence, camera_info,
                                        compress);
       if (error != NO_ERROR){
-        message << "failed to write FITS file " << this->fits_name;
+        message << "ERROR failed to write FITS file " << this->fits_name;
         logwrite(function, message.str());
         return(ERROR);
       }
