@@ -321,44 +321,42 @@ namespace Archon {
           return;
         }
 
+        template<typename Tin, typename Tout>
+        Tout* typed_convert_buffer( Tin* buffer_in ) {
+          // create a buffer of the correct type and space
+          Tout* buffer_out = new Tout[this->camera_info.image_size];
+          for (size_t pix=0; pix<this->camera_info.image_size; ++pix) {
+            // for 32b scale by hdrshift
+            if constexpr (std::is_same<Tin, uint32_t>::value) {
+              buffer_out[pix] = static_cast<Tout>(buffer_in[pix] >> this->n_hdrshift);
+            }
+            else
+            // for signed 16b subtract 2^15 from every pixel
+            if constexpr (std::is_same<Tin, int16_t>::value) {
+              buffer_out[pix] = buffer_in[pix] - 32768;  // subtract 2^15 from every pixel
+            }
+            else {
+            // for all others (unsigned int) its a straight copy
+              buffer_out[pix] = buffer_in[pix];
+            }
+          }
+          return buffer_out;  // caller must release this!
+        }
+
+
         // Process and write the image data based on the type T
-        // The buffer and FITS object can be different types, T and U, respectively.
         //
-        template<typename T, typename U>
-        void typed_write_frame( T* buffer, FITS_file<U> &fits_file ) {
+        template<typename T>
+        void typed_write_frame( T* buffer, FITS_file<T> &fits_file ) {
           ++this->camera_info.extension;
           #ifdef LOGLEVEL_DEBUG
           std::stringstream message;
           std::string function="Archon::Interface::typed_write_frame";
-          message << "[DEBUG] extension=" << this->camera_info.extension
-                  << " buffer datatype=" << demangle(typeid(T).name())
-                  << " FITS_info type=" << demangle(typeid(U).name());
+          message << "[DEBUG] extension=" << this->camera_info.extension << " datatype=" << demangle(typeid(T).name());
           logwrite( function, message.str() );
           #endif
-          // create a temporary buffer of the correct type and space
-          //
-          U* temp_buffer = new U[this->camera_info.image_size];
 
-          for (size_t pix = 0; pix < this->camera_info.image_size; ++pix) {
-            // for 32b scale by hdrshift
-            //
-            if constexpr (std::is_same<T, uint32_t>::value) {
-              temp_buffer[pix] = static_cast<U>(buffer[pix] >> n_hdrshift);
-            }
-            // for signed 16b subtract 2^15 from every pixel
-            //
-            else if constexpr (std::is_same<T, int16_t>::value) {
-              temp_buffer[pix] = buffer[pix] - 32768; // Subtract 2^15 from every pixel
-            }
-            // for all others (unsigned int) its a straight copy
-            //
-            else {
-              temp_buffer[pix] = buffer[pix];
-            }
-          }
-
-          fits_file.write_image(temp_buffer, get_timestamp(), this->camera_info.extension-1, this->camera_info);
-          delete[] temp_buffer;
+          fits_file.write_image( buffer, get_timestamp(), this->camera_info.extension-1, this->camera_info );
         }
 
         Config config;

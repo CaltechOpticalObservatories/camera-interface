@@ -4013,18 +4013,24 @@ namespace Archon {
       case LONG_IMG:
       case ULONG_IMG: {
         uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
-        this->typed_write_frame( cbuf32, *floatfile );
+        float* typed_image = this->typed_convert_buffer<uint32_t, float>( cbuf32 );
+        this->typed_write_frame( typed_image, *floatfile );
+        delete [] typed_image;
         break;
       }
       case SHORT_IMG:
       case USHORT_IMG: {
         if (camera_info.datatype == USHORT_IMG) {
           uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
-          this->typed_write_frame( cbuf16, *uint16file );
+          uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
+          this->typed_write_frame( typed_image, *uint16file );
+          delete [] typed_image;
         }
         else if (camera_info.datatype == SHORT_IMG) {
           int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
-          this->typed_write_frame( cbuf16s, *int16file );
+          int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
+          this->typed_write_frame( typed_image, *int16file );
+          delete [] typed_image;
         }
         break;
       }
@@ -4175,18 +4181,24 @@ simplify for cryoscope *****/
           case LONG_IMG:
           case ULONG_IMG: {
             uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
-            this->typed_write_frame( cbuf32, *floatfile );
+            float* typed_image = this->typed_convert_buffer<uint32_t, float>( cbuf32 );
+            this->typed_write_frame( typed_image, *floatfile );
+            delete [] typed_image;
             break;
           }
           case SHORT_IMG:
           case USHORT_IMG: {
             if (camera_info.datatype == USHORT_IMG) {
               uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
-              this->typed_write_frame( cbuf16, *uint16file );
+              uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
+              this->typed_write_frame( typed_image, *uint16file );
+              delete [] typed_image;
             }
             else if (camera_info.datatype == SHORT_IMG) {
               int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
-              this->typed_write_frame( cbuf16s, *int16file );
+              int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
+              this->typed_write_frame( typed_image, *int16file );
+              delete [] typed_image;
             }
             break;
           }
