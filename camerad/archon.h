@@ -309,29 +309,6 @@ namespace Archon {
         Common::FitsKeys userkeys;       //!< instantiate a Common object
         Common::FitsKeys systemkeys;     //!< instantiate a Common object
 
-        template<typename T>
-        void copy_image_buf( const char* rawbuf, std::vector<T> &destbuf, size_t npix, size_t bpp ) {
-          destbuf.resize(npix);
-          for ( size_t i=0; i<npix; ++i ) {
-            std::memcpy( &destbuf[i], &rawbuf[i*bpp], sizeof(T) );
-          }
-          std::stringstream message;
-          message << "typed_buf is of type " << demangle(typeid(T).name());
-          logwrite( "Archon::Interface::copy_image_buf", message.str() );
-          return;
-        }
-
-        std::variant<std::vector<int16_t>,
-                     std::vector<uint16_t>,
-                     std::vector<uint32_t>> typed_buf;
-
-        struct typed_buf_ptr {
-          template<typename T>
-          void* operator()(const std::vector<T> &vec) const {
-            return ( vec.empty() ? nullptr : static_cast<void*>(const_cast<T*>(vec.data())) );
-          }
-        };
-
         // Create a deinterlacer using a variant of acceptable data types
         //
         std::variant<PostProcess<int16_t>,
@@ -342,6 +319,46 @@ namespace Archon {
           auto SetDimensions = [rows=r, cols=c](auto &postprocessor) { postprocessor.set_dimensions(rows,cols); };
           std::visit( SetDimensions, postprocessor );
           return;
+        }
+
+        // Process and write the image data based on the type T
+        // The buffer and FITS object can be different types, T and U, respectively.
+        //
+        template<typename T, typename U>
+        void typed_write_frame( T* buffer, FITS_file<U> &fits_file ) {
+          ++this->camera_info.extension;
+          #ifdef LOGLEVEL_DEBUG
+          std::stringstream message;
+          std::string function="Archon::Interface::typed_write_frame";
+          message << "[DEBUG] extension=" << this->camera_info.extension
+                  << " buffer datatype=" << demangle(typeid(T).name())
+                  << " FITS_info type=" << demangle(typeid(U).name());
+          logwrite( function, message.str() );
+          #endif
+          // create a temporary buffer of the correct type and space
+          //
+          U* temp_buffer = new U[this->camera_info.image_size];
+
+          for (size_t pix = 0; pix < this->camera_info.image_size; ++pix) {
+            // for 32b scale by hdrshift
+            //
+            if constexpr (std::is_same<T, uint32_t>::value) {
+              temp_buffer[pix] = static_cast<U>(buffer[pix] >> n_hdrshift);
+            }
+            // for signed 16b subtract 2^15 from every pixel
+            //
+            else if constexpr (std::is_same<T, int16_t>::value) {
+              temp_buffer[pix] = buffer[pix] - 32768; // Subtract 2^15 from every pixel
+            }
+            // for all others (unsigned int) its a straight copy
+            //
+            else {
+              temp_buffer[pix] = buffer[pix];
+            }
+          }
+
+          fits_file.write_image(temp_buffer, get_timestamp(), this->camera_info.extension-1, this->camera_info);
+          delete[] temp_buffer;
         }
 
         Config config;

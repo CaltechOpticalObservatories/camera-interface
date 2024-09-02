@@ -2751,7 +2751,7 @@ namespace Archon {
     int retval;
     int bufready;  // 1-indexed Archon buffer counter { 1 2 3 }
     char check[5], header[5];
-//  char *ptr_image;
+    char *ptr_image;
     int bytesread, totalbytesread, toread;
     uint64_t bufaddr;
     unsigned int block, bufblocks=0;
@@ -2839,8 +2839,7 @@ namespace Archon {
 
     // Read the data from the connected socket into memory, one block at a time
     //
-//  ptr_image = this->image_buf;
-    std::unique_ptr<char[]> rawbuf( new char[ this->image_buf_bytes ] );  // buffer to hold raw Bytes from Archon
+    ptr_image = this->image_buf;
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
@@ -2870,8 +2869,7 @@ namespace Archon {
       //
       auto start = std::chrono::steady_clock::now();             // start a timer now
 
-//    while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) 
-      while ( this->archon.Bytes_ready() < 4 ) {
+      while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) {
         auto now = std::chrono::steady_clock::now();             // check the time again
         std::chrono::duration<double> diff = now-start;          // calculate the duration
         if (diff.count() > 1) {                                  // break while loop if duration > 1 second
@@ -2931,44 +2929,18 @@ namespace Archon {
 
       // Read the frame contents
       //
-      char* ptr = rawbuf.get();        // get a pointer to raw buffer for pointer arithmetic
       bytesread = 0;
       do {
         toread = BLOCK_LEN - bytesread;
-        if ( (retval=this->archon.Read(ptr, (size_t)toread)) > 0 ) {
+        if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
           bytesread += retval;         // this will get zeroed after each block
           totalbytesread += retval;    // this won't (used only for info purposes)
           std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-          ptr += retval;               // advance pointer
+          ptr_image += retval;         // advance pointer
         }
       } while (bytesread < BLOCK_LEN);
 
     } // end of loop: for (block=0; block<bufblocks; block++)
-
-    // Copy the raw data into an appropriately typed class member.
-    // typed_buf is a variant which can hold all acceptable data types.
-    //
-    switch( this->camera_info.datatype ) {
-      case SHORT_IMG:
-        {
-        std::vector<uint16_t> buf;
-        this->copy_image_buf( rawbuf.get(), buf, this->camera_info.image_size, this->camera_info.bytes_per_pixel );
-        this->typed_buf = buf;
-        logwrite( function, "copied raw Archon bytes to uint16_t buffer" );
-        break;
-        }
-      case FLOAT_IMG:
-        {
-        std::vector<uint32_t> buf;
-        this->copy_image_buf( rawbuf.get(), buf, this->camera_info.image_size, this->camera_info.bytes_per_pixel );
-        this->typed_buf = buf;
-        logwrite( function, "copied raw Archon bytes to uint32_t buffer" );
-        break;
-        }
-      default:
-        logwrite( function, "ERROR invalid datatype" );
-        return ERROR;
-    }
 
     // give back the archon_busy semaphore to allow other threads to access the Archon now
     //
@@ -3228,6 +3200,7 @@ namespace Archon {
     message.str(""); message << "writing " << this->camera_info.bitpix << "-bit data from memory to disk";
     logwrite(function, message.str());
 
+
     // The Archon sends four 8-bit numbers per pixel. To convert this into something usable,
     // cast the image buffer into integers. Handled differently depending on bits per pixel.
     //
@@ -3235,7 +3208,9 @@ namespace Archon {
 
       // convert four 8-bit values into a 32-bit value and scale by 2^16
       //
-      case 32: {
+      case FLOAT_IMG:
+      case LONG_IMG:
+      case ULONG_IMG: {
         cbuf32 = (uint32_t *)this->image_buf;                  // cast here to 32b
 
         // Write each amplifier as a separate extension
@@ -3332,7 +3307,8 @@ namespace Archon {
 
       // convert four 8-bit values into 16 bit values
       //
-      case 16: {
+      case SHORT_IMG:
+      case USHORT_IMG: {
         if (this->camera_info.datatype == USHORT_IMG) {                   // raw
           cbuf16 = (uint16_t *)this->image_buf;                          // cast to 16b unsigned int
 //        error = fits_file.write_image(cbuf16, this->fits_info);         // write the image to disk //TODO
@@ -3928,10 +3904,42 @@ namespace Archon {
 
     logwrite(function, message.str() );
 
-    FITS_file<uint32_t> raw_file32;
-    FITS_file<uint16_t> raw_file16;
-    FITS_file<uint32_t> cds_file32;
-    FITS_file<uint16_t> cds_file16;
+    // Before creating an appropriate FITS_file object,
+    // declare a pointer to each possibly type, then use bitpix
+    // to instantiate the FITS_file object for the needed type.
+    //
+    FITS_file<float>*    floatfile  = nullptr;
+    FITS_file<uint16_t>* uint16file = nullptr;
+    FITS_file<int16_t>*  int16file  = nullptr;
+
+    // Instantiate the type-appropriate FITS_file object
+    //
+    switch ( camera_info.bitpix ) {
+      case FLOAT_IMG:
+      case LONG_IMG:
+      case ULONG_IMG: {
+        floatfile = new FITS_file<float>( ( this->camera.datacube() ? true : false ) );
+        break;
+      }
+      case SHORT_IMG:
+      case USHORT_IMG: {
+        if (camera_info.datatype == USHORT_IMG) {
+          uint16file = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
+        }
+        else if (camera_info.datatype == SHORT_IMG) {
+          int16file = new FITS_file<int16_t>( ( this->camera.datacube() ? true : false ) );
+        }
+        else {
+          this->camera.log_error( function, "unsupported 16-bit datatype" );
+          return ERROR;
+        }
+        break;
+      }
+      default: {
+        this->camera.log_error( function, "unsupported bitpix type" );
+        return ERROR;
+      }
+    }
 
     // initiate the exposure here
     //
@@ -3982,37 +3990,44 @@ namespace Archon {
     //
     this->camera_info.iscube = this->camera.datacube();
 
-    // Read the first frame buffer from Archon to host
-    // and decrement my local frame counter.
-    // This reads into image_buf.
+    // Read the first frame buffer from Archon to host and decrement my local
+    // frame counter.  This call to read_frame() reads into this->image_buf.
     //
     error = read_frame();
     nseq--;
 
     if ( error != NO_ERROR ) {
-      logwrite( function, "ERROR: reading frame buffer" );
+      logwrite( function, "ERROR reading frame buffer" );
       this->fits_file.close_file(this->camera.writekeys_when == "after", this->camera_info );
       return error;
     }
 
-    {
-    void* ptr = std::visit( typed_buf_ptr{}, this->typed_buf );
-    switch( this->camera_info.datatype ) {
-      case SHORT_IMG:
-        {
-        auto* buf = static_cast<uint16_t*>(ptr);
-        raw_file16.write_image( buf, get_timestamp(), -1, camera_info );
-        break;
-        }
+/**** The following write is temporary, for test writing of raw frames ***/
+
+    // The buffer from Archon comes in 8bit words which need to be interpreted
+    // as the appropriate type, based on bitpix. Do that here, then write
+    // the frame using the appropriate FITS_file object.
+    //
+    switch (camera_info.bitpix) {
       case FLOAT_IMG:
-        {
-        auto* buf = static_cast<uint32_t*>(ptr);
-        raw_file32.write_image( buf, get_timestamp(), -1, camera_info );
+      case LONG_IMG:
+      case ULONG_IMG: {
+        uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
+        this->typed_write_frame( cbuf32, *floatfile );
         break;
+      }
+      case SHORT_IMG:
+      case USHORT_IMG: {
+        if (camera_info.datatype == USHORT_IMG) {
+          uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
+          this->typed_write_frame( cbuf16, *uint16file );
         }
-      default:
-        logwrite( function, "ERROR unknown datatype, data not written" );
-    }
+        else if (camera_info.datatype == SHORT_IMG) {
+          int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
+          this->typed_write_frame( cbuf16s, *int16file );
+        }
+        break;
+      }
     }
 
     // deinterlace frame --
@@ -4023,7 +4038,7 @@ namespace Archon {
 /***
     message.str(""); message << "[DEBUG] deinterlacing into ring " << this->ring_index;
     logwrite( function, message.str() );
-    std::visit( DeInterlace( static_cast<void*>(image_buf),
+    std::visit( DeInterlace( static_cast<void*>(this->image_buf),
                              static_cast<void*>(signal_buf[this->ring_index]),
                              static_cast<void*>(reset_buf[this->ring_index]) ),
                 postprocessor );
@@ -4139,9 +4154,8 @@ simplify for cryoscope *****/
           return error;
         }
 
-        // Read the next frame buffer from Archon to host
-        // and decrement my local frame counter.
-        // This reads into image_buf.
+        // Read the next (and subsequent) frame buffers from Archon to host and
+        // decrement my local frame counter.  This reads into this->image_buf.
         //
         error = read_frame();
         nseq--;
@@ -4152,13 +4166,40 @@ simplify for cryoscope *****/
           return error;
         }
 
+        // The buffer from Archon comes in 8bit words which need to be interpreted
+        // as the appropriate type, based on bitpix. Do that here, then write
+        // the frame using the appropriate FITS_file object.
+        //
+        switch (camera_info.bitpix) {
+          case FLOAT_IMG:
+          case LONG_IMG:
+          case ULONG_IMG: {
+            uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
+            this->typed_write_frame( cbuf32, *floatfile );
+            break;
+          }
+          case SHORT_IMG:
+          case USHORT_IMG: {
+            if (camera_info.datatype == USHORT_IMG) {
+              uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
+              this->typed_write_frame( cbuf16, *uint16file );
+            }
+            else if (camera_info.datatype == SHORT_IMG) {
+              int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
+              this->typed_write_frame( cbuf16s, *int16file );
+            }
+            break;
+          }
+        }
+
+
         // deinterlace frame
         //
 //      std::visit( DeInterlace( this->image_buf, this->signal_buf[0], this->reset_buf[0] ), postprocessor );
 /***
         message.str(""); message << "[DEBUG] deinterlacing into ring " << this->ring_index;
         logwrite( function, message.str() );
-        std::visit( DeInterlace( static_cast<void*>(image_buf),
+        std::visit( DeInterlace( static_cast<void*>(this->image_buf),
                                  static_cast<void*>(signal_buf[this->ring_index]),
                                  static_cast<void*>(reset_buf[this->ring_index])
                                ),
@@ -4175,7 +4216,7 @@ simplify for cryoscope *****/
         int j=this->prev_ring_index();
         message.str(""); message << "[DEBUG] subtracting signal[" << i << "] - reset[" << j << "]";
         logwrite( function, message.str() );
-        std::visit( CDS_Subtract( static_cast<void*>(image_buf),
+        std::visit( CDS_Subtract( static_cast<void*>(this->image_buf),
                                  static_cast<void*>(signal_buf[i]),
                                  static_cast<void*>(reset_buf[j])
                                 ),
@@ -4188,45 +4229,6 @@ simplify for cryoscope *****/
         }
 ***/
 
-        // queue fits write
-        //
-        //uint32_t   *cbuf32;
-        //cbuf32 = (uint32_t *)this->image_buf;
-        /***
-        ui  nt32_t* cbuf32 = static_cast<uint32_t*>(std::malloc(this->camera_info.image_size * sizeof(uint32_t)));
-
-        if (!cbuf32) {
-          logwrite( function, "ERROR allocating memory" );
-          return ERROR;
-        }
-
-        // Copy and convert data
-        for (size_t i = 0; i < this->camera_info.image_size; ++i) {
-          std::memcpy(&cbuf32[i], &image_buf[i * 4], sizeof(uint32_t));
-        }
-
-        cds_file.write_image( cbuf32, get_timestamp(), -1, camera_info );
-        ***/
-
-        {
-        void* ptr = std::visit( typed_buf_ptr{}, this->typed_buf );
-        switch( this->camera_info.datatype ) {
-          case SHORT_IMG:
-            {
-            auto* buf = static_cast<uint16_t*>(ptr);
-            raw_file16.write_image( buf, get_timestamp(), -1, camera_info );
-            break;
-            }
-          case FLOAT_IMG:
-            {
-            auto* buf = static_cast<uint32_t*>(ptr);
-            raw_file32.write_image( buf, get_timestamp(), -1, camera_info );
-            break;
-            }
-          default:
-            logwrite( function, "ERROR unknown datatype, data not written" );
-        }
-        }
 
 /*****
         // For non-sequence multiple exposures, including cubeamps, close the fits file here
@@ -4296,18 +4298,21 @@ simplify for cryoscope *****/
       error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
     }
 
-    switch( this->camera_info.datatype ) {
-      case SHORT_IMG:
-        raw_file16.complete();
-//      cds_file16.complete();
-        break;
-      case FLOAT_IMG:
-        raw_file32.complete();
-//      cds_file32.complete();
-        break;
-      default:
-        logwrite( function, "ERROR unknown datatype" );
-        error = ERROR;
+    // Complete the FITS file after processing all frames.
+    // This closes the file and shuts down the FITS engine,
+    // waiting for the queue to empty if needed.
+    //
+    if (floatfile) {
+      floatfile->complete();
+      delete floatfile;
+    }
+    if (uint16file) {
+      uint16file->complete();
+      delete uint16file;
+    }
+    if (int16file) {
+      int16file->complete();
+      delete int16file;
     }
 
     // remember the cubeamps setting used for the last completed exposure
