@@ -3848,12 +3848,21 @@ namespace Archon {
     // Assign the PostProcess object to the appropriate type.
     // The postprocessor object is a variant which holds the specified type.
     //
-    switch ( this->camera_info.datatype ) {
-      case SHORT_IMG:  postprocessor = PostProcess<int16_t>(deinterlace_mode);
+    Bob<float>*    bobfloat = nullptr;
+    Bob<int16_t>*  bobint   = nullptr;
+    Bob<uint16_t>* bobuint  = nullptr;
+
+    PostProcessBase*    postprocessor  = nullptr;
+
+    switch ( this->camera_info.bitpix ) {
+      case SHORT_IMG:  postprocessor = new PostProcess<int16_t,int16_t>(deinterlace_mode);
+                       bobint = new Bob<int16_t>(deinterlace_mode, this->camera_info.image_size);
                        break;
-      case USHORT_IMG: postprocessor = PostProcess<uint16_t>(deinterlace_mode);
+      case USHORT_IMG: postprocessor = new PostProcess<uint16_t,uint16_t>(deinterlace_mode);
+                       bobuint = new Bob<uint16_t>(deinterlace_mode, this->camera_info.image_size);
                        break;
-      case FLOAT_IMG:  postprocessor = PostProcess<uint32_t>(deinterlace_mode);
+      case FLOAT_IMG:  postprocessor = new PostProcess<uint32_t,float>(deinterlace_mode);
+                       bobfloat = new Bob<float>(deinterlace_mode, this->camera_info.image_size);
                        break;
       default:         message.str(""); message << "unknown datatype " << this->camera_info.datatype;
                        this->camera.log_error( function, message.str() );
@@ -3863,7 +3872,8 @@ namespace Archon {
     // setting the frame dimensions here is required for the PostProcessor class
     // which includes deinterlacing and CDS subtraction
     //
-    this->set_frame_dimensions( camera_info.naxes[0], camera_info.naxes[1] );
+//  this->set_frame_dimensions( camera_info.naxes[0], camera_info.naxes[1] );
+    postprocessor->set_dimensions( camera_info.naxes[0], camera_info.naxes[1] );
 
     message.str("");
     message << "camera_info: ";
@@ -3917,28 +3927,18 @@ namespace Archon {
     switch ( camera_info.bitpix ) {
       case FLOAT_IMG:
       case LONG_IMG:
-      case ULONG_IMG: {
+      case ULONG_IMG:
         floatfile = new FITS_file<float>( ( this->camera.datacube() ? true : false ) );
         break;
-      }
       case SHORT_IMG:
-      case USHORT_IMG: {
-        if (camera_info.datatype == USHORT_IMG) {
-          uint16file = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
-        }
-        else if (camera_info.datatype == SHORT_IMG) {
-          int16file = new FITS_file<int16_t>( ( this->camera.datacube() ? true : false ) );
-        }
-        else {
-          this->camera.log_error( function, "unsupported 16-bit datatype" );
-          return ERROR;
-        }
+        int16file = new FITS_file<int16_t>( ( this->camera.datacube() ? true : false ) );
         break;
-      }
-      default: {
+      case USHORT_IMG:
+        uint16file = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
+        break;
+      default:
         this->camera.log_error( function, "unsupported bitpix type" );
         return ERROR;
-      }
     }
 
     // initiate the exposure here
@@ -4018,20 +4018,17 @@ namespace Archon {
         delete [] typed_image;
         break;
       }
-      case SHORT_IMG:
+      case SHORT_IMG: {
+        int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
+        int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
+        this->typed_write_frame( typed_image, *int16file );
+        delete [] typed_image;
+      }
       case USHORT_IMG: {
-        if (camera_info.datatype == USHORT_IMG) {
-          uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
-          uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
-          this->typed_write_frame( typed_image, *uint16file );
-          delete [] typed_image;
-        }
-        else if (camera_info.datatype == SHORT_IMG) {
-          int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
-          int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
-          this->typed_write_frame( typed_image, *int16file );
-          delete [] typed_image;
-        }
+        uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
+        uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
+        this->typed_write_frame( typed_image, *uint16file );
+        delete [] typed_image;
         break;
       }
     }
@@ -4180,26 +4177,36 @@ simplify for cryoscope *****/
           case FLOAT_IMG:
           case LONG_IMG:
           case ULONG_IMG: {
+if (!bobfloat) { logwrite(function, "ERROR bobfloat not initialized"); return ERROR; }
             uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
             float* typed_image = this->typed_convert_buffer<uint32_t, float>( cbuf32 );
-            this->typed_write_frame( typed_image, *floatfile );
+            bobfloat->deinterlace(typed_image, 1);
+            float* cdsframe = bobfloat->get_cdsbuf();
+//          this->typed_write_frame( typed_image, *floatfile );
+            this->typed_write_frame( cdsframe, *floatfile );
             delete [] typed_image;
             break;
           }
-          case SHORT_IMG:
+          case SHORT_IMG:{
+if (!bobint) { logwrite(function, "ERROR bobint not initialized"); return ERROR; }
+            int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
+            int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
+            bobint->deinterlace(typed_image, 1);
+            int16_t* cdsframe = bobint->get_cdsbuf();
+//          this->typed_write_frame( typed_image, *int16file );
+            this->typed_write_frame( cdsframe, *int16file );
+            delete [] typed_image;
+            break;
+          }
           case USHORT_IMG: {
-            if (camera_info.datatype == USHORT_IMG) {
-              uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
-              uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
-              this->typed_write_frame( typed_image, *uint16file );
-              delete [] typed_image;
-            }
-            else if (camera_info.datatype == SHORT_IMG) {
-              int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
-              int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
-              this->typed_write_frame( typed_image, *int16file );
-              delete [] typed_image;
-            }
+if (!bobuint) { logwrite(function, "ERROR bobuint not initialized"); return ERROR; }
+            uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
+            uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
+            bobuint->deinterlace(typed_image, 1);
+            uint16_t* cdsframe = bobuint->get_cdsbuf();
+//          this->typed_write_frame( typed_image, *uint16file );
+            this->typed_write_frame( cdsframe, *uint16file );
+            delete [] typed_image;
             break;
           }
         }
@@ -4326,6 +4333,9 @@ simplify for cryoscope *****/
       int16file->complete();
       delete int16file;
     }
+    delete bobint;
+    delete bobuint;
+    delete bobfloat;
 
     // remember the cubeamps setting used for the last completed exposure
     // TODO revisit once region-of-interest is implemented

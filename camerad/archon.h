@@ -92,6 +92,46 @@ namespace Archon {
       RXRVIDEO
     };
 
+    template <typename T>
+    class Bob {
+      protected:
+        DeInterlaceMode _mode;
+        size_t _bufsz;
+        std::vector<T> _cdsbuf;
+
+      public:
+        std::vector<std::vector<T>> sigbuf;
+        std::vector<std::vector<T>> resbuf;
+
+        Bob( DeInterlaceMode mode, size_t bufsz ) : _mode(mode), _bufsz(bufsz/2) {
+          sigbuf.resize( 2, std::vector<T>(bufsz) );
+          resbuf.resize( 2, std::vector<T>(bufsz) );
+          _cdsbuf.resize(bufsz);
+        }
+
+        Bob(size_t bufsz) : _bufsz(bufsz) {
+          sigbuf.resize( 2, std::vector<T>(bufsz) );
+          resbuf.resize( 2, std::vector<T>(bufsz) );
+          _cdsbuf.resize(bufsz);
+        }
+
+        void deinterlace(const T* typed_image, size_t idx) {
+          std::stringstream message;
+          message << "[DEBUG] datatype=" << demangle(typeid(T).name());
+          logwrite( "Bob::deinterlace", message.str() );
+//        std::copy(typed_image, typed_image+(_bufsz/2), _cdsbuf.begin());
+          T* work=_cdsbuf.data();
+          for ( int row=0; row < 2048; ++row ) {
+            for ( int col=0; col < 2112; col+=64 ) {
+              std::memcpy( &work[row*2112 + col], &typed_image[row*2112*2 + col*2],      64*sizeof(T) );
+            }
+          }
+        }
+
+        T* get_cdsbuf() { return _cdsbuf.data(); }
+
+    };
+    
     /***** PostProcessBase ***************************************************/
     /**
      * @brief   base class for PostProcess template class
@@ -111,6 +151,9 @@ namespace Archon {
 
         virtual ~PostProcessBase() = default;
 
+        virtual std::string foo( std::string bar ) = 0;
+//      virtual U* typed_convert_buffer( T* buffer_in ) = 0;
+
         long get_error() const { return _error; }
 
         void set_mode( DeInterlaceMode mode ) { _mode = mode; }
@@ -121,6 +164,7 @@ namespace Archon {
           _rows = rows;
           _cols = cols;
         }
+
     };
     /***** PostProcessBase ***************************************************/
 
@@ -137,13 +181,36 @@ namespace Archon {
      *          always be changed with the base class set_mode() function.
      *
      */
-    template <typename T>
+    template <typename T, typename U>
     class PostProcess : public PostProcessBase {
       private:
         T* rawbuf;
         T* sigbuf;
         T* resbuf;
+        U* dummy;
 
+void bar() { std::cerr << "******************************************************" << std::endl; }
+        U* typed_convert_buffer( T* buffer_in ) {
+          // create a buffer of the correct type and space
+          auto bufsz = _rows * _cols;
+          U* buffer_out = new U[bufsz];
+          for (size_t pix=0; pix<bufsz; ++pix) {
+            // for 32b scale by hdrshift
+            if constexpr (std::is_same<T, uint32_t>::value) {
+//            buffer_out[pix] = static_cast<U>(buffer_in[pix] >> this->n_hdrshift);
+            }
+            else
+            // for signed 16b subtract 2^15 from every pixel
+            if constexpr (std::is_same<T, int16_t>::value) {
+              buffer_out[pix] = buffer_in[pix] - 32768;  // subtract 2^15 from every pixel
+            }
+            else {
+            // for all others (unsigned int) its a straight copy
+              buffer_out[pix] = buffer_in[pix];
+            }
+          }
+          return buffer_out;  // caller must release this!
+        }
         // TODO move to a separate file
         void deinterlace_RXRVIDEO() {
           std::string function="Archon::PostProcess::deinterlace_RXRVIDEO";
@@ -177,6 +244,13 @@ namespace Archon {
       public:
         PostProcess(): PostProcessBase(DeInterlaceMode::NONE), rawbuf(nullptr), sigbuf(nullptr), resbuf(nullptr) { }
         PostProcess( DeInterlaceMode mode ): PostProcessBase(mode), rawbuf(nullptr), sigbuf(nullptr), resbuf(nullptr) { }
+
+        std::string foo( std::string bar ) override { std::cerr << bar << std::endl;
+          std::stringstream message; message << "[DEBUG] type T=" << demangle(typeid(T).name()) << " U=" << demangle(typeid(U).name());
+          logwrite( "foo", message.str() );
+ return "hello world"; }
+/*
+*/
 
         /***** PostProcess::subtract_frames ***********************************/
         /**
@@ -253,10 +327,12 @@ namespace Archon {
         DeInterlace( void* image, void* signal, void* reset )
           : _image(image), _signal(signal), _reset(reset) { }
 
+/**
         template <typename T>
         void operator()(PostProcess<T> &obj) const {
           obj.deinterlace( static_cast<T*>(_image), static_cast<T*>(_signal), static_cast<T*>(_reset) );
         }
+**/
     };
     /***** DeInterlace *******************************************************/
 
@@ -282,10 +358,12 @@ namespace Archon {
         CDS_Subtract( void* image, void* signal, void* reset )
           : _image(image), _signal(signal), _reset(reset) { }
 
+/**
         template <typename T>
         void operator()(PostProcess<T> &obj) const {
           obj.subtract_frames( static_cast<T*>(_image), static_cast<T*>(_signal), static_cast<T*>(_reset) );
         }
+**/
     };
     /***** CDS_Subtract ******************************************************/
 
@@ -309,6 +387,7 @@ namespace Archon {
         Common::FitsKeys userkeys;       //!< instantiate a Common object
         Common::FitsKeys systemkeys;     //!< instantiate a Common object
 
+/********
         // Create a deinterlacer using a variant of acceptable data types
         //
         std::variant<PostProcess<int16_t>,
@@ -320,6 +399,7 @@ namespace Archon {
           std::visit( SetDimensions, postprocessor );
           return;
         }
+********/
 
         template<typename Tin, typename Tout>
         Tout* typed_convert_buffer( Tin* buffer_in ) {
@@ -356,6 +436,9 @@ namespace Archon {
           logwrite( function, message.str() );
           #endif
 
+          this->camera_info.region_of_interest[1]=2112;
+          this->camera_info.naxes[0]=2112;
+          this->camera_info.detector_pixels[0]=2112;
           fits_file.write_image( buffer, get_timestamp(), this->camera_info.extension-1, this->camera_info );
         }
 
