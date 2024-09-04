@@ -16,6 +16,7 @@
 #include <variant>
 #include <memory>
 
+#include "opencv2/opencv.hpp"
 #include "utilities.h"
 #include "common.h"
 #include "camera.h"
@@ -98,39 +99,148 @@ namespace Archon {
       protected:
         DeInterlaceMode _mode;
         size_t _bufsz;
+        std::vector<std::vector<T>> _sigbuf;
+        std::vector<std::vector<T>> _resbuf;
         std::vector<T> _cdsbuf;
 
       public:
-        std::vector<std::vector<T>> sigbuf;
-        std::vector<std::vector<T>> resbuf;
 
         Bob( DeInterlaceMode mode, size_t bufsz ) : _mode(mode), _bufsz(bufsz/2) {
-          sigbuf.resize( 2, std::vector<T>(bufsz) );
-          resbuf.resize( 2, std::vector<T>(bufsz) );
-          _cdsbuf.resize(bufsz);
+          _sigbuf.resize( 2, std::vector<T>(2048*2112) );
+          _resbuf.resize( 2, std::vector<T>(2048*2112) );
+          _cdsbuf.resize(2048*2112);
         }
 
         Bob(size_t bufsz) : _bufsz(bufsz) {
-          sigbuf.resize( 2, std::vector<T>(bufsz) );
-          resbuf.resize( 2, std::vector<T>(bufsz) );
+          _sigbuf.resize( 2, std::vector<T>(bufsz) );
+          _resbuf.resize( 2, std::vector<T>(bufsz) );
           _cdsbuf.resize(bufsz);
         }
 
         void deinterlace(const T* typed_image, size_t idx) {
           std::stringstream message;
-          message << "[DEBUG] datatype=" << demangle(typeid(T).name());
+          message << "[DEBUG] datatype=" << demangle(typeid(T).name()) << " storing pair for idx=" << idx;
           logwrite( "Bob::deinterlace", message.str() );
 //        std::copy(typed_image, typed_image+(_bufsz/2), _cdsbuf.begin());
-          T* work=_cdsbuf.data();
+          T* psignal = _sigbuf[idx].data();
+          T* preset  = _resbuf[idx].data();
           for ( int row=0; row < 2048; ++row ) {
             for ( int col=0; col < 2112; col+=64 ) {
-              std::memcpy( &work[row*2112 + col], &typed_image[row*2112*2 + col*2],      64*sizeof(T) );
+              std::memcpy( &psignal[row*2112 + col], &typed_image[row*2112*2 + col*2],      64*sizeof(T) );
+              std::memcpy(  &preset[row*2112 + col], &typed_image[row*2112*2 + col*2 + 64], 64*sizeof(T) );
             }
+          }
+        }
+
+        void cds_subtract(int sigidx, int residx) {
+          std::string function="Bob::cds_subtract";
+          std::stringstream message;
+          message << "[DEBUG] subtracting signal[" << sigidx << "] - reset[" << residx << "]";
+          logwrite( "Bob::cds_subtract", message.str() );
+
+// force some pixels for testing
+_sigbuf[sigidx][0]=0;
+_resbuf[residx][0]=8675;
+
+_sigbuf[sigidx][1]=8675;
+_resbuf[residx][1]=0;
+
+_sigbuf[sigidx][2]=8675;
+_resbuf[residx][2]=8675;
+
+_sigbuf[sigidx][3]=999;
+_resbuf[residx][3]=666;
+
+_sigbuf[sigidx][4]=666;
+_resbuf[residx][4]=999;
+
+          T* psignal = _sigbuf[sigidx].data();
+          T* preset  = _resbuf[residx].data();
+
+if (psignal==nullptr) { logwrite(function, "[DEBUG] ERROR psignal is null" ); return; }
+if (preset==nullptr) { logwrite(function, "[DEBUG] ERROR preset is null" ); return; }
+          std::unique_ptr<cv::Mat> sigframe(nullptr);
+          std::unique_ptr<cv::Mat> resframe(nullptr);
+          std::unique_ptr<cv::Mat> cdswork( new cv::Mat( cv::Mat::zeros( 2048, 2112, CV_16S ) ) );
+          std::unique_ptr<cv::Mat> cdsout( new cv::Mat( cv::Mat::zeros( 2048, 2112, CV_16U ) ) );
+
+          try {
+            sigframe.reset( new cv::Mat( 2048, 2112, CV_16U, psignal ) );
+            resframe.reset( new cv::Mat( 2048, 2112, CV_16U, preset  ) );
+            cv::subtract(*sigframe, *resframe, *cdswork, cv::noArray(), CV_32S);
+
+//          // mask out values at 16U limits
+//          cv::Mat mask = (*cdswork==-32768) | (*cdswork==32767);
+//          cdswork->setTo(0, mask);
+
+            double minval, maxval;
+            cv::minMaxLoc( *cdswork, &minval, &maxval );
+            int16_t offset = static_cast<int16_t>(std::abs(minval));
+// 16b is not enough for CDS subtracted images without clipping
+message.str(""); message << "[DEBUG] min=" << minval << " max=" << maxval << " offset=" << offset;
+logwrite( function, message.str() );
+
+logwrite(function,"[DEBUG] cv::subtract(*sigframe, *resframe, *cdswork, cv::noArray(), CV_16S)");
+for (int i=0; i<5; i++) {
+  message.str(""); message << "[DEBUG] pix " << cdswork->at<int16_t>(i);
+  logwrite(function, message.str());
+}
+/*
+            cv::subtract(*sigframe, *resframe, *cdswork);
+logwrite(function,"[DEBUG] cv::subtract(*sigframe, *resframe, *cdswork)");
+for (int i=0; i<5; i++) {
+  message.str(""); message << "[DEBUG] pix " << cdswork->at<uint16_t>(i);
+  logwrite(function, message.str());
+}
+            cv::minMaxLoc( *cdswork, &minval, &maxval );
+message.str(""); message << "[DEBUG] min=" << minval << " max=" << maxval;
+logwrite( function, message.str() );
+            int16_t offset = static_cast<int16_t>(std::abs(minval));
+*/
+            cdswork->convertTo(*cdsout, CV_16U, 1, 10000);  // add an offset -- testing purposes
+            _cdsbuf.resize(2048 * 2112);
+            std::copy(cdsout->begin<uint16_t>(), cdsout->end<uint16_t>(), _cdsbuf.begin());
+          }
+          catch ( const cv::Exception &e ) {
+            message.str(""); message << "ERROR OpenCV exception: " << e.what();
+            logwrite( function, message.str() );
+            return;
+          }
+          catch ( const std::exception &e ) {
+            message.str(""); message << "ERROR std exception: " << e.what();
+            logwrite( function, message.str() );
+            return;
           }
         }
 
         T* get_cdsbuf() { return _cdsbuf.data(); }
 
+        void write_unp( Camera::Information &camera_info, FITS_file<T> &fits_file, int idx ) {
+
+          #ifdef LOGLEVEL_DEBUG
+          std::stringstream message;
+          std::string function="Bob::write_unp";
+          message << "[DEBUG] extension=" << camera_info.extension << " datatype=" << demangle(typeid(T).name());
+          logwrite( function, message.str() );
+          #endif
+
+          camera_info.region_of_interest[0]=1;
+          camera_info.region_of_interest[1]=2112;
+          camera_info.region_of_interest[2]=1;
+          camera_info.region_of_interest[3]=2048;
+
+          camera_info.set_axes(USHORT_IMG);
+
+          message.str(""); message << "[DEBUG] writing sigbuf[" << idx << "] to extension " << camera_info.extension << " of " << camera_info.fits_name;
+          logwrite( "Bob::write_unp", message.str() );
+          T* sigbuf = _sigbuf[idx].data();
+          fits_file.write_image( sigbuf, get_timestamp(), ++camera_info.extension-1, camera_info );
+
+          message.str(""); message << "[DEBUG] writing sigbuf[" << idx << "] to extension " << camera_info.extension << " of " << camera_info.fits_name;
+          logwrite( "Bob::write_unp", message.str() );
+          T* resbuf = _resbuf[idx].data();
+          fits_file.write_image( resbuf, get_timestamp(), ++camera_info.extension-1, camera_info );
+        }
     };
     
     /***** PostProcessBase ***************************************************/
@@ -425,22 +535,28 @@ void bar() { std::cerr << "*****************************************************
         }
 
 
-        // Process and write the image data based on the type T
+        // write the image data based on the type T
         //
         template<typename T>
         void typed_write_frame( T* buffer, FITS_file<T> &fits_file ) {
           ++this->camera_info.extension;
+          Camera::Information fits_info( this->camera_info );
+
           #ifdef LOGLEVEL_DEBUG
           std::stringstream message;
           std::string function="Archon::Interface::typed_write_frame";
-          message << "[DEBUG] extension=" << this->camera_info.extension << " datatype=" << demangle(typeid(T).name());
+          message << "[DEBUG] extension=" << fits_info.extension << " datatype=" << demangle(typeid(T).name());
           logwrite( function, message.str() );
           #endif
 
-          this->camera_info.region_of_interest[1]=2112;
-          this->camera_info.naxes[0]=2112;
-          this->camera_info.detector_pixels[0]=2112;
-          fits_file.write_image( buffer, get_timestamp(), this->camera_info.extension-1, this->camera_info );
+          fits_info.region_of_interest[0]=1;
+          fits_info.region_of_interest[1]=2112;
+          fits_info.region_of_interest[2]=1;
+          fits_info.region_of_interest[3]=2048;
+
+          fits_info.set_axes(USHORT_IMG);
+
+          fits_file.write_image( buffer, get_timestamp(), fits_info.extension-1, fits_info );
         }
 
         Config config;
@@ -460,6 +576,7 @@ void bar() { std::cerr << "*****************************************************
         bool is_longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
         bool is_window; //!< true if in window mode for h2rg, false if not
         bool is_autofetch;
+        bool is_unp;               //!< should I write unp images?
         int win_hstart;
         int win_hstop;
         int win_vstart;

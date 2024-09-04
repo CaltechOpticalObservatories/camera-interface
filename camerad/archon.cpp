@@ -42,6 +42,7 @@ namespace Archon {
     this->is_longexposure_set = false;
     this->is_window = false;
     this->is_autofetch = false;
+    this->is_unp = true;  // always write unp images for now but add control
     this->win_hstart = 0;
     this->win_hstop = 2047;
     this->win_vstart = 0;
@@ -3919,7 +3920,7 @@ namespace Archon {
     // to instantiate the FITS_file object for the needed type.
     //
     FITS_file<float>*    floatfile  = nullptr;
-    FITS_file<uint16_t>* uint16file = nullptr;
+    FITS_file<uint16_t>* uint16file = nullptr; FITS_file<uint16_t>* file_unp = nullptr;
     FITS_file<int16_t>*  int16file  = nullptr;
 
     // Instantiate the type-appropriate FITS_file object
@@ -3935,6 +3936,7 @@ namespace Archon {
         break;
       case USHORT_IMG:
         uint16file = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
+        file_unp = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
         break;
       default:
         this->camera.log_error( function, "unsupported bitpix type" );
@@ -3990,6 +3992,8 @@ namespace Archon {
     //
     this->camera_info.iscube = this->camera.datacube();
 
+    Camera::Information unp_info(this->camera_info);
+    unp_info.fits_name="/tmp/20240903/unp.fits";
     // Read the first frame buffer from Archon to host and decrement my local
     // frame counter.  This call to read_frame() reads into this->image_buf.
     //
@@ -4014,20 +4018,24 @@ namespace Archon {
       case ULONG_IMG: {
         uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
         float* typed_image = this->typed_convert_buffer<uint32_t, float>( cbuf32 );
-        this->typed_write_frame( typed_image, *floatfile );
+        bobfloat->deinterlace(typed_image, this->ring_index);
+//      this->typed_write_frame( typed_image, *floatfile );
         delete [] typed_image;
         break;
       }
       case SHORT_IMG: {
         int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
         int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
-        this->typed_write_frame( typed_image, *int16file );
+        bobint->deinterlace(typed_image, this->ring_index);
+//      this->typed_write_frame( typed_image, *int16file );
         delete [] typed_image;
       }
       case USHORT_IMG: {
         uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
         uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
-        this->typed_write_frame( typed_image, *uint16file );
+        bobuint->deinterlace(typed_image, this->ring_index);
+//      this->typed_write_frame( typed_image, *uint16file );
+        bobuint->write_unp( unp_info, *file_unp, this->ring_index );
         delete [] typed_image;
         break;
       }
@@ -4180,7 +4188,10 @@ simplify for cryoscope *****/
 if (!bobfloat) { logwrite(function, "ERROR bobfloat not initialized"); return ERROR; }
             uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
             float* typed_image = this->typed_convert_buffer<uint32_t, float>( cbuf32 );
-            bobfloat->deinterlace(typed_image, 1);
+            bobfloat->deinterlace(typed_image, this->ring_index);
+            int i = this->ring_index;
+            int j = this->prev_ring_index();
+            bobfloat->cds_subtract(i, j);
             float* cdsframe = bobfloat->get_cdsbuf();
 //          this->typed_write_frame( typed_image, *floatfile );
             this->typed_write_frame( cdsframe, *floatfile );
@@ -4191,7 +4202,10 @@ if (!bobfloat) { logwrite(function, "ERROR bobfloat not initialized"); return ER
 if (!bobint) { logwrite(function, "ERROR bobint not initialized"); return ERROR; }
             int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
             int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
-            bobint->deinterlace(typed_image, 1);
+            bobint->deinterlace(typed_image, this->ring_index);
+            int i = this->ring_index;
+            int j = this->prev_ring_index();
+            bobint->cds_subtract(i, j);
             int16_t* cdsframe = bobint->get_cdsbuf();
 //          this->typed_write_frame( typed_image, *int16file );
             this->typed_write_frame( cdsframe, *int16file );
@@ -4202,10 +4216,14 @@ if (!bobint) { logwrite(function, "ERROR bobint not initialized"); return ERROR;
 if (!bobuint) { logwrite(function, "ERROR bobuint not initialized"); return ERROR; }
             uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
             uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
-            bobuint->deinterlace(typed_image, 1);
+            bobuint->deinterlace(typed_image, this->ring_index);
+            int i = this->ring_index;
+            int j = this->prev_ring_index();
+            bobuint->cds_subtract(i, j);
             uint16_t* cdsframe = bobuint->get_cdsbuf();
 //          this->typed_write_frame( typed_image, *uint16file );
             this->typed_write_frame( cdsframe, *uint16file );
+            bobuint->write_unp( unp_info, *file_unp, this->ring_index );
             delete [] typed_image;
             break;
           }
@@ -4332,6 +4350,10 @@ if (!bobuint) { logwrite(function, "ERROR bobuint not initialized"); return ERRO
     if (int16file) {
       int16file->complete();
       delete int16file;
+    }
+    if (file_unp) {
+      file_unp->complete();
+      delete file_unp;
     }
     delete bobint;
     delete bobuint;
