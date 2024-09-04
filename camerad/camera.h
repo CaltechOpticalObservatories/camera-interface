@@ -15,6 +15,8 @@
 #include <atomic>
 #include <queue>
 #include <condition_variable>
+#include <utility>
+#include <type_traits>
 
 #include "common.h"
 #include "logentry.h"
@@ -161,6 +163,15 @@ namespace Camera {
         }
 
         /**
+         * @brief      copy constructor
+         */
+        ExposureTime( const ExposureTime &other )
+          : _value(other._value),
+            _is_set(other._is_set),
+            _unit(other._unit),
+            _is_longexposure(other._is_longexposure) { }
+
+        /**
          * @brief      set the unit
          * @details    this will modify the value as necessary
          * @param[in]  u  "ms" or "s" for milliseconds or seconds
@@ -297,6 +308,9 @@ namespace Camera {
     class Information {
       private:
       public:
+        void swap( Information &other ) noexcept;
+        friend void swap( Information &first, Information &second ) noexcept { first.swap(second); }
+
     int ccd_id;            //!< ID value of CCD
     int amp_id;            //!< ID value of CCD amplifier
     int framenum;          //!< Archon buffer frame number
@@ -421,6 +435,162 @@ namespace Camera {
 //        sampmode_frames(-1)
       {
       }
+
+      /***** Camera::Information (copy constructor) ***************************/
+      /**
+       * @brief  copy constructor
+       */
+      Information( const Information &other )
+        : ccd_id(other.ccd_id),
+          amp_id(other.amp_id),
+          framenum(other.framenum),
+          serial_prescan(other.serial_prescan),
+          serial_overscan(other.serial_overscan),
+          parallel_overscan(other.parallel_overscan),
+          image_cols(other.image_cols),
+          image_rows(other.image_rows),
+          ccd_name(other.ccd_name),
+          amp_name(other.amp_name),
+          detector(other.detector),
+          detector_software(other.detector_software),
+          detector_firmware(other.detector_firmware),
+          pixel_scale(other.pixel_scale),
+          ccd_gain(other.ccd_gain),
+          read_noise(other.read_noise),
+          dark_current(other.dark_current),
+          image_size(other.image_size),
+          bytes_per_pixel(other.bytes_per_pixel),
+          gain(other.gain),
+          fits_compression_type(other.fits_compression_type),
+          fits_noisebits(other.fits_noisebits),
+          frame_exposure_time(other.frame_exposure_time),
+          directory(other.directory),
+          image_name(other.image_name),
+          basename(other.basename),
+          bitpix(other.bitpix),
+          datatype(other.datatype),
+          type_set(other.type_set),
+          naxes(other.naxes),
+          frame_type(other.frame_type),
+          detector_pixels{other.detector_pixels[0], other.detector_pixels[1]},
+          section_size(other.section_size),
+          image_memory(other.image_memory),
+          current_observing_mode(other.current_observing_mode),
+          readout_name(other.readout_name),
+          readout_type(other.readout_type),
+          naxis(other.naxis),
+          axes{other.axes[0], other.axes[1], other.axes[2]},
+          binning{other.binning[0], other.binning[1]},
+          axis_pixels{other.axis_pixels[0], other.axis_pixels[1]},
+          region_of_interest{other.region_of_interest[0], other.region_of_interest[1],
+                             other.region_of_interest[2], other.region_of_interest[3]},
+          abortexposure(other.abortexposure),
+          iscube(other.iscube),
+          extension(other.extension),
+          shutterenable(other.shutterenable),
+          shutteractivate(other.shutteractivate),
+          exposure_progress(other.exposure_progress),
+          num_pre_exposures(other.num_pre_exposures),
+          fits_name(other.fits_name),
+          start_time(other.start_time),
+          amp_section(other.amp_section),
+          exposure_time(other.exposure_time),
+          userkeys(other.userkeys),
+          systemkeys(other.systemkeys)
+        {
+          std::copy( std::begin(other.ccdsec), std::end(other.ccdsec), std::begin(ccdsec) );
+          std::copy( std::begin(other.ampsec), std::end(other.ampsec), std::begin(ampsec) );
+          std::copy( std::begin(other.trimsec), std::end(other.trimsec), std::begin(trimsec) );
+          std::copy( std::begin(other.datasec), std::end(other.datasec), std::begin(datasec) );
+          std::copy( std::begin(other.biassec), std::end(other.biassec), std::begin(biassec) );
+          std::copy( std::begin(other.detsec), std::end(other.detsec), std::begin(detsec) );
+          std::copy( std::begin(other.detsize), std::end(other.detsize), std::begin(detsize) );
+        }
+      /***** Camera::Information (copy constructor) ***************************/
+
+
+      /***** Camera::Information (copy assignment operator) *******************/
+      /**
+       * @brief  copy assignment operator
+       */
+      Information &operator=(const Information &other) {
+        if ( this != &other ) {
+          ccd_id = other.ccd_id;
+          amp_id = other.amp_id;
+          framenum = other.framenum;
+          serial_prescan = other.serial_prescan;
+          serial_overscan = other.serial_overscan;
+          parallel_overscan = other.parallel_overscan;
+          image_cols = other.image_cols;
+          image_rows = other.image_rows;
+          ccd_name = other.ccd_name;
+          amp_name = other.amp_name;
+          detector = other.detector;
+          detector_software = other.detector_software;
+          detector_firmware = other.detector_firmware;
+          pixel_scale = other.pixel_scale;
+          ccd_gain = other.ccd_gain;
+          read_noise = other.read_noise;
+          dark_current = other.dark_current;
+          image_size = other.image_size;
+          bytes_per_pixel = other.bytes_per_pixel;
+          gain = other.gain;
+          fits_compression_type = other.fits_compression_type;
+          fits_noisebits = other.fits_noisebits;
+          frame_exposure_time = other.frame_exposure_time;
+          directory = other.directory;
+          image_name = other.image_name;
+          basename = other.basename;
+          bitpix = other.bitpix;
+          datatype = other.datatype;
+          type_set = other.type_set;
+          naxes = other.naxes;
+          frame_type = other.frame_type;
+          detector_pixels[0] = other.detector_pixels[0];
+          detector_pixels[1] = other.detector_pixels[1];
+          section_size = other.section_size;
+          image_memory = other.image_memory;
+          current_observing_mode = other.current_observing_mode;
+          readout_name = other.readout_name;
+          readout_type = other.readout_type;
+          naxis = other.naxis;
+          axes[0] = other.axes[0];
+          axes[1] = other.axes[1];
+          axes[2] = other.axes[2];
+          binning[0] = other.binning[0];
+          binning[1] = other.binning[1];
+          axis_pixels[0] = other.axis_pixels[0];
+          axis_pixels[1] = other.axis_pixels[1];
+          region_of_interest[0] = other.region_of_interest[0];
+          region_of_interest[1] = other.region_of_interest[1];
+          region_of_interest[2] = other.region_of_interest[2];
+          region_of_interest[3] = other.region_of_interest[3];
+          abortexposure = other.abortexposure;
+          iscube = other.iscube;
+          extension = other.extension;
+          shutterenable = other.shutterenable;
+          shutteractivate = other.shutteractivate;
+          exposure_progress = other.exposure_progress;
+          num_pre_exposures = other.num_pre_exposures;
+          fits_name = other.fits_name;
+          start_time = other.start_time;
+          amp_section = other.amp_section;
+          exposure_time = other.exposure_time;
+          userkeys = other.userkeys;
+          systemkeys = other.systemkeys;
+
+          std::copy( std::begin(other.ccdsec), std::end(other.ccdsec), std::begin(ccdsec) );
+          std::copy( std::begin(other.ampsec), std::end(other.ampsec), std::begin(ampsec) );
+          std::copy( std::begin(other.trimsec), std::end(other.trimsec), std::begin(trimsec) );
+          std::copy( std::begin(other.datasec), std::end(other.datasec), std::begin(datasec) );
+          std::copy( std::begin(other.biassec), std::end(other.biassec), std::begin(biassec) );
+          std::copy( std::begin(other.detsec), std::end(other.detsec), std::begin(detsec) );
+          std::copy( std::begin(other.detsize), std::end(other.detsize), std::begin(detsize) );
+        }
+        return *this;
+      }
+      /***** Camera::Information (copy assignment operator) *******************/
+
 
         long pre_exposures(std::string num_in, std::string &num_out);
 

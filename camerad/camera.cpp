@@ -15,6 +15,7 @@
 #include <fstream>
 #include <algorithm>  //!< vector iterators, find, count
 #include <functional> //!< pass by reference to threads
+#include <utility>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -867,6 +868,78 @@ namespace Camera {
             }
         }
     }
-
     /**************** Camera::Information::pre_exposures ************************/
+
+
+    /***** Camera::Information::swap ******************************************/
+    /**
+     * @brief      swaps the contents of this Information object with another
+     * @param[in]  other  reference to the other Information object to swap with
+     *
+     */
+      void Information::swap( Information &other ) noexcept {
+        std::swap( ccd_id, other.ccd_id );
+        std::swap( amp_id, other.amp_id );
+        std::swap( framenum, other.framenum );
+        std::swap( serial_prescan, other.serial_prescan );
+        std::swap( serial_overscan, other.serial_overscan );
+        std::swap( parallel_overscan, other.parallel_overscan );
+        std::swap( image_cols, other.image_cols );
+        std::swap( image_rows, other.image_rows );
+        std::swap( ccd_name, other.ccd_name );
+        std::swap( amp_name, other.amp_name );
+        std::swap( detector, other.detector );
+        std::swap( detector_software, other.detector_software );
+        std::swap( detector_firmware, other.detector_firmware );
+        std::swap( pixel_scale, other.pixel_scale );
+        std::swap( ccd_gain, other.ccd_gain );
+        std::swap( read_noise, other.read_noise );
+        std::swap( dark_current, other.dark_current );
+        std::swap( image_size, other.image_size );
+        std::swap( ccdsec, other.ccdsec );
+        std::swap( ampsec, other.ampsec );
+        std::swap( trimsec, other.trimsec );
+        std::swap( datasec, other.datasec );
+        std::swap( biassec, other.biassec );
+        std::swap( detsec, other.detsec );
+        std::swap( detsize, other.detsize );
+        std::swap( ccdid, other.ccdid );
+        std::swap( bytes_per_pixel, other.bytes_per_pixel );
+        std::swap( gain, other.gain );
+        std::swap( fits_compression_type, other.fits_compression_type );
+        std::swap( fits_noisebits, other.fits_noisebits );
+        std::swap( frame_exposure_time, other.frame_exposure_time );
+        std::swap( directory, other.directory );
+        std::swap( basename, other.basename );
+        std::swap( bitpix, other.bitpix );
+        std::swap( datatype, other.datatype );
+        std::swap( type_set, other.type_set );
+        std::swap( naxes, other.naxes );
+        std::swap( frame_type, other.frame_type );
+        std::swap( detector_pixels, other.detector_pixels );
+        std::swap( section_size, other.section_size );
+        std::swap( image_memory, other.image_memory );
+        std::swap( current_observing_mode, other.current_observing_mode );
+        std::swap( readout_name, other.readout_name );
+        std::swap( readout_type, other.readout_type );
+        std::swap( naxis, other.naxis );
+        std::swap( binning, other.binning );
+        std::swap( axis_pixels, other.axis_pixels );
+        std::swap( region_of_interest, other.region_of_interest );
+        std::swap( abortexposure, other.abortexposure );
+        std::swap( iscube, other.iscube );
+        std::swap( extension, other.extension );
+        std::swap( shutterenable, other.shutterenable );
+        std::swap( shutteractivate, other.shutteractivate );
+        std::swap( exposure_progress, other.exposure_progress );
+        std::swap( num_pre_exposures, other.num_pre_exposures );
+        std::swap( fits_name, other.fits_name );
+        std::swap( start_time, other.start_time );
+        std::swap( amp_section, other.amp_section );
+        std::swap( exposure_time, other.exposure_time );
+        std::swap( userkeys, other.userkeys );
+        std::swap( systemkeys, other.systemkeys );
+      }
+    /***** Camera::Information::swap ******************************************/
+
 }

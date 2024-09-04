@@ -14,6 +14,7 @@
 #include <fenv.h>
 #include <string_view>
 #include <variant>
+#include <memory>
 
 #include "utilities.h"
 #include "common.h"
