@@ -94,24 +94,25 @@ namespace Archon {
       RXRVIDEO
     };
 
+    /***** Archon::PostProcess ***********************************************/
     template <typename T>
-    class Bob {
+    class PostProcess {
       protected:
         DeInterlaceMode _mode;
         size_t _bufsz;
         std::vector<std::vector<T>> _sigbuf;
         std::vector<std::vector<T>> _resbuf;
-        std::vector<T> _cdsbuf;
+        std::vector<int32_t> _cdsbuf;
 
       public:
 
-        Bob( DeInterlaceMode mode, size_t bufsz ) : _mode(mode), _bufsz(bufsz/2) {
+        PostProcess( DeInterlaceMode mode, size_t bufsz ) : _mode(mode), _bufsz(bufsz/2) {
           _sigbuf.resize( 2, std::vector<T>(2048*2112) );
           _resbuf.resize( 2, std::vector<T>(2048*2112) );
           _cdsbuf.resize(2048*2112);
         }
 
-        Bob(size_t bufsz) : _bufsz(bufsz) {
+        PostProcess(size_t bufsz) : _bufsz(bufsz) {
           _sigbuf.resize( 2, std::vector<T>(bufsz) );
           _resbuf.resize( 2, std::vector<T>(bufsz) );
           _cdsbuf.resize(bufsz);
@@ -120,7 +121,7 @@ namespace Archon {
         void deinterlace(const T* typed_image, size_t idx) {
           std::stringstream message;
           message << "[DEBUG] datatype=" << demangle(typeid(T).name()) << " storing pair for idx=" << idx;
-          logwrite( "Bob::deinterlace", message.str() );
+          logwrite( "PostProcess::deinterlace", message.str() );
 //        std::copy(typed_image, typed_image+(_bufsz/2), _cdsbuf.begin());
           T* psignal = _sigbuf[idx].data();
           T* preset  = _resbuf[idx].data();
@@ -132,57 +133,49 @@ namespace Archon {
           }
         }
 
+        /***** Archon::PostProcess::cds_subtract ******************************/
+        /**
+         * @brief
+         * @param
+         * @param
+         */
         void cds_subtract(int sigidx, int residx) {
-          std::string function="Bob::cds_subtract";
+          std::string function="PostProcess::cds_subtract";
           std::stringstream message;
           message << "[DEBUG] subtracting signal[" << sigidx << "] - reset[" << residx << "]";
-          logwrite( "Bob::cds_subtract", message.str() );
+          logwrite( "PostProcess::cds_subtract", message.str() );
 
 // force some pixels for testing
-_sigbuf[sigidx][0]=0;
-_resbuf[residx][0]=8675;
-
-_sigbuf[sigidx][1]=8675;
-_resbuf[residx][1]=0;
-
-_sigbuf[sigidx][2]=8675;
-_resbuf[residx][2]=8675;
-
-_sigbuf[sigidx][3]=999;
-_resbuf[residx][3]=666;
-
-_sigbuf[sigidx][4]=666;
-_resbuf[residx][4]=999;
+_sigbuf[sigidx][0]=0;    _sigbuf[sigidx][1]=8675; _sigbuf[sigidx][2]=8675; _sigbuf[sigidx][3]=999; _sigbuf[sigidx][4]=666;
+_resbuf[residx][0]=8675; _resbuf[residx][1]=0;    _resbuf[residx][2]=8675; _resbuf[residx][3]=666; _resbuf[residx][4]=999;
 
           T* psignal = _sigbuf[sigidx].data();
           T* preset  = _resbuf[residx].data();
 
-if (psignal==nullptr) { logwrite(function, "[DEBUG] ERROR psignal is null" ); return; }
-if (preset==nullptr) { logwrite(function, "[DEBUG] ERROR preset is null" ); return; }
-          std::unique_ptr<cv::Mat> sigframe(nullptr);
-          std::unique_ptr<cv::Mat> resframe(nullptr);
-          std::unique_ptr<cv::Mat> cdswork( new cv::Mat( cv::Mat::zeros( 2048, 2112, CV_16S ) ) );
-          std::unique_ptr<cv::Mat> cdsout( new cv::Mat( cv::Mat::zeros( 2048, 2112, CV_16U ) ) );
+          if (psignal==nullptr) { logwrite(function, "[DEBUG] ERROR psignal is null" ); return; }
+          if (preset==nullptr)  { logwrite(function, "[DEBUG] ERROR preset is null" );  return; }
+
+          // this will hold the subtracted frame
+          //
+          std::unique_ptr<cv::Mat> cdsframe( new cv::Mat( cv::Mat::zeros( 2048, 2048, CV_32S ) ) );
 
           try {
-            sigframe.reset( new cv::Mat( 2048, 2112, CV_16U, psignal ) );
-            resframe.reset( new cv::Mat( 2048, 2112, CV_16U, preset  ) );
-            cv::subtract(*sigframe, *resframe, *cdswork, cv::noArray(), CV_32S);
+            // create (pointers to) Mat objects to hold the sig and res frames
+            // This instantiation of cv::Mat sets the dimensions to 2048 and
+            // the distance between the start of subsequent rows, 2112*sizeof(T)
+            //
+            std::shared_ptr<cv::Mat> sigframe = std::make_shared<cv::Mat>( 2048, 2048, CV_16U, psignal, 2112 * sizeof(uint16_t) );
+            std::shared_ptr<cv::Mat> resframe = std::make_shared<cv::Mat>( 2048, 2048, CV_16U, preset,  2112 * sizeof(uint16_t) );
+//          sigframe.reset( new cv::Mat( 2048, 2048, CV_16U, psignal ) );
+//          resframe.reset( new cv::Mat( 2048, 2048, CV_16U, preset  ) );
 
-//          // mask out values at 16U limits
-//          cv::Mat mask = (*cdswork==-32768) | (*cdswork==32767);
-//          cdswork->setTo(0, mask);
-
-            double minval, maxval;
-            cv::minMaxLoc( *cdswork, &minval, &maxval );
-            int16_t offset = static_cast<int16_t>(std::abs(minval));
-// 16b is not enough for CDS subtracted images without clipping
-message.str(""); message << "[DEBUG] min=" << minval << " max=" << maxval << " offset=" << offset;
-logwrite( function, message.str() );
+            // perform the subtraction, storing the result in a 32-bit signed object
+            //
+            cv::subtract(*sigframe, *resframe, *cdsframe, cv::noArray(), CV_32S);
 
 logwrite(function,"[DEBUG] cv::subtract(*sigframe, *resframe, *cdswork, cv::noArray(), CV_16S)");
 for (int i=0; i<5; i++) {
-  message.str(""); message << "[DEBUG] pix " << cdswork->at<int16_t>(i);
+  message.str(""); message << "[DEBUG] pix " << cdsframe->at<int32_t>(i);
   logwrite(function, message.str());
 }
 /*
@@ -192,14 +185,8 @@ for (int i=0; i<5; i++) {
   message.str(""); message << "[DEBUG] pix " << cdswork->at<uint16_t>(i);
   logwrite(function, message.str());
 }
-            cv::minMaxLoc( *cdswork, &minval, &maxval );
-message.str(""); message << "[DEBUG] min=" << minval << " max=" << maxval;
-logwrite( function, message.str() );
-            int16_t offset = static_cast<int16_t>(std::abs(minval));
 */
-            cdswork->convertTo(*cdsout, CV_16U, 1, 10000);  // add an offset -- testing purposes
-            _cdsbuf.resize(2048 * 2112);
-            std::copy(cdsout->begin<uint16_t>(), cdsout->end<uint16_t>(), _cdsbuf.begin());
+            std::copy(cdsframe->begin<int32_t>(), cdsframe->end<int32_t>(), _cdsbuf.begin());
           }
           catch ( const cv::Exception &e ) {
             message.str(""); message << "ERROR OpenCV exception: " << e.what();
@@ -212,16 +199,26 @@ logwrite( function, message.str() );
             return;
           }
         }
+        /***** Archon::PostProcess::cds_subtract ******************************/
 
-        T* get_cdsbuf() { return _cdsbuf.data(); }
 
+        int32_t* get_cdsbuf() { return _cdsbuf.data(); }
+
+        /***** Archon::PostProcess::write_unp *********************************/
+        /**
+         * @param[in]  camera_info  Camera::Information structure
+         * @param[in]  fits_file    FITS_file object
+         * @param[in]  idx          index into ring buffer
+         *
+         */
         void write_unp( Camera::Information &camera_info, FITS_file<T> &fits_file, int idx ) {
 
           #ifdef LOGLEVEL_DEBUG
           std::stringstream message;
-          std::string function="Bob::write_unp";
-          message << "[DEBUG] extension=" << camera_info.extension << " datatype=" << demangle(typeid(T).name());
-          logwrite( function, message.str() );
+          message << "[DEBUG] file=" << camera_info.fits_name
+                  << " extension=" << camera_info.extension
+                  << " datatype=" << demangle(typeid(T).name());
+          logwrite( "PostProcess::write_unp", message.str() );
           #endif
 
           camera_info.region_of_interest[0]=1;
@@ -231,252 +228,15 @@ logwrite( function, message.str() );
 
           camera_info.set_axes(USHORT_IMG);
 
-          message.str(""); message << "[DEBUG] writing sigbuf[" << idx << "] to extension " << camera_info.extension << " of " << camera_info.fits_name;
-          logwrite( "Bob::write_unp", message.str() );
           T* sigbuf = _sigbuf[idx].data();
           fits_file.write_image( sigbuf, get_timestamp(), ++camera_info.extension-1, camera_info );
 
-          message.str(""); message << "[DEBUG] writing sigbuf[" << idx << "] to extension " << camera_info.extension << " of " << camera_info.fits_name;
-          logwrite( "Bob::write_unp", message.str() );
           T* resbuf = _resbuf[idx].data();
           fits_file.write_image( resbuf, get_timestamp(), ++camera_info.extension-1, camera_info );
         }
+        /***** Archon::PostProcess::write_unp *********************************/
     };
-    
-    /***** PostProcessBase ***************************************************/
-    /**
-     * @brief   base class for PostProcess template class
-     * @details This is the polymorphic base class for the PostProcess
-     *          template class.
-     *
-     */
-    class PostProcessBase {
-      protected:
-        DeInterlaceMode _mode;
-        uint16_t _rows;
-        uint16_t _cols;
-        long _error;
-
-      public:
-        PostProcessBase( DeInterlaceMode mode ) : _mode(mode), _rows(0), _cols(0), _error(NO_ERROR) { }
-
-        virtual ~PostProcessBase() = default;
-
-        virtual std::string foo( std::string bar ) = 0;
-//      virtual U* typed_convert_buffer( T* buffer_in ) = 0;
-
-        long get_error() const { return _error; }
-
-        void set_mode( DeInterlaceMode mode ) { _mode = mode; }
-
-        DeInterlaceMode get_mode() const { return _mode; }
-
-        void set_dimensions( uint16_t rows, uint16_t cols ) {
-          _rows = rows;
-          _cols = cols;
-        }
-
-    };
-    /***** PostProcessBase ***************************************************/
-
-    /***** PostProcess *******************************************************/
-    /**
-     * @brief   template class for deinterlacing
-     * @details This class is templated to handle the data types in the
-     *          variant. It stores pointers to the buffers needed for
-     *          deinterlacing, raw input, and the signal and reset output
-     *          buffers. The deinterlace() function performs the deinterlacing.
-     *
-     *          If the deinterlacing mode is not specified on class contruction
-     *          then DeInterlaceMode::NONE is used. The deinterlacing mode can
-     *          always be changed with the base class set_mode() function.
-     *
-     */
-    template <typename T, typename U>
-    class PostProcess : public PostProcessBase {
-      private:
-        T* rawbuf;
-        T* sigbuf;
-        T* resbuf;
-        U* dummy;
-
-void bar() { std::cerr << "******************************************************" << std::endl; }
-        U* typed_convert_buffer( T* buffer_in ) {
-          // create a buffer of the correct type and space
-          auto bufsz = _rows * _cols;
-          U* buffer_out = new U[bufsz];
-          for (size_t pix=0; pix<bufsz; ++pix) {
-            // for 32b scale by hdrshift
-            if constexpr (std::is_same<T, uint32_t>::value) {
-//            buffer_out[pix] = static_cast<U>(buffer_in[pix] >> this->n_hdrshift);
-            }
-            else
-            // for signed 16b subtract 2^15 from every pixel
-            if constexpr (std::is_same<T, int16_t>::value) {
-              buffer_out[pix] = buffer_in[pix] - 32768;  // subtract 2^15 from every pixel
-            }
-            else {
-            // for all others (unsigned int) its a straight copy
-              buffer_out[pix] = buffer_in[pix];
-            }
-          }
-          return buffer_out;  // caller must release this!
-        }
-        // TODO move to a separate file
-        void deinterlace_RXRVIDEO() {
-          std::string function="Archon::PostProcess::deinterlace_RXRVIDEO";
-          std::stringstream message;
-
-          if ( _rows==0 || _cols==0 ) {
-            message.str(""); message << "ERROR invalid image dimensions rows=" << _rows << " cols=" << _cols
-                                     << ": cannot be zero";
-            logwrite( function, message.str() );
-            _error = ERROR;
-            return;
-          }
-
-          if ( rawbuf==nullptr || sigbuf==nullptr || resbuf==nullptr ) {
-            logwrite( function, "ERROR image buffers not initialized" );
-            _error = ERROR;
-            return;
-          }
-
-          logwrite( "PostProcess::deinterlace_RXRVIDEO", "actual deinterlacing here" );
-
-          for ( int row=0; row < _rows; ++row ) {
-            for ( int col=0; col < _cols; col+=64 ) {
-              std::memcpy( &sigbuf[row*_cols + col], &rawbuf[row*_cols*2 + col*2],      64*sizeof(T) );
-              std::memcpy( &resbuf[row*_cols + col], &rawbuf[row*_cols*2 + col*2 + 64], 64*sizeof(T) );
-            }
-          }
-          return;
-        }
-
-      public:
-        PostProcess(): PostProcessBase(DeInterlaceMode::NONE), rawbuf(nullptr), sigbuf(nullptr), resbuf(nullptr) { }
-        PostProcess( DeInterlaceMode mode ): PostProcessBase(mode), rawbuf(nullptr), sigbuf(nullptr), resbuf(nullptr) { }
-
-        std::string foo( std::string bar ) override { std::cerr << bar << std::endl;
-          std::stringstream message; message << "[DEBUG] type T=" << demangle(typeid(T).name()) << " U=" << demangle(typeid(U).name());
-          logwrite( "foo", message.str() );
- return "hello world"; }
-/*
-*/
-
-        /***** PostProcess::subtract_frames ***********************************/
-        /**
-         * @brief      performs the CDS subtraction
-         * @param[in]  image   T pointer to buffer with raw image
-         * @param[in]  signal  T pointer to buffer to hold signal frame
-         * @param[in]  reset   T pointer to buffer to hold reset frame
-         *
-         */
-        void subtract_frames( T* image, T* signal, T* reset ) {
-          std::string function="Archon::PostProcess::subtract_frames";
-          std::stringstream message;
-          message << "subtracting frames for datatype " << demangle(typeid(T).name());
-          logwrite( function, message.str() );
-          return;
-        }
-        /***** PostProcess::subtract_frames ***********************************/
-
-        /***** PostProcess::deinterlace ***************************************/
-        /**
-         * @brief      calls the appropriate deinterlacing mode function
-         * @param[in]  image   T pointer to buffer with raw image
-         * @param[in]  signal  T pointer to buffer to hold signal frame
-         * @param[in]  reset   T pointer to buffer to hold reset frame
-         *
-         */
-        void deinterlace( T* image, T* signal, T* reset ) {
-          std::string function="Archon::PostProcess::deinterlace";
-          std::stringstream message;
-
-          message << "deinterlacing for datatype " << demangle(typeid(T).name());
-          logwrite( function, message.str() );
-
-          this->rawbuf = image;
-          this->sigbuf = signal;
-          this->resbuf = reset;
-
-          switch ( _mode ) {
-            case DeInterlaceMode::RXRVIDEO:
-              logwrite( function, "selected mode RXRVIDEO" );
-              deinterlace_RXRVIDEO();
-              break;
-
-            default:
-              message.str(""); message << "ERROR unknown deinterlacing mode ";
-              logwrite( function, message.str() );
-          }
-
-          return;
-        }
-        /***** PostProcess::deinterlace ***************************************/
-    };
-    /***** PostProcess *******************************************************/
-
-    /***** DeInterlace *******************************************************/
-    /**
-     * @brief      visitor class for deinterlacing
-     * @details    This class uses a template operator() to handle each specific
-     *             PostProcess type specified by the std::variant. When
-     *             std::visit is called with an instance of this visitor class
-     *             and a PostProcess variant, it will invoke the appropriate
-     *             operator() based on the type of the PostProcess object. The
-     *             visitor passes void pointers to the buffers, casting them to
-     *             the correct type.
-     *
-     */
-    class DeInterlace {
-      private:
-        void* _image;
-        void* _signal;
-        void* _reset;
-
-      public:
-        DeInterlace( void* image, void* signal, void* reset )
-          : _image(image), _signal(signal), _reset(reset) { }
-
-/**
-        template <typename T>
-        void operator()(PostProcess<T> &obj) const {
-          obj.deinterlace( static_cast<T*>(_image), static_cast<T*>(_signal), static_cast<T*>(_reset) );
-        }
-**/
-    };
-    /***** DeInterlace *******************************************************/
-
-    /***** CDS_Subtact *******************************************************/
-    /**
-     * @brief      visitor class for CDS subtraction
-     * @details    This class uses a template operator() to handle each specific
-     *             PostProcess type specified by the std::variant. When
-     *             std::visit is called with an instance of this visitor class
-     *             and a PostProcess variant, it will invoke the appropriate
-     *             operator() based on the type of the PostProcess object. The
-     *             visitor passes void pointers to the buffers, casting them to
-     *             the correct type.
-     *
-     */
-    class CDS_Subtract {
-      private:
-        void* _image;
-        void* _signal;
-        void* _reset;
-
-      public:
-        CDS_Subtract( void* image, void* signal, void* reset )
-          : _image(image), _signal(signal), _reset(reset) { }
-
-/**
-        template <typename T>
-        void operator()(PostProcess<T> &obj) const {
-          obj.subtract_frames( static_cast<T*>(_image), static_cast<T*>(_signal), static_cast<T*>(_reset) );
-        }
-**/
-    };
-    /***** CDS_Subtract ******************************************************/
+    /***** Archon::PostProcess ***********************************************/
 
 
     class Interface {
@@ -501,13 +261,13 @@ void bar() { std::cerr << "*****************************************************
 /********
         // Create a deinterlacer using a variant of acceptable data types
         //
-        std::variant<PostProcess<int16_t>,
-                     PostProcess<uint16_t>,
-                     PostProcess<uint32_t>> postprocessor;
+        std::variant<LostProcess<int16_t>,
+                     LostProcess<uint16_t>,
+                     LostProcess<uint32_t>> lostprocessor;
 
         void set_frame_dimensions( uint16_t r, uint16_t c ) {
-          auto SetDimensions = [rows=r, cols=c](auto &postprocessor) { postprocessor.set_dimensions(rows,cols); };
-          std::visit( SetDimensions, postprocessor );
+          auto SetDimensions = [rows=r, cols=c](auto &lostprocessor) { lostprocessor.set_dimensions(rows,cols); };
+          std::visit( SetDimensions, lostprocessor );
           return;
         }
 ********/
@@ -545,18 +305,23 @@ void bar() { std::cerr << "*****************************************************
           #ifdef LOGLEVEL_DEBUG
           std::stringstream message;
           std::string function="Archon::Interface::typed_write_frame";
-          message << "[DEBUG] extension=" << fits_info.extension << " datatype=" << demangle(typeid(T).name());
+          message << "[DEBUG] extension=" << fits_info.extension << " datatype=" << demangle(typeid(T).name())
+                                          << " compression=" << fits_info.fits_compression_type;
           logwrite( function, message.str() );
           #endif
 
           fits_info.region_of_interest[0]=1;
-          fits_info.region_of_interest[1]=2112;
+          fits_info.region_of_interest[1]=2048;
           fits_info.region_of_interest[2]=1;
           fits_info.region_of_interest[3]=2048;
 
-          fits_info.set_axes(USHORT_IMG);
+          fits_info.set_axes(LONG_IMG);
 
-          fits_file.write_image( buffer, get_timestamp(), fits_info.extension-1, fits_info );
+          fits_file.write_image( buffer,
+                                 get_timestamp(),
+                                 fits_info.extension-1,
+                                 fits_info,
+                                 fits_info.fits_compression_code );
         }
 
         Config config;
@@ -610,9 +375,9 @@ void bar() { std::cerr << "*****************************************************
         int ring_index;                     //!< index into ring buffer, counts 0,1,0,1,...
         std::vector<char*> signal_buf;      //!< signal frame data ring buffer
         std::vector<char*> reset_buf;       //!< reset frame data ring buffer
-        char *image_buf;                    //!< image data buffer
-        uint32_t image_buf_bytes;           //!< requested number of bytes allocated for image_buf rounded up to block size
-        uint32_t image_buf_allocated;       //!< allocated number of bytes for image_buf
+        char *archon_buf;                   //!< image data buffer
+        uint32_t archon_buf_bytes;          //!< requested number of bytes allocated for archon_buf rounded up to block size
+        uint32_t archon_buf_allocated;      //!< allocated number of bytes for archon_buf
 
         std::atomic<bool> archon_busy; //!< indicates a thread is accessing Archon
         std::mutex archon_mutex;
@@ -629,9 +394,11 @@ void bar() { std::cerr << "*****************************************************
         //
         void ring_index_inc() { if (++this->ring_index==2) this->ring_index=0; }
         int  prev_ring_index() { int i=this->ring_index-1; return( i<0 ? 1 : i ); }
+        long save_unp(std::string args, std::string &retstring);
+        long fits_compression(std::string args, std::string &retstring);
         static long interface(std::string &iface); //!< get interface type
         long configure_controller(); //!< get configuration parameters
-        long prepare_image_buffer(); //!< prepare image_buf, allocating memory as needed
+        long prepare_archon_buffer(); //!< prepare archon_buf, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller
         long disconnect_controller(); //!< disconnect from archon controller
         long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING

@@ -37,21 +37,10 @@
 #include "camera.h"
 
 // Value flags for the supported FITS compression modes
-enum FITS_compression {
-  FITS_COMPRESSION_NONE = 0,
-  FITS_COMPRESSION_RICE,
-  FITS_COMPRESSION_GZIP,
-  FITS_COMPRESSION_PLIO,
-  NUM_FITS_COMPRESSION_TYPES
-};
-
-// String names for the supported FITS compression modes
-const std::string FITS_compression_string[] = {
-  "FITS_COMPRESSION_NONE",
-  "FITS_COMPRESSION_RICE",
-  "FITS_COMPRESSION_GZIP",
-  "FITS_COMPRESSION_PLIO"
-};
+constexpr int FITS_COMPRESSION_NONE=0;
+constexpr int FITS_COMPRESSION_RICE=RICE_1;
+constexpr int FITS_COMPRESSION_GZIP=GZIP_1;
+constexpr int FITS_COMPRESSION_PLIO=PLIO_1;
 
 /// Maximum file size supported for image data cubes = 1GB
 const unsigned long MAX_IMAGE_DATA_SIZE = 1073741824;
@@ -851,11 +840,11 @@ private:
       this->pFits->pHDU().addKey("MODE_NUM", camera_info.current_observing_mode,
                                  "Mode identifying key");
       message << camera_info.binning[0] << " " << camera_info.binning[1];
-      this->pFits->pHDU().addKey("CCDSUM", message.str(), "CCD binning");
+      this->pFits->pHDU().addKey("DETSUM", message.str(), "DET binning");
       message.str("");
-      this->pFits->pHDU().addKey("CCD_ID", camera_info.ccd_id,
-                                 "ID value of CCD detector");
-      this->pFits->pHDU().addKey("CCDNAME", camera_info.ccd_name,
+      this->pFits->pHDU().addKey("DET_ID", camera_info.det_id,
+                                 "ID value of detector");
+      this->pFits->pHDU().addKey("DETNAME", camera_info.det_name,
                                  "Detector name or serial number");
       this->pFits->pHDU().addKey("PIXSCALE", camera_info.pixel_scale,
                                  "Pixel scale, in arcsec per pixel");
@@ -898,16 +887,16 @@ private:
       // Write the timestamp of observation for the image extension.
       this->imageExt->addKey("UTC", timestamp, "Time of observation");
 
-      // Write information about the CCD and amplifier
-      this->imageExt->addKey("CCD_ID", camera_info.ccd_id,
-                             "ID value of CCD detector");
-      this->imageExt->addKey("CCDNAME", camera_info.ccd_name,
+      // Write information about the detector and amplifier
+      this->imageExt->addKey("DET_ID", camera_info.det_id,
+                             "ID value of detector");
+      this->imageExt->addKey("DETNAME", camera_info.det_name,
                              "Detector name or serial number");
       this->imageExt->addKey("AMP_ID", camera_info.amp_id,
-                             "ID value of CCD amplifier");
+                             "ID value of amplifier");
       this->imageExt->addKey("AMP_NAME", camera_info.amp_name,
-                             "Name of CCD amplifier");
-      this->imageExt->addKey("GAIN", camera_info.ccd_gain, "Gain e-/adu");
+                             "Name of amplifier");
+      this->imageExt->addKey("GAIN", camera_info.det_gain, "Gain e-/adu");
       this->imageExt->addKey("READNOI", camera_info.read_noise,
                              "Read noise e-");
       this->imageExt->addKey("DARKCUR", camera_info.dark_current,
@@ -918,7 +907,7 @@ private:
            << camera_info.detsize[1] << ","
            << camera_info.detsize[2] << ":"
            << camera_info.detsize[3] << "]";
-      this->imageExt->addKey("DETSIZE", temp.str(), "CCD size (pixels)");
+      this->imageExt->addKey("DETSIZE", temp.str(), "detector size (pixels)");
       temp.str("");
       
       temp << "[" << camera_info.ccdsec[0] << ":"

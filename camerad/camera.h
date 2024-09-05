@@ -21,11 +21,14 @@
 #include "common.h"
 #include "logentry.h"
 #include "utilities.h"
+#include "camerad_commands.h"
 
 // handy snprintf shortcut
 #define SNPRINTF(VAR, ...) { snprintf(VAR, sizeof(VAR), __VA_ARGS__); }
 
 namespace Camera {
+
+    class Information;  // forward declaration so Camera class can use it
 
     /***** Camera::Camera *****************************************************/
     //
@@ -90,6 +93,7 @@ namespace Camera {
         void set_fitstime(std::string time_in);
         long get_fitsname(std::string &name_out);
         long get_fitsname(std::string controllerid, std::string &name_out);
+        long set_fitsname(Information &camera_info);
 
         void abort();
 
@@ -311,8 +315,8 @@ namespace Camera {
         void swap( Information &other ) noexcept;
         friend void swap( Information &first, Information &second ) noexcept { first.swap(second); }
 
-    int ccd_id;            //!< ID value of CCD
-    int amp_id;            //!< ID value of CCD amplifier
+    int det_id;            //!< ID value of detector
+    int amp_id;            //!< ID value of amplifier
     int framenum;          //!< Archon buffer frame number
 
     int serial_prescan;                 //!< Serial prescan number
@@ -320,15 +324,15 @@ namespace Camera {
     int parallel_overscan;      //!< Parallel overscan number
     int image_cols;                                     //!< Number of columns in the image
     int image_rows;                                     //!< Number of rows in the image
-    std::string ccd_name;  //!< name of CCD
-    std::string amp_name;  //!< name of CCD amplifier
+    std::string det_name;  //!< name of detector
+    std::string amp_name;  //!< name of amplifier
 
     std::string detector;                                               //!< Detector name string
     std::string detector_software;      //!< Detector software version string
     std::string detector_firmware;      //!< Detector hardware version string
 
     float pixel_scale;  //!< Image pixel scale, like arcsec per pixel
-    float ccd_gain;                     //!< Gain value for CCD electronics
+    float det_gain;                     //!< Gain value for detector electronics
     float read_noise;           //!< Read noise value
     float dark_current; //!< Dark current value
 
@@ -346,11 +350,12 @@ namespace Camera {
     int detsec[4];   //!< detector section
     int detsize[4];  //!< physical size of the CCD
 
-    std::vector<std::string> ccdid;  //!< CCDID = unique CCD identifier
+    std::vector<std::string> detid;  //!< DETID = unique detector identifier
     int bytes_per_pixel;                                //!< Bytes per pixle
     int gain;                                                                           //!< Image gain value
 
-    int fits_compression_type;  //!< compression algorithm used for the FITS object
+    int fits_compression_code;  //!< cfitsio code for compression type
+    std::string fits_compression_type;  //!< string representing FITS compression type
     int fits_noisebits;                                 //!< noisebits parameter used when compressing floating-point images
 //  int current_observing_mode; //!< Camera imaging mode
 //  float exposure_time;                                //!< Camera total exposure time
@@ -372,8 +377,6 @@ namespace Camera {
      */
     int         bitpix;
 
-    int         datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
-    bool        type_set;                //!< set when FITS data type has been defined
     std::vector<long> naxes;             //!< array of axis lengths where element 0=cols, 1=rows, 2=cubedepth
     frame_type_t frame_type;             //!< frame_type is IMAGE or RAW
     long        detector_pixels[2];      //!< number of physical pixels. element 0=cols (pixels), 1=rows (lines)
@@ -397,6 +400,9 @@ namespace Camera {
     std::string fits_name;               //!< contatenation of Camera's image_dir + image_name + image_num
     std::string start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
 
+    int datatype;  // obsolete -- used for old fits.h only
+    bool type_set; // obsolete -- used for old fits.h only
+
     std::vector<std::vector<long> > amp_section;
 
     ExposureTime exposure_time;          //!< exposure time object, carries value and unit
@@ -408,8 +414,8 @@ namespace Camera {
       // Default Information class constructor and initializer list
       //
       Information()
-        : datatype(0),
-          type_set(false),                   //!< set true when datatype has been defined
+        : fits_compression_code(0),
+          fits_compression_type("none"),
           naxes(2),
 //        axes{1, 1, 1},                     // used by old fits.h system
 //        cubedepth(1),
@@ -441,7 +447,7 @@ namespace Camera {
        * @brief  copy constructor
        */
       Information( const Information &other )
-        : ccd_id(other.ccd_id),
+        : det_id(other.det_id),
           amp_id(other.amp_id),
           framenum(other.framenum),
           serial_prescan(other.serial_prescan),
@@ -449,18 +455,19 @@ namespace Camera {
           parallel_overscan(other.parallel_overscan),
           image_cols(other.image_cols),
           image_rows(other.image_rows),
-          ccd_name(other.ccd_name),
+          det_name(other.det_name),
           amp_name(other.amp_name),
           detector(other.detector),
           detector_software(other.detector_software),
           detector_firmware(other.detector_firmware),
           pixel_scale(other.pixel_scale),
-          ccd_gain(other.ccd_gain),
+          det_gain(other.det_gain),
           read_noise(other.read_noise),
           dark_current(other.dark_current),
           image_size(other.image_size),
           bytes_per_pixel(other.bytes_per_pixel),
           gain(other.gain),
+          fits_compression_code(other.fits_compression_code),
           fits_compression_type(other.fits_compression_type),
           fits_noisebits(other.fits_noisebits),
           frame_exposure_time(other.frame_exposure_time),
@@ -468,8 +475,6 @@ namespace Camera {
           image_name(other.image_name),
           basename(other.basename),
           bitpix(other.bitpix),
-          datatype(other.datatype),
-          type_set(other.type_set),
           naxes(other.naxes),
           frame_type(other.frame_type),
           detector_pixels{other.detector_pixels[0], other.detector_pixels[1]},
@@ -515,7 +520,7 @@ namespace Camera {
        */
       Information &operator=(const Information &other) {
         if ( this != &other ) {
-          ccd_id = other.ccd_id;
+          det_id = other.det_id;
           amp_id = other.amp_id;
           framenum = other.framenum;
           serial_prescan = other.serial_prescan;
@@ -523,18 +528,19 @@ namespace Camera {
           parallel_overscan = other.parallel_overscan;
           image_cols = other.image_cols;
           image_rows = other.image_rows;
-          ccd_name = other.ccd_name;
+          det_name = other.det_name;
           amp_name = other.amp_name;
           detector = other.detector;
           detector_software = other.detector_software;
           detector_firmware = other.detector_firmware;
           pixel_scale = other.pixel_scale;
-          ccd_gain = other.ccd_gain;
+          det_gain = other.det_gain;
           read_noise = other.read_noise;
           dark_current = other.dark_current;
           image_size = other.image_size;
           bytes_per_pixel = other.bytes_per_pixel;
           gain = other.gain;
+          fits_compression_code = other.fits_compression_code;
           fits_compression_type = other.fits_compression_type;
           fits_noisebits = other.fits_noisebits;
           frame_exposure_time = other.frame_exposure_time;
@@ -542,8 +548,6 @@ namespace Camera {
           image_name = other.image_name;
           basename = other.basename;
           bitpix = other.bitpix;
-          datatype = other.datatype;
-          type_set = other.type_set;
           naxes = other.naxes;
           frame_type = other.frame_type;
           detector_pixels[0] = other.detector_pixels[0];
@@ -614,22 +618,17 @@ namespace Camera {
 
           if (this->frame_type == FRAME_RAW) {
             this->bytes_per_pixel = 2;
-            this->datatype = USHORT_IMG;
           }
           else {
             switch (this->bitpix) {
               case SHORT_IMG:
               case USHORT_IMG:
                 this->bytes_per_pixel = 2;
-                this->datatype = SHORT_IMG;
-                message.str(""); message << "datatype=SHORT_IMG, 2 Bytes/pixel, ";
                 break;
               case LONG_IMG:
               case ULONG_IMG:
               case FLOAT_IMG:
                 this->bytes_per_pixel = 4;
-                this->datatype = FLOAT_IMG;
-                message.str(""); message << "datatype=FLOAT_IMG, 4 Bytes/pixel, ";
                 break;
               default:
                 message << "ERROR: unknown bitpix " << this->bitpix;
@@ -637,7 +636,6 @@ namespace Camera {
                 return ERROR;
             }
           }
-          this->type_set = true; // datatype has been set
 
           this->naxis = 2;
 

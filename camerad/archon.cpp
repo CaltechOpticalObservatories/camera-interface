@@ -36,9 +36,9 @@ namespace Archon {
     this->ring_index=0;
     this->signal_buf.resize(2, nullptr);
     this->reset_buf.resize(2, nullptr);
-    this->image_buf = nullptr;
-    this->image_buf_bytes = 0;
-    this->image_buf_allocated = 0;
+    this->archon_buf = nullptr;
+    this->archon_buf_bytes = 0;
+    this->archon_buf_allocated = 0;
     this->is_longexposure_set = false;
     this->is_window = false;
     this->is_autofetch = false;
@@ -107,6 +107,106 @@ namespace Archon {
     return 0;
   }
   /**************** Archon::Interface::interface ******************************/
+
+
+  /***** Archon::Interface::save_unp ******************************************/
+  /**
+   * @brief      set/get the state of saving unprocessed images
+   * @param[in]  args       input string contains requested state
+   * @param[out] retstring  return string contains the current state
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long Interface::save_unp(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::save_unp";
+    std::stringstream message;
+
+    // Help
+    //
+    if ( args == "?" || args == "help" ) {
+      retstring=CAMERAD_SAVEUNP;
+      retstring.append( " [ true | false ]\n" );
+      retstring.append( "   Set state of saving unprocessed images. If no argument provided\n" );
+      retstring.append( "   then the current state is returned.\n" );
+      return HELP;
+    }
+
+    if ( caseCompareString( args, "true" ) ) {
+      this->is_unp = true;
+    }
+    else
+    if ( caseCompareString( args, "false" ) ) {
+      this->is_unp = false;
+    }
+    else if ( !args.empty() ) {
+      message.str(""); message << "ERROR invalid argument " << args << ": expected { true false }";
+      logwrite( function, message.str() );
+      retstring="invalid_argument";
+      return ERROR;
+    }
+
+    retstring = ( this->is_unp ? "true" : "false" );
+
+    message << "will" << ( this->is_unp ? " " : " not " ) << "save unprocessed images";
+    logwrite( function, message.str() );
+
+    return NO_ERROR;
+  }
+  /***** Archon::Interface::save_unp ******************************************/
+
+
+  /***** Archon::Interface::fits_compression **********************************/
+  /**
+   * @brief      set/get FITS compression
+   * @param[in]  args       input string contains requested compression
+   * @param[out] retstring  return string contains the current compression
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long Interface::fits_compression(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::fits_compression";
+    std::stringstream message;
+
+    // Help
+    //
+    if ( args == "?" || args == "help" ) {
+      retstring=CAMERAD_COMPRESSION;
+      retstring.append( " [ none | rice | gzip | plio ]\n" );
+      retstring.append( "   Set the FITS compression type. If no argument provided\n" );
+      retstring.append( "   then the current compression type is returned.\n" );
+      return HELP;
+    }
+
+    if ( caseCompareString( args, "none" ) ) {
+      this->camera_info.fits_compression_code = 0;
+      this->camera_info.fits_compression_type = "none";
+    }
+    else
+    if ( caseCompareString( args, "rice" ) ) {
+      this->camera_info.fits_compression_code = RICE_1;
+      this->camera_info.fits_compression_type = "rice";
+    }
+    else
+    if ( caseCompareString( args, "gzip" ) ) {
+      this->camera_info.fits_compression_code = GZIP_1;
+      this->camera_info.fits_compression_type = "gzip";
+    }
+    else
+    if ( caseCompareString( args, "plio" ) ) {
+      this->camera_info.fits_compression_code = PLIO_1;
+      this->camera_info.fits_compression_type = "plio";
+    }
+    else if ( !args.empty() ) {
+      message.str(""); message << "ERROR invalid argument " << args << ": expected { none rice zip plio }";
+      logwrite( function, message.str() );
+      retstring="invalid_argument";
+      return ERROR;
+    }
+
+    retstring=this->camera_info.fits_compression_type;
+    return NO_ERROR;
+  }
+  /***** Archon::Interface::fits_compression **********************************/
 
 
   /***** Archon::Interface::do_power ******************************************/
@@ -601,41 +701,41 @@ namespace Archon {
   /***** Archon::Interface::configure_controller ******************************/
 
 
-  /**************** Archon::Interface::prepare_image_buffer *******************/
+  /**************** Archon::Interface::prepare_archon_buffer ******************/
   /**
-   * @fn     prepare_image_buffer
-   * @brief  prepare image_buf buffer, allocating memory as needed
+   * @fn     prepare_archon_buffer
+   * @brief  prepare archon_buf buffer, allocating memory as needed
    * @param  none
    * @return NO_ERROR if successful or ERROR on error
    *
    */
-  long Interface::prepare_image_buffer() {
-    std::string function = "Archon::Interface::prepare_image_buffer";
+  long Interface::prepare_archon_buffer() {
+    std::string function = "Archon::Interface::prepare_archon_buffer";
     std::stringstream message;
 
     // If there is already a correctly-sized buffer allocated,
     // then don't do anything except initialize that space to zero.
     //
-    if ( (this->image_buf != nullptr)     &&
-         (this->image_buf_bytes != 0) &&
-         (this->image_buf_allocated == this->image_buf_bytes) ) {
-      memset(this->image_buf, 0, this->image_buf_bytes);
-      message.str(""); message << "initialized " << this->image_buf_bytes << " bytes of image_buf memory";
+    if ( (this->archon_buf != nullptr)     &&
+         (this->archon_buf_bytes != 0) &&
+         (this->archon_buf_allocated == this->archon_buf_bytes) ) {
+      memset(this->archon_buf, 0, this->archon_buf_bytes);
+      message.str(""); message << "initialized " << this->archon_buf_bytes << " bytes of archon_buf memory";
       logwrite(function, message.str());
 
     } else {
         // If memory needs to be re-allocated, delete the old buffer
-      if (this->image_buf != nullptr) {
-        logwrite(function, "deleting old image_buf buffer");
-        delete [] this->image_buf;
-        this->image_buf=nullptr;
+      if (this->archon_buf != nullptr) {
+        logwrite(function, "deleting old archon_buf buffer");
+        delete [] this->archon_buf;
+        this->archon_buf=nullptr;
       }
       // Allocate new memory
       //
-      if (this->image_buf_bytes != 0) {
-        this->image_buf = new char[this->image_buf_bytes];
-        this->image_buf_allocated=this->image_buf_bytes;
-        message.str(""); message << "allocated " << this->image_buf_bytes << " bytes for image_buf";
+      if (this->archon_buf_bytes != 0) {
+        this->archon_buf = new char[this->archon_buf_bytes];
+        this->archon_buf_allocated=this->archon_buf_bytes;
+        message.str(""); message << "allocated " << this->archon_buf_bytes << " bytes for archon_buf";
         logwrite(function, message.str());
 
       } else {
@@ -646,7 +746,7 @@ namespace Archon {
 
     return NO_ERROR;
   }
-  /**************** Archon::Interface::prepare_image_buffer *******************/
+  /**************** Archon::Interface::prepare_archon_buffer ******************/
 
 
   /***** Archon::Interface::connect_controller ********************************/
@@ -803,10 +903,10 @@ namespace Archon {
 
     // Free the memory
     //
-    if (this->image_buf != nullptr) {
+    if (this->archon_buf != nullptr) {
       logwrite(function, "releasing allocated device memory");
-      delete [] this->image_buf;
-      this->image_buf=nullptr;
+      delete [] this->archon_buf;
+      this->archon_buf=nullptr;
     }
 
     // On success, write the value to the log and return
@@ -1921,7 +2021,6 @@ namespace Archon {
     // Raw will always be 16 bpp (USHORT).
     // Image can be 16 or 32 bpp depending on SAMPLEMODE setting in ACF.
     // Call set_axes(bitpix) where bitpix is the CCFits datatype (not literal bits per pixel)
-    // which will set the info.datatype variable among other things.
     //
     error = this->camera_info.set_axes(samplemode==0 ? USHORT_IMG : ULONG_IMG);           // 16 bit raw is unsigned short int
 /*********
@@ -1944,20 +2043,14 @@ namespace Archon {
       return (ERROR);
     }
 
-    // allocate image_buf in blocks because the controller outputs data in units of blocks
+    // allocate archon_buf in blocks because the controller outputs data in units of blocks
     //
-    this->image_buf_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
+    this->archon_buf_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
 
-    if (this->image_buf_bytes == 0) {
+    if (this->archon_buf_bytes == 0) {
       this->camera.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
       error = ERROR;
     }
-
-    this->camera_info.current_observing_mode = mode;       // identify the newly selected mode in the camera_info class object
-    this->modeselected = true;                             // a valid mode has been selected
-
-    message.str(""); message << "new mode: " << mode << " will use " << this->camera_info.bytes_per_pixel << " Bytes per pixel";
-    logwrite(function, message.str());
 
     // Calculate amplifier sections
     //
@@ -2006,6 +2099,15 @@ namespace Archon {
       logwrite( function, message.str() );
     }
     #endif
+
+    if ( error == NO_ERROR ) {
+      this->camera_info.current_observing_mode = mode;     // identify the newly selected mode in the camera_info class object
+      this->modeselected = true;                           // a valid mode has been selected
+
+      message.str(""); message << "new mode: " << mode << " will use " << this->camera_info.bytes_per_pixel << " Bytes per pixel";
+      logwrite(function, message.str());
+    }
+    else logwrite( function, "ERROR mode not set!" );
 
     return error;
   }
@@ -2761,7 +2863,7 @@ namespace Archon {
 
     this->camera_info.frame_type = frame_type;
 
-    error = this->prepare_image_buffer();
+    error = this->prepare_archon_buffer();
     if (error == ERROR) {
       logwrite( function, "ERROR: unable to allocate an image buffer" );
       return ERROR;
@@ -2840,7 +2942,7 @@ namespace Archon {
 
     // Read the data from the connected socket into memory, one block at a time
     //
-    ptr_image = this->image_buf;
+    ptr_image = this->archon_buf;
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
@@ -3054,7 +3156,7 @@ namespace Archon {
 
         // Read the data from the connected socket into memory, one block at a time
         //
-        ptr_image = this->image_buf;
+        ptr_image = this->archon_buf;
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
         for (block=0; block<bufblocks; block++) {
@@ -3171,7 +3273,7 @@ namespace Archon {
   /**************** Archon::Interface::write_frame ****************************/
   /**
    * @fn     write_frame
-   * @brief  creates a bITS_file object to write the image_buf buffer to disk
+   * @brief  creates a bITS_file object to write the archon_buf buffer to disk
    * @param  none
    * @return ERROR or NO_ERROR
    *
@@ -3212,7 +3314,7 @@ namespace Archon {
       case FLOAT_IMG:
       case LONG_IMG:
       case ULONG_IMG: {
-        cbuf32 = (uint32_t *)this->image_buf;                  // cast here to 32b
+        cbuf32 = (uint32_t *)this->archon_buf;                  // cast here to 32b
 
         // Write each amplifier as a separate extension
         //
@@ -3310,14 +3412,14 @@ namespace Archon {
       //
       case SHORT_IMG:
       case USHORT_IMG: {
-        if (this->camera_info.datatype == USHORT_IMG) {                   // raw
-          cbuf16 = (uint16_t *)this->image_buf;                          // cast to 16b unsigned int
+        if (this->camera_info.bitpix == USHORT_IMG) {                     // raw
+          cbuf16 = (uint16_t *)this->archon_buf;                          // cast to 16b unsigned int
 //        error = fits_file.write_image(cbuf16, this->fits_info);         // write the image to disk //TODO
           error = this->fits_file.write_image(cbuf16, this->camera_info); // write the image to disk
           if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 16-bit raw image to disk" ); }
 
-        } else if (this->camera_info.datatype == SHORT_IMG) {
-          cbuf16s = (int16_t *)this->image_buf;                          // cast to 16b signed int
+        } else if (this->camera_info.bitpix == SHORT_IMG) {
+          cbuf16s = (int16_t *)this->archon_buf;                          // cast to 16b signed int
           int16_t *ibuf = nullptr;
           ibuf = new int16_t[ this->camera_info.section_size ];
           for (long pix=0; pix < this->camera_info.section_size; pix++) {
@@ -3328,7 +3430,7 @@ namespace Archon {
           delete [] ibuf;
 
         } else {
-          message.str(""); message << "unsupported 16 bit datatype " << this->camera_info.datatype;
+          message.str(""); message << "unsupported 16 bit datatype " << this->camera_info.bitpix;
           this->camera.log_error( function, message.str() );
           error = ERROR;
         }
@@ -3382,7 +3484,7 @@ namespace Archon {
     // Cast the image buffer of chars into integers to convert four 8-bit values 
     // into a 16-bit value
     //
-    cbuf16 = (unsigned short *)this->image_buf;
+    cbuf16 = (unsigned short *)this->archon_buf;
 
     fitsfile *FP       = nullptr;
     int       status   = 0;
@@ -3846,39 +3948,29 @@ namespace Archon {
     //
     DeInterlaceMode deinterlace_mode = DeInterlaceMode::RXRVIDEO;
 
-    // Assign the PostProcess object to the appropriate type.
-    // The postprocessor object is a variant which holds the specified type.
+    // Before creating an appropriate PostProcess object,
+    // declare a pointer to each possible type, then use bitpix
+    // to instantiate the PostProcess object for the needed type.
     //
-    Bob<float>*    bobfloat = nullptr;
-    Bob<int16_t>*  bobint   = nullptr;
-    Bob<uint16_t>* bobuint  = nullptr;
-
-    PostProcessBase*    postprocessor  = nullptr;
+    PostProcess<float>*    postproc_float  = nullptr;
+    PostProcess<int16_t>*  postproc_short  = nullptr;
+    PostProcess<uint16_t>* postproc_ushort = nullptr;
 
     switch ( this->camera_info.bitpix ) {
-      case SHORT_IMG:  postprocessor = new PostProcess<int16_t,int16_t>(deinterlace_mode);
-                       bobint = new Bob<int16_t>(deinterlace_mode, this->camera_info.image_size);
+      case FLOAT_IMG:  postproc_float = new PostProcess<float>(deinterlace_mode, this->camera_info.image_size);
                        break;
-      case USHORT_IMG: postprocessor = new PostProcess<uint16_t,uint16_t>(deinterlace_mode);
-                       bobuint = new Bob<uint16_t>(deinterlace_mode, this->camera_info.image_size);
+      case SHORT_IMG:  postproc_short = new PostProcess<int16_t>(deinterlace_mode, this->camera_info.image_size);
                        break;
-      case FLOAT_IMG:  postprocessor = new PostProcess<uint32_t,float>(deinterlace_mode);
-                       bobfloat = new Bob<float>(deinterlace_mode, this->camera_info.image_size);
+      case USHORT_IMG: postproc_ushort = new PostProcess<uint16_t>(deinterlace_mode, this->camera_info.image_size);
                        break;
-      default:         message.str(""); message << "unknown datatype " << this->camera_info.datatype;
+      default:         message.str(""); message << "unknown datatype " << this->camera_info.bitpix;
                        this->camera.log_error( function, message.str() );
                        return ERROR;
     }
 
-    // setting the frame dimensions here is required for the PostProcessor class
-    // which includes deinterlacing and CDS subtraction
-    //
-//  this->set_frame_dimensions( camera_info.naxes[0], camera_info.naxes[1] );
-    postprocessor->set_dimensions( camera_info.naxes[0], camera_info.naxes[1] );
-
     message.str("");
     message << "camera_info: ";
-    message << "\n ccd_id=" << camera_info.ccd_id;            //!< ID value of CCD
+    message << "\n det_id=" << camera_info.det_id;            //!< ID value of CCD
     message << "\n amp_id=" << camera_info.amp_id;            //!< ID value of CCD amplifier
     message << "\n framenum=" << camera_info.framenum;          //!< Archon buffer frame number
 
@@ -3887,7 +3979,7 @@ namespace Archon {
     message << "\n parallel_overscan=" << camera_info.parallel_overscan;      //!< Parallel overscan number
     message << "\n image_cols=" << camera_info.image_cols;                                     //!< Number of columns in the image
     message << "\n image_rows=" << camera_info.image_rows;                                     //!< Number of rows in the image
-    message << "\n ccd_name=" << camera_info.ccd_name;  //!< name of CCD
+    message << "\n det_name=" << camera_info.det_name;  //!< name of CCD
     message << "\n amp_name=" << camera_info.amp_name;  //!< name of CCD amplifier
 
     message << "\n detector=" << camera_info.detector;                                               //!< Detector name string
@@ -3895,7 +3987,7 @@ namespace Archon {
     message << "\n detector_firmware=" << camera_info.detector_firmware;      //!< Detector hardware version string
 
     message << "\n  pixel_scale=" << camera_info.pixel_scale;  //!< Image pixel scale, like arcsec per pixel
-    message << "\n  ccd_gain=" << camera_info.ccd_gain;                     //!< Gain value for CCD electronics
+    message << "\n  det_gain=" << camera_info.det_gain;                     //!< Gain value for CCD electronics
     message << "\n  read_noise=" << camera_info.read_noise;           //!< Read noise value
     message << "\n  dark_current=" << camera_info.dark_current; //!< Dark current value
 
@@ -3919,9 +4011,10 @@ namespace Archon {
     // declare a pointer to each possibly type, then use bitpix
     // to instantiate the FITS_file object for the needed type.
     //
-    FITS_file<float>*    floatfile  = nullptr;
-    FITS_file<uint16_t>* uint16file = nullptr; FITS_file<uint16_t>* file_unp = nullptr;
-    FITS_file<int16_t>*  int16file  = nullptr;
+    FITS_file<float>*    file_float  = nullptr; FITS_file<float>*    file_float_unp  = nullptr;
+    FITS_file<int32_t>*  file_long   = nullptr; FITS_file<int32_t>*  file_long_unp   = nullptr;
+    FITS_file<int16_t>*  file_short  = nullptr; FITS_file<int16_t>*  file_short_unp  = nullptr;
+    FITS_file<uint16_t>* file_ushort = nullptr; FITS_file<uint16_t>* file_ushort_unp = nullptr;
 
     // Instantiate the type-appropriate FITS_file object
     //
@@ -3929,21 +4022,24 @@ namespace Archon {
       case FLOAT_IMG:
       case LONG_IMG:
       case ULONG_IMG:
-        floatfile = new FITS_file<float>( ( this->camera.datacube() ? true : false ) );
+        file_float = new FITS_file<float>( ( this->camera.datacube() ? true : false ) );
         break;
       case SHORT_IMG:
-        int16file = new FITS_file<int16_t>( ( this->camera.datacube() ? true : false ) );
+        file_short = new FITS_file<int16_t>( ( this->camera.datacube() ? true : false ) );
         break;
       case USHORT_IMG:
-        uint16file = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
-        file_unp = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
+        file_ushort = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
+        file_ushort_unp = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
         break;
       default:
         this->camera.log_error( function, "unsupported bitpix type" );
         return ERROR;
     }
+    file_long = new FITS_file<int32_t>( ( this->camera.datacube() ? true : false ) );
 
-    // initiate the exposure here
+    // **********************************
+    // *** initiate the exposure here ***
+    // **********************************
     //
     error = this->prep_parameter(this->exposeparam, nseqstr);
     if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
@@ -3951,6 +4047,32 @@ namespace Archon {
       logwrite( function, "ERROR: could not initiate exposure" );
       return error;
     }
+
+    // Wait for any pre-exposures. These frames are never read from the Archon.
+    // Instead just wait for the exposure delay then the readout, until
+    // all pre_exposures have finished.
+    //
+    for ( int expcount=0; expcount < this->camera_info.num_pre_exposures; ++expcount ) {
+
+      message.str(""); message << "pre-exposure " << expcount << " of " << this->camera_info.num_pre_exposures;
+      logwrite( function, message.str() );
+
+      if ( this->camera_info.exposure_time.value() != 0 ) {         // wait for the exposure delay to complete (if there is one)
+        error = this->wait_for_exposure();
+        if ( error != NO_ERROR ) {
+          logwrite( function, "ERROR: waiting for pre-exposure" );
+          return error;
+        }
+      }
+
+      // Wait for the readout into frame buffer
+      //
+      error = this->wait_for_readout();
+      if ( error != NO_ERROR ) {
+        logwrite( function, "ERROR: waiting for pre-exposure readout" );
+        return error;
+      }
+    } // end pre-exposure loop
 
     // get system time and Archon's timer after exposure starts
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
@@ -3961,7 +4083,7 @@ namespace Archon {
       return ERROR;
     }
     this->camera.set_fitstime(this->camera_info.start_time);        // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
-    error=this->camera.get_fitsname(this->camera_info.fits_name);   // assemble the FITS filename
+    error=this->camera.set_fitsname(this->camera_info);             // assemble the FITS filename
     if ( error != NO_ERROR ) {
       logwrite( function, "ERROR: couldn't validate fits filename" );
       return error;
@@ -3994,8 +4116,13 @@ namespace Archon {
 
     Camera::Information unp_info(this->camera_info);
     unp_info.fits_name="/tmp/20240903/unp.fits";
+
+    // **********************************
+    // ******** first frame here ********
+    // **********************************
+
     // Read the first frame buffer from Archon to host and decrement my local
-    // frame counter.  This call to read_frame() reads into this->image_buf.
+    // frame counter.  This call to read_frame() reads into this->archon_buf.
     //
     error = read_frame();
     nseq--;
@@ -4006,68 +4133,55 @@ namespace Archon {
       return error;
     }
 
-/**** The following write is temporary, for test writing of raw frames ***/
-
-    // The buffer from Archon comes in 8bit words which need to be interpreted
-    // as the appropriate type, based on bitpix. Do that here, then write
-    // the frame using the appropriate FITS_file object.
+    // Always deinterlace first frame.
+    // Write here only if is_unp set to write unprocessed images.
     //
     switch (camera_info.bitpix) {
       case FLOAT_IMG:
       case LONG_IMG:
       case ULONG_IMG: {
-        uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
+        if (!postproc_float) { logwrite(function, "ERROR PostProcess<float> object not initialized"); return ERROR; }
+        // convert archon_buf to 32-bit signed
+        uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->archon_buf);
         float* typed_image = this->typed_convert_buffer<uint32_t, float>( cbuf32 );
-        bobfloat->deinterlace(typed_image, this->ring_index);
-//      this->typed_write_frame( typed_image, *floatfile );
+        // de-interlace
+        postproc_float->deinterlace(typed_image, this->ring_index);
+        // write unprocessed frame if requested
+        if ( this->is_unp ) postproc_float->write_unp( unp_info, *file_float_unp, this->ring_index );
         delete [] typed_image;
         break;
       }
       case SHORT_IMG: {
-        int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
+        if (!postproc_short) { logwrite(function, "ERROR PostProcess<short> object not initialized"); return ERROR; }
+        // convert archon_buf to 16-bit signed
+        int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->archon_buf);
         int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
-        bobint->deinterlace(typed_image, this->ring_index);
-//      this->typed_write_frame( typed_image, *int16file );
+        // de-interlace
+        postproc_short->deinterlace(typed_image, this->ring_index);
+        // write unprocessed frame if requested
+        if ( this->is_unp ) postproc_short->write_unp( unp_info, *file_short_unp, this->ring_index );
         delete [] typed_image;
+        break;
       }
       case USHORT_IMG: {
-        uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
+        if (!postproc_ushort) { logwrite(function, "ERROR PostProcess<ushort> object not initialized"); return ERROR; }
+        //  convert archon_buf to 16-bit unsigned
+        uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->archon_buf);
         uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
-        bobuint->deinterlace(typed_image, this->ring_index);
-//      this->typed_write_frame( typed_image, *uint16file );
-        bobuint->write_unp( unp_info, *file_unp, this->ring_index );
+        // de-interlace
+        postproc_ushort->deinterlace(typed_image, this->ring_index);
+        // write unprocessed frame if requested
+        if ( this->is_unp ) postproc_ushort->write_unp( unp_info, *file_ushort_unp, this->ring_index );
         delete [] typed_image;
         break;
       }
     }
-
-    // deinterlace frame --
-    // This uses a visitor class to pass pointers to the deinterlacer function.
-    // The visitor inspects the type held by the variant postprocessor object,
-    // which calls the deinterlace function.
-    //
-/***
-    message.str(""); message << "[DEBUG] deinterlacing into ring " << this->ring_index;
-    logwrite( function, message.str() );
-    std::visit( DeInterlace( static_cast<void*>(this->image_buf),
-                             static_cast<void*>(signal_buf[this->ring_index]),
-                             static_cast<void*>(reset_buf[this->ring_index]) ),
-                postprocessor );
-
-    error = std::visit([](auto &obj) { return obj.get_error(); }, postprocessor);
-
-    if ( error != NO_ERROR ) {
-      logwrite( function, "ERROR deinterlacing" );
-      return ERROR;
-    }
-***/
 
     // If not RAW mode then wait for Archon frame buffer to be ready,
     // then read the latest ready frame buffer to the host. If this
     // is a squence, then loop over all expected frames.
     //
-    if ( mode != "RAW" ) {                                          // If not raw mode then
-      int expcount = 0;                                             // counter used only for tracking pre-exposures
+    if ( mode != "RAW" ) {
 
       //
       // -- MAIN SEQUENCE LOOP --
@@ -4079,34 +4193,6 @@ namespace Archon {
         this->ring_index_inc();
 
 /***** simplify for cryoscope
-        // Wait for any pre-exposures, first the exposure delay then the readout,
-        // but then continue to the next because pre-exposures are not read from
-        // the Archon's buffer.
-        //
-        if ( ++expcount <= this->camera_info.num_pre_exposures ) {
-
-          message.str(""); message << "pre-exposure " << expcount << " of " << this->camera_info.num_pre_exposures;
-          logwrite( function, message.str() );
-
-          if ( this->camera_info.exposure_time.value() != 0 ) {         // wait for the exposure delay to complete (if there is one)
-            error = this->wait_for_exposure();
-            if ( error != NO_ERROR ) {
-              logwrite( function, "ERROR: waiting for pre-exposure" );
-              return error;
-            }
-          }
-
-          // Wait for the readout into frame buffer
-          //
-          error = this->wait_for_readout();
-          if ( error != NO_ERROR ) {
-            logwrite( function, "ERROR: waiting for pre-exposure readout" );
-            return error;
-          }
-
-          continue;  // skip everything else -- don't do anything with this frame
-        }
-
         // Open a new FITS file for each frame when not using datacubes
         //
         #ifdef LOGLEVEL_DEBUG
@@ -4165,8 +4251,12 @@ simplify for cryoscope *****/
           return error;
         }
 
+        // **********************************
+        // ******** next frames here ********
+        // **********************************
+
         // Read the next (and subsequent) frame buffers from Archon to host and
-        // decrement my local frame counter.  This reads into this->image_buf.
+        // decrement my local frame counter.  This reads into this->archon_buf.
         //
         error = read_frame();
         nseq--;
@@ -4177,95 +4267,72 @@ simplify for cryoscope *****/
           return error;
         }
 
-        // The buffer from Archon comes in 8bit words which need to be interpreted
-        // as the appropriate type, based on bitpix. Do that here, then write
-        // the frame using the appropriate FITS_file object.
+        // De-interlace each subsequent frame
         //
         switch (camera_info.bitpix) {
           case FLOAT_IMG:
           case LONG_IMG:
           case ULONG_IMG: {
-if (!bobfloat) { logwrite(function, "ERROR bobfloat not initialized"); return ERROR; }
-            uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->image_buf);
+            if (!postproc_float) { logwrite(function, "ERROR PostProcess<float> object not initialized"); return ERROR; }
+            // convert archon_buf to 32-bit signed <float> typed image
+            uint32_t* cbuf32 = reinterpret_cast<uint32_t*>(this->archon_buf);
             float* typed_image = this->typed_convert_buffer<uint32_t, float>( cbuf32 );
-            bobfloat->deinterlace(typed_image, this->ring_index);
-            int i = this->ring_index;
-            int j = this->prev_ring_index();
-            bobfloat->cds_subtract(i, j);
-            float* cdsframe = bobfloat->get_cdsbuf();
-//          this->typed_write_frame( typed_image, *floatfile );
-            this->typed_write_frame( cdsframe, *floatfile );
+            // deinterlace that typed image
+            postproc_float->deinterlace(typed_image, this->ring_index);
+            // perform CDS subtraction of signal - reset frames
+            int sig = this->ring_index;
+            int res = this->prev_ring_index();
+            postproc_float->cds_subtract(sig, res);
+//          float* cdsframe = postproc_float->get_cdsbuf();
+            // write the CDS frame
+//          this->typed_write_frame( cdsframe, *file_float );
+            // write the unprocessed frame if requested
+            if ( this->is_unp ) postproc_float->write_unp( unp_info, *file_float_unp, this->ring_index );
             delete [] typed_image;
             break;
           }
           case SHORT_IMG:{
-if (!bobint) { logwrite(function, "ERROR bobint not initialized"); return ERROR; }
-            int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->image_buf);
+            if (!postproc_short) { logwrite(function, "ERROR PostProcess<short> object not initialized"); return ERROR; }
+            // convert archon_buf to 16-bit signed <short> typed image
+            int16_t* cbuf16s = reinterpret_cast<int16_t*>(this->archon_buf);
             int16_t* typed_image = this->typed_convert_buffer<int16_t,int16_t>( cbuf16s );
-            bobint->deinterlace(typed_image, this->ring_index);
+            // deinterlace that typed image
+            postproc_short->deinterlace(typed_image, this->ring_index);
+            // perform CDS subtraction of signal - reset frames
             int i = this->ring_index;
             int j = this->prev_ring_index();
-            bobint->cds_subtract(i, j);
-            int16_t* cdsframe = bobint->get_cdsbuf();
-//          this->typed_write_frame( typed_image, *int16file );
-            this->typed_write_frame( cdsframe, *int16file );
+            postproc_short->cds_subtract(i, j);
+//          int16_t* cdsframe = postproc_short->get_cdsbuf();
+            // write the CDS frame
+//          this->typed_write_frame( cdsframe, *file_short );
+            // write the unprocessed frame if requested
+            if ( this->is_unp ) postproc_short->write_unp( unp_info, *file_short_unp, this->ring_index );
             delete [] typed_image;
             break;
           }
           case USHORT_IMG: {
-if (!bobuint) { logwrite(function, "ERROR bobuint not initialized"); return ERROR; }
-            uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->image_buf);
+            if (!postproc_ushort) { logwrite(function, "ERROR PostProcess<ushort> object not initialized"); return ERROR; }
+            // convert archon_buf to 16-bit unsigned <ushort> typed image
+            uint16_t* cbuf16 = reinterpret_cast<uint16_t*>(this->archon_buf);
             uint16_t* typed_image = this->typed_convert_buffer<uint16_t,uint16_t>( cbuf16 );
-            bobuint->deinterlace(typed_image, this->ring_index);
+            // deinterlace that typed image
+            postproc_ushort->deinterlace(typed_image, this->ring_index);
+            // perform CDS subtraction of signal - reset frames
             int i = this->ring_index;
             int j = this->prev_ring_index();
-            bobuint->cds_subtract(i, j);
-            uint16_t* cdsframe = bobuint->get_cdsbuf();
-//          this->typed_write_frame( typed_image, *uint16file );
-            this->typed_write_frame( cdsframe, *uint16file );
-            bobuint->write_unp( unp_info, *file_unp, this->ring_index );
+            postproc_ushort->cds_subtract(i, j);
+//          uint16_t* cdsframe = postproc_ushort->get_cdsbuf();
+            // write the CDS frame
+//          this->typed_write_frame( cdsframe, *file_ushort );
+            // write the unprocessed frame if requested
+            if ( this->is_unp ) postproc_ushort->write_unp( unp_info, *file_ushort_unp, this->ring_index );
             delete [] typed_image;
             break;
           }
         }
 
-
-        // deinterlace frame
-        //
-//      std::visit( DeInterlace( this->image_buf, this->signal_buf[0], this->reset_buf[0] ), postprocessor );
-/***
-        message.str(""); message << "[DEBUG] deinterlacing into ring " << this->ring_index;
-        logwrite( function, message.str() );
-        std::visit( DeInterlace( static_cast<void*>(this->image_buf),
-                                 static_cast<void*>(signal_buf[this->ring_index]),
-                                 static_cast<void*>(reset_buf[this->ring_index])
-                               ),
-                    postprocessor );
-        error = std::visit([](auto &obj) { return obj.get_error(); }, postprocessor);
-
-        if ( error != NO_ERROR ) {
-          logwrite( function, "ERROR deinterlacing" );
-          return ERROR;
-        }
-        // perform CDS subtraction
-        //
-        int i=this->ring_index;
-        int j=this->prev_ring_index();
-        message.str(""); message << "[DEBUG] subtracting signal[" << i << "] - reset[" << j << "]";
-        logwrite( function, message.str() );
-        std::visit( CDS_Subtract( static_cast<void*>(this->image_buf),
-                                 static_cast<void*>(signal_buf[i]),
-                                 static_cast<void*>(reset_buf[j])
-                                ),
-                    postprocessor );
-        error = std::visit([](auto &obj) { return obj.get_error(); }, postprocessor);
-
-        if ( error != NO_ERROR ) {
-          logwrite( function, "ERROR performing CDS subtraction" );
-          return ERROR;
-        }
-***/
-
+int32_t* cdsframe = postproc_ushort->get_cdsbuf();
+this->typed_write_frame( cdsframe, *file_long );
 
 /*****
         // For non-sequence multiple exposures, including cubeamps, close the fits file here
@@ -4339,25 +4406,41 @@ if (!bobuint) { logwrite(function, "ERROR bobuint not initialized"); return ERRO
     // This closes the file and shuts down the FITS engine,
     // waiting for the queue to empty if needed.
     //
-    if (floatfile) {
-      floatfile->complete();
-      delete floatfile;
+    if (file_float) {
+      file_float->complete();
+      delete file_float;
     }
-    if (uint16file) {
-      uint16file->complete();
-      delete uint16file;
+    if (file_long) {
+      file_long->complete();
+      delete file_long;
     }
-    if (int16file) {
-      int16file->complete();
-      delete int16file;
+    if (file_ushort) {
+      file_ushort->complete();
+      delete file_ushort;
     }
-    if (file_unp) {
-      file_unp->complete();
-      delete file_unp;
+    if (file_short) {
+      file_short->complete();
+      delete file_short;
     }
-    delete bobint;
-    delete bobuint;
-    delete bobfloat;
+    if (file_float_unp) {
+      file_float_unp->complete();
+      delete file_float_unp;
+    }
+    if (file_long_unp) {
+      file_long_unp->complete();
+      delete file_long_unp;
+    }
+    if (file_short_unp) {
+      file_short_unp->complete();
+      delete file_short_unp;
+    }
+    if (file_ushort_unp) {
+      file_ushort_unp->complete();
+      delete file_ushort_unp;
+    }
+    if ( postproc_float )  delete postproc_float;
+    if ( postproc_short )  delete postproc_short;
+    if ( postproc_ushort ) delete postproc_ushort;
 
     // remember the cubeamps setting used for the last completed exposure
     // TODO revisit once region-of-interest is implemented
@@ -4912,7 +4995,7 @@ if (!bobuint) { logwrite(function, "ERROR bobuint not initialized"); return ERRO
 
         // Allocate image buffer once
         this->camera_info.frame_type = Camera::FRAME_IMAGE;
-        error = this->prepare_image_buffer();
+        error = this->prepare_archon_buffer();
         if (error == ERROR) {
             logwrite( function, "ERROR: unable to allocate an image buffer" );
             return ERROR;

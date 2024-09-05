@@ -511,8 +511,11 @@ void doit(Network::TcpSocket sock) {
                 args = sbuf.substr(cmd_sep + 1); // otherwise args is everything after that space.
             }
 
+            ++server.cmd_num;
+            if ( server.cmd_num == INT_MAX ) server.cmd_num = 0;
+
             message.str("");
-            message << "thread " << sock.id << " received command on fd " << sock.getfd() << ": " << cmd << " " << args;
+            message << "thread " << sock.id << " received command on fd " << sock.getfd() << " (" << server.cmd_num << ") : " << cmd << " " << args;
             logwrite(function, message.str());
         } catch (std::runtime_error &e) {
             std::stringstream errstream;
@@ -535,6 +538,11 @@ void doit(Network::TcpSocket sock) {
         ret = NOTHING;
         std::string retstring; // string for return the value (where needed)
 
+        if ( cmd == "help" || cmd == "?" ) {
+          for ( const auto &syntax : CAMERAD_SYNTAX ) { retstring.append( syntax+"\n" ); }
+          ret = HELP;
+        }
+        else
         if (cmd == "exit") {
             server.camera.async.enqueue("exit"); // shutdown the async message thread if running
             server.exit_cleanly(); // shutdown the server
@@ -765,6 +773,12 @@ void doit(Network::TcpSocket sock) {
         else if ( cmd == "fetchlog" ) {
           ret = server.fetchlog();
         }
+        else if ( cmd == CAMERAD_COMPRESSION ) {
+          ret = server.fits_compression(args, retstring);
+        }
+        else if ( cmd == CAMERAD_SAVEUNP ) {
+          ret = server.save_unp(args, retstring);
+        }
 #endif
         else if (cmd == "expose") {
             ret = server.expose(args);
@@ -829,15 +843,24 @@ void doit(Network::TcpSocket sock) {
             ret = ERROR;
         }
 
-        if (ret != NOTHING) {
-            std::string retstr = (ret == 0 ? "DONE\n" : "ERROR\n");
-            if (ret == 0) retstr = "DONE\n";
-            else retstr = "ERROR" + server.camera.get_longerror() + "\n";
-            if (sock.Write(retstr) < 0) connection_open = false;
+      // If retstring not empty then append "DONE" or "ERROR" depending on value of ret,
+      // and log the reply along with the command number. Write the reply back to the socket.
+      //
+      // Don't append anything nor log the reply if the command was just requesting help.
+      //
+      if (ret != NOTHING) {
+        if ( !retstring.empty() ) retstring.append(" ");
+        if ( ret != HELP ) retstring.append( ret==NO_ERROR ? "DONE" : "ERROR"+server.camera.get_longerror() );
+        if ( !retstring.empty() && ret != HELP ) {
+          message.str(""); message << "command (" << server.cmd_num << ") reply: "  << retstring;
+          logwrite( function, message.str() );
         }
+        retstring.append("\n");
+        if (sock.Write(retstring) < 0) connection_open = false;
+      }
 
-        if (!sock.isblocking()) break; // Non-blocking connection exits immediately.
-        // Keep blocking connection open for interactive session.
+      if (!sock.isblocking()) break; // Non-blocking connection exits immediately.
+      // Keep blocking connection open for interactive session.
     }
 
     sock.Close();
