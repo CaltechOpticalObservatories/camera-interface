@@ -16,6 +16,7 @@
 #include <fstream>
 #include <array>
 #include <utility>
+#include <zmq.hpp>
 
 namespace Archon {
 
@@ -2833,6 +2834,19 @@ namespace Archon {
 
         // Read the data from the connected socket into memory, one block at a time
         //
+        // Create a ZeroMQ context
+        zmq::context_t context(1);
+        // Create a socket for sending messages
+        zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
+        // Create a socket for receiving messages
+        zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
+        // Subscribe to all messages (empty string for all messages)
+        zmq_receive_socket.set(zmq::sockopt::subscribe, "");
+        // Setup ZeroMQ in autofetch mode
+        if (this->is_autofetch) {
+          // Bind the socket to TCP port 5555
+          zmq_send_socket.bind("tcp://*:5555");
+        }
         ptr_image = this->image_data;
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
@@ -2917,8 +2931,29 @@ namespace Archon {
                 // }
                 strcpy(ptr_image, buffer + 4);
                 ptr_image += retval;
-
                 logwrite( function, "copied 1024 to image pointer");
+
+                // send data to ZMQ
+                // Create a message
+                zmq::message_t zmq_message("Hello World", 11);
+
+                // Send the message
+                zmq_send_socket.send(zmq_message, zmq::send_flags::none);
+
+                std::cout << "Sent: Hello World" << std::endl;
+
+                while (true) {
+                  // Receive the message
+                  zmq::message_t zmq_recieved_message;
+                  zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
+
+                  if (zmq_recieved_message.size() > 0) {
+                    // Print the received message
+                    std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
+                    break;
+                  }
+                }
+
               }
 
               // if (strncmp(buffer, "<SFA", 4) == 0) {
