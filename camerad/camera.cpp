@@ -953,7 +953,6 @@ namespace Camera {
         std::swap( axis_pixels, other.axis_pixels );
         std::swap( region_of_interest, other.region_of_interest );
         std::swap( abortexposure, other.abortexposure );
-        std::swap( iscube, other.iscube );
         std::swap( extension, other.extension );
         std::swap( shutterenable, other.shutterenable );
         std::swap( shutteractivate, other.shutteractivate );

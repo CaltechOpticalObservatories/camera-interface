@@ -391,7 +391,6 @@ namespace Camera {
     long        axis_pixels[2];          //!< number of physical pixels used, before binning
     long        region_of_interest[4];   //!< region of interest
     bool        abortexposure;
-    bool        iscube;                  //!< the info object given to the FITS writer will need to know cube status
     int         extension;               //!< extension number for data cubes
     bool        shutterenable;           //!< set true to allow the controller to open the shutter on expose, false to disable it
     std::string shutteractivate;         //!< shutter activation state
@@ -400,8 +399,9 @@ namespace Camera {
     std::string fits_name;               //!< contatenation of Camera's image_dir + image_name + image_num
     std::string start_time;              //!< system time when the exposure started (YYYY-MM-DDTHH:MM:SS.sss)
 
-    int datatype;  // obsolete -- used for old fits.h only
-    bool type_set; // obsolete -- used for old fits.h only
+    bool iscube;    // obsolete -- user for old fits.h only
+    int  datatype;  // obsolete -- used for old fits.h only
+    bool type_set;  // obsolete -- used for old fits.h only
 
     std::vector<std::vector<long> > amp_section;
 
@@ -490,7 +490,6 @@ namespace Camera {
           region_of_interest{other.region_of_interest[0], other.region_of_interest[1],
                              other.region_of_interest[2], other.region_of_interest[3]},
           abortexposure(other.abortexposure),
-          iscube(other.iscube),
           extension(other.extension),
           shutterenable(other.shutterenable),
           shutteractivate(other.shutteractivate),
@@ -570,7 +569,6 @@ namespace Camera {
           region_of_interest[2] = other.region_of_interest[2];
           region_of_interest[3] = other.region_of_interest[3];
           abortexposure = other.abortexposure;
-          iscube = other.iscube;
           extension = other.extension;
           shutterenable = other.shutterenable;
           shutteractivate = other.shutteractivate;
@@ -598,7 +596,7 @@ namespace Camera {
 
         long pre_exposures(std::string num_in, std::string &num_out);
 
-	/***** Camera::Information::set_axes **********************************/
+        /***** Camera::Information::set_axes **********************************/
         /**
          * @brief      set image memory space
          * @details    Sets up the image memory space, including the byte size

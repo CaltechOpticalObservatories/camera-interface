@@ -3948,20 +3948,26 @@ namespace Archon {
     //
     DeInterlaceMode deinterlace_mode = DeInterlaceMode::RXRVIDEO;
 
-    // Before creating an appropriate PostProcess object,
-    // declare a pointer to each possible type, then use bitpix
-    // to instantiate the PostProcess object for the needed type.
+    // Before creating an appropriate PostProcess object, declare a pointer
+    // to each possible type, then use bitpix to instantiate the PostProcess
+    // object for the needed type.
     //
-    PostProcess<float>*    postproc_float  = nullptr;
-    PostProcess<int16_t>*  postproc_short  = nullptr;
-    PostProcess<uint16_t>* postproc_ushort = nullptr;
+    std::unique_ptr<PostProcess<float>>    postproc_float;
+    std::unique_ptr<PostProcess<int32_t>>  postproc_long;
+    std::unique_ptr<PostProcess<int16_t>>  postproc_short;
+    std::unique_ptr<PostProcess<uint32_t>> postproc_ulong;
+    std::unique_ptr<PostProcess<uint16_t>> postproc_ushort;
 
     switch ( this->camera_info.bitpix ) {
-      case FLOAT_IMG:  postproc_float = new PostProcess<float>(deinterlace_mode, this->camera_info.image_size);
+      case FLOAT_IMG:  postproc_float  = std::make_unique<PostProcess<float>>(deinterlace_mode, this->camera_info.image_size);
                        break;
-      case SHORT_IMG:  postproc_short = new PostProcess<int16_t>(deinterlace_mode, this->camera_info.image_size);
+      case LONG_IMG:   postproc_long   = std::make_unique<PostProcess<int32_t>>(deinterlace_mode, this->camera_info.image_size);
                        break;
-      case USHORT_IMG: postproc_ushort = new PostProcess<uint16_t>(deinterlace_mode, this->camera_info.image_size);
+      case SHORT_IMG:  postproc_short  = std::make_unique<PostProcess<int16_t>>(deinterlace_mode, this->camera_info.image_size);
+                       break;
+      case ULONG_IMG:  postproc_ulong  = std::make_unique<PostProcess<uint32_t>>(deinterlace_mode, this->camera_info.image_size);
+                       break;
+      case USHORT_IMG: postproc_ushort = std::make_unique<PostProcess<uint16_t>>(deinterlace_mode, this->camera_info.image_size);
                        break;
       default:         message.str(""); message << "unknown datatype " << this->camera_info.bitpix;
                        this->camera.log_error( function, message.str() );
@@ -4007,35 +4013,51 @@ namespace Archon {
 
     logwrite(function, message.str() );
 
-    // Before creating an appropriate FITS_file object,
-    // declare a pointer to each possibly type, then use bitpix
-    // to instantiate the FITS_file object for the needed type.
+    // Before creating an appropriate FITS_file object, declare a pointer
+    // to each possible type, then use bitpix to instantiate the FITS_file
+    // object for the needed type.
     //
-    FITS_file<float>*    file_float  = nullptr; FITS_file<float>*    file_float_unp  = nullptr;
-    FITS_file<int32_t>*  file_long   = nullptr; FITS_file<int32_t>*  file_long_unp   = nullptr;
-    FITS_file<int16_t>*  file_short  = nullptr; FITS_file<int16_t>*  file_short_unp  = nullptr;
-    FITS_file<uint16_t>* file_ushort = nullptr; FITS_file<uint16_t>* file_ushort_unp = nullptr;
+    // The allowed types are 16-, 32-bit signed, 16-, 32-bit unsigned, float
+    //
+    std::unique_ptr<FITS_file<float>>    file_float;
+    std::unique_ptr<FITS_file<int32_t>>  file_long;
+    std::unique_ptr<FITS_file<int16_t>>  file_short;
+    std::unique_ptr<FITS_file<uint32_t>> file_ulong;
+    std::unique_ptr<FITS_file<uint16_t>> file_ushort;
+
+    std::unique_ptr<FITS_file<int32_t>>  file_cds;
+
+    std::unique_ptr<FITS_file<float>>    file_float_unp;
+    std::unique_ptr<FITS_file<int32_t>>  file_long_unp;
+    std::unique_ptr<FITS_file<int16_t>>  file_short_unp;
+    std::unique_ptr<FITS_file<uint32_t>> file_ulong_unp;
+    std::unique_ptr<FITS_file<uint16_t>> file_ushort_unp;
 
     // Instantiate the type-appropriate FITS_file object
     //
     switch ( camera_info.bitpix ) {
       case FLOAT_IMG:
+        file_float = std::make_unique<FITS_file<float>>( ( this->camera.datacube() ? true : false ) );
+        break;
       case LONG_IMG:
-      case ULONG_IMG:
-        file_float = new FITS_file<float>( ( this->camera.datacube() ? true : false ) );
+        file_long = std::make_unique<FITS_file<int32_t>>( ( this->camera.datacube() ? true : false ) );
         break;
       case SHORT_IMG:
-        file_short = new FITS_file<int16_t>( ( this->camera.datacube() ? true : false ) );
+        file_short = std::make_unique<FITS_file<int16_t>>( ( this->camera.datacube() ? true : false ) );
+        break;
+      case ULONG_IMG:
+        file_ulong = std::make_unique<FITS_file<uint32_t>>( ( this->camera.datacube() ? true : false ) );
         break;
       case USHORT_IMG:
-        file_ushort = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
-        file_ushort_unp = new FITS_file<uint16_t>( ( this->camera.datacube() ? true : false ) );
+        file_ushort = std::make_unique<FITS_file<uint16_t>>( ( this->camera.datacube() ? true : false ) );
+        if (this->is_unp) file_ushort_unp = std::make_unique<FITS_file<uint16_t>>( ( this->camera.datacube() ? true : false ) );
         break;
       default:
-        this->camera.log_error( function, "unsupported bitpix type" );
+        message.str(""); message << "unsupported bitpix type " << camera_info.bitpix;
+        this->camera.log_error( function, message.str() );
         return ERROR;
     }
-    file_long = new FITS_file<int32_t>( ( this->camera.datacube() ? true : false ) );
+    file_cds = std::make_unique<FITS_file<int32_t>>( ( this->camera.datacube() ? true : false ) );
 
     // **********************************
     // *** initiate the exposure here ***
@@ -4112,10 +4134,11 @@ namespace Archon {
 
     // Save the datacube state in camera_info so that the FITS writer can know about it
     //
-    this->camera_info.iscube = this->camera.datacube();
+//  this->camera_info.iscube = this->camera.datacube(); obsolete -- old fits.h
 
     Camera::Information unp_info(this->camera_info);
-    unp_info.fits_name="/tmp/20240903/unp.fits";
+    size_t pos = unp_info.fits_name.find(".fits");
+    if ( pos != std::string::npos ) unp_info.fits_name.insert( pos, "_unp" );
 
     // **********************************
     // ******** first frame here ********
@@ -4332,7 +4355,7 @@ simplify for cryoscope *****/
         }
 
 int32_t* cdsframe = postproc_ushort->get_cdsbuf();
-this->typed_write_frame( cdsframe, *file_long );
+this->typed_write_frame( cdsframe, *file_cds );
 
 /*****
         // For non-sequence multiple exposures, including cubeamps, close the fits file here
@@ -4403,44 +4426,22 @@ this->typed_write_frame( cdsframe, *file_long );
     }
 
     // Complete the FITS file after processing all frames.
-    // This closes the file and shuts down the FITS engine,
-    // waiting for the queue to empty if needed.
+    // This closes the file(s) for any defined FITS_file object(s), and
+    // shuts down the FITS engine, waiting for the queue to empty if needed.
     //
-    if (file_float) {
-      file_float->complete();
-      delete file_float;
-    }
-    if (file_long) {
-      file_long->complete();
-      delete file_long;
-    }
-    if (file_ushort) {
-      file_ushort->complete();
-      delete file_ushort;
-    }
-    if (file_short) {
-      file_short->complete();
-      delete file_short;
-    }
-    if (file_float_unp) {
-      file_float_unp->complete();
-      delete file_float_unp;
-    }
-    if (file_long_unp) {
-      file_long_unp->complete();
-      delete file_long_unp;
-    }
-    if (file_short_unp) {
-      file_short_unp->complete();
-      delete file_short_unp;
-    }
-    if (file_ushort_unp) {
-      file_ushort_unp->complete();
-      delete file_ushort_unp;
-    }
-    if ( postproc_float )  delete postproc_float;
-    if ( postproc_short )  delete postproc_short;
-    if ( postproc_ushort ) delete postproc_ushort;
+    if (file_float)  file_float->complete();
+    if (file_long)   file_long->complete();
+    if (file_short)  file_short->complete();
+    if (file_ulong)  file_ulong->complete();
+    if (file_ushort) file_ushort->complete();
+
+    if (file_cds)    file_cds->complete();
+
+    if (file_float_unp)  file_float_unp->complete();
+    if (file_long_unp)   file_long_unp->complete();
+    if (file_short_unp)  file_short_unp->complete();
+    if (file_ulong_unp)  file_ulong_unp->complete();
+    if (file_ushort_unp) file_ushort_unp->complete();
 
     // remember the cubeamps setting used for the last completed exposure
     // TODO revisit once region-of-interest is implemented
@@ -5250,7 +5251,7 @@ this->typed_write_frame( cdsframe, *file_long );
 
       // Save the datacube state in camera_info so that the FITS writer can know about it
       //
-      this->camera_info.iscube = this->camera.datacube();
+//    this->camera_info.iscube = this->camera.datacube();  obsolete -- old fits.h
 
       // Open the FITS file now for cubes
       //
@@ -6437,7 +6438,7 @@ this->typed_write_frame( cdsframe, *file_long );
 
       // Save the datacube state in camera_info so that the FITS writer can know about it
       //
-      this->camera_info.iscube = this->camera.datacube();
+//    this->camera_info.iscube = this->camera.datacube(); obsolete -- old fits.h
 
       this->camera_info.systemkeys.keydb = this->systemkeys.keydb;   // copy systemkeys database object into camera_info
 
@@ -6493,7 +6494,7 @@ this->typed_write_frame( cdsframe, *file_long );
 
       // Save the datacube state in camera_info so that the FITS writer can know about it
       //
-      this->camera_info.iscube = this->camera.datacube();
+//    this->camera_info.iscube = this->camera.datacube(); obsolete -- old fits.h
 
       // Open the FITS file now for cubes
       //
@@ -8364,7 +8365,7 @@ this->typed_write_frame( cdsframe, *file_long );
             this->camera_info.userkeys.keydb[keyit->second.keyword].keycomment = keyit->second.keycomment;
           }
 
-          this->camera_info.iscube = this->camera.datacube();
+//        this->camera_info.iscube = this->camera.datacube(); obsolete -- old fits.h
 
           // open the file now for datacubes
           //
