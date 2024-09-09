@@ -4855,6 +4855,8 @@ namespace Archon {
 
             // wait for the exposure delay to complete (if there is one)
             if ( this->camera_info.exposure_time.value() != 0 ) {
+                logwrite(function, "waiting for exposure" + this->camera_info.exposure_time.value());
+
                 error = this->wait_for_exposure();
                 if ( error != NO_ERROR ) {
                     logwrite( function, "ERROR: waiting for exposure" );
