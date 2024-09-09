@@ -4623,7 +4623,7 @@ namespace Archon {
                     // Now send the AUTOFETCHx command
                     //
                     std::stringstream autofetchstr;
-                    autofetchstr << "AUTOFETCH0";
+                    autofetchstr << "FASTAUTOFETCH0";
 
                     if (error == NO_ERROR) error = this->archon_cmd(autofetchstr.str());
 
@@ -4641,7 +4641,7 @@ namespace Archon {
                     // Now send the AUTOFETCHx command
                     //
                     std::stringstream autofetchstr;
-                    autofetchstr << "AUTOFETCH1";
+                    autofetchstr << "FASTAUTOFETCH1";
 
                     if (error == NO_ERROR) error = this->archon_cmd(autofetchstr.str());
 
