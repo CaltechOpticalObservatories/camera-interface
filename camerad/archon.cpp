@@ -2835,17 +2835,17 @@ namespace Archon {
         // Read the data from the connected socket into memory, one block at a time
         //
         // Create a ZeroMQ context
-        zmq::context_t context(1);
+        // zmq::context_t context(1);
         // Create a socket for sending messages
-        zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
+        // zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
         // Create a socket for receiving messages
-        zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
+        // zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
         // Subscribe to all messages (empty string for all messages)
-        zmq_receive_socket.set(zmq::sockopt::subscribe, "");
+        // zmq_receive_socket.set(zmq::sockopt::subscribe, "");
         // Setup ZeroMQ in autofetch mode
         if (this->is_autofetch) {
           // Bind the socket to TCP port 5555
-          zmq_send_socket.bind("tcp://*:5555");
+          // zmq_send_socket.bind("tcp://*:5555");
         }
         ptr_image = this->image_data;
         totalbytesread = 0;
@@ -2918,17 +2918,16 @@ namespace Archon {
                 break;                         // break out of for loop
               }
 
-              if (strncmp(buffer, "<SFA", 4) == 0) {
+              if (strncmp(buffer, "<QF", 3) == 0) {
                 // read rest of the autofetch header
                 // retval = this->archon.Read(autofetch_header_str, '\n');
 
-                char *newline_position = strchr(buffer, '\n');
-                if (newline_position == nullptr) {
-                  logwrite( function, "no newline found in header");
-                  // logwrite( function, "header without newline: " + string(buffer));
-                } else {
-                  long autofetch_header_end = newline_position - buffer;
-                  logwrite( function, "AUTOFETCH HEADER FOUND, length: " + std::to_string(autofetch_header_end) );
+                // char *newline_position = strchr(buffer, '\n');
+                // if (newline_position == nullptr) {
+                //   logwrite( function, "no newline found in header");
+                //   // logwrite( function, "header without newline: " + string(buffer));
+                // } else {
+                  logwrite( function, "AUTOFETCH HEADER FOUND: " + std::string(buffer).substr(0, 36) );
 
                   // Read next header
                   // logwrite( function, "Read next package" );
@@ -2941,12 +2940,12 @@ namespace Archon {
                   //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
                   //   ptr_image += retval;         // advance pointer
                   // }
-                  strcpy(ptr_image, buffer + autofetch_header_end + 5);
+                  strcpy(ptr_image, buffer + 36);
                   ptr_image += retval;
 
                   totalbytesread = 1024;
                   logwrite( function, "copied 1024 to image pointer");
-                }
+                // }
 
                 logwrite( function, "read 1028 off socket");
                 // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
@@ -2961,24 +2960,24 @@ namespace Archon {
 
                 // send data to ZMQ
                 // Create a message
-                zmq::message_t zmq_message("Hello World", 11);
+                // zmq::message_t zmq_message("Hello World", 11);
 
                 // Send the message
-                zmq_send_socket.send(zmq_message, zmq::send_flags::none);
+                // zmq_send_socket.send(zmq_message, zmq::send_flags::none);
 
-                std::cout << "Sent: Hello World" << std::endl;
+                // std::cout << "Sent: Hello World" << std::endl;
 
-                while (true) {
-                  // Receive the message
-                  zmq::message_t zmq_recieved_message;
-                  zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
-
-                  if (zmq_recieved_message.size() > 0) {
-                    // Print the received message
-                    std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
-                    break;
-                  }
-                }
+                // while (true) {
+                //   // Receive the message
+                //   zmq::message_t zmq_recieved_message;
+                //   zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
+                //
+                //   if (zmq_recieved_message.size() > 0) {
+                //     // Print the received message
+                //     std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
+                //     break;
+                //   }
+                // }
               }
 
               // if (strncmp(buffer, "<SFA", 4) == 0) {
@@ -5626,7 +5625,7 @@ namespace Archon {
           while (!done && !this->abort) {
             // Check if data is ready on socket
             int bytes_ready = this->archon.Bytes_ready();
-            if (bytes_ready > 1500) {    // autofetch header plus image data
+            if (bytes_ready > 0) {    // autofetch header plus image data
               logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
               done = true;
               break;
