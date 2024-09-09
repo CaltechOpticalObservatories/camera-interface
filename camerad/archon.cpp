@@ -2943,20 +2943,20 @@ namespace Archon {
                   strcpy(ptr_image, buffer + 36);
                   ptr_image += retval;
 
-                  totalbytesread = 1024;
-                  logwrite( function, "copied 1024 to image pointer");
+                  totalbytesread = bytes_ready - 36;
+                  logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
                 // }
 
-                logwrite( function, "read 1028 off socket");
+                logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
                 // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
                 //   bytesread += retval;         // this will get zeroed after each block
                 //   totalbytesread += retval;    // this won't (used only for info purposes)
                 //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
                 //   ptr_image += retval;         // advance pointer
                 // }
-                strcpy(ptr_image, buffer + 4);
-                ptr_image += retval;
-                logwrite( function, "copied 1024 to image pointer");
+                // strcpy(ptr_image, buffer + 4);
+                // ptr_image += retval;
+                // logwrite( function, "copied 1024 to image pointer");
 
                 // send data to ZMQ
                 // Create a message
