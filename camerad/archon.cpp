@@ -3024,9 +3024,9 @@ namespace Archon {
 
         // give back the archon_busy semaphore to allow other threads to access the Archon now
         //
-        const std::unique_lock<std::mutex> lock(this->archon_mutex);
-        this->archon_busy = false;
-        this->archon_mutex.unlock();
+        // const std::unique_lock<std::mutex> lock(this->archon_mutex);
+        // this->archon_busy = false;
+        // this->archon_mutex.unlock();
 
         std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
 
