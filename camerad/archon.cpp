@@ -2795,8 +2795,8 @@ namespace Archon {
             return ERROR;
         }
 
-        // message.str(""); message << "will read image data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
-        // logwrite(function, message.str());
+        message.str(""); message << "will read image data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
+        logwrite(function, message.str());
 
         // Lock the frame buffer before reading it
         //
@@ -2816,9 +2816,9 @@ namespace Archon {
         bufblocks =
                 (unsigned int) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
 
-        message.str(""); message << "will read " << std::dec << this->camera_info.image_memory << " bytes "
-                                 << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
-        logwrite(function, message.str());
+        // message.str(""); message << "will read " << std::dec << this->camera_info.image_memory << " bytes "
+        //                          << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
+        // logwrite(function, message.str());
 
         // don't fetch in autofetch mode
         if (!this->is_autofetch) {
@@ -2905,7 +2905,8 @@ namespace Archon {
               break;                         // break out of for loop
             }
           }
-            // Read autofetch header
+
+          // Read autofetch header
             if (this->is_autofetch) {
               // int bytes_ready = this->archon.Bytes_ready();
               int bytes_ready = 236;
@@ -2928,7 +2929,7 @@ namespace Archon {
                 //   logwrite( function, "no newline found in header");
                 //   // logwrite( function, "header without newline: " + string(buffer));
                 // } else {
-                  logwrite( function, "AUTOFETCH HEADER FOUND: " + std::string(buffer).substr(0, 36) );
+                  // logwrite( function, "AUTOFETCH HEADER FOUND: " + std::string(buffer).substr(0, 36) );
 
                   // Read next header
                   // logwrite( function, "Read next package" );
@@ -2945,10 +2946,10 @@ namespace Archon {
                   ptr_image += retval;
 
                   totalbytesread = bytes_ready - 36;
-                  logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
+                  // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
                 // }
 
-                logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
+                // logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
                 // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
                 //   bytesread += retval;         // this will get zeroed after each block
                 //   totalbytesread += retval;    // this won't (used only for info purposes)
@@ -2994,9 +2995,9 @@ namespace Archon {
               break;                         // break out of for loop
 
             }
-            if (strncmp(header, "<XF:", 4) == 0) {
-              logwrite( function, "<XF header found");
-            }
+            // if (strncmp(header, "<XF:", 4) == 0) {
+            //   logwrite( function, "<XF header found");
+            // }
             // else if (strncmp(header, check, 4) != 0) {
             //   message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
             //   this->camera.log_error( function, message.str() );
@@ -5593,7 +5594,7 @@ namespace Archon {
         int currentframe=this->lastframe + 1;
 
         message.str("");
-        // message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
+        message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
         logwrite(function, message.str());
 
         if (!this->is_autofetch) {
@@ -5647,9 +5648,9 @@ namespace Archon {
         // On success, write the value to the log and return
         //
         if (!this->abort) {
-            // message.str("");
-            // message << "received currentframe: " << currentframe << " from buffer " << this->frame.index+1;
-            // logwrite(function, message.str());
+            message.str("");
+            message << "received currentframe: " << currentframe << " from buffer " << this->frame.index+1;
+            logwrite(function, message.str());
             return NO_ERROR;
 
         } else if (this->abort) {
