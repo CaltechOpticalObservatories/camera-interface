@@ -5627,11 +5627,11 @@ namespace Archon {
           while (!done && !this->abort) {
             // Check if data is ready on socket
             int bytes_ready = this->archon.Bytes_ready();
+            logwrite( function, "waiting for bytes...");
             if (bytes_ready > 0) {    // autofetch header plus image data
               logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
-              // done = true;
-              // break;
-              return NO_ERROR;
+              done = true;
+              break;
             }
 
             // check for timeout
