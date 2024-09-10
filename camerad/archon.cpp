@@ -3030,7 +3030,7 @@ namespace Archon {
         // this->archon_busy = false;
         // this->archon_mutex.unlock();
 
-        std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
+        // std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
 
         // If we broke out of the for loop for an error then report incomplete read
         //
