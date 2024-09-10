@@ -2772,14 +2772,14 @@ namespace Archon {
    *
    */
     long Interface::autofetch_read_frame() {
-        std::string function = "Archon::Interface::hread_frame";
+        std::string function = "Archon::Interface::autofetch_read_frame";
         std::stringstream message;
         int retval;
         int bufready;
         char buffer[236];
         char *ptr_image;
         int totalbytesread;
-        unsigned int block, bufblocks=0;
+        unsigned int bufblocks=0;
         long error = NO_ERROR;
         int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
 
@@ -2840,8 +2840,8 @@ namespace Archon {
             //   this->camera.log_error( function, message.str() );
             //   error = ERROR;                 // break out of for loop
             // }
-            memcpy(ptr_image, buffer + 36, 200);
-            ptr_image += retval;
+            // memcpy(ptr_image, buffer + 36, 200);
+            // ptr_image += retval;
 
             totalbytesread = bytes_ready - 36;
             // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
@@ -5788,11 +5788,11 @@ namespace Archon {
 
         // In Autofetch mode wait until bytes are ready on socket
         if (this->is_autofetch) {
-          bool done = false;
+          bool done = true;
           // double clock_now     = get_clock_time();                   // get_clock_time returns seconds
           // double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
 
-          while (!done && !this->abort) {
+          // while (!done && !this->abort) {
             // Check if data is ready on socket
             // int bytes_ready = this->archon.Bytes_ready();
             // if (bytes_ready > 0) {    // autofetch header plus image data
@@ -5802,8 +5802,8 @@ namespace Archon {
             // }
 
             // std::this_thread::sleep_for(std::chrono::microseconds(1));
-            done = true;
-            break;
+            // done = true;
+            // break;
 
             // check for timeout
             // if (clock_now > clock_timeout) {
@@ -5812,7 +5812,7 @@ namespace Archon {
             //   break;
             // }
             // clock_now = get_clock_time();
-          }
+          // }
         }
 
         // On success, write the value to the log and return
