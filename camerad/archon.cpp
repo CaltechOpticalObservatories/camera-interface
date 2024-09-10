@@ -2894,14 +2894,6 @@ namespace Archon {
 
         // std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
 
-        // If we broke out of the for loop for an error then report incomplete read
-        //
-        if ( error==ERROR || block < bufblocks) {
-            message.str(""); message << "incomplete frame read " << std::dec
-                                     << totalbytesread << " bytes: " << block << " of " << bufblocks << " 1024-byte blocks";
-            logwrite( function, message.str() );
-        }
-
         // Unlock the frame buffer
         //
         // if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
