@@ -2826,20 +2826,11 @@ namespace Archon {
           int bytes_ready = 236;
 
           // Read header
-          // if ( (retval=this->archon.Read(buffer, 236)) != 236 ) {
-          //   message.str(""); message << "code " << retval << " reading Archon frame header";
-          //   this->camera.log_error( function, message.str() );
-          //   error = ERROR;                 // break out of for loop
-          // }
+          retval = this->archon.Read(buffer, 236);
 
           // if (strncmp(header, "<QF", 3) == 0) {
 
             // strcpy(ptr_image, buffer + 36);
-            // if ( (retval=this->archon.Read(ptr_image, 200)) != 200 ) {
-            //   message.str(""); message << "code " << retval << " reading Archon frame header";
-            //   this->camera.log_error( function, message.str() );
-            //   error = ERROR;                 // break out of for loop
-            // }
             // memcpy(ptr_image, buffer + 36, 200);
             // ptr_image += retval;
 
