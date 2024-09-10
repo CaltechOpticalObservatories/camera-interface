@@ -5635,6 +5635,8 @@ namespace Archon {
               break;
             }
 
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+
             // check for timeout
             if (clock_now > clock_timeout) {
               this->camera.log_error( function, "Waiting for frame timed out" );
