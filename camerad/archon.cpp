@@ -5789,8 +5789,8 @@ namespace Archon {
         // In Autofetch mode wait until bytes are ready on socket
         if (this->is_autofetch) {
           bool done = false;
-          double clock_now     = get_clock_time();                   // get_clock_time returns seconds
-          double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
+          // double clock_now     = get_clock_time();                   // get_clock_time returns seconds
+          // double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
 
           while (!done && !this->abort) {
             // Check if data is ready on socket
@@ -5801,17 +5801,17 @@ namespace Archon {
             //   break;
             // }
 
-            std::this_thread::sleep_for(std::chrono::microseconds(1));
+            // std::this_thread::sleep_for(std::chrono::microseconds(1));
             done = true;
             break;
 
             // check for timeout
-            if (clock_now > clock_timeout) {
-              this->camera.log_error( function, "Waiting for frame timed out" );
-              error = ERROR;
-              break;
-            }
-            clock_now = get_clock_time();
+            // if (clock_now > clock_timeout) {
+            //   this->camera.log_error( function, "Waiting for frame timed out" );
+            //   error = ERROR;
+            //   break;
+            // }
+            // clock_now = get_clock_time();
           }
         }
 
