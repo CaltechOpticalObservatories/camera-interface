@@ -2946,7 +2946,12 @@ namespace Archon {
                   // }
 
                   // strcpy(ptr_image, buffer + 36);
-                  retval = this->archon.Read(ptr_image, 200);
+                  if ( (retval=this->archon.Read(ptr_image, 200)) != 200 ) {
+                    message.str(""); message << "code " << retval << " reading Archon frame header";
+                    this->camera.log_error( function, message.str() );
+                    error = ERROR;
+                    break;                         // break out of for loop
+                  }
                   ptr_image += retval;
 
                   totalbytesread = bytes_ready - 36;
