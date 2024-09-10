@@ -2777,7 +2777,7 @@ namespace Archon {
         int retval;
         int bufready;
         char check[5], header[5];
-        char buffer[3000];
+        char buffer[300];
         char *ptr_image;
         int bytesread, totalbytesread, toread;
         uint64_t bufaddr;
@@ -2795,8 +2795,8 @@ namespace Archon {
             return ERROR;
         }
 
-        message.str(""); message << "will read image data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
-        logwrite(function, message.str());
+        // message.str(""); message << "will read image data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
+        // logwrite(function, message.str());
 
         // Lock the frame buffer before reading it
         //
@@ -2843,13 +2843,13 @@ namespace Archon {
         // Subscribe to all messages (empty string for all messages)
         // zmq_receive_socket.set(zmq::sockopt::subscribe, "");
         // Setup ZeroMQ in autofetch mode
-        if (this->is_autofetch) {
+        // if (this->is_autofetch) {
           // Bind the socket to TCP port 5555
           // zmq_send_socket.bind("tcp://*:5555");
-        }
+        // }
         ptr_image = this->image_data;
         totalbytesread = 0;
-        std::cerr << "reading bytes: ";
+        // std::cerr << "reading bytes: ";
         std::string autofetch_header_str;
         for (block=0; block<bufblocks; block++) {
           // Disable polling in autofetch mode
@@ -2907,9 +2907,10 @@ namespace Archon {
           }
             // Read autofetch header
             if (this->is_autofetch) {
-              int bytes_ready = this->archon.Bytes_ready();
-              logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
-              logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+              // int bytes_ready = this->archon.Bytes_ready();
+              int bytes_ready = 236;
+              // logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
+              // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
               if ( (retval=this->archon.Read(buffer, bytes_ready)) != bytes_ready ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
