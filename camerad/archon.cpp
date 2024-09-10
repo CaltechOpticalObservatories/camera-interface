@@ -2776,7 +2776,7 @@ namespace Archon {
         std::stringstream message;
         int retval;
         int bufready;
-        char check[5], header[5];
+        char check[5], header[36];
         char buffer[300];
         char *ptr_image;
         int bytesread, totalbytesread, toread;
@@ -2915,14 +2915,14 @@ namespace Archon {
               // logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
               // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
-              if ( (retval=this->archon.Read(buffer, bytes_ready)) != bytes_ready ) {
+              if ( (retval=this->archon.Read(header, bytes_ready)) != bytes_ready ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
                 this->camera.log_error( function, message.str() );
                 error = ERROR;
                 break;                         // break out of for loop
               }
 
-              if (strncmp(buffer, "<QF", 3) == 0) {
+              if (strncmp(header, "<QF", 3) == 0) {
                 // read rest of the autofetch header
                 // retval = this->archon.Read(autofetch_header_str, '\n');
 
@@ -2944,7 +2944,9 @@ namespace Archon {
                   //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
                   //   ptr_image += retval;         // advance pointer
                   // }
-                  strcpy(ptr_image, buffer + 36);
+
+                  // strcpy(ptr_image, buffer + 36);
+                  retval = this->archon.Read(ptr_image, 200);
                   ptr_image += retval;
 
                   totalbytesread = bytes_ready - 36;
