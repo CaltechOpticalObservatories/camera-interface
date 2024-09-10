@@ -2881,14 +2881,6 @@ namespace Archon {
           }
         // }
 
-        if (header[0] == '?') {  // Archon retured an error
-          message.str(""); message << "Archon returned \'?\' reading image data";
-          this->camera.log_error( function, message.str() );
-          this->fetchlog();      // check the Archon log for error messages
-          error = ERROR;                 // break out of for loop
-
-        }
-
         // std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
 
         // Unlock the frame buffer
