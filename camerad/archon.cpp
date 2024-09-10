@@ -5592,7 +5592,7 @@ namespace Archon {
         int currentframe=this->lastframe + 1;
 
         message.str("");
-        message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
+        // message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
         logwrite(function, message.str());
 
         if (!this->is_autofetch) {
@@ -5627,9 +5627,8 @@ namespace Archon {
           while (!done && !this->abort) {
             // Check if data is ready on socket
             int bytes_ready = this->archon.Bytes_ready();
-            logwrite( function, "waiting for bytes...");
             if (bytes_ready > 0) {    // autofetch header plus image data
-              logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
+              // logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
               done = true;
               break;
             }
@@ -5647,9 +5646,9 @@ namespace Archon {
         // On success, write the value to the log and return
         //
         if (!this->abort) {
-            message.str("");
-            message << "received currentframe: " << currentframe << " from buffer " << this->frame.index+1;
-            logwrite(function, message.str());
+            // message.str("");
+            // message << "received currentframe: " << currentframe << " from buffer " << this->frame.index+1;
+            // logwrite(function, message.str());
             return NO_ERROR;
 
         } else if (this->abort) {
