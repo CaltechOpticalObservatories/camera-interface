@@ -2946,7 +2946,7 @@ namespace Archon {
                   ptr_image += retval;
 
                   totalbytesread = bytes_ready - 36;
-                  logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
+                  // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
                 // }
 
                 // logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
