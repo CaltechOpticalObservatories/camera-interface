@@ -2915,7 +2915,7 @@ namespace Archon {
               // logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
               // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
-              if ( (retval=this->archon.Read(header, bytes_ready)) != bytes_ready ) {
+              if ( (retval=this->archon.Read(header, 36)) != 36 ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
                 this->camera.log_error( function, message.str() );
                 error = ERROR;
