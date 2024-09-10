@@ -5636,6 +5636,8 @@ namespace Archon {
             }
 
             std::this_thread::sleep_for(std::chrono::microseconds(100));
+            done = true;
+            break;
 
             // check for timeout
             if (clock_now > clock_timeout) {
