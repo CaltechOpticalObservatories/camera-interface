@@ -2832,18 +2832,18 @@ namespace Archon {
             error = ERROR;                 // break out of for loop
           }
 
-          if (strncmp(header, "<QF", 3) == 0) {
+          // if (strncmp(header, "<QF", 3) == 0) {
 
-              // strcpy(ptr_image, buffer + 36);
-              if ( (retval=this->archon.Read(ptr_image, 200)) != 200 ) {
-                message.str(""); message << "code " << retval << " reading Archon frame header";
-                this->camera.log_error( function, message.str() );
-                error = ERROR;                 // break out of for loop
-              }
-              ptr_image += retval;
+            // strcpy(ptr_image, buffer + 36);
+            if ( (retval=this->archon.Read(ptr_image, 200)) != 200 ) {
+              message.str(""); message << "code " << retval << " reading Archon frame header";
+              this->camera.log_error( function, message.str() );
+              error = ERROR;                 // break out of for loop
+            }
+            ptr_image += retval;
 
-              totalbytesread = bytes_ready - 36;
-              // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
+            totalbytesread = bytes_ready - 36;
+            // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
             // }
 
             // logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
@@ -2878,11 +2878,7 @@ namespace Archon {
             //   }
             // }
           }
-
-          // if (strncmp(buffer, "<SFA", 4) == 0) {
-          //
-          // }
-        }
+        // }
 
         if (header[0] == '?') {  // Archon retured an error
           message.str(""); message << "Archon returned \'?\' reading image data";
@@ -5806,7 +5802,7 @@ namespace Archon {
           while (!done && !this->abort) {
             // Check if data is ready on socket
             int bytes_ready = this->archon.Bytes_ready();
-            if (bytes_ready > 472) {    // autofetch header plus image data
+            if (bytes_ready > 0) {    // autofetch header plus image data
               // logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
               done = true;
               break;
