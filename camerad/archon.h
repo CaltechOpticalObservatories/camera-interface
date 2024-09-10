@@ -204,6 +204,7 @@ namespace Archon {
         long fetch(uint64_t bufaddr, uint32_t bufblocks);
 
         long read_frame(); //!< read Archon frame buffer into host memory
+        long autofetch_read_frame();
         long hread_frame();
 
         long read_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory

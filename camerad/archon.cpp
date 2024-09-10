@@ -2758,6 +2758,169 @@ namespace Archon {
   }
   /**************** Archon::Interface::read_frame *****************************/
 
+  /**************** Archon::Interface::autofetch_read_frame *****************************/
+  /**
+   * @fn     autofetch_read_frame
+   * @brief  read latest Archon frame buffer
+   * @param  frame_type
+   * @return ERROR or NO_ERROR
+   *
+   * This is the read_frame function which performs the actual read of the
+   * selected frame type.
+   *
+   * No write takes place here!
+   *
+   */
+    long Interface::autofetch_read_frame() {
+        std::string function = "Archon::Interface::hread_frame";
+        std::stringstream message;
+        int retval;
+        int bufready;
+        char header[36];
+        char *ptr_image;
+        int totalbytesread;
+        unsigned int block, bufblocks=0;
+        long error = NO_ERROR;
+        int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
+
+        // Archon buffer number of the last frame read into memory
+        // Archon frame index is 1 biased so add 1 here
+        bufready = this->frame.index + 1;
+
+        if (bufready < 1 || bufready > this->camera_info.activebufs) {
+            message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->camera_info.activebufs << "}";
+            this->camera.log_error( function, message.str() );
+            return ERROR;
+        }
+
+        message.str(""); message << "will read image data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
+        logwrite(function, message.str());
+
+        // Calculate the number of blocks expected. image_memory is bytes per detector
+        bufblocks =
+                (unsigned int) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
+
+        // Read the data from the connected socket into memory, one block at a time
+        //
+        // Create a ZeroMQ context
+        // zmq::context_t context(1);
+        // Create a socket for sending messages
+        // zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
+        // Create a socket for receiving messages
+        // zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
+        // Subscribe to all messages (empty string for all messages)
+        // zmq_receive_socket.set(zmq::sockopt::subscribe, "");
+        // Setup ZeroMQ in autofetch mode
+        // if (this->is_autofetch) {
+          // Bind the socket to TCP port 5555
+          // zmq_send_socket.bind("tcp://*:5555");
+        // }
+        ptr_image = this->image_data;
+        totalbytesread = 0;
+        // std::cerr << "reading bytes: ";
+        std::string autofetch_header_str;
+
+        // Read autofetch header
+        if (this->is_autofetch) {
+          // int bytes_ready = this->archon.Bytes_ready();
+          int bytes_ready = 236;
+
+          // Read header
+          if ( (retval=this->archon.Read(header, 36)) != 36 ) {
+            message.str(""); message << "code " << retval << " reading Archon frame header";
+            this->camera.log_error( function, message.str() );
+            error = ERROR;                 // break out of for loop
+          }
+
+          if (strncmp(header, "<QF", 3) == 0) {
+
+              // strcpy(ptr_image, buffer + 36);
+              if ( (retval=this->archon.Read(ptr_image, 200)) != 200 ) {
+                message.str(""); message << "code " << retval << " reading Archon frame header";
+                this->camera.log_error( function, message.str() );
+                error = ERROR;                 // break out of for loop
+              }
+              ptr_image += retval;
+
+              totalbytesread = bytes_ready - 36;
+              // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
+            // }
+
+            // logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
+            // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+            //   bytesread += retval;         // this will get zeroed after each block
+            //   totalbytesread += retval;    // this won't (used only for info purposes)
+            //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+            //   ptr_image += retval;         // advance pointer
+            // }
+            // strcpy(ptr_image, buffer + 4);
+            // ptr_image += retval;
+            // logwrite( function, "copied 1024 to image pointer");
+
+            // send data to ZMQ
+            // Create a message
+            // zmq::message_t zmq_message("Hello World", 11);
+
+            // Send the message
+            // zmq_send_socket.send(zmq_message, zmq::send_flags::none);
+
+            // std::cout << "Sent: Hello World" << std::endl;
+
+            // while (true) {
+            //   // Receive the message
+            //   zmq::message_t zmq_recieved_message;
+            //   zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
+            //
+            //   if (zmq_recieved_message.size() > 0) {
+            //     // Print the received message
+            //     std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
+            //     break;
+            //   }
+            // }
+          }
+
+          // if (strncmp(buffer, "<SFA", 4) == 0) {
+          //
+          // }
+        }
+
+        if (header[0] == '?') {  // Archon retured an error
+          message.str(""); message << "Archon returned \'?\' reading image data";
+          this->camera.log_error( function, message.str() );
+          this->fetchlog();      // check the Archon log for error messages
+          error = ERROR;                 // break out of for loop
+
+        }
+
+        // std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
+
+        // If we broke out of the for loop for an error then report incomplete read
+        //
+        if ( error==ERROR || block < bufblocks) {
+            message.str(""); message << "incomplete frame read " << std::dec
+                                     << totalbytesread << " bytes: " << block << " of " << bufblocks << " 1024-byte blocks";
+            logwrite( function, message.str() );
+        }
+
+        // Unlock the frame buffer
+        //
+        // if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+
+        // On success, write the value to the log and return
+        //
+        if (error == NO_ERROR) {
+            message.str(""); message << "successfully read " << std::dec << totalbytesread
+                    << " image bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
+            logwrite(function, message.str());
+
+        } else {
+            // Throw an error for any other errors
+            logwrite( function, "ERROR: reading Archon camera data to memory!" );
+        }
+        return error;
+    }
+  /**************** Archon::Interface::autofetch_read_frame *****************************/
+
   /**************** Archon::Interface::hread_frame *****************************/
   /**
    * @fn     hread_frame
@@ -4882,12 +5045,25 @@ namespace Archon {
                 return error;
             }
 
-            // then read the frame buffer to host (and write file) when frame ready.
-            error = hread_frame();
-            if ( error != NO_ERROR ) {
+
+            if (this->is_autofetch)
+            {
+              // then read the frame buffer to host (and write file) when frame ready.
+              error = autofetch_read_frame();
+              if ( error != NO_ERROR ) {
                 logwrite( function, "ERROR: reading frame buffer" );
                 return error;
+              }
+            } else
+            {
+              // then read the frame buffer to host (and write file) when frame ready.
+              error = hread_frame();
+              if ( error != NO_ERROR ) {
+                logwrite( function, "ERROR: reading frame buffer" );
+                return error;
+              }
             }
+
 
             // ASYNC status message on completion of each readout
             nread++;
