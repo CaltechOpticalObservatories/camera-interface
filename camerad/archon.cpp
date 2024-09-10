@@ -2852,6 +2852,8 @@ namespace Archon {
         // std::cerr << "reading bytes: ";
         std::string autofetch_header_str;
         for (block=0; block<bufblocks; block++) {
+          logwrite(function, "bufblocks: " + std::to_string(bufblocks) + ", block:" + std::to_string(block));
+
           // Disable polling in autofetch mode
           if (!this->is_autofetch) {
             // Are there data to read?
@@ -3197,8 +3199,6 @@ namespace Archon {
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
-      logwrite(function, "bufblocks: " + std::to_string(bufblocks) + ", block:" + std::to_string(block));
-
       // Disable polling in autofetch mode
       if (!this->is_autofetch) {
         // Are there data to read?
