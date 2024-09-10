@@ -5794,16 +5794,16 @@ namespace Archon {
 
           while (!done && !this->abort) {
             // Check if data is ready on socket
-            int bytes_ready = this->archon.Bytes_ready();
-            if (bytes_ready > 0) {    // autofetch header plus image data
-              // logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
-              done = true;
-              break;
-            }
+            // int bytes_ready = this->archon.Bytes_ready();
+            // if (bytes_ready > 0) {    // autofetch header plus image data
+            //   // logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
+            //   done = true;
+            //   break;
+            // }
 
-            // std::this_thread::sleep_for(std::chrono::microseconds(40));
-            // done = true;
-            // break;
+            std::this_thread::sleep_for(std::chrono::microseconds(1));
+            done = true;
+            break;
 
             // check for timeout
             if (clock_now > clock_timeout) {
