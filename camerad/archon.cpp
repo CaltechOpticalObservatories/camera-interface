@@ -5635,7 +5635,7 @@ namespace Archon {
               break;
             }
 
-            std::this_thread::sleep_for(std::chrono::microseconds(100));
+            std::this_thread::sleep_for(std::chrono::microseconds(50));
             done = true;
             break;
 
