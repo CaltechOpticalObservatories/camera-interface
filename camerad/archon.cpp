@@ -2826,7 +2826,7 @@ namespace Archon {
           int bytes_ready = 236;
 
           // Read header
-          retval = this->archon.Read(buffer, 10);
+          retval = this->archon.Read(buffer, 236);
 
           // if (strncmp(header, "<QF", 3) == 0) {
 
