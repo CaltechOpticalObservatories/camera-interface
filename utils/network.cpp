@@ -847,15 +847,15 @@ namespace Network {
 
       // get time now and check for timeout
       //
-      std::chrono::steady_clock::time_point tnow = std::chrono::steady_clock::now();
-
-      auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tnow - tstart).count();
-
-      if ( elapsed > POLLTIMEOUT ) {
-        message << "ERROR: timeout waiting for data on fd " << this->fd;
-        logwrite( function, message.str() );
-        break;
-      }
+      // std::chrono::steady_clock::time_point tnow = std::chrono::steady_clock::now();
+      //
+      // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tnow - tstart).count();
+      //
+      // if ( elapsed > POLLTIMEOUT ) {
+      //   message << "ERROR: timeout waiting for data on fd " << this->fd;
+      //   logwrite( function, message.str() );
+      //   break;
+      // }
     }
     return( nread );
   }
