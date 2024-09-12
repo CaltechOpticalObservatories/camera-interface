@@ -539,6 +539,10 @@ namespace Network {
       return(-1);
     }
 
+    // Increase the socket's receive buffer size
+    int buffer_size = 1024 * 1024;  // 1MB for example
+    setsockopt(this->listenfd, SOL_SOCKET, SO_RCVBUF, &buffer_size, sizeof(buffer_size));
+
     // Set TCP_NODELAY to disable Nagle's algorithm
     int flag = 1;
     if (setsockopt(this->listenfd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int)) < 0) {
