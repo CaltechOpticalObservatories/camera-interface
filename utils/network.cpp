@@ -20,6 +20,7 @@
  *
  */
 
+#include <netinet/tcp.h>
 #include "network.h"
 #include "logentry.h"  // for logwrite() within the Network namespace
 
@@ -514,7 +515,7 @@ namespace Network {
     // allow re-binding to port while previous connection is in TIME_WAIT
     //
     int on=1;
-    setsockopt(this->listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    setsockopt(this->listenfd, SOL_SOCKET, TCP_NODELAY, &on, sizeof(on));
 
     // allow kernel to linger on close --
     // if there is any data remaining in the socket send buffer then then process
@@ -847,15 +848,15 @@ namespace Network {
 
       // get time now and check for timeout
       //
-      // std::chrono::steady_clock::time_point tnow = std::chrono::steady_clock::now();
-      //
-      // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tnow - tstart).count();
-      //
-      // if ( elapsed > POLLTIMEOUT ) {
-      //   message << "ERROR: timeout waiting for data on fd " << this->fd;
-      //   logwrite( function, message.str() );
-      //   break;
-      // }
+      std::chrono::steady_clock::time_point tnow = std::chrono::steady_clock::now();
+
+      auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tnow - tstart).count();
+
+      if ( elapsed > POLLTIMEOUT ) {
+        message << "ERROR: timeout waiting for data on fd " << this->fd;
+        logwrite( function, message.str() );
+        break;
+      }
     }
     return( nread );
   }
