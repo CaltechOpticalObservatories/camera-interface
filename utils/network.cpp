@@ -515,7 +515,7 @@ namespace Network {
     // allow re-binding to port while previous connection is in TIME_WAIT
     //
     int on=1;
-    setsockopt(this->listenfd, SOL_SOCKET, TCP_NODELAY, &on, sizeof(on));
+    setsockopt(this->listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
     // allow kernel to linger on close --
     // if there is any data remaining in the socket send buffer then then process
@@ -536,6 +536,13 @@ namespace Network {
     if ( bind(this->listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0 ) {
       errstm << "error " << errno << " binding to fd " << this->listenfd << " on port " << this->port << ": " << strerror(errno);
       logwrite(function, errstm.str());
+      return(-1);
+    }
+
+    // Set TCP_NODELAY to disable Nagle's algorithm
+    int flag = 1;
+    if (setsockopt(this->listenfd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int)) < 0) {
+      errstm << "setsockopt(TCP_NODELAY) failed";
       return(-1);
     }
 
