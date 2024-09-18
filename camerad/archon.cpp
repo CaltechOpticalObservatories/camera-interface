@@ -2834,7 +2834,7 @@ namespace Archon {
             // memcpy(ptr_image, buffer + 36, 200);
             // ptr_image += retval;
 
-            totalbytesread = retval - header_size;
+            totalbytesread = retval;
             // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
             // }
 
