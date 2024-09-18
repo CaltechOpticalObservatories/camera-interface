@@ -2876,7 +2876,7 @@ namespace Archon {
 
         // Unlock the frame buffer
         //
-        // if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+        if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
 
         // On success, write the value to the log and return
         //
@@ -5780,30 +5780,26 @@ namespace Archon {
         // In Autofetch mode wait until bytes are ready on socket
         if (this->is_autofetch) {
           bool done = true;
-          // double clock_now     = get_clock_time();                   // get_clock_time returns seconds
-          // double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
+          double clock_now     = get_clock_time();                   // get_clock_time returns seconds
+          double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
 
-          // while (!done && !this->abort) {
+          while (!done && !this->abort) {
             // Check if data is ready on socket
-            // int bytes_ready = this->archon.Bytes_ready();
-            // if (bytes_ready > 0) {    // autofetch header plus image data
-            //   // logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
-            //   done = true;
-            //   break;
-            // }
-
-            // std::this_thread::sleep_for(std::chrono::microseconds(1));
-            // done = true;
-            // break;
+            int bytes_ready = this->archon.Bytes_ready();
+            if (bytes_ready > 0) {    // autofetch header plus image data
+              // logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
+              done = true;
+              break;
+            }
 
             // check for timeout
-            // if (clock_now > clock_timeout) {
-            //   this->camera.log_error( function, "Waiting for frame timed out" );
-            //   error = ERROR;
-            //   break;
-            // }
-            // clock_now = get_clock_time();
-          // }
+            if (clock_now > clock_timeout) {
+              this->camera.log_error( function, "Waiting for frame timed out" );
+              error = ERROR;
+              break;
+            }
+            clock_now = get_clock_time();
+          }
         }
 
         // On success, write the value to the log and return
