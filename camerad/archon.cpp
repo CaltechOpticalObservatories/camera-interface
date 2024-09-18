@@ -3045,9 +3045,8 @@ namespace Archon {
 
           // Read autofetch header
             if (this->is_autofetch) {
-              // int bytes_ready = this->archon.Bytes_ready();
-              int bytes_ready = 236;
-              // logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
+              int bytes_ready = this->archon.Bytes_ready();
+              logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
               // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
               if ( (retval=this->archon.Read(header, 36)) != 36 ) {
@@ -3081,7 +3080,8 @@ namespace Archon {
                   // }
 
                   // strcpy(ptr_image, buffer + 36);
-                  if ( (retval=this->archon.Read(ptr_image, 200)) != 200 ) {
+                  int image_size = bytes_ready - 36;
+                  if ( (retval=this->archon.Read(ptr_image, image_size)) != image_size ) {
                     message.str(""); message << "code " << retval << " reading Archon frame header";
                     this->camera.log_error( function, message.str() );
                     error = ERROR;
@@ -3089,7 +3089,7 @@ namespace Archon {
                   }
                   ptr_image += retval;
 
-                  totalbytesread = bytes_ready - 36;
+                  totalbytesread = image_size;
                   // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
                 // }
 
@@ -5017,25 +5017,12 @@ namespace Archon {
                 return error;
             }
 
-
-            if (this->is_autofetch)
-            {
-              // then read the frame buffer to host (and write file) when frame ready.
-              error = autofetch_read_frame();
-              if ( error != NO_ERROR ) {
-                logwrite( function, "ERROR: reading frame buffer" );
-                return error;
-              }
-            } else
-            {
-              // then read the frame buffer to host (and write file) when frame ready.
-              error = hread_frame();
-              if ( error != NO_ERROR ) {
-                logwrite( function, "ERROR: reading frame buffer" );
-                return error;
-              }
+            // then read the frame buffer to host (and write file) when frame ready.
+            error = hread_frame();
+            if ( error != NO_ERROR ) {
+              logwrite( function, "ERROR: reading frame buffer" );
+              return error;
             }
-
 
             // ASYNC status message on completion of each readout
             nread++;
