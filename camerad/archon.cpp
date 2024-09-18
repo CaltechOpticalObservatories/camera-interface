@@ -2776,7 +2776,7 @@ namespace Archon {
         std::stringstream message;
         int retval;
         int bufready;
-        char buffer[236];
+        char buffer[1000];
         char *ptr_image;
         int totalbytesread;
         unsigned int bufblocks=0;
