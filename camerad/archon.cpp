@@ -2822,9 +2822,9 @@ namespace Archon {
 
         // Read autofetch header
         if (this->is_autofetch) {
-          // int bytes_ready = this->archon.Bytes_ready();
+          int bytes_ready = this->archon.Bytes_ready();
           int header_size = 36;
-          int bytes_ready = 236;
+          // int bytes_ready = 236;
 
           // Read header
           retval = this->archon.Read(buffer, bytes_ready);
@@ -2834,7 +2834,7 @@ namespace Archon {
             // memcpy(ptr_image, buffer + 36, 200);
             // ptr_image += retval;
 
-            totalbytesread = bytes_ready - header_size;
+            totalbytesread = retval;
             // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
             // }
 
