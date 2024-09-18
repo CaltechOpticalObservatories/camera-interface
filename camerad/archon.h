@@ -14,48 +14,51 @@
 #include <fenv.h>
 #include <string_view>
 
+#include "opencv2/opencv.hpp"      /// OpenCV used for image manipulation
 #include "utilities.h"
 #include "common.h"
 #include "camera.h"
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
-#include "fits.h"
+#include "fits.h"       /// old version renames FITS_file to __FITS_file, will go away soon
+#include "fits_file.h"  /// new version implements FITS_file
 
-#define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
-#define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
-#define BLOCK_LEN 1024             //!< Archon block size
-#define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
+
+constexpr int MAXADCCHANS =   16;              //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
+constexpr int MAXADMCHANS =   72;              //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
+constexpr int BLOCK_LEN   = 1024;              //!< Archon block size
+constexpr int REPLY_LEN   =  100 * BLOCK_LEN;  //!< Reply buffer size (over-estimate)
 
 // Archon commands
 //
-#define  SYSTEM        std::string("SYSTEM")
-#define  STATUS        std::string("STATUS")
-#define  FRAME         std::string("FRAME")
-#define  CLEARCONFIG   std::string("CLEARCONFIG")
-#define  POLLOFF       std::string("POLLOFF")
-#define  POLLON        std::string("POLLON")
-#define  APPLYALL      std::string("APPLYALL")
-#define  POWERON       std::string("POWERON")
-#define  POWEROFF      std::string("POWEROFF")
-#define  APPLYCDS      std::string("APPLYCDS")
-#define  APPLYSYSTEM   std::string("APPLYSYSTEM")
-#define  RESETTIMING   std::string("RESETTIMING")
-#define  LOADTIMING    std::string("LOADTIMING")
-#define  HOLDTIMING    std::string("HOLDTIMING")
-#define  RELEASETIMING std::string("RELEASETIMING")
-#define  LOADPARAMS    std::string("LOADPARAMS")
-#define  TIMER         std::string("TIMER")
-#define  FETCHLOG      std::string("FETCHLOG")
-#define  UNLOCK        std::string("LOCK0")
+const std::string  SYSTEM        = "SYSTEM";
+const std::string  STATUS        = "STATUS";
+const std::string  FRAME         = "FRAME";
+const std::string  CLEARCONFIG   = "CLEARCONFIG";
+const std::string  POLLOFF       = "POLLOFF";
+const std::string  POLLON        = "POLLON";
+const std::string  APPLYALL      = "APPLYALL";
+const std::string  POWERON       = "POWERON";
+const std::string  POWEROFF      = "POWEROFF";
+const std::string  APPLYCDS      = "APPLYCDS";
+const std::string  APPLYSYSTEM   = "APPLYSYSTEM";
+const std::string  RESETTIMING   = "RESETTIMING";
+const std::string  LOADTIMING    = "LOADTIMING";
+const std::string  HOLDTIMING    = "HOLDTIMING";
+const std::string  RELEASETIMING = "RELEASETIMING";
+const std::string  LOADPARAMS    = "LOADPARAMS";
+const std::string  TIMER         = "TIMER";
+const std::string  FETCHLOG      = "FETCHLOG";
+const std::string  UNLOCK        = "LOCK0";
 
 // Minimum required backplane revisions for certain features
 //
-#define REV_RAMP           std::string("1.0.548")
-#define REV_SENSORCURRENT  std::string("1.0.758")
-#define REV_HEATERTARGET   std::string("1.0.1087")
-#define REV_FRACTIONALPID  std::string("1.0.1054")
-#define REV_VCPU           std::string("1.0.784")
+const std::string REV_RAMP           = "1.0.548";
+const std::string REV_SENSORCURRENT  = "1.0.758";
+const std::string REV_HEATERTARGET   = "1.0.1087";
+const std::string REV_FRACTIONALPID  = "1.0.1054";
+const std::string REV_VCPU           = "1.0.784";
 
 namespace Archon {
 
@@ -102,8 +105,9 @@ namespace Archon {
 
         Config config;
 
-        FITS_file fits_file; //!< instantiate a FITS container object
+        __FITS_file fits_file; //!< instantiate a FITS container object "__" designates old version
 
+        int activebufs;                     //!< Archon controller number of active frame buffers
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
         int taplines;
@@ -122,6 +126,7 @@ namespace Archon {
         int win_vstop;
         int taplines_store; //!< int number of original taplines
         std::string tapline0_store; //!< store tapline0 for window mode so can restore later
+        std::string power_status;             //!< archon power status
 
         bool lastcubeamps;
 
@@ -226,10 +231,10 @@ namespace Archon {
 
         void add_filename_key();
 
-        long get_status_key( std::string key, std::string &value );     /// get value for indicated key from STATUS string
+        long get_status_key( std::string key, std::string &value );  /// get value for indicated key from STATUS string
 
-        long power( std::string state_in, std::string &retstring );     /// wrapper for do_power
-        long do_power( std::string state_in, std::string &retstring );  /// set/get Archon power state
+        long power( std::string args, std::string &retstring );      /// wrapper for do_power
+        long do_power( std::string args, std::string &retstring );   /// set/get Archon power state
 
         long expose(std::string nseq_in);
 

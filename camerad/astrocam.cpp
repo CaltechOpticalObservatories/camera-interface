@@ -262,7 +262,7 @@ namespace AstroCam {
         this->controller.at(dev).connected = false;        // not yet connected
         this->controller.at(dev).firmwareloaded = false;   // no firmware loaded
 
-        FITS_file* pFits = new FITS_file();                // create a pointer to a FITS_file class object
+        __FITS_file* pFits = new __FITS_file();            // create a pointer to a __FITS_file class object
         this->controller.at(dev).pFits = pFits;            // set the pointer to this object in the public vector
 
 #ifdef LOGLEVEL_DEBUG

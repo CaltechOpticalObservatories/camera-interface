@@ -108,43 +108,52 @@ namespace Archon {
   /***** Archon::Interface::do_power ******************************************/
   /**
    * @brief      set/get the power state
-   * @param[in]  state_in    input string contains requested power state
-   * @param[out] retstring   return string contains the current power state
-   * @return     ERROR or NO_ERROR
+   * @param[in]  args       input string contains requested power state
+   * @param[out] retstring  return string contains the current power state
+   * @return     ERROR | NO_ERROR | HELP
    *
    */
-  long Interface::do_power(std::string state_in, std::string &retstring) {
+  long Interface::do_power(std::string args, std::string &retstring) {
     std::string function = "Archon::Interface::do_power";
     std::stringstream message;
     long error = ERROR;
 
+    // Help
+    //
+    if ( args == "?" || args == "help" ) {
+      retstring="power";
+      retstring.append( " [ on | off ]\n" );
+      retstring.append( "   Set Archon power on|off. If no arg supplied then return current state.\n" );
+      return HELP;
+    }
+
     if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
       this->camera.log_error( function, "connection not open to controller" );
-      return( ERROR );
+      return ERROR;
     }
 
     // set the Archon power state as requested
     //
-    if ( !state_in.empty() ) {                                  // received something
-      std::transform( state_in.begin(), state_in.end(), state_in.begin(), ::toupper );  // make uppercase
-      if ( state_in == "ON" ) {
+    if ( !args.empty() ) {                                      // received something
+      std::transform( args.begin(), args.end(), args.begin(), ::toupper );  // make uppercase
+      if ( args == "ON" ) {
         error = this->archon_cmd( POWERON );                    // send POWERON command to Archon
         if ( error == NO_ERROR ) std::this_thread::sleep_for( std::chrono::seconds(2) );         // wait 2s to ensure power is stable
       }
       else
-      if ( state_in == "OFF" ) {
+      if ( args == "OFF" ) {
         error = this->archon_cmd( POWEROFF );                   // send POWEROFF command to Archon
         if ( error == NO_ERROR ) std::this_thread::sleep_for( std::chrono::milliseconds(200) );  // wait 200ms to ensure power is off
       }
       else {
-        message.str(""); message << "unrecognized argument " << state_in << ": expected {on|off}";
+        message.str(""); message << "unrecognized argument " << args << ": expected {on|off}";
         this->camera.log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
       }
       if ( error != NO_ERROR ) {
-        message.str(""); message << "setting Archon power " << state_in;
+        message.str(""); message << "setting Archon power " << args;
         this->camera.log_error( function, message.str() );
-        return( ERROR );
+        return ERROR;
       }
     }
 
@@ -153,18 +162,18 @@ namespace Archon {
     std::string power;
     error = get_status_key( "POWER", power );
 
-    if ( error != NO_ERROR ) return( ERROR );
+    if ( error != NO_ERROR ) return ERROR;
 
     int status=-1;
 
     try { status = std::stoi( power ); }
     catch (std::invalid_argument &) {
       this->camera.log_error( function, "unable to convert power status message to integer" );
-      return(ERROR);
+      return ERROR;
     }
     catch (std::out_of_range &) {
       this->camera.log_error( function, "power status out of range" );
-      return(ERROR);
+      return ERROR;
     }
 
     // set the power status (or not) depending on the value extracted from the STATUS message
@@ -174,35 +183,35 @@ namespace Archon {
         this->camera.log_error( function, "unable to find power in Archon status message" );
         return( ERROR );
       case  0:                                                  // usually an internal error
-        this->camera.power_status = "UNKNOWN";
+        this->power_status = "UNKNOWN";
         break;
       case  1:                                                  // no configuration applied
-        this->camera.power_status = "NOT_CONFIGURED";
+        this->power_status = "NOT_CONFIGURED";
         break;
       case  2:                                                  // power is off
-        this->camera.power_status = "OFF";
+        this->power_status = "OFF";
         break;
       case  3:                                                  // some modules powered, some not
-        this->camera.power_status = "INTERMEDIATE";
+        this->power_status = "INTERMEDIATE";
         break;
       case  4:                                                  // power is on
-        this->camera.power_status = "ON";
+        this->power_status = "ON";
         break;
       case  5:                                                  // system is in standby
-        this->camera.power_status = "STANDBY";
+        this->power_status = "STANDBY";
         break;
       default:                                                  // should be impossible
-        message.str(""); message << "unknown power status: " << status;
+        message.str(""); message << "unknown Archon power status: " << status;
         this->camera.log_error( function, message.str() );
         return( ERROR );
     }
 
-    message.str(""); message << "POWER:" << this->camera.power_status;
+    message.str(""); message << "POWER:" << this->power_status;
     this->camera.async.enqueue( message.str() );
 
-    retstring = this->camera.power_status;
+    retstring = this->power_status;
 
-    return(NO_ERROR);
+    return NO_ERROR;
   }
   /***** Archon::Interface::do_power ******************************************/
 
@@ -226,20 +235,18 @@ namespace Archon {
     // and the new config file may not have everything defined.
     // This ensures nothing is carried over from any previous config.
     //
-    this->camera_info.hostname = "";
     this->archon.sethost( "" );
-    this->camera_info.port = -1;
     this->archon.setport( -1 );
 
     this->n_hdrshift = 16;
 
-    this->camera.firmware[0] = "";
+    this->camera.firmware[0].clear();
 
-    this->exposeparam = "";
+    this->exposeparam.clear();
     this->longexposeparam.clear();
-    this->trigin_exposeparam = "";
-    this->trigin_untimedparam = "";
-    this->trigin_readoutparam = "";
+    this->trigin_exposeparam.clear();
+    this->trigin_untimedparam.clear();
+    this->trigin_readoutparam.clear();
 
     this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
     this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
@@ -255,8 +262,9 @@ namespace Archon {
     //
     for (int entry=0; entry < this->config.n_entries; entry++) {
 
-      if (config.param[entry].compare(0, 9, "ARCHON_IP")==0) {
-        this->camera_info.hostname = config.arg[entry];
+      // ARCHON_IP is used to set the Archon host name in the Network::TcpSocket archon object
+      //
+      if (config.param[entry] == "ARCHON_IP") {
         this->archon.sethost( config.arg[entry] );
         message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
         logwrite( function, message.str() );
@@ -264,20 +272,18 @@ namespace Archon {
         applied++;
       }
 
-      if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {              // ARCHON_PORT
+      // ARCHON_PORT is used to set the Archon port in the Network::TcpSocket archon object
+      //
+      if (config.param[entry] == "ARCHON_PORT") {
         int port;
         try {
           port = std::stoi( config.arg[entry] );
-
-        } catch (std::invalid_argument &) {
-          this->camera.log_error( function, "unable to convert port number to integer" );
-          return ERROR;
-
-        } catch (std::out_of_range &) {
-          this->camera.log_error( function, "port number out of integer range" );
+        }
+        catch (const std::exception &e) {
+          message.str(""); message << "parsing Archon port number: " << e.what();
+          this->camera.log_error( function, message.str() );
           return ERROR;
         }
-        this->camera_info.port = port;
         this->archon.setport(port);
         message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
         logwrite( function, message.str() );
@@ -293,7 +299,9 @@ namespace Archon {
         }
       }
 
-      if (config.param[entry].compare(0, 12, "EXPOSE_PARAM")==0) {             // EXPOSE_PARAM
+      // EXPOSE_PARAM is parameter used to trigger exposure
+      //
+      if (config.param[entry] == "EXPOSE_PARAM") {
         this->exposeparam = config.arg[entry];
         message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
         logwrite( function, message.str() );
@@ -301,7 +309,9 @@ namespace Archon {
         applied++;
       }
 
-      if ( config.param[entry] == "LONGEXPOSE_PARAM" ) {                       // LONGEXPOSE_PARAM
+      // LONGEXPOSE_PARAM is paramter to set long exposure mode (s instead of ms)
+      //
+      if ( config.param[entry] == "LONGEXPOSE_PARAM" ) {
         this->longexposeparam = config.arg[entry];
         message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
         logwrite( function, message.str() );
@@ -648,12 +658,11 @@ namespace Archon {
   /**************** Archon::Interface::prepare_archon_buffer ******************/
 
 
-  /**************** Archon::Interface::connect_controller *********************/
+  /***** Archon::Interface::connect_controller ********************************/
   /**
-   * @fn     connect_controller
-   * @brief
-   * @param  none (devices_in here for future expansion)
-   * @return 
+   * @brief      connect to Archon controller
+   * @param[in]  devices_in  future expansion for multiple Archons
+   * @return     ERROR | NO_ERROR
    *
    */
   long Interface::connect_controller(const std::string& devices_in="") {
@@ -672,13 +681,13 @@ namespace Archon {
     logwrite(function, "opening a connection to the camera system");
 
     if ( this->archon.Connect() != 0 ) {
-      message.str(""); message << "connecting to " << this->camera_info.hostname << ":" << this->camera_info.port << ": " << strerror(errno);
+      message.str(""); message << "connecting to " << this->archon.gethost() << ":" << this->archon.getport() << ": " << strerror(errno);
       this->camera.log_error( function, message.str() );
       return ERROR;
     }
 
     message.str("");
-    message << "socket connection to " << this->camera_info.hostname << ":" << this->camera_info.port << " "
+    message << "socket connection to " << this->archon.gethost() << ":" << this->archon.getport() << " "
             << "established on fd " << this->archon.getfd();
     logwrite(function, message.str());
 
@@ -779,15 +788,13 @@ namespace Archon {
 
     return error;
   }
-  /**************** Archon::Interface::connect_controller *********************/
+  /***** Archon::Interface::connect_controller ********************************/
 
 
-  /**************** Archon::Interface::disconnect_controller ******************/
+  /***** Archon::Interface::disconnect_controller *****************************/
   /**
-   * @fn     disconnect_controller
-   * @brief
-   * @param  none
-   * @return 
+   * @brief      close connection to Archon
+   * @return     ERROR | NO_ERROR
    *
    */
   long Interface::disconnect_controller() {
@@ -821,7 +828,7 @@ namespace Archon {
 
     return error;
   }
-  /**************** Archon::Interface::disconnect_controller ******************/
+  /***** Archon::Interface::disconnect_controller *****************************/
 
 
   /**************** Archon::Interface::native *********************************/
@@ -1839,7 +1846,7 @@ namespace Archon {
     //
     int bigbuf=-1;
     if (error==NO_ERROR) error = get_configmap_value("BIGBUF", bigbuf);   // get value of BIGBUF from loaded acf file
-    this->camera_info.activebufs = (bigbuf==1) ? 2 : 3;                   // set number of active buffers based on BIGBUF
+    this->activebufs = (bigbuf==1) ? 2 : 3;                               // set number of active buffers based on BIGBUF
     if ( error != NO_ERROR ) { logwrite( function, "ERROR: unable to read BIGBUF from ACF" ); return error; }
 
     // There is one special reserved mode name, "RAW"
@@ -1903,7 +1910,6 @@ namespace Archon {
     if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode); // SAMPLEMODE=0 for 16bpp, =1 for 32bpp
     if ( error != NO_ERROR ) { logwrite( function, "ERROR: unable to get SAMPLEMODE from ACF" ); return error; }
     if (samplemode < 0) { this->camera.log_error( function, "bad or missing SAMPLEMODE from ACF" ); return ERROR; }
-    this->camera_info.bitpix = (samplemode==0) ? 16 : 32;
 
     // Load parameters and Apply CDS/Deint configuration if any of them changed
     if ((error == NO_ERROR) && paramchanged)  error = this->archon_cmd(LOADPARAMS);  // TODO I think paramchanged is never set!
@@ -1919,9 +1925,9 @@ namespace Archon {
     // Set axes, image dimensions, calculate image_memory, etc.
     // Raw will always be 16 bpp (USHORT).
     // Image can be 16 or 32 bpp depending on SAMPLEMODE setting in ACF.
-    // Call set_axes(datatype) with the FITS data type needed, which will set the info.datatype variable.
+    // Call set_axes(bitpix) where bitpix is the CCFits datatype (not literal bits per pixel)
     //
-    error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
+    error = this->camera_info.set_axes(samplemode==0 ? USHORT_IMG : ULONG_IMG);           // 16 bit raw is unsigned short int
 /*********
     if (this->camera_info.frame_type == Camera::FRAME_RAW) {
       error = this->camera_info.set_axes(USHORT_IMG);                                     // 16 bit raw is unsigned short int
@@ -2028,47 +2034,38 @@ namespace Archon {
     std::stringstream message;
 
     long error=NO_ERROR;
-    cfg_map_t::iterator   cfg_it;
-    param_map_t::iterator param_it;
     bool paramchanged  = false;
     bool configchanged = false;
 
     std::stringstream errstr;
 
-    /**
-     * iterate through configmap, writing each config key in the map
-     */
-    for (cfg_it  = this->modemap[mode].configmap.begin();
-         cfg_it != this->modemap[mode].configmap.end();
-         cfg_it++) {
-      error = this->write_config_key( cfg_it->first.c_str(), cfg_it->second.value.c_str(), configchanged );
+    // iterate through configmap, writing each config key in the map
+    //
+    for ( const auto &config : this->modemap[mode].configmap ) {
+      error = this->write_config_key( config.first.c_str(), config.second.value.c_str(), configchanged );
       if (error != NO_ERROR) {
-        errstr  << "ERROR: writing config key:" << cfg_it->first << " value:" << cfg_it->second.value << " for mode " << mode;
+        errstr  << "ERROR writing config key:" << config.first << " value:" << config.second.value << " for mode " << mode;
         break;
       }
     }
 
-    /**
-     * if no errors from writing config keys, then
-     * iterate through the parammap, writing each parameter in the map
-     */
+    // if no errors from writing config keys, then
+    // iterate through the parammap, writing each parameter in the map
+    //
     if (error == NO_ERROR) {
-      for (param_it  = this->modemap[mode].parammap.begin();
-           param_it != this->modemap[mode].parammap.end();
-           param_it++) {
-        error = this->write_parameter( param_it->first.c_str(), param_it->second.value.c_str(), paramchanged );
+      for ( const auto &param : this->modemap[mode].parammap ) {
+        error = this->write_parameter( param.first.c_str(), param.second.value.c_str(), paramchanged );
         message.str(""); message << "paramchanged=" << (paramchanged?"true":"false");
         logwrite(function, message.str());
         if (error != NO_ERROR) {
-          errstr  << "ERROR: writing parameter key:" << param_it->first << " value:" << param_it->second.value << " for mode " << mode;
+          errstr  << "ERROR writing parameter key:" << param.first << " value:" << param.second.value << " for mode " << mode;
           break;
         }
       }
     }
 
-    /**
-     * apply the new settings to the system here, only if something changed
-     */
+    // apply the new settings to the system here, only if something changed
+    //
     if ( (error == NO_ERROR) && paramchanged  ) error = this->archon_cmd(LOADPARAMS);
     if ( (error == NO_ERROR) && configchanged ) error = this->archon_cmd(APPLYCDS);
 
@@ -2113,9 +2110,8 @@ namespace Archon {
       if ( this->shutter( shuttenstr, dontcare ) != NO_ERROR ) { logwrite( function, "ERROR: setting shutter enable parameter" ); return ERROR; }
     }
 
-    /**
-     * read back some TAPLINE information
-     */
+    // read back some TAPLINE information
+    //
     if (error==NO_ERROR) error = get_configmap_value("TAPLINES", this->taplines); // total number of taps
 
     std::vector<std::string> tokens;
@@ -2438,7 +2434,7 @@ namespace Archon {
         this->frame.next_index = this->frame.index + 1;
 
         // frame.next_index wraps to 0 when it reaches the maximum number of active buffers.
-        if (this->frame.next_index >= this->camera_info.activebufs) {
+        if (this->frame.next_index >= this->activebufs) {
             this->frame.next_index = 0;
         }
     }
@@ -2596,7 +2592,7 @@ namespace Archon {
   long Interface::fetch(uint64_t bufaddr, uint32_t bufblocks) {
     std::string function = "Archon::Interface::fetch";
     std::stringstream message;
-    uint32_t maxblocks = (uint32_t)(1.5E9 / this->camera_info.activebufs / 1024 );
+    uint32_t maxblocks = (uint32_t)(1.5E9 / this->activebufs / 1024 );
     uint64_t maxoffset = this->frame.bufbase[this->frame.index];
     uint64_t maxaddr = maxoffset + maxblocks;
 
@@ -2769,8 +2765,8 @@ namespace Archon {
         // Archon frame index is 1 biased so add 1 here
         bufready = this->frame.index + 1;
 
-        if (bufready < 1 || bufready > this->camera_info.activebufs) {
-            message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->camera_info.activebufs << "}";
+        if (bufready < 1 || bufready > this->activebufs) {
+            message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->activebufs << "}";
             this->camera.log_error( function, message.str() );
             return ERROR;
         }
@@ -2993,8 +2989,8 @@ namespace Archon {
     //
     bufready = this->frame.index + 1;
 
-    if (bufready < 1 || bufready > this->camera_info.activebufs) {
-      message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->camera_info.activebufs << "}";
+    if (bufready < 1 || bufready > this->activebufs) {
+      message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->activebufs << "}";
       this->camera.log_error( function, message.str() );
       return ERROR;
     }
@@ -3202,11 +3198,11 @@ namespace Archon {
   /**************** Archon::Interface::write_frame ****************************/
   /**
    * @fn     write_frame
-   * @brief  creates a FITS_file object to write the archon_buf buffer to disk
+   * @brief  creates a __FITS_file object to write the archon_buf buffer to disk
    * @param  none
    * @return ERROR or NO_ERROR
    *
-   * A FITS_file object is created here to write the data. This object MUST remain
+   * A __FITS_file object is created here to write the data. This object MUST remain
    * valid while any (all) threads are writing data, so the write_data function
    * will keep track of threads so that it doesn't terminate until all of its 
    * threads terminate.
@@ -3266,7 +3262,7 @@ namespace Archon {
               // This call to set_axes() is to set the axis_pixels, axes, and section_size,
               // needed for the FITS writer
               //
-              error = this->camera_info.set_axes();
+              error = this->camera_info.set_axes(ULONG_IMG);
 
               #ifdef LOGLEVEL_DEBUG
               message.str(""); message << "[DEBUG] x1=" << x1 << " x2=" << x2 << " y1=" << y1 << " y2=" << y2;
@@ -4150,6 +4146,7 @@ namespace Archon {
     }
     /**************** Archon::Interface::hsetup *******************************/
 
+
     /**************** Archon::Interface::hroi ******************************/
     /**
       * @fn     hroi
@@ -4273,7 +4270,12 @@ namespace Archon {
                 this->camera_info.detector_pixels[0] = cols;
                 this->camera_info.detector_pixels[1] = rows;
 
-                this->camera_info.set_axes();
+                // need samplemode for bitpix
+                int samplemode=-1;
+                if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode);
+                if ( error != NO_ERROR ) { logwrite( function, "ERROR: unable to get SAMPLEMODE from ACF" ); return error; }
+                if (samplemode < 0) { this->camera.log_error( function, "bad or missing SAMPLEMODE from ACF" ); return ERROR; }
+                this->camera_info.set_axes(samplemode==0 ? USHORT_IMG : ULONG_IMG);
             }
 
         }   // end if geom passed in
@@ -4292,6 +4294,7 @@ namespace Archon {
         return (error);
     }
     /**************** Archon::Interface::hroi *********************************/
+
 
     /**************** Archon::Interface::hwindow ******************************/
     /**
@@ -4411,7 +4414,12 @@ namespace Archon {
                     this->camera_info.detector_pixels[0] = cols;
                     this->camera_info.detector_pixels[1] = rows;
 
-                    this->camera_info.set_axes();
+                    // need samplemode for bitpix
+                    int samplemode=-1;
+                    if (error==NO_ERROR) error = get_configmap_value("SAMPLEMODE", samplemode);
+                    if ( error != NO_ERROR ) { logwrite( function, "ERROR: unable to get SAMPLEMODE from ACF" ); return error; }
+                    if (samplemode < 0) { this->camera.log_error( function, "bad or missing SAMPLEMODE from ACF" ); return ERROR; }
+                    this->camera_info.set_axes(samplemode==0 ? USHORT_IMG : ULONG_IMG);
 
                 } else {
                     message.str(""); message << "window state " << state_in << " is invalid. Expecting {true,false,0,1}";
@@ -4437,6 +4445,7 @@ namespace Archon {
         return (error);
     }
     /**************** Archon::Interface::hwindow *******************************/
+
 
     /**************** Archon::Interface::autofetch ******************************/
     /**
@@ -4525,6 +4534,7 @@ namespace Archon {
         return (error);
     }
     /**************** Archon::Interface::autofetch *******************************/
+
 
     /**************** Archon::Interface::hexpose ******************************/
     /**
