@@ -432,12 +432,10 @@ namespace Network {
   /**************** Network::TcpSocket::TcpSocket *****************************/
 
 
-  /**************** Network::TcpSocket::TcpSocket *****************************/
+  /***** Network::TcpSocket::TcpSocket ****************************************/
   /**
-   * @fn         TcpSocket
    * @brief      TcpSocket class copy constructor
-   * @param[in]  obj reference to class object
-   * @return     none
+   * @param[in]  obj  reference to TcpSocket class object
    *
    */
   TcpSocket::TcpSocket(const TcpSocket &obj) {
@@ -448,24 +446,72 @@ namespace Network {
     fd = obj.fd;
     listenfd = obj.listenfd;
     host = obj.host;
-    addrs = obj.addrs;
     connection_open = obj.connection_open;
+
+    // perform a deep copy of addrs
+    //
+    if ( obj.addrs != nullptr ) {
+      struct addrinfo *addrCopy = nullptr;
+      struct addrinfo *current = nullptr;
+      struct addrinfo *prev = nullptr;
+      try {
+        for ( struct addrinfo *p = obj.addrs; p != nullptr; p = p->ai_next ) {
+          current = new struct addrinfo;  // freed in destructor
+          if ( current == nullptr ) {
+            // Clean up previous allocations before throwing an exception
+            while ( addrCopy != nullptr ) {
+              struct addrinfo *temp = addrCopy;
+              addrCopy = addrCopy->ai_next;
+              delete temp;
+            }
+            throw std::bad_alloc();       // or another appropriate exception
+          }
+          memcpy( current, p, sizeof( struct addrinfo ) );
+          if ( prev != nullptr ) {
+            prev->ai_next = current;
+          }
+          else {
+            addrCopy = current;
+          }
+          prev = current;
+        }
+      }
+      catch ( ... ) {                     // clean up in case of exception
+        while ( addrCopy != nullptr ) {
+          struct addrinfo *temp = addrCopy;
+          addrCopy = addrCopy->ai_next;
+          delete temp;
+        }
+        throw;                            // re-throw the exception
+      }
+      addrs = addrCopy;
+    }
+    else {
+      addrs = nullptr;
+    }
   };
-  /**************** Network::TcpSocket::TcpSocket *****************************/
+  /***** Network::TcpSocket::TcpSocket ****************************************/
 
 
-  /**************** Network::TcpSocket::~TcpSocket ****************************/
+  /***** Network::TcpSocket::~TcpSocket ***************************************/
   /**
-   * @fn         ~TcpSocket
-   * @brief      TcpSocket class deconstructor
-   * @param[in]  none
-   * @return     none
+   * @brief      TcpSocket class destructor
    *
    */
   TcpSocket::~TcpSocket() {
     this->Close();
-  };
-  /**************** Network::TcpSocket::~TcpSocket ****************************/
+    // Clean up the addrs linked list if it was allocated
+    if (addrs != nullptr) {
+      struct addrinfo *current = addrs;
+      while (current != nullptr) {
+        struct addrinfo *next = current->ai_next;
+        delete current;  // memory may have been allocated in copy constructor
+        current = next;
+      }
+      addrs = nullptr;
+    }
+  }
+  /***** Network::TcpSocket::~TcpSocket ***************************************/
 
 
   /**************** Network::TcpSocket::Accept ********************************/

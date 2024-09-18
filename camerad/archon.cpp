@@ -33,9 +33,9 @@ namespace Archon {
     this->taplines = 0;
     this->configlines = 0;
     this->logwconfig = false;
-    this->image_data = nullptr;
-    this->image_data_bytes = 0;
-    this->image_data_allocated = 0;
+    this->archon_buf = nullptr;
+    this->archon_buf_bytes = 0;
+    this->archon_buf_allocated = 0;
     this->is_longexposure_set = false;
     this->is_window = false;
     this->is_autofetch = false;
@@ -103,6 +103,7 @@ namespace Archon {
     return 0;
   }
   /**************** Archon::Interface::interface ******************************/
+
 
   /***** Archon::Interface::do_power ******************************************/
   /**
@@ -599,41 +600,41 @@ namespace Archon {
   /***** Archon::Interface::configure_controller ******************************/
 
 
-  /**************** Archon::Interface::prepare_image_buffer *******************/
+  /**************** Archon::Interface::prepare_archon_buffer ******************/
   /**
-   * @fn     prepare_image_buffer
-   * @brief  prepare image_data buffer, allocating memory as needed
+   * @fn     prepare_archon_buffer
+   * @brief  prepare archon_buf buffer, allocating memory as needed
    * @param  none
    * @return NO_ERROR if successful or ERROR on error
    *
    */
-  long Interface::prepare_image_buffer() {
-    std::string function = "Archon::Interface::prepare_image_buffer";
+  long Interface::prepare_archon_buffer() {
+    std::string function = "Archon::Interface::prepare_archon_buffer";
     std::stringstream message;
 
     // If there is already a correctly-sized buffer allocated,
     // then don't do anything except initialize that space to zero.
     //
-    if ( (this->image_data != nullptr)     &&
-         (this->image_data_bytes != 0) &&
-         (this->image_data_allocated == this->image_data_bytes) ) {
-      memset(this->image_data, 0, this->image_data_bytes);
-      message.str(""); message << "initialized " << this->image_data_bytes << " bytes of image_data memory";
+    if ( (this->archon_buf != nullptr)     &&
+         (this->archon_buf_bytes != 0) &&
+         (this->archon_buf_allocated == this->archon_buf_bytes) ) {
+      memset(this->archon_buf, 0, this->archon_buf_bytes);
+      message.str(""); message << "initialized " << this->archon_buf_bytes << " bytes of archon_buf memory";
       logwrite(function, message.str());
 
     } else {
         // If memory needs to be re-allocated, delete the old buffer
-      if (this->image_data != nullptr) {
-        logwrite(function, "deleting old image_data buffer");
-        delete [] this->image_data;
-        this->image_data=nullptr;
+      if (this->archon_buf != nullptr) {
+        logwrite(function, "deleting old archon_buf buffer");
+        delete [] this->archon_buf;
+        this->archon_buf=nullptr;
       }
       // Allocate new memory
       //
-      if (this->image_data_bytes != 0) {
-        this->image_data = new char[this->image_data_bytes];
-        this->image_data_allocated=this->image_data_bytes;
-        message.str(""); message << "allocated " << this->image_data_bytes << " bytes for image_data";
+      if (this->archon_buf_bytes != 0) {
+        this->archon_buf = new char[this->archon_buf_bytes];
+        this->archon_buf_allocated=this->archon_buf_bytes;
+        message.str(""); message << "allocated " << this->archon_buf_bytes << " bytes for archon_buf";
         logwrite(function, message.str());
 
       } else {
@@ -644,7 +645,7 @@ namespace Archon {
 
     return NO_ERROR;
   }
-  /**************** Archon::Interface::prepare_image_buffer *******************/
+  /**************** Archon::Interface::prepare_archon_buffer ******************/
 
 
   /**************** Archon::Interface::connect_controller *********************/
@@ -802,10 +803,10 @@ namespace Archon {
 
     // Free the memory
     //
-    if (this->image_data != nullptr) {
+    if (this->archon_buf != nullptr) {
       logwrite(function, "releasing allocated device memory");
-      delete [] this->image_data;
-      this->image_data=nullptr;
+      delete [] this->archon_buf;
+      this->archon_buf=nullptr;
     }
 
     // On success, write the value to the log and return
@@ -1941,11 +1942,11 @@ namespace Archon {
       return (ERROR);
     }
 
-    // allocate image_data in blocks because the controller outputs data in units of blocks
+    // allocate archon_buf in blocks because the controller outputs data in units of blocks
     //
-    this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
+    this->archon_buf_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
 
-    if (this->image_data_bytes == 0) {
+    if (this->archon_buf_bytes == 0) {
       this->camera.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
       error = ERROR;
     }
@@ -2812,7 +2813,7 @@ namespace Archon {
 
         // Read the data from the connected socket into memory, one block at a time
         //
-        ptr_image = this->image_data;
+        ptr_image = this->archon_buf;
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
         for (block=0; block<bufblocks; block++) {
@@ -2955,23 +2956,23 @@ namespace Archon {
     this->camera_info.frame_type = frame_type;
 
 /***
-    // Check that image buffer is prepared  //TODO should I call prepare_image_buffer() here, automatically?
+    // Check that image buffer is prepared  //TODO should I call prepare_archon_buffer() here, automatically?
     //
-    if ( (this->image_data == nullptr) ||
-         (this->image_data_bytes == 0) ) {
+    if ( (this->archon_buf == nullptr) ||
+         (this->archon_buf_bytes == 0) ) {
       this->camera.log_error( function, "image buffer not ready" );
 //    return ERROR;
     }
 
-    if ( this->image_data_allocated != this->image_data_bytes ) {
+    if ( this->archon_buf_allocated != this->archon_buf_bytes ) {
       message.str(""); message << "incorrect image buffer size: " 
-                               << this->image_data_allocated << " bytes allocated but " << this->image_data_bytes << " needed";
+                               << this->archon_buf_allocated << " bytes allocated but " << this->archon_buf_bytes << " needed";
       this->camera.log_error( function, message.str() );
 //    return ERROR;
     }
 ***/
 
-    error = this->prepare_image_buffer();
+    error = this->prepare_archon_buffer();
     if (error == ERROR) {
       logwrite( function, "ERROR: unable to allocate an image buffer" );
       return ERROR;
@@ -3059,7 +3060,7 @@ namespace Archon {
 
     // Read the data from the connected socket into memory, one block at a time
     //
-    ptr_image = this->image_data;
+    ptr_image = this->archon_buf;
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
@@ -3201,7 +3202,7 @@ namespace Archon {
   /**************** Archon::Interface::write_frame ****************************/
   /**
    * @fn     write_frame
-   * @brief  creates a FITS_file object to write the image_data buffer to disk
+   * @brief  creates a FITS_file object to write the archon_buf buffer to disk
    * @param  none
    * @return ERROR or NO_ERROR
    *
@@ -3239,7 +3240,7 @@ namespace Archon {
       // convert four 8-bit values into a 32-bit value and scale by 2^16
       //
       case 32: {
-        cbuf32 = (uint32_t *)this->image_data;                  // cast here to 32b
+        cbuf32 = (uint32_t *)this->archon_buf;                  // cast here to 32b
 
         // Write each amplifier as a separate extension
         //
@@ -3337,13 +3338,13 @@ namespace Archon {
       //
       case 16: {
         if (this->camera_info.datatype == USHORT_IMG) {                   // raw
-          cbuf16 = (uint16_t *)this->image_data;                          // cast to 16b unsigned int
+          cbuf16 = (uint16_t *)this->archon_buf;                          // cast to 16b unsigned int
 //        error = fits_file.write_image(cbuf16, this->fits_info);         // write the image to disk //TODO
           error = this->fits_file.write_image(cbuf16, this->camera_info); // write the image to disk
           if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 16-bit raw image to disk" ); }
 
         } else if (this->camera_info.datatype == SHORT_IMG) {
-          cbuf16s = (int16_t *)this->image_data;                          // cast to 16b signed int
+          cbuf16s = (int16_t *)this->archon_buf;                          // cast to 16b signed int
           int16_t *ibuf = nullptr;
           ibuf = new int16_t[ this->camera_info.section_size ];
           for (long pix=0; pix < this->camera_info.section_size; pix++) {
@@ -3408,7 +3409,7 @@ namespace Archon {
     // Cast the image buffer of chars into integers to convert four 8-bit values 
     // into a 16-bit value
     //
-    cbuf16 = (unsigned short *)this->image_data;
+    cbuf16 = (unsigned short *)this->archon_buf;
 
     fitsfile *FP       = nullptr;
     int       status   = 0;
@@ -4655,9 +4656,9 @@ namespace Archon {
 
         // Allocate image buffer once
         this->camera_info.frame_type = Camera::FRAME_IMAGE;
-        error = this->prepare_image_buffer();
+        error = this->prepare_archon_buffer();
         if (error == ERROR) {
-            logwrite( function, "ERROR: unable to allocate an image buffer" );
+            logwrite( function, "ERROR: unable to allocate archon buffer" );
             return ERROR;
         }
 

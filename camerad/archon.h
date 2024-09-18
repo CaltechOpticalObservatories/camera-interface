@@ -146,9 +146,9 @@ namespace Archon {
         float heater_target_min; //!< minimum heater target temperature
         float heater_target_max; //!< maximum heater target temperature
 
-        char *image_data; //!< image data buffer
-        uint32_t image_data_bytes; //!< requested number of bytes allocated for image_data rounded up to block size
-        uint32_t image_data_allocated; //!< allocated number of bytes for image_data
+        char *archon_buf; //!< image data buffer holds FETCHed Archon data
+        uint32_t archon_buf_bytes; //!< requested number of bytes allocated for archon_buf rounded up to block size
+        uint32_t archon_buf_allocated; //!< allocated number of bytes for archon_buf
 
         std::atomic<bool> archon_busy; //!< indicates a thread is accessing Archon
         std::mutex archon_mutex;
@@ -165,7 +165,7 @@ namespace Archon {
         //
         static long interface(std::string &iface); //!< get interface type
         long configure_controller(); //!< get configuration parameters
-        long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed
+        long prepare_archon_buffer(); //!< prepare archon_buf, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller
         long disconnect_controller(); //!< disconnect from archon controller
         long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING
