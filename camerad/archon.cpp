@@ -2826,14 +2826,14 @@ namespace Archon {
           int bytes_ready = 236;
 
           // Read header
-          retval = this->archon.Read(buffer, 35);
+          retval = this->archon.Read(buffer, bytes_ready);
           // if (strncmp(header, "<QF", 3) == 0) {
 
             // strcpy(ptr_image, buffer + 36);
             // memcpy(ptr_image, buffer + 36, 200);
             // ptr_image += retval;
 
-            totalbytesread = bytes_ready - 36;
+            totalbytesread = bytes_ready;
             // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
             // }
 
