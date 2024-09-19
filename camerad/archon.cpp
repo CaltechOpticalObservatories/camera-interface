@@ -4986,6 +4986,8 @@ namespace Archon {
         // -- MAIN SEQUENCE LOOP --
         nread = 0;          // Keep track of how many we actually read
         int ns = nseq;      // Iterate with ns, to preserve original request
+
+        logwrite( function, "last frame: " + std::to_string(this->lastframe) + ", final frame: " + std::to_string(finalframe));
         while (ns-- > 0 && this->lastframe < finalframe) {
 
             // if ( !this->camera.datacube() || this->camera.cubeamps() ) {
@@ -5771,7 +5773,7 @@ namespace Archon {
           while (!done && !this->abort) {
             // Check if data is ready on socket
             int bytes_ready = this->archon.Bytes_ready();
-            if (bytes_ready > 1) {    // autofetch header plus image data
+            if (bytes_ready > 36) {    // autofetch header plus image data
               logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
               done = true;
               break;
