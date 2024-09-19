@@ -3049,14 +3049,14 @@ namespace Archon {
               logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
               // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
-              if ( (retval=this->archon.Read(header, 36)) != 36 ) {
-                message.str(""); message << "code " << retval << " reading Archon frame header";
-                this->camera.log_error( function, message.str() );
-                error = ERROR;
-                break;                         // break out of for loop
-              }
+              // if ( (retval=this->archon.Read(header, 36)) != 36 ) {
+              //   message.str(""); message << "code " << retval << " reading Archon frame header";
+              //   this->camera.log_error( function, message.str() );
+              //   error = ERROR;
+              //   break;                         // break out of for loop
+              // }
 
-              if (strncmp(header, "<QF", 3) == 0) {
+              // if (strncmp(header, "<QF", 3) == 0) {
                 // read rest of the autofetch header
                 // retval = this->archon.Read(autofetch_header_str, '\n');
 
@@ -3081,7 +3081,7 @@ namespace Archon {
 
                   // strcpy(ptr_image, buffer + 36);
                   int image_size = bytes_ready - 36;
-                  if ( (retval=this->archon.Read(ptr_image, image_size)) != image_size ) {
+                  if ( (retval=this->archon.Read(ptr_image, bytes_ready)) != bytes_ready ) {
                     message.str(""); message << "code " << retval << " reading Archon frame header";
                     this->camera.log_error( function, message.str() );
                     error = ERROR;
@@ -3129,7 +3129,7 @@ namespace Archon {
               // if (strncmp(buffer, "<SFA", 4) == 0) {
               //
               // }
-            }
+            // }
 
             if (header[0] == '?') {  // Archon retured an error
               message.str(""); message << "Archon returned \'?\' reading image data";
