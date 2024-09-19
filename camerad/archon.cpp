@@ -4987,7 +4987,7 @@ namespace Archon {
         nread = 0;          // Keep track of how many we actually read
         int ns = nseq;      // Iterate with ns, to preserve original request
 
-        while (ns-- > 0 && this->lastframe < finalframe - 1) {
+        while (ns-- > 0 && this->lastframe < finalframe) {
             logwrite( function, "last frame: " + std::to_string(this->lastframe) + ", final frame: " + std::to_string(finalframe));
 
             // if ( !this->camera.datacube() || this->camera.cubeamps() ) {
@@ -5018,7 +5018,7 @@ namespace Archon {
             }
 
             // then read the frame buffer to host (and write file) when frame ready.
-            error = hread_frame();
+            error = autofetch_read_frame();
             if ( error != NO_ERROR ) {
               logwrite( function, "ERROR: reading frame buffer" );
               return error;
