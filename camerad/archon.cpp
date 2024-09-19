@@ -3089,7 +3089,7 @@ namespace Archon {
                   }
                   ptr_image += retval;
 
-                  totalbytesread = image_size;
+                  totalbytesread = retval;
                   // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
                 // }
 
