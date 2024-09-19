@@ -4987,7 +4987,7 @@ namespace Archon {
         nread = 0;          // Keep track of how many we actually read
         int ns = nseq;      // Iterate with ns, to preserve original request
 
-        while (ns-- > 0 && this->lastframe < finalframe) {
+        while (ns-- > 0 && this->lastframe < finalframe - 1) {
             logwrite( function, "last frame: " + std::to_string(this->lastframe) + ", final frame: " + std::to_string(finalframe));
 
             // if ( !this->camera.datacube() || this->camera.cubeamps() ) {
