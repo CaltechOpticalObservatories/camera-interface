@@ -2984,7 +2984,7 @@ namespace Archon {
         // }
         ptr_image = this->image_data;
         totalbytesread = 0;
-        // std::cerr << "reading bytes: ";
+        std::cerr << "reading bytes: ";
         std::string autofetch_header_str;
         for (block=0; block<bufblocks; block++) {
           logwrite(function, "bufblocks: " + std::to_string(bufblocks) + ", block:" + std::to_string(block));
@@ -3088,7 +3088,6 @@ namespace Archon {
                     break;                         // break out of for loop
                   }
                   ptr_image += retval;
-
                   totalbytesread = retval;
                   // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
                 // }
@@ -3137,7 +3136,6 @@ namespace Archon {
               this->fetchlog();      // check the Archon log for error messages
               error = ERROR;
               break;                         // break out of for loop
-
             }
             // if (strncmp(header, "<XF:", 4) == 0) {
             //   logwrite( function, "<XF header found");
@@ -5768,12 +5766,12 @@ namespace Archon {
         if (this->is_autofetch) {
           bool done = false;
           double clock_now     = get_clock_time();                   // get_clock_time returns seconds
-          double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
+          double clock_timeout = clock_now + 300.;                  // must receive frame by this time
 
           while (!done && !this->abort) {
             // Check if data is ready on socket
             int bytes_ready = this->archon.Bytes_ready();
-            if (bytes_ready > 36) {    // autofetch header plus image data
+            if (bytes_ready > 1) {    // autofetch header plus image data
               logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
               done = true;
               break;
