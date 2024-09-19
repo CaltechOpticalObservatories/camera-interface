@@ -4987,8 +4987,8 @@ namespace Archon {
         nread = 0;          // Keep track of how many we actually read
         int ns = nseq;      // Iterate with ns, to preserve original request
 
-        logwrite( function, "last frame: " + std::to_string(this->lastframe) + ", final frame: " + std::to_string(finalframe));
         while (ns-- > 0 && this->lastframe < finalframe) {
+            logwrite( function, "last frame: " + std::to_string(this->lastframe) + ", final frame: " + std::to_string(finalframe));
 
             // if ( !this->camera.datacube() || this->camera.cubeamps() ) {
             //    this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
