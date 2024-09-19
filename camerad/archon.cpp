@@ -5766,7 +5766,7 @@ namespace Archon {
 
         // In Autofetch mode wait until bytes are ready on socket
         if (this->is_autofetch) {
-          bool done = true;
+          bool done = false;
           double clock_now     = get_clock_time();                   // get_clock_time returns seconds
           double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
 
