@@ -2972,7 +2972,7 @@ namespace Archon {
         // Create a socket for sending messages
         zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
         // Create a socket for receiving messages
-        // zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
+        zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
         // // Subscribe to all messages (empty string for all messages)
         // zmq_receive_socket.set(zmq::sockopt::subscribe, "");
         // // Setup ZeroMQ in autofetch mode
