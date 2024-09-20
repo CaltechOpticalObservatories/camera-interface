@@ -2859,12 +2859,12 @@ namespace Archon {
 
         // while (true) {
         //   // Receive the message
-        //   zmq::message_t zmq_recieved_message;
-        //   zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
+        //   zmq::message_t zmq_received_message;
+        //   zmq_receive_socket.recv(zmq_received_message, zmq::recv_flags::none);
         //
-        //   if (zmq_recieved_message.size() > 0) {
+        //   if (zmq_received_message.size() > 0) {
         //     // Print the received message
-        //     std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
+        //     std::cout << "Received: " << zmq_received_message.to_string() << std::endl;
         //     break;
         //   }
         // }
@@ -2910,7 +2910,7 @@ namespace Archon {
         int retval;
         int bufready;
         char check[5], header[36];
-        char buffer[300];
+        char buffer[1000];
         char *ptr_image;
         int bytesread, totalbytesread, toread;
         uint64_t bufaddr;
@@ -3124,7 +3124,7 @@ namespace Archon {
 
               // send data to ZMQ
               // Create a message
-              zmq::message_t zmq_message("Hello World", 11);
+              zmq::message_t zmq_message(static_cast<void*>("Hello World"), 11);
 
               // Send the message
               zmq_send_socket.send(zmq_message, zmq::send_flags::none);
@@ -3133,12 +3133,12 @@ namespace Archon {
 
               while (true) {
                 // Receive the message
-                zmq::message_t zmq_recieved_message;
-                zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
+                zmq::message_t zmq_received_message;
+                zmq_receive_socket.recv(zmq_received_message, zmq::recv_flags::none);
 
-                if (zmq_recieved_message.size() > 0) {
+                if (!zmq_received_message.empty()) {
                   // Print the received message
-                  std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
+                  std::cout << "Received: " << zmq_received_message.to_string() << std::endl;
                   break;
                 }
               }
