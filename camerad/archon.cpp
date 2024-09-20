@@ -2967,6 +2967,7 @@ namespace Archon {
 
         // Read the data from the connected socket into memory, one block at a time
         //
+        logwrite( function, "Setting up ZMQ");
         // Create a ZeroMQ context
         zmq::context_t context(1);
         // Create a socket for sending messages
@@ -2974,7 +2975,7 @@ namespace Archon {
         // Create a socket for receiving messages
         zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
         // // Subscribe to all messages (empty string for all messages)
-        // zmq_receive_socket.set(zmq::sockopt::subscribe, "");
+        zmq_receive_socket.set(zmq::sockopt::subscribe, "");
         // // Setup ZeroMQ in autofetch mode
         // if (this->is_autofetch) {
         //   // Bind the socket to TCP port 5555
