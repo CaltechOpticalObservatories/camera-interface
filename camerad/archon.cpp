@@ -3116,18 +3116,19 @@ namespace Archon {
               socket.connect("tcp://localhost:5555");
 
               // set up some static data to send
-              const std::string data{"Hello"};
+              // const std::string data{"Hello"};
+              const std::string data{ptr_image};
 
               // send the request message
-              std::cout << "Sending Hello " << "..." << std::endl;
+              std::cout << "Sending image data " << "..." << std::endl;
               socket.send(zmq::buffer(data), zmq::send_flags::none);
 
               // wait for reply from server
-              zmq::message_t reply{};
-              socket.recv(reply, zmq::recv_flags::none);
-
-              std::cout << "Received " << reply.to_string();
-              std::cout << std::endl;
+              // zmq::message_t reply{};
+              // socket.recv(reply, zmq::recv_flags::none);
+              //
+              // std::cout << "Received " << reply.to_string();
+              // std::cout << std::endl;
 
             }
 
