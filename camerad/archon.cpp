@@ -5017,7 +5017,7 @@ namespace Archon {
             }
 
             // then read the frame buffer to host (and write file) when frame ready.
-            error = autofetch_read_frame();
+            error = hread_frame();
             if ( error != NO_ERROR ) {
               logwrite( function, "ERROR: reading frame buffer" );
               return error;
