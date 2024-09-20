@@ -3116,8 +3116,8 @@ namespace Archon {
               socket.connect("tcp://localhost:5555");
 
               // set up some static data to send
-              // const std::string data{"Hello"};
-              const std::string data{ptr_image};
+              const std::string data{"Hello"};
+              // const std::string data{ptr_image};
 
               // send the request message
               std::cout << "Sending image data " << "..." << std::endl;
