@@ -2822,7 +2822,8 @@ namespace Archon {
 
         // Read autofetch header
         if (this->is_autofetch) {
-          int bytes_ready = this->archon.Bytes_ready();
+          int bytes_ready = 236;
+          // int bytes_ready = this->archon.Bytes_ready();
           int header_size = 36;
           // int bytes_ready = 236;
 
