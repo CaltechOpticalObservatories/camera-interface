@@ -5773,7 +5773,7 @@ namespace Archon {
           while (!done && !this->abort) {
             // Check if data is ready on socket
             int bytes_ready = this->archon.Bytes_ready();
-            if (bytes_ready > 36) {    // autofetch header
+            if (bytes_ready > 0) {    // autofetch header
               logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
               done = true;
               break;
