@@ -2891,6 +2891,41 @@ namespace Archon {
     }
   /**************** Archon::Interface::autofetch_read_frame *****************************/
 
+  long start_zmq() {
+    std::string function = "Archon::start_zmq";
+
+    logwrite( function, "Setting up ZMQ");
+
+    using namespace std::chrono_literals;
+
+    // initialize the zmq context with a single IO thread
+    zmq::context_t context{1};
+
+    // construct a REP (reply) socket and bind to interface
+    zmq::socket_t socket{context, zmq::socket_type::rep};
+    socket.bind("tcp://*:5555");
+
+    // prepare some static data for responses
+    const std::string data{"World"};
+
+    for (;;)
+    {
+      zmq::message_t request;
+
+      // receive a request from client
+      socket.recv(request, zmq::recv_flags::none);
+      std::cout << "Received " << request.to_string() << std::endl;
+
+      // simulate work
+      std::this_thread::sleep_for(1s);
+
+      // send the reply to the client
+      socket.send(zmq::buffer(data), zmq::send_flags::none);
+    }
+
+    return NO_ERROR;
+  }
+
   /**************** Archon::Interface::hread_frame *****************************/
   /**
    * @fn     hread_frame
@@ -2967,20 +3002,7 @@ namespace Archon {
 
         // Read the data from the connected socket into memory, one block at a time
         //
-        logwrite( function, "Setting up ZMQ");
-        // Create a ZeroMQ context
-        zmq::context_t context(1);
-        // Create a socket for sending messages
-        zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
-        // Create a socket for receiving messages
-        zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
-        // // Subscribe to all messages (empty string for all messages)
-        zmq_receive_socket.set(zmq::sockopt::subscribe, "");
-        // // Setup ZeroMQ in autofetch mode
-        // if (this->is_autofetch) {
-        //   // Bind the socket to TCP port 5555
-        //   zmq_send_socket.bind("tcp://*:5555");
-        // }
+        start_zmq();
         ptr_image = this->image_data;
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
@@ -3125,25 +3147,24 @@ namespace Archon {
 
               // send data to ZMQ
               logwrite( function, "sending message to ZMQ");
-              // Create a message
-              zmq::message_t zmq_message(static_cast<const void*>("Hello World"), 11);
+              zmq::context_t context{1};
+              zmq::socket_t socket{context, zmq::socket_type::req};
+              socket.connect("tcp://localhost:5555");
 
-              // Send the message
-              zmq_send_socket.send(zmq_message, zmq::send_flags::none);
+              // set up some static data to send
+              const std::string data{"Hello"};
 
-              std::cout << "Sent: Hello World" << std::endl;
+              // send the request message
+              std::cout << "Sending Hello " << "..." << std::endl;
+              socket.send(zmq::buffer(data), zmq::send_flags::none);
 
-              while (true) {
-                // Receive the message
-                zmq::message_t zmq_received_message;
-                zmq_receive_socket.recv(zmq_received_message, zmq::recv_flags::none);
+              // wait for reply from server
+              zmq::message_t reply{};
+              socket.recv(reply, zmq::recv_flags::none);
 
-                if (!zmq_received_message.empty()) {
-                  // Print the received message
-                  std::cout << "Received: " << zmq_received_message.to_string() << std::endl;
-                  break;
-                }
-              }
+              std::cout << "Received " << reply.to_string();
+              std::cout << std::endl;
+
             }
 
               // if (strncmp(buffer, "<SFA", 4) == 0) {
