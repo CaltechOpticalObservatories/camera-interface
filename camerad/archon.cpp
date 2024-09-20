@@ -3043,6 +3043,26 @@ namespace Archon {
 
           // Read autofetch header
           if (this->is_autofetch) {
+            // Wait for a block+header Bytes to be available
+            // (but don't wait more than 1 second -- this should be tens of microseconds or less)
+            //
+            auto start = std::chrono::steady_clock::now();               // start a timer now
+
+            while ( this->archon.Bytes_ready() < (36 + 1) ) {  // header size + 1
+              auto now = std::chrono::steady_clock::now();             // check the time again
+              std::chrono::duration<double> diff = now-start;          // calculate the duration
+              if (diff.count() > 1) {                                  // break while loop if duration > 1 second
+                std::cerr << "\n";
+                this->camera.log_error( function, "timeout waiting for data from Archon" );
+                error = ERROR;
+                break;                       // breaks out of while loop
+              }
+            }
+            if ( error != NO_ERROR ) {
+              logwrite( function, "ERROR: reading Archon frame data" );
+              break;
+            }  // needed to also break out of for loop on error
+
             int bytes_ready = this->archon.Bytes_ready();
             // int bytes_ready = 236;
             // logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
@@ -5764,29 +5784,29 @@ namespace Archon {
         this->lastframe = currentframe;
 
         // In Autofetch mode wait until bytes are ready on socket
-        if (this->is_autofetch) {
-          bool done = false;
-          // double clock_now     = get_clock_time();                   // get_clock_time returns seconds
-          // double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
-
-          while (!done && !this->abort) {
-            // Check if data is ready on socket
-            int bytes_ready = this->archon.Bytes_ready();
-            if (bytes_ready > 0) {    // autofetch header
-              logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
-              done = true;
-              break;
-            }
-
-            // check for timeout
-            // if (clock_now > clock_timeout) {
-            //   this->camera.log_error( function, "Waiting for frame timed out" );
-            //   error = ERROR;
-            //   break;
-            // }
-            // clock_now = get_clock_time();
-          }
-        }
+        // if (this->is_autofetch) {
+        //   bool done = false;
+        //   // double clock_now     = get_clock_time();                   // get_clock_time returns seconds
+        //   // double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
+        //
+        //   while (!done && !this->abort) {
+        //     // Check if data is ready on socket
+        //     int bytes_ready = this->archon.Bytes_ready();
+        //     if (bytes_ready > 0) {    // autofetch header
+        //       logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
+        //       done = true;
+        //       break;
+        //     }
+        //
+        //     // check for timeout
+        //     // if (clock_now > clock_timeout) {
+        //     //   this->camera.log_error( function, "Waiting for frame timed out" );
+        //     //   error = ERROR;
+        //     //   break;
+        //     // }
+        //     // clock_now = get_clock_time();
+        //   }
+        // }
 
         // On success, write the value to the log and return
         //
