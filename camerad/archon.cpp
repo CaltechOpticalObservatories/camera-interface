@@ -5769,23 +5769,23 @@ namespace Archon {
           // double clock_now     = get_clock_time();                   // get_clock_time returns seconds
           // double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
 
-          // while (!done && !this->abort) {
-          //   // Check if data is ready on socket
-          //   int bytes_ready = this->archon.Bytes_ready();
-          //   if (bytes_ready > 0) {    // autofetch header
-          //     logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
-          //     done = true;
-          //     break;
-          //   }
-          //
-          //   // check for timeout
-          //   // if (clock_now > clock_timeout) {
-          //   //   this->camera.log_error( function, "Waiting for frame timed out" );
-          //   //   error = ERROR;
-          //   //   break;
-          //   // }
-          //   // clock_now = get_clock_time();
-          // }
+          while (!done && !this->abort) {
+            // Check if data is ready on socket
+            int bytes_ready = this->archon.Bytes_ready();
+            if (bytes_ready > 0) {    // autofetch header
+              logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
+              done = true;
+              break;
+            }
+
+            // check for timeout
+            // if (clock_now > clock_timeout) {
+            //   this->camera.log_error( function, "Waiting for frame timed out" );
+            //   error = ERROR;
+            //   break;
+            // }
+            // clock_now = get_clock_time();
+          }
         }
 
         // On success, write the value to the log and return
