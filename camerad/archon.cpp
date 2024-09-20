@@ -3044,86 +3044,87 @@ namespace Archon {
           }
 
           // Read autofetch header
-            if (this->is_autofetch) {
-              int bytes_ready = this->archon.Bytes_ready();
-              logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
-              // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+          if (this->is_autofetch) {
+            // int bytes_ready = this->archon.Bytes_ready();
+            int bytes_ready = 236;
+            // logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
+            // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
-              // if ( (retval=this->archon.Read(header, 36)) != 36 ) {
-              //   message.str(""); message << "code " << retval << " reading Archon frame header";
-              //   this->camera.log_error( function, message.str() );
-              //   error = ERROR;
-              //   break;                         // break out of for loop
-              // }
+            // if ( (retval=this->archon.Read(header, 36)) != 36 ) {
+            //   message.str(""); message << "code " << retval << " reading Archon frame header";
+            //   this->camera.log_error( function, message.str() );
+            //   error = ERROR;
+            //   break;                         // break out of for loop
+            // }
 
-              // if (strncmp(header, "<QF", 3) == 0) {
-                // read rest of the autofetch header
-                // retval = this->archon.Read(autofetch_header_str, '\n');
+            // if (strncmp(header, "<QF", 3) == 0) {
+              // read rest of the autofetch header
+              // retval = this->archon.Read(autofetch_header_str, '\n');
 
-                // char *newline_position = strchr(buffer, '\n');
-                // if (newline_position == nullptr) {
-                //   logwrite( function, "no newline found in header");
-                //   // logwrite( function, "header without newline: " + string(buffer));
-                // } else {
-                  // logwrite( function, "AUTOFETCH HEADER FOUND: " + std::string(buffer).substr(0, 36) );
+              // char *newline_position = strchr(buffer, '\n');
+              // if (newline_position == nullptr) {
+              //   logwrite( function, "no newline found in header");
+              //   // logwrite( function, "header without newline: " + string(buffer));
+              // } else {
+                // logwrite( function, "AUTOFETCH HEADER FOUND: " + std::string(buffer).substr(0, 36) );
 
-                  // Read next header
-                  // logwrite( function, "Read next package" );
+                // Read next header
+                // logwrite( function, "Read next package" );
 
 
-                  // logwrite( function, "read 1028 off socket");
-                  // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-                  //   bytesread += retval;         // this will get zeroed after each block
-                  //   totalbytesread += retval;    // this won't (used only for info purposes)
-                  //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-                  //   ptr_image += retval;         // advance pointer
-                  // }
-
-                  // strcpy(ptr_image, buffer + 36);
-                  int image_size = bytes_ready - 36;
-                  if ( (retval=this->archon.Read(ptr_image, bytes_ready)) != bytes_ready ) {
-                    message.str(""); message << "code " << retval << " reading Archon frame header";
-                    this->camera.log_error( function, message.str() );
-                    error = ERROR;
-                    break;                         // break out of for loop
-                  }
-                  ptr_image += retval;
-                  totalbytesread = retval;
-                  // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
-                // }
-
-                // logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
+                // logwrite( function, "read 1028 off socket");
                 // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
                 //   bytesread += retval;         // this will get zeroed after each block
                 //   totalbytesread += retval;    // this won't (used only for info purposes)
                 //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
                 //   ptr_image += retval;         // advance pointer
                 // }
-                // strcpy(ptr_image, buffer + 4);
-                // ptr_image += retval;
-                // logwrite( function, "copied 1024 to image pointer");
 
-                // send data to ZMQ
-                // Create a message
-                // zmq::message_t zmq_message("Hello World", 11);
+                // strcpy(ptr_image, buffer + 36);
+                int image_size = bytes_ready - 36;
+                if ( (retval=this->archon.Read(ptr_image, bytes_ready)) != bytes_ready ) {
+                  message.str(""); message << "code " << retval << " reading Archon frame header";
+                  this->camera.log_error( function, message.str() );
+                  error = ERROR;
+                  break;                         // break out of for loop
+                }
+                ptr_image += retval;
+                totalbytesread = retval;
+                // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
+              // }
 
-                // Send the message
-                // zmq_send_socket.send(zmq_message, zmq::send_flags::none);
+              // logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
+              // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+              //   bytesread += retval;         // this will get zeroed after each block
+              //   totalbytesread += retval;    // this won't (used only for info purposes)
+              //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+              //   ptr_image += retval;         // advance pointer
+              // }
+              // strcpy(ptr_image, buffer + 4);
+              // ptr_image += retval;
+              // logwrite( function, "copied 1024 to image pointer");
 
-                // std::cout << "Sent: Hello World" << std::endl;
+              // send data to ZMQ
+              // Create a message
+              // zmq::message_t zmq_message("Hello World", 11);
 
-                // while (true) {
-                //   // Receive the message
-                //   zmq::message_t zmq_recieved_message;
-                //   zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
-                //
-                //   if (zmq_recieved_message.size() > 0) {
-                //     // Print the received message
-                //     std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
-                //     break;
-                //   }
-                // }
-              }
+              // Send the message
+              // zmq_send_socket.send(zmq_message, zmq::send_flags::none);
+
+              // std::cout << "Sent: Hello World" << std::endl;
+
+              // while (true) {
+              //   // Receive the message
+              //   zmq::message_t zmq_recieved_message;
+              //   zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
+              //
+              //   if (zmq_recieved_message.size() > 0) {
+              //     // Print the received message
+              //     std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
+              //     break;
+              //   }
+              // }
+            }
 
               // if (strncmp(buffer, "<SFA", 4) == 0) {
               //
