@@ -2972,14 +2972,14 @@ namespace Archon {
         // Create a socket for sending messages
         zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
         // Create a socket for receiving messages
-        zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
-        // Subscribe to all messages (empty string for all messages)
-        zmq_receive_socket.set(zmq::sockopt::subscribe, "");
-        // Setup ZeroMQ in autofetch mode
-        if (this->is_autofetch) {
-          // Bind the socket to TCP port 5555
-          zmq_send_socket.bind("tcp://*:5555");
-        }
+        // zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
+        // // Subscribe to all messages (empty string for all messages)
+        // zmq_receive_socket.set(zmq::sockopt::subscribe, "");
+        // // Setup ZeroMQ in autofetch mode
+        // if (this->is_autofetch) {
+        //   // Bind the socket to TCP port 5555
+        //   zmq_send_socket.bind("tcp://*:5555");
+        // }
         ptr_image = this->image_data;
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
@@ -3123,7 +3123,7 @@ namespace Archon {
               // logwrite( function, "copied 1024 to image pointer");
 
               // send data to ZMQ
-              logwrite( function, "Send message to ZMQ");
+              logwrite( function, "sending message to ZMQ");
               // Create a message
               zmq::message_t zmq_message(static_cast<const void*>("Hello World"), 11);
 
