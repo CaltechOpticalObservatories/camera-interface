@@ -3043,8 +3043,8 @@ namespace Archon {
 
           // Read autofetch header
           if (this->is_autofetch) {
-            // int bytes_ready = this->archon.Bytes_ready();
-            int bytes_ready = 236;
+            int bytes_ready = this->archon.Bytes_ready();
+            // int bytes_ready = 236;
             // logwrite( function, "reading " + std::to_string(bytes_ready) + " bytes from the socket");
             // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
 
