@@ -3124,7 +3124,7 @@ namespace Archon {
 
               // send data to ZMQ
               // Create a message
-              zmq::message_t zmq_message(static_cast<void*>("Hello World"), 11);
+              zmq::message_t zmq_message(static_cast<const void*>("Hello World"), 11);
 
               // Send the message
               zmq_send_socket.send(zmq_message, zmq::send_flags::none);
