@@ -3123,6 +3123,7 @@ namespace Archon {
               // logwrite( function, "copied 1024 to image pointer");
 
               // send data to ZMQ
+              logwrite( function, "Send message to ZMQ");
               // Create a message
               zmq::message_t zmq_message(static_cast<const void*>("Hello World"), 11);
 
