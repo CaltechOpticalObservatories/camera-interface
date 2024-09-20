@@ -2820,57 +2820,54 @@ namespace Archon {
         // std::cerr << "reading bytes: ";
         std::string autofetch_header_str;
 
-        // Read autofetch header
-        if (this->is_autofetch) {
-          int bytes_ready = 236;
-          // int bytes_ready = this->archon.Bytes_ready();
-          int header_size = 36;
-          // int bytes_ready = 236;
+        // int bytes_ready = 236;
+        int bytes_ready = this->archon.Bytes_ready();
+        int header_size = 36;
+        // int bytes_ready = 236;
 
-          // Read header
-          retval = this->archon.Read(buffer, bytes_ready);
-          // if (strncmp(header, "<QF", 3) == 0) {
+        // Read header
+        retval = this->archon.Read(buffer, bytes_ready);
+        // if (strncmp(header, "<QF", 3) == 0) {
 
-            strcpy(ptr_image, buffer + 36);
-            // memcpy(ptr_image, buffer + 36, 200);
-            ptr_image += retval;
+        strcpy(ptr_image, buffer + 36);
+        // memcpy(ptr_image, buffer + 36, 200);
+        ptr_image += retval;
 
-            totalbytesread = retval - 36;
-            // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
-            // }
+        totalbytesread = retval - 36;
+        // logwrite( function, "copied " + std::to_string(totalbytesread) + " to image pointer");
+        // }
 
-            // logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
-            // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-            //   bytesread += retval;         // this will get zeroed after each block
-            //   totalbytesread += retval;    // this won't (used only for info purposes)
-            //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-            //   ptr_image += retval;         // advance pointer
-            // }
-            // strcpy(ptr_image, buffer + 4);
-            // ptr_image += retval;
-            // logwrite( function, "copied 1024 to image pointer");
+        // logwrite( function, "read " + std::to_string(bytes_ready) + " off socket");
+        // if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
+        //   bytesread += retval;         // this will get zeroed after each block
+        //   totalbytesread += retval;    // this won't (used only for info purposes)
+        //   std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+        //   ptr_image += retval;         // advance pointer
+        // }
+        // strcpy(ptr_image, buffer + 4);
+        // ptr_image += retval;
+        // logwrite( function, "copied 1024 to image pointer");
 
-            // send data to ZMQ
-            // Create a message
-            // zmq::message_t zmq_message("Hello World", 11);
+        // send data to ZMQ
+        // Create a message
+        // zmq::message_t zmq_message("Hello World", 11);
 
-            // Send the message
-            // zmq_send_socket.send(zmq_message, zmq::send_flags::none);
+        // Send the message
+        // zmq_send_socket.send(zmq_message, zmq::send_flags::none);
 
-            // std::cout << "Sent: Hello World" << std::endl;
+        // std::cout << "Sent: Hello World" << std::endl;
 
-            // while (true) {
-            //   // Receive the message
-            //   zmq::message_t zmq_recieved_message;
-            //   zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
-            //
-            //   if (zmq_recieved_message.size() > 0) {
-            //     // Print the received message
-            //     std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
-            //     break;
-            //   }
-            // }
-          }
+        // while (true) {
+        //   // Receive the message
+        //   zmq::message_t zmq_recieved_message;
+        //   zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
+        //
+        //   if (zmq_recieved_message.size() > 0) {
+        //     // Print the received message
+        //     std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
+        //     break;
+        //   }
+        // }
         // }
 
         // std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
@@ -5772,23 +5769,23 @@ namespace Archon {
           // double clock_now     = get_clock_time();                   // get_clock_time returns seconds
           // double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
 
-          while (!done && !this->abort) {
-            // Check if data is ready on socket
-            int bytes_ready = this->archon.Bytes_ready();
-            if (bytes_ready > 0) {    // autofetch header
-              logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
-              done = true;
-              break;
-            }
-
-            // check for timeout
-            // if (clock_now > clock_timeout) {
-            //   this->camera.log_error( function, "Waiting for frame timed out" );
-            //   error = ERROR;
-            //   break;
-            // }
-            // clock_now = get_clock_time();
-          }
+          // while (!done && !this->abort) {
+          //   // Check if data is ready on socket
+          //   int bytes_ready = this->archon.Bytes_ready();
+          //   if (bytes_ready > 0) {    // autofetch header
+          //     logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
+          //     done = true;
+          //     break;
+          //   }
+          //
+          //   // check for timeout
+          //   // if (clock_now > clock_timeout) {
+          //   //   this->camera.log_error( function, "Waiting for frame timed out" );
+          //   //   error = ERROR;
+          //   //   break;
+          //   // }
+          //   // clock_now = get_clock_time();
+          // }
         }
 
         // On success, write the value to the log and return
