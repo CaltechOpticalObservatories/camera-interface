@@ -2891,41 +2891,6 @@ namespace Archon {
     }
   /**************** Archon::Interface::autofetch_read_frame *****************************/
 
-  long start_zmq() {
-    std::string function = "Archon::start_zmq";
-
-    logwrite( function, "Setting up ZMQ");
-
-    using namespace std::chrono_literals;
-
-    // initialize the zmq context with a single IO thread
-    zmq::context_t context{1};
-
-    // construct a REP (reply) socket and bind to interface
-    zmq::socket_t socket{context, zmq::socket_type::rep};
-    socket.bind("tcp://*:5555");
-
-    // prepare some static data for responses
-    const std::string data{"World"};
-
-    for (;;)
-    {
-      zmq::message_t request;
-
-      // receive a request from client
-      socket.recv(request, zmq::recv_flags::none);
-      std::cout << "Received " << request.to_string() << std::endl;
-
-      // simulate work
-      std::this_thread::sleep_for(1s);
-
-      // send the reply to the client
-      socket.send(zmq::buffer(data), zmq::send_flags::none);
-    }
-
-    return NO_ERROR;
-  }
-
   /**************** Archon::Interface::hread_frame *****************************/
   /**
    * @fn     hread_frame
@@ -3002,7 +2967,6 @@ namespace Archon {
 
         // Read the data from the connected socket into memory, one block at a time
         //
-        start_zmq();
         ptr_image = this->image_data;
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
