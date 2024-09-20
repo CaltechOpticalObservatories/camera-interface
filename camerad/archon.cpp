@@ -2803,18 +2803,18 @@ namespace Archon {
         // Read the data from the connected socket into memory, one block at a time
         //
         // Create a ZeroMQ context
-        // zmq::context_t context(1);
+        zmq::context_t context(1);
         // Create a socket for sending messages
-        // zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
+        zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
         // Create a socket for receiving messages
-        // zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
+        zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
         // Subscribe to all messages (empty string for all messages)
-        // zmq_receive_socket.set(zmq::sockopt::subscribe, "");
+        zmq_receive_socket.set(zmq::sockopt::subscribe, "");
         // Setup ZeroMQ in autofetch mode
-        // if (this->is_autofetch) {
+        if (this->is_autofetch) {
           // Bind the socket to TCP port 5555
-          // zmq_send_socket.bind("tcp://*:5555");
-        // }
+          zmq_send_socket.bind("tcp://*:5555");
+        }
         ptr_image = this->image_data;
         totalbytesread = 0;
         // std::cerr << "reading bytes: ";
@@ -2968,18 +2968,18 @@ namespace Archon {
         // Read the data from the connected socket into memory, one block at a time
         //
         // Create a ZeroMQ context
-        // zmq::context_t context(1);
+        zmq::context_t context(1);
         // Create a socket for sending messages
-        // zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
+        zmq::socket_t zmq_send_socket(context, ZMQ_PUB);
         // Create a socket for receiving messages
-        // zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
+        zmq::socket_t zmq_receive_socket(context, ZMQ_PUB);
         // Subscribe to all messages (empty string for all messages)
-        // zmq_receive_socket.set(zmq::sockopt::subscribe, "");
+        zmq_receive_socket.set(zmq::sockopt::subscribe, "");
         // Setup ZeroMQ in autofetch mode
-        // if (this->is_autofetch) {
+        if (this->is_autofetch) {
           // Bind the socket to TCP port 5555
-          // zmq_send_socket.bind("tcp://*:5555");
-        // }
+          zmq_send_socket.bind("tcp://*:5555");
+        }
         ptr_image = this->image_data;
         totalbytesread = 0;
         std::cerr << "reading bytes: ";
@@ -3124,24 +3124,24 @@ namespace Archon {
 
               // send data to ZMQ
               // Create a message
-              // zmq::message_t zmq_message("Hello World", 11);
+              zmq::message_t zmq_message("Hello World", 11);
 
               // Send the message
-              // zmq_send_socket.send(zmq_message, zmq::send_flags::none);
+              zmq_send_socket.send(zmq_message, zmq::send_flags::none);
 
-              // std::cout << "Sent: Hello World" << std::endl;
+              std::cout << "Sent: Hello World" << std::endl;
 
-              // while (true) {
-              //   // Receive the message
-              //   zmq::message_t zmq_recieved_message;
-              //   zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
-              //
-              //   if (zmq_recieved_message.size() > 0) {
-              //     // Print the received message
-              //     std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
-              //     break;
-              //   }
-              // }
+              while (true) {
+                // Receive the message
+                zmq::message_t zmq_recieved_message;
+                zmq_receive_socket.recv(zmq_recieved_message, zmq::recv_flags::none);
+
+                if (zmq_recieved_message.size() > 0) {
+                  // Print the received message
+                  std::cout << "Received: " << zmq_recieved_message.to_string() << std::endl;
+                  break;
+                }
+              }
             }
 
               // if (strncmp(buffer, "<SFA", 4) == 0) {
@@ -5782,31 +5782,6 @@ namespace Archon {
     logwrite(function, message.str());
 #endif
         this->lastframe = currentframe;
-
-        // In Autofetch mode wait until bytes are ready on socket
-        // if (this->is_autofetch) {
-        //   bool done = false;
-        //   // double clock_now     = get_clock_time();                   // get_clock_time returns seconds
-        //   // double clock_timeout = clock_now + 3000.;                  // must receive frame by this time
-        //
-        //   while (!done && !this->abort) {
-        //     // Check if data is ready on socket
-        //     int bytes_ready = this->archon.Bytes_ready();
-        //     if (bytes_ready > 0) {    // autofetch header
-        //       logwrite( function, "AUTOFETCH MODE: Bytes ready on socket: " + std::to_string(bytes_ready));
-        //       done = true;
-        //       break;
-        //     }
-        //
-        //     // check for timeout
-        //     // if (clock_now > clock_timeout) {
-        //     //   this->camera.log_error( function, "Waiting for frame timed out" );
-        //     //   error = ERROR;
-        //     //   break;
-        //     // }
-        //     // clock_now = get_clock_time();
-        //   }
-        // }
 
         // On success, write the value to the log and return
         //
