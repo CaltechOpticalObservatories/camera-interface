@@ -3112,23 +3112,21 @@ namespace Archon {
               // send data to ZMQ
               logwrite( function, "sending message to ZMQ");
               zmq::context_t context{1};
-              zmq::socket_t socket{context, zmq::socket_type::req};
-              socket.connect("tcp://localhost:5555");
 
-              // set up some static data to send
-              const std::string data{"Hello"};
-              // const std::string data{ptr_image};
+              // Create a PUSH socket
+              zmq::socket_t push_socket{context, zmq::socket_type::push};
+              push_socket.connect("tcp://localhost:5555");
 
-              // send the request message
-              std::cout << "Sending image data " << "..." << std::endl;
-              socket.send(zmq::buffer(data), zmq::send_flags::none);
+              for (int i = 0; i < 10; ++i) {
+                std::string message = "Message " + std::to_string(i);
+                std::cout << "Sending: " << message << std::endl;
 
-              // wait for reply from server
-              // zmq::message_t reply{};
-              // socket.recv(reply, zmq::recv_flags::none);
-              //
-              // std::cout << "Received " << reply.to_string();
-              // std::cout << std::endl;
+                // Send the message to the server (asynchronously)
+                push_socket.send(zmq::buffer(message), zmq::send_flags::none);
+
+                // Sleep for a short while to simulate time-sensitive but regular data transmission
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+              }
 
             }
 
