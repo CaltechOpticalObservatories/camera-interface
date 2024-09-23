@@ -3117,23 +3117,13 @@ namespace Archon {
               zmq::socket_t push_socket{context, zmq::socket_type::push};
               push_socket.connect("tcp://localhost:5555");
 
-              for (int i = 0; i < 10; ++i) {
-                std::string message = "Message " + std::to_string(i);
-                std::cout << "Sending: " << message << std::endl;
+              std::string timestamp = get_timestamp("");
+              std::string message = timestamp + ": Image data goes here";
+              std::cout << "Sending: " << message << std::endl;
 
-                // Send the message to the server (asynchronously)
-                push_socket.send(zmq::buffer(message), zmq::send_flags::none);
-
-                // Sleep for a short while to simulate time-sensitive but regular data transmission
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-              }
-
+              // Send the message to the server (asynchronously)
+              push_socket.send(zmq::buffer(message), zmq::send_flags::none);
             }
-
-              // if (strncmp(buffer, "<SFA", 4) == 0) {
-              //
-              // }
-            // }
 
             if (header[0] == '?') {  // Archon retured an error
               message.str(""); message << "Archon returned \'?\' reading image data";
