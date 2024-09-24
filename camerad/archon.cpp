@@ -89,6 +89,9 @@ namespace Archon {
     this->frame.buftimestamp.resize( Archon::nbufs );
     this->frame.bufretimestamp.resize( Archon::nbufs );
     this->frame.buffetimestamp.resize( Archon::nbufs );
+
+    // Create a PUSH socket
+    this->push_socket_class.connect("tcp://localhost:5555");
   }
 
   // Archon::Interface deconstructor
@@ -3111,18 +3114,13 @@ namespace Archon {
 
               // send data to ZMQ
               logwrite( function, "sending message to ZMQ");
-              zmq::context_t context{1};
-
-              // Create a PUSH socket
-              zmq::socket_t push_socket{context, zmq::socket_type::push};
-              push_socket.connect("tcp://localhost:5555");
 
               std::string timestamp = get_timestamp("");
               std::string zmq_message = timestamp + ": Image data goes here";
               std::cout << "Sending: " << zmq_message << std::endl;
 
               // Send the message to the server (asynchronously)
-              push_socket.send(zmq::buffer(zmq_message), zmq::send_flags::none);
+              this->push_socket_class.send_data(zmq::buffer(zmq_message));
             }
 
             if (header[0] == '?') {  // Archon retured an error
