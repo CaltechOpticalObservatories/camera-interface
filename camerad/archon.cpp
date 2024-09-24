@@ -3118,11 +3118,11 @@ namespace Archon {
               push_socket.connect("tcp://localhost:5555");
 
               std::string timestamp = get_timestamp("");
-              std::string message = timestamp + ": Image data goes here";
-              std::cout << "Sending: " << message << std::endl;
+              std::string zmq_message = timestamp + ": Image data goes here";
+              std::cout << "Sending: " << zmq_message << std::endl;
 
               // Send the message to the server (asynchronously)
-              push_socket.send(zmq::buffer(message), zmq::send_flags::none);
+              push_socket.send(zmq::buffer(zmq_message), zmq::send_flags::none);
             }
 
             if (header[0] == '?') {  // Archon retured an error
