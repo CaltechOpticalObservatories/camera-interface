@@ -837,7 +837,7 @@ private:
                                  "Detector firmware version");
       this->pFits->pHDU().addKey("EXPOSURE", camera_info.exposure_time.value(),
                                  "Total Exposure Time ("+camera_info.exposure_time.unit()+")");
-      this->pFits->pHDU().addKey("MODE_NUM", camera_info.current_observing_mode,
+      this->pFits->pHDU().addKey("MODE_NUM", camera_info.camera_mode,
                                  "Mode identifying key");
       message << camera_info.binning[0] << " " << camera_info.binning[1];
       this->pFits->pHDU().addKey("DETSUM", message.str(), "DET binning");

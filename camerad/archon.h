@@ -84,15 +84,61 @@ namespace Archon {
     const int DEF_SHUTENABLE_ENABLE = 1;
     const int DEF_SHUTENABLE_DISABLE = 0;
 
+    /**
+     * @brief      exposure modes
+     */
+    enum class ExposureMode {
+      EXPOSUREMODE_CCD,
+      EXPOSUREMODE_FOWLER,
+      EXPOSUREMODE_RXRVIDEO,
+      EXPOSUREMODE_UTR
+    };
+
+    class Interface;
+
+    /***** Archon::ExposureBase ***********************************************/
+    /**
+     * @class      Archon::ExposureBase
+     * @brief      exposure base class
+     *
+     */
+    class ExposureBase {
+      protected:
+        Archon::Interface* interface;  // pointer to the Archon::Interface class
+
+      public:
+        ExposureBase(Interface* interface) : interface(interface) { }
+
+        virtual ~ExposureBase() = default;
+
+        virtual long expose_for_mode() = 0;
+
+        long expose( const std::string &nseq_in );
+    };
+    /***** Archon::ExposureBase ***********************************************/
+
+
+    /***** Archon::Interface **************************************************/
+    /**
+     * @class      Archon::Interface
+     * @brief      describes the interface to an Archon
+     *
+     */
     class Interface {
-    private:
+      private:
         unsigned long int start_timer, finish_timer; //!< Archon internal timer, start and end of exposure
         int n_hdrshift; //!< number of right-shift bits for Archon buffer in HDR mode
 
-    public:
+        std::unique_ptr<ExposureBase> pExposureMode;  /// pointer to ExposureBase class
+        std::string exposure_mode_str;                /// human readable representation of exposure mode
+
+      public:
         Interface();
 
         ~Interface();
+
+        void select_exposure_mode( ExposureMode mode );  /// select exposure mode
+        const std::string get_exposure_mode() { return this->exposure_mode_str; }
 
         // Class Objects
         //
@@ -115,7 +161,7 @@ namespace Archon {
         bool logwconfig;  //!< optionally log WCONFIG commands
         std::vector<int> gain; //!< digital CDS gain (from TAPLINE definition)
         std::vector<int> offset; //!< digital CDS offset (from TAPLINE definition)
-        bool modeselected; //!< true if a valid mode has been selected, false otherwise
+        bool is_camera_mode; //!< true if a valid camera mode has been selected, false otherwise
         bool firmwareloaded; //!< true if firmware is loaded, false otherwise
         bool is_longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
         bool is_window; //!< true if in window mode for h2rg, false if not
@@ -236,7 +282,8 @@ namespace Archon {
         long power( std::string args, std::string &retstring );      /// wrapper for do_power
         long do_power( std::string args, std::string &retstring );   /// set/get Archon power state
 
-        long expose(std::string nseq_in);
+        long expose(std::string nseq_in);    /// new version
+        long __expose(std::string nseq_in);  /// old version
 
         long hexpose(std::string nseq_in);
 
@@ -426,4 +473,5 @@ namespace Archon {
          */
         map_t statusmap;
     };
+    /***** Archon::Interface **************************************************/
 }

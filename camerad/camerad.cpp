@@ -356,11 +356,12 @@ void block_main(Network::TcpSocket sock) {
  */
 void thread_main(Network::TcpSocket sock) {
     while (true) {
-        server.conn_mutex.lock();
-        sock.Accept();
-        server.conn_mutex.unlock();
-        doit(sock); // call function to do the work
-        sock.Close();
+      {
+      std::lock_guard<std::mutex> lock(server.conn_mutex);
+      sock.Accept();
+      }
+      doit(sock); // call function to do the work
+      sock.Close();
     }
     return;
 }
@@ -467,19 +468,17 @@ void doit(Network::TcpSocket sock) {
         if ((ret = sock.Read(sbuf, delim)) <= 0) {
             if (ret < 0) {
                 // could be an actual read error
-                message.str("");
-                message << "Read error on fd " << sock.getfd() << ": " << strerror(errno);
+                message.str(""); message << "Read error on fd " << sock.getfd() << ": " << strerror(errno);
                 logwrite(function, message.str());
             }
-            if (ret == 0) {
-                message.str("");
-                message << "timeout reading from fd " << sock.getfd();
+            if (ret == -2) {
+                message.str(""); message << "timeout reading from fd " << sock.getfd();
                 logwrite(function, message.str());
             }
             break; // Breaking out of the while loop will close the connection.
-            // This probably means that the client has terminated abruptly,
-            // having sent FIN but not stuck around long enough
-            // to accept CLOSE and give the LAST_ACK.
+                   // This probably means that the client has terminated abruptly,
+                   // having sent FIN but not stuck around long enough
+                   // to accept CLOSE and give the LAST_ACK.
         }
 
         // convert the input buffer into a string and remove any trailing linefeed
@@ -488,14 +487,11 @@ void doit(Network::TcpSocket sock) {
         sbuf.erase(std::remove(sbuf.begin(), sbuf.end(), '\r'), sbuf.end());
         sbuf.erase(std::remove(sbuf.begin(), sbuf.end(), '\n'), sbuf.end());
 
-        if (sbuf.empty()) {
-            sock.Write("\n");
-            continue;
-        } // acknowledge empty command so client doesn't time out
+        if (sbuf.empty()) { sock.Write("\n"); continue; } // acknowledge empty command so client doesn't time out
 
         try {
-            std::size_t cmd_sep = sbuf.find_first_of(" ");
             // find the first space, which separates command from argument list
+            std::size_t cmd_sep = sbuf.find_first_of(" ");
 
             cmd = sbuf.substr(0, cmd_sep); // cmd is everything up until that space
 
@@ -504,17 +500,20 @@ void doit(Network::TcpSocket sock) {
                 continue;
             } // acknowledge empty command so client doesn't time out
 
-            if (cmd_sep == std::string::npos) {
-                // If no space was found,
-                args = ""; // then the arg list is empty,
+            if (cmd_sep == std::string::npos) {   // If no space was found,
+                args = "";                        // then the arg list is empty,
             } else {
-                args = sbuf.substr(cmd_sep + 1); // otherwise args is everything after that space.
+                args = sbuf.substr(cmd_sep + 1);  // otherwise args is everything after that space.
             }
 
-            message.str("");
-            message << "thread " << sock.id << " received command on fd " << sock.getfd() << ": " << cmd << " " << args;
+            // command number counter helps pair the response with the command in the logs
+            //
+            if ( ++server.cmd_num == INT_MAX ) server.cmd_num=0;
+
+            message.str(""); message << "thread " << sock.id << " received command on fd " << sock.getfd()
+                                    << " (" << server.cmd_num << "): " << cmd << " " << args;
             logwrite(function, message.str());
-        } catch (std::runtime_error &e) {
+        } catch (const std::runtime_error &e) {
             std::stringstream errstream;
             errstream << e.what();
             message.str("");
@@ -629,28 +628,22 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd=="isopen") {
                     ret = server.is_connected( retstring );
-                    sock.Write(retstring);
-                    sock.Write(" ");
                     }
     else
     if (cmd=="useframes") {
                     ret = server.access_useframes(args);
-                    if (!args.empty()) { sock.Write(args); sock.Write(" "); }
                     }
     else
     if (cmd=="geometry") {
                     ret = server.geometry(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
     if (cmd=="buffer") {
                     ret = server.buffer(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
     if (cmd=="readout") {
                     ret = server.readout(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
 #endif
 #ifdef STA_ARCHON
@@ -670,49 +663,32 @@ void doit(Network::TcpSocket sock) {
     else
     if (cmd=="hroi") {
         ret = server.hroi( args, retstring );
-        if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
     }
     else
     if (cmd=="hwindow") {
         ret = server.hwindow( args, retstring );
-        if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
     }
 #endif
         else if (cmd == "roi") {
             ret = server.region_of_interest(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "isloaded") {
             retstring = server.firmwareloaded ? "true" : "false";
-            sock.Write(retstring);
-            sock.Write(" ");
             ret = NO_ERROR;
         } else if (cmd == "mode") {
             if (args.empty()) {
                 // no argument means asking for current mode
-                if (server.modeselected) {
+                if (server.is_camera_mode) {
+                    retstring=server.camera_info.camera_mode;
                     ret = NO_ERROR;
-                    sock.Write(server.camera_info.current_observing_mode);
-                    sock.Write(" ");
                 } else ret = ERROR; // no mode selected returns an error
             } else ret = server.set_camera_mode(args);
         } else if (cmd == "getp") {
             ret = server.get_parameter(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "setp") {
             ret = server.set_parameter(args);
         } else if (cmd == "loadtiming") {
             if (args.empty()) ret = server.load_timing(retstring);
             else ret = server.load_timing(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "inreg") {
             ret = server.inreg(args);
         } else if (cmd == "printstatus") {
@@ -724,43 +700,19 @@ void doit(Network::TcpSocket sock) {
             ret = server.write_frame();
         } else if (cmd == "cds") {
             ret = server.cds(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "heater") {
             ret = server.heater(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "sensor") {
             ret = server.sensor(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "longexposure") {
             ret = server.longexposure(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "hdrshift") {
             ret = server.hdrshift(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "trigin") {
             ret = server.trigin(args);
         }
         else if (cmd=="autofetch") {
             ret = server.autofetch(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write( " ");
-            }
         }
         else if ( cmd == "fetchlog" ) {
           ret = server.fetchlog();
@@ -771,39 +723,18 @@ void doit(Network::TcpSocket sock) {
         }
         else if (cmd == "exptime") {
             ret = server.exptime(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         }
-        else if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-        } else if (cmd == "bias") {
+        else if (cmd == "bias") {
             ret = server.bias(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "echo") {
             sock.Write(args);
             sock.Write("\n");
         } else if (cmd == "interface") {
             ret = server.interface(retstring);
-            sock.Write(retstring);
-            sock.Write(" ");
         } else if (cmd =="power") {
             ret = server.power( args, retstring );
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "test") {
             ret = server.test(args, retstring);
-            if (!retstring.empty()) {
-                sock.Write(retstring);
-                sock.Write(" ");
-            }
         } else if (cmd == "native") {
             try {
                 std::transform(args.begin(), args.end(), args.begin(), ::toupper); // make uppercase
@@ -813,7 +744,6 @@ void doit(Network::TcpSocket sock) {
             }
 #ifdef ASTROCAM
                     ret = server.native(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
 #endif
 #ifdef STA_ARCHON
             ret = server.native(args);
@@ -823,24 +753,28 @@ void doit(Network::TcpSocket sock) {
         // if no matching command found
         //
         else {
-            message.str("");
-            message << "ERROR unrecognized command: " << cmd;
+            message.str(""); message << "ERROR unrecognized command: " << cmd;
             logwrite(function, message.str());
             ret = ERROR;
         }
 
         if (ret != NOTHING) {
-            std::string retstr = (ret == 0 ? "DONE\n" : "ERROR\n");
-            if (ret == 0) retstr = "DONE\n";
-            else retstr = "ERROR" + server.camera.get_longerror() + "\n";
-            if (sock.Write(retstr) < 0) connection_open = false;
+          if ( !retstring.empty() ) retstring.append(" ");
+          if ( ret != HELP ) retstring.append( ret==NO_ERROR ? "DONE" : "ERROR" );
+
+          if ( !retstring.empty() && ret != HELP ) {
+            message.str(""); message << "command (" << server.cmd_num << ") reply: " << retstring;
+            logwrite( function, message.str() );
+          }
+
+          retstring.append("\n");
+          if ( sock.Write( retstring ) < 0 ) connection_open = false;
         }
 
-        if (!sock.isblocking()) break; // Non-blocking connection exits immediately.
-        // Keep blocking connection open for interactive session.
+        if (!sock.isblocking()) break;  // Non-blocking connection exits immediately.
+                                        // Keep blocking connection open for interactive session.
     }
 
-    sock.Close();
     return;
 }
 

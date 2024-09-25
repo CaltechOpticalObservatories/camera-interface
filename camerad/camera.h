@@ -90,7 +90,7 @@ namespace Camera {
       /// readout time in msec for given controller device number, read from .cfg file
       std::map<int, int> readout_time;
 
-      void log_error(std::string function, std::string message);
+      void log_error( const std::string &function, const std::string &message );
 
       std::string get_longerror();
 
@@ -377,7 +377,7 @@ namespace Camera {
       long        detector_pixels[2];       //!< number of physical pixels. element 0=cols (pixels), 1=rows (lines)
       long        section_size;             //!< pixels to write for this section (could be less than full sensor size)
       uint32_t    image_memory;             //!< bytes per image sensor
-      std::string current_observing_mode;   //!< the current mode
+      std::string camera_mode;              //!< the current camera mode xxxx from ACF MODE_xxxx
       std::string readout_name;             //!< name of the readout source
       int         readout_type;             //!< type of the readout source is an enum
       long        naxis;                    //!< number of axes in the image (3 for data cube)
@@ -480,7 +480,7 @@ namespace Camera {
           detector_pixels{other.detector_pixels[0], other.detector_pixels[1]},
           section_size(other.section_size),
           image_memory(other.image_memory),
-          current_observing_mode(other.current_observing_mode),
+          camera_mode(other.camera_mode),
           readout_name(other.readout_name),
           readout_type(other.readout_type),
           naxis(other.naxis),
@@ -553,7 +553,7 @@ namespace Camera {
           detector_pixels[1] = other.detector_pixels[1];
           section_size = other.section_size;
           image_memory = other.image_memory;
-          current_observing_mode = other.current_observing_mode;
+          camera_mode = other.camera_mode;
           readout_name = other.readout_name;
           readout_type = other.readout_type;
           naxis = other.naxis;
