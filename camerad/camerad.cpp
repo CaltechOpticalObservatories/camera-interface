@@ -534,6 +534,11 @@ void doit(Network::TcpSocket sock) {
         ret = NOTHING;
         std::string retstring; // string for return the value (where needed)
 
+        if (cmd == "help" || cmd == "?" ) {
+          for ( const auto &syntax : CAMERAD_SYNTAX ) { retstring.append( syntax+"\n" ); }
+          ret = HELP;
+        }
+        else
         if (cmd == "exit") {
             server.camera.async.enqueue("exit"); // shutdown the async message thread if running
             server.exit_cleanly(); // shutdown the server
@@ -716,6 +721,14 @@ void doit(Network::TcpSocket sock) {
         }
         else if ( cmd == "fetchlog" ) {
           ret = server.fetchlog();
+        }
+        else
+        if ( cmd == CAMERAD_COMPRESSION ) {
+          ret = server.fits_compression(args, retstring);
+        }
+        else
+        if ( cmd == CAMERAD_SAVEUNP ) {
+          ret = server.save_unp(args, retstring);
         }
 #endif
         else if (cmd == "expose") {

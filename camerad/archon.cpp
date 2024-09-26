@@ -104,17 +104,30 @@ namespace Archon {
    * @details    This is the main entry point for the expose command. Things
    *             common to all exposure modes are done here, and things unique
    *             to a specialization are handled by calling expose_for_mode().
-   * @param[in]  mode  mode in
+   * @param[in]  nseq_in
    * @return     ERROR | NO_ERROR
    *
    */
-  long ExposureBase::expose( const std::string &nseq_in ) {
+  long ExposureBase::expose( const int &nseq_in ) {
     std::string function="Archon::ExposureBase::expose";
     std::stringstream message;
     long error;
 
-    message << "nseq_in=" << nseq_in;
-    logwrite( function, message.str() );
+    nseq = nseq_in;
+
+    // Copy the camera info class to use here for FITS file writing
+    // of processed images.
+    //
+    fits_info = interface->camera_info;
+
+    // If unprocessed images are being written then also make a copy
+    // for that FITS writer, inserting "_unp" at the end of the filename.
+    //
+    if ( interface->is_unp ) {
+      unp_info = interface->camera_info;
+      size_t pos = unp_info.fits_name.find(".fits");
+      if ( pos != std::string::npos ) unp_info.fits_name.insert( pos, "_unp" );
+    }
 
     std::string mode = interface->camera_info.camera_mode;
 
@@ -150,6 +163,11 @@ namespace Archon {
   void Interface::select_exposure_mode( ExposureMode mode ) {
     std::string function="Archon::Interface::select_expose_mode";
     switch ( mode ) {
+      case Archon::ExposureMode::EXPOSUREMODE_RAW:
+        this->pExposureMode = std::make_unique<Expose_Raw>(this);
+        this->exposure_mode_str = "Raw";
+        logwrite( function, "selected Expose_Raw" );
+        break;
       case Archon::ExposureMode::EXPOSUREMODE_CCD:
         this->pExposureMode = std::make_unique<Expose_CCD>(this);
         this->exposure_mode_str = "CCD";
@@ -178,6 +196,117 @@ namespace Archon {
     }
   }
   /***** Archon::Interface::select_expose_mode ********************************/
+
+
+  /***** Archon::Interface::save_unp ******************************************/
+  /**
+   * @brief      set/get the state of saving unprocessed images
+   * @param[in]  args       input string contains requested state
+   * @param[out] retstring  return string contains the current state
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long Interface::save_unp(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::save_unp";
+    std::stringstream message;
+
+    // Help
+    //
+    if ( args == "?" || args == "help" ) {
+      retstring=CAMERAD_SAVEUNP;
+      retstring.append( " [ true | false ]\n" );
+      retstring.append( "   Set state of saving unprocessed images. If no argument provided\n" );
+      retstring.append( "   then the current state is returned.\n" );
+      return HELP;
+    }
+
+    // Accept the strings "true" or "false" without regards to case
+    // and set the class variable.
+    //
+    if ( caseCompareString( args, "true" ) ) {
+      this->is_unp = true;
+    }
+    else
+    if ( caseCompareString( args, "false" ) ) {
+      this->is_unp = false;
+    }
+    else if ( !args.empty() ) {
+      message.str(""); message << "ERROR invalid argument " << args << ": expected { true false }";
+      logwrite( function, message.str() );
+      retstring="invalid_argument";
+      return ERROR;
+    }
+
+    // returns the state of the class variable as a string
+    //
+    retstring = ( this->is_unp ? "true" : "false" );
+
+    message << "will" << ( this->is_unp ? " " : " not " ) << "save unprocessed images";
+    logwrite( function, message.str() );
+
+    return NO_ERROR;
+  }
+  /***** Archon::Interface::save_unp ******************************************/
+
+
+  /***** Archon::Interface::fits_compression **********************************/
+  /**
+   * @brief      set/get FITS compression
+   * @param[in]  args       input string contains requested compression
+   * @param[out] retstring  return string contains the current compression
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long Interface::fits_compression(std::string args, std::string &retstring) {
+    std::string function = "Archon::Interface::fits_compression";
+    std::stringstream message;
+
+    // Help
+    //
+    if ( args == "?" || args == "help" ) {
+      retstring=CAMERAD_COMPRESSION;
+      retstring.append( " [ none | rice | gzip | plio ]\n" );
+      retstring.append( "   Set the FITS compression type. No argument returns the current type.\n" );
+      return HELP;
+    }
+
+    // Accept string representation of the compression type without regards to
+    // case, saving the the class a FITS-friendly code and a human-friendly
+    // string which represents the compression type.
+    //
+    if ( caseCompareString( args, "none" ) ) {
+      this->camera_info.fits_compression_code = 0;
+      this->camera_info.fits_compression_type = "none";
+    }
+    else
+    if ( caseCompareString( args, "rice" ) ) {
+      this->camera_info.fits_compression_code = RICE_1;
+      this->camera_info.fits_compression_type = "rice";
+    }
+    else
+    if ( caseCompareString( args, "gzip" ) ) {
+      this->camera_info.fits_compression_code = GZIP_1;
+      this->camera_info.fits_compression_type = "gzip";
+    }
+    else
+    if ( caseCompareString( args, "plio" ) ) {
+      this->camera_info.fits_compression_code = PLIO_1;
+      this->camera_info.fits_compression_type = "plio";
+    }
+    else if ( !args.empty() ) {
+      message.str(""); message << "ERROR invalid argument " << args << ": expected { none rice zip plio }";
+      logwrite( function, message.str() );
+      retstring="invalid_argument";
+      return ERROR;
+    }
+
+    // returns the human-friendly string
+    //
+    retstring=this->camera_info.fits_compression_type;
+
+    return NO_ERROR;
+  }
+  /***** Archon::Interface::fits_compression **********************************/
 
 
   /***** Archon::Interface::do_power ******************************************/
@@ -3915,7 +4044,7 @@ namespace Archon {
     // call the expose() in the ExposureBase class which will call the
     // correct expose function for the current Exposure Mode
     //
-    if ( this->pExposureMode ) error = pExposureMode->expose(nseq_in);
+    if ( this->pExposureMode ) error = pExposureMode->expose(nseq);
     else {
       this->camera.log_error( function, "exposure mode pointer not initialized" );
       error = ERROR;
@@ -7840,6 +7969,28 @@ namespace Archon {
     std::vector<std::string> tokens;
     long error;
 
+    // Help
+    //
+    if ( args == "?" || args == "help" ) {
+      retstring = CAMERAD_TEST;
+      retstring.append( " <testname> ...\n" );
+      retstring.append( "   ampinfo\n" );
+      retstring.append( "   async [ ? | <message> ]\n" );
+      retstring.append( "   builddate [ ? ]\n" );
+      retstring.append( "   busy [ ? | yes ]\n" );
+      retstring.append( "   bw ? | <nseq>\n" );
+      retstring.append( "   configmap [ ? ]\n" );
+      retstring.append( "   expmode [ ? | ccd | fowler | rxrv | utr ]\n" );
+      retstring.append( "   fitsname [ ? ]\n" );
+      retstring.append( "   logwconfig [ ? | <state> ]\n" );
+      retstring.append( "   modules [ ? ]\n" );
+      retstring.append( "   parammap [ ? ]\n" );
+      retstring.append( "   rconfig [ ? | <filter> ]\n" );
+      retstring.append( "   rconfigmap [ ? | <filter> ]\n" );
+      retstring.append( "   timer [ ? ]\n" );
+      return HELP;
+    }
+
     Tokenize(args, tokens, " ");
 
     if (tokens.empty()) {
@@ -7952,7 +8103,7 @@ namespace Archon {
         if ( tokens[1] == "?" || tokens[1] == "help" ) {
           retstring="test expmode";
           retstring.append( " ccd | fowler | rxrv | utr\n" );
-          retstring.append( "   Sets the expose mode.\n" );
+          retstring.append( "   Sets the expose mode. No argument returns the current mode.\n" );
           return HELP;
         }
         error = NO_ERROR;  // assume success but change on error

@@ -21,6 +21,7 @@
 #include "common.h"
 #include "logentry.h"
 #include "utilities.h"
+#include "camerad_commands.h"      /// commands accepted by camerad
 
 // handy snprintf shortcut
 #define SNPRINTF(VAR, ...) { snprintf(VAR, sizeof(VAR), __VA_ARGS__); }

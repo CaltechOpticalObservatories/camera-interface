@@ -88,6 +88,7 @@ namespace Archon {
      * @brief      exposure modes
      */
     enum class ExposureMode {
+      EXPOSUREMODE_RAW,
       EXPOSUREMODE_CCD,
       EXPOSUREMODE_FOWLER,
       EXPOSUREMODE_RXRVIDEO,
@@ -105,15 +106,22 @@ namespace Archon {
     class ExposureBase {
       protected:
         Archon::Interface* interface;  // pointer to the Archon::Interface class
+        int nseq;
+
+        // Each exposure gets its own copy of the Camera::Information class.
+        // There is one each for processed and unprocessed images.
+        //
+        Camera::Information fits_info;  /// processed images
+        Camera::Information unp_info;   /// un-processed images
 
       public:
-        ExposureBase(Interface* interface) : interface(interface) { }
+        ExposureBase(Interface* interface) : interface(interface), nseq(1) { }
 
         virtual ~ExposureBase() = default;
 
         virtual long expose_for_mode() = 0;
 
-        long expose( const std::string &nseq_in );
+        long expose( const int &nseq_in );
     };
     /***** Archon::ExposureBase ***********************************************/
 
@@ -166,6 +174,7 @@ namespace Archon {
         bool is_longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
         bool is_window; //!< true if in window mode for h2rg, false if not
         bool is_autofetch;
+        bool is_unp;                        //!< should I write unprocessed files?
         int win_hstart;
         int win_hstop;
         int win_vstart;
@@ -175,6 +184,13 @@ namespace Archon {
         std::string power_status;             //!< archon power status
 
         bool lastcubeamps;
+
+        int ring_index;                     //!< index into ring buffer, counts 0,1,0,1,...
+        std::vector<char*> signal_buf;      //!< signal frame data ring buffer
+        std::vector<char*> reset_buf;       //!< reset frame data ring buffer
+        char *archon_buf;                   //!< image data buffer as FETCH-ed from Archon
+        uint32_t archon_buf_bytes;          //!< requested number of bytes allocated for archon_buf rounded up to block size
+        uint32_t archon_buf_allocated;      //!< allocated number of bytes for archon_buf
 
         std::string trigin_state; //!< for external triggering of exposures
 
@@ -197,10 +213,6 @@ namespace Archon {
         float heater_target_min; //!< minimum heater target temperature
         float heater_target_max; //!< maximum heater target temperature
 
-        char *archon_buf; //!< image data buffer holds FETCHed Archon data
-        uint32_t archon_buf_bytes; //!< requested number of bytes allocated for archon_buf rounded up to block size
-        uint32_t archon_buf_allocated; //!< allocated number of bytes for archon_buf
-
         std::atomic<bool> archon_busy; //!< indicates a thread is accessing Archon
         std::mutex archon_mutex;
         //!< protects Archon from being accessed by multiple threads,
@@ -214,6 +226,11 @@ namespace Archon {
 
         // Functions
         //
+        void ring_index_inc() { if (++this->ring_index==2) this->ring_index=0; }
+        int  prev_ring_index() { int i=this->ring_index-1; return( i<0 ? 1 : i ); }
+        long save_unp(std::string args, std::string &retstring);
+        long fits_compression(std::string args, std::string &retstring);
+
         static long interface(std::string &iface); //!< get interface type
         long configure_controller(); //!< get configuration parameters
         long prepare_archon_buffer(); //!< prepare archon_buf, allocating memory as needed
