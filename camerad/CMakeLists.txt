@@ -41,6 +41,8 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 
     set(INTERFACE_SOURCE
             "${CAMERA_DIR}/astrocam.cpp"
+            save-to-disk.cpp
+            save-to-disk.h
     )
 
     set(INTERFACE_INCLUDES
