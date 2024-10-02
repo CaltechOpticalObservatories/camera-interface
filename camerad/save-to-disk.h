@@ -11,8 +11,11 @@
 class SaveToDisk : public ImageOutput {
 public:
   explicit SaveToDisk(const std::string& outputDirectory);
-  void processImage(const char* imageData) override;
-  ~SaveToDisk();
+
+  template<class T>
+  void writeImage(T* imageData, Camera::Information &info);
+
+  ~SaveToDisk() override;
 
 private:
   std::string outputDirectory;

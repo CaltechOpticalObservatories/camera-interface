@@ -43,6 +43,8 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
             "${CAMERA_DIR}/astrocam.cpp"
             save-to-disk.cpp
             save-to-disk.h
+            save-to-disk.cpp
+            save-to-disk.cpp
     )
 
     set(INTERFACE_INCLUDES
@@ -55,6 +57,8 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
             "${ARCAPI_EXPIFACE}"
             "${ARCAPI_CONIFACE}"
             "${ARCAPI_DEFS}"
+            save-to-disk.cpp
+            save-to-disk.cpp
     )
     find_library(CARC_BASE "CArcBase3.6" NAMES "libCArcBase3.6" PATHS ${ARCAPI_DIR}/Release)
     find_library(CARC_DEVICE "CArcDevice3.6" NAMES "libCArcDevice3.6.so" PATHS ${ARCAPI_DIR}/Release)
@@ -117,7 +121,8 @@ endif ()
 
 # Now add the defined interface target:
 #
-add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
+add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE}
+        save-to-disk.cpp)
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 
@@ -137,6 +142,7 @@ find_package(Threads)
 add_executable(camerad
         ${CAMERA_DIR}/camerad.cpp
         ${INTERFACE_INCLUDES}
+        save-to-disk.cpp
 )
 
 # ----------------------------------------------------------------------------

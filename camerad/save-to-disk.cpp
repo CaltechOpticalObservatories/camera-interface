@@ -4,7 +4,6 @@
 
 #include "save-to-disk.h"
 #include <filesystem>
-#include <iostream>
 
 SaveToDisk::SaveToDisk(const std::string& outputDir) : outputDirectory(outputDir) {
   // Ensure the directory exists or create it
@@ -13,6 +12,7 @@ SaveToDisk::SaveToDisk(const std::string& outputDir) : outputDirectory(outputDir
   }
 }
 
-void SaveToDisk::processImage(const char* imageData) {
+template <class T>
+void SaveToDisk::writeImage(T *imageData, Camera::Information &info) {
 
 }
