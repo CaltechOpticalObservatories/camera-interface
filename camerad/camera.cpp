@@ -57,32 +57,37 @@ namespace Camera {
     }
 
 
-    /** Camera::Camera::log_error ***********************************************/
+    /***** Camera::Camera::log_error ******************************************/
     /**
-     * @fn     log_error
-     * @brief  logs the error and saves the message to be returned on the command port
-     * @param  std::string function name
-     * @param  std::string message (error)
-     * @return ERROR or NO_ERROR
+     * @brief      logs and saves an error message
+     * @details    This expands the functionality of simply logwrite-ing an
+     *             error message by saving the message to the class, which
+     *             enables returning that message string to the command port
+     *             if "is_longerror" is set. Do not include the string "ERROR"
+     *             in the supplied message because that will be added here
+     *             automatically.
+     * @param[in]  function  calling function
+     * @param[in]  message   error message
      *
      */
-    void Camera::log_error(std::string function, std::string message) {
-        std::stringstream err;
+    void Camera::log_error( const std::string &function, const std::string &message) {
+      std::stringstream err;
 
-        // Save this message in class variable
-        this->lasterrorstring.str("");
-        this->lasterrorstring << message;
+      // Save this message to the class
+      //
+      this->lasterrorstring.str("");
+      this->lasterrorstring << message;
 
-        // Form an error string as "ERROR: <message>"
-        err << "ERROR: " << this->lasterrorstring.str();
+      // Form an error string as "ERROR: <message>"
+      //
+      err << "ERROR: " << this->lasterrorstring.str();
 
-        // Log and send to async port in the usual ways
-        //
-        logwrite(function, err.str());
-        this->async.enqueue(err.str());
+      // Log and send to async port in the usual ways
+      //
+      logwrite(function, err.str());
+      this->async.enqueue(err.str());
     }
-
-    /** Camera::Camera::log_error ***********************************************/
+    /***** Camera::Camera::log_error ******************************************/
 
 
     /** Camera::Camera::get_longerror *******************************************/

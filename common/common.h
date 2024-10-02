@@ -24,16 +24,21 @@ constexpr long TIMEOUT = 3;
 constexpr long HELP = 4;
 
 namespace Common {
-    /**************** Common::FitsKeys ******************************************/
+    /***** Common::FitsKeys ***************************************************/
     /*
      * @class  FitsKeys
      * @brief  provides a user-defined keyword database
      *
      */
     class FitsKeys {
-    private:
-    public:
+      public:
         FitsKeys() = default;
+
+        // copy constructor
+        //
+        FitsKeys( const FitsKeys &other ) {
+          this->keydb = other.keydb;
+        }
 
         std::string get_keytype(std::string keyvalue); /// return type of keyword based on value
         long listkeys(); /// list FITS keys in the internal database
@@ -41,7 +46,7 @@ namespace Common {
         long delkey(std::string arg); /// delete FITS key from the internal database
         void erasedb() { this->keydb.clear(); }; /// erase the entire contents of the internal database
 
-        /***** Common::FitsKeys::addkey *****************************************/
+        /***** Common::FitsKeys::addkey ***************************************/
         /**
          * @brief      template function adds FITS keyword to internal database
          * @details    no parsing is done here
@@ -121,7 +126,7 @@ namespace Common {
             return (NO_ERROR);
         }
 
-        /***** Common::FitsKeys::addkey *****************************************/
+        /***** Common::FitsKeys::addkey ***************************************/
 
 
         typedef struct {
@@ -175,33 +180,32 @@ namespace Common {
             return;
         }
     };
+    /***** Common::FitsKeys ***************************************************/
 
-    /**************** Common::FitsKeys ******************************************/
 
-
-    /**************** Common::Queue *********************************************/
-    /**
-     * @class  Queue
-     * @brief  provides a thread-safe messaging queue
-     *
-     */
-    class Queue {
+  /***** Common::Queue ********************************************************/
+  /**
+   * @class  Queue
+   * @brief  provides a thread-safe messaging queue
+   *
+   */
+  class Queue {
     private:
-        std::queue<std::string> message_queue;
-        mutable std::mutex queue_mutex;
-        std::condition_variable notifier;
-        bool is_running;
-
+      std::queue<std::string> message_queue;
+      mutable std::mutex queue_mutex;
+      std::condition_variable notifier;
+      bool is_running;
     public:
-        Queue(void) : is_running(false) {
-        }
+      Queue(void) : message_queue(), queue_mutex(), notifier(), is_running(false) { };
+      ~Queue(void) {}
 
-        void service_running(bool state) { this->is_running = state; }; /// set service running
-        bool service_running() { return this->is_running; }; /// is the service running?
+      void service_running(bool state) { is_running = state; };  ///< set service running
+      bool service_running() { return is_running; };             ///< is the service running?
 
-        void enqueue(std::string message); /// push an element into the queue.
-        std::string dequeue(void); /// pop an element from the queue
-    };
-
-    /**************** Common::Queue *********************************************/
+      void enqueue_and_log(std::string function, std::string message);
+      void enqueue_and_log(std::string tag, std::string function, std::string message);
+      void enqueue(std::string message);                         ///< push an element into the queue.
+      std::string dequeue(void);                                 ///< pop an element from the queue
+  };
+  /***** Common::Queue ********************************************************/
 }

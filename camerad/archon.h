@@ -14,48 +14,51 @@
 #include <fenv.h>
 #include <string_view>
 
+#include "opencv2/opencv.hpp"      /// OpenCV used for image manipulation
 #include "utilities.h"
 #include "common.h"
 #include "camera.h"
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
-#include "fits.h"
+#include "fits.h"       /// old version renames FITS_file to __FITS_file, will go away soon
+#include "fits_file.h"  /// new version implements FITS_file
+#include "deinterlace_modes.h"
 
-#define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
-#define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
-#define BLOCK_LEN 1024             //!< Archon block size
-#define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
+constexpr int MAXADCCHANS =   16;              //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
+constexpr int MAXADMCHANS =   72;              //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
+constexpr int BLOCK_LEN   = 1024;              //!< Archon block size
+constexpr int REPLY_LEN   =  100 * BLOCK_LEN;  //!< Reply buffer size (over-estimate)
 
 // Archon commands
 //
-#define  SYSTEM        std::string("SYSTEM")
-#define  STATUS        std::string("STATUS")
-#define  FRAME         std::string("FRAME")
-#define  CLEARCONFIG   std::string("CLEARCONFIG")
-#define  POLLOFF       std::string("POLLOFF")
-#define  POLLON        std::string("POLLON")
-#define  APPLYALL      std::string("APPLYALL")
-#define  POWERON       std::string("POWERON")
-#define  POWEROFF      std::string("POWEROFF")
-#define  APPLYCDS      std::string("APPLYCDS")
-#define  APPLYSYSTEM   std::string("APPLYSYSTEM")
-#define  RESETTIMING   std::string("RESETTIMING")
-#define  LOADTIMING    std::string("LOADTIMING")
-#define  HOLDTIMING    std::string("HOLDTIMING")
-#define  RELEASETIMING std::string("RELEASETIMING")
-#define  LOADPARAMS    std::string("LOADPARAMS")
-#define  TIMER         std::string("TIMER")
-#define  FETCHLOG      std::string("FETCHLOG")
-#define  UNLOCK        std::string("LOCK0")
+const std::string  SYSTEM        = "SYSTEM";
+const std::string  STATUS        = "STATUS";
+const std::string  FRAME         = "FRAME";
+const std::string  CLEARCONFIG   = "CLEARCONFIG";
+const std::string  POLLOFF       = "POLLOFF";
+const std::string  POLLON        = "POLLON";
+const std::string  APPLYALL      = "APPLYALL";
+const std::string  POWERON       = "POWERON";
+const std::string  POWEROFF      = "POWEROFF";
+const std::string  APPLYCDS      = "APPLYCDS";
+const std::string  APPLYSYSTEM   = "APPLYSYSTEM";
+const std::string  RESETTIMING   = "RESETTIMING";
+const std::string  LOADTIMING    = "LOADTIMING";
+const std::string  HOLDTIMING    = "HOLDTIMING";
+const std::string  RELEASETIMING = "RELEASETIMING";
+const std::string  LOADPARAMS    = "LOADPARAMS";
+const std::string  TIMER         = "TIMER";
+const std::string  FETCHLOG      = "FETCHLOG";
+const std::string  UNLOCK        = "LOCK0";
 
 // Minimum required backplane revisions for certain features
 //
-#define REV_RAMP           std::string("1.0.548")
-#define REV_SENSORCURRENT  std::string("1.0.758")
-#define REV_HEATERTARGET   std::string("1.0.1087")
-#define REV_FRACTIONALPID  std::string("1.0.1054")
-#define REV_VCPU           std::string("1.0.784")
+const std::string REV_RAMP           = "1.0.548";
+const std::string REV_SENSORCURRENT  = "1.0.758";
+const std::string REV_HEATERTARGET   = "1.0.1087";
+const std::string REV_FRACTIONALPID  = "1.0.1054";
+const std::string REV_VCPU           = "1.0.784";
 
 namespace Archon {
 
@@ -81,15 +84,118 @@ namespace Archon {
     const int DEF_SHUTENABLE_ENABLE = 1;
     const int DEF_SHUTENABLE_DISABLE = 0;
 
+    /**
+     * @brief      exposure modes
+     */
+    enum class ExposureMode {
+      EXPOSUREMODE_RAW,
+      EXPOSUREMODE_CCD,
+      EXPOSUREMODE_FOWLER,
+      EXPOSUREMODE_RXRVIDEO,
+      EXPOSUREMODE_UTR
+    };
+
+    /**
+     * @brief      deinterlace modes
+     */
+    enum class DeInterlaceMode {
+      DEINTERLACE_NONE,
+      DEINTERLACE_RXRVIDEO
+    };
+
+    class Interface;     //!< forward declaration
+    class ExposureBase;  //!< forward declaration
+
+
+    /***** Archon::convert_archon_buffer **************************************/
+    /**
+     * @brief      convert Archon char* buffer to the correct type
+     * @details    The Archon transmits 8-bit Bytes which must be organized as
+     *             either 16-bit words or 32-bit words, depending on whether
+     *             the Archon is using HDR mode. This function casts the Archon
+     *             buffer to the appropriate type as well as performs optional
+     *             right-shifting.
+     * @param[in]  bufin     Archon buffer
+     * @param[in]  imgsz     image size, i.e. number of pixels in buffer
+     * @param[in]  hdrshift  number of right-shift bits in HDR mode
+     * @return     newly allocated and converted buffer of type U
+     *
+     */
+    template <typename T, typename U=T>
+    std::vector<U> convert_archon_buffer( const char* bufin, size_t imgsz, int hdrshift=0 ) {
+      // cast the char* buffer from Archon to the requested type <T>
+      const T* typecast_bufin = reinterpret_cast<const T*>(bufin);
+
+      // return buffer can be of a different type <U>
+      std::vector<U> bufout(imgsz);
+
+      for ( size_t pix=0; pix<imgsz; ++pix ) {
+        // for 32-bit scale by hdrshift
+        if constexpr ( std::is_same<T, uint32_t>::value ) {
+          bufout[pix] = static_cast<U>(typecast_bufin[pix] >> hdrshift);
+        }
+        else
+        // for signed 16-bit subtract 2^15 from every pixel
+        if constexpr ( std::is_same<T, int16_t>::value ) {
+          bufout[pix] = typecast_bufin[pix] - 32768;
+        }
+        // for all others it's a straight copy
+        else {
+          bufout[pix] = typecast_bufin[pix];
+        }
+      }
+      return bufout;
+    }
+    /***** Archon::convert_archon_buffer **************************************/
+
+
+    /***** Archon::createDeInterlacer *******************************************/
+    /**
+     * @brief      factory function for creating a deinterlacer object
+     * @details    This is the main entry point for the expose command. Things
+     *             common to all exposure modes are done here, and things unique
+     *             to a specialization are handled by calling expose_for_mode().
+     * @param[in]  nseq_in
+     * @return     ERROR | NO_ERROR
+     *
+     */
+    template <typename T>
+    std::unique_ptr<DeInterlaceBase> createDeInterlacer( const std::vector<T> &buffer,
+                                                         const std::string &mode ) {
+      if ( mode == "none" ) {
+        return std::make_unique<DeInterlace_None<T>>(buffer);
+      }
+      else
+      if ( mode == "rxrv" ) {
+        return std::make_unique<DeInterlace_RXRVideo<T>>(buffer);
+      }
+      else
+      return nullptr;
+    }
+    /***** Archon::createDeInterlacer *******************************************/
+
+
+    /***** Archon::Interface **************************************************/
+    /**
+     * @class      Archon::Interface
+     * @brief      describes the interface to an Archon
+     *
+     */
     class Interface {
-    private:
+      private:
         unsigned long int start_timer, finish_timer; //!< Archon internal timer, start and end of exposure
         int n_hdrshift; //!< number of right-shift bits for Archon buffer in HDR mode
 
-    public:
+        std::unique_ptr<ExposureBase> pExposureMode;  /// pointer to ExposureBase class
+        std::string exposure_mode_str;                /// human readable representation of exposure mode
+
+      public:
         Interface();
 
         ~Interface();
+
+        void select_exposure_mode( ExposureMode mode );  /// select exposure mode
+        const std::string get_exposure_mode() { return this->exposure_mode_str; }
 
         // Class Objects
         //
@@ -102,8 +208,9 @@ namespace Archon {
 
         Config config;
 
-        FITS_file fits_file; //!< instantiate a FITS container object
+        __FITS_file fits_file; //!< instantiate a FITS container object "__" designates old version
 
+        int activebufs;                     //!< Archon controller number of active frame buffers
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
         int taplines;
@@ -111,19 +218,28 @@ namespace Archon {
         bool logwconfig;  //!< optionally log WCONFIG commands
         std::vector<int> gain; //!< digital CDS gain (from TAPLINE definition)
         std::vector<int> offset; //!< digital CDS offset (from TAPLINE definition)
-        bool modeselected; //!< true if a valid mode has been selected, false otherwise
+        bool is_camera_mode; //!< true if a valid camera mode has been selected, false otherwise
         bool firmwareloaded; //!< true if firmware is loaded, false otherwise
         bool is_longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
         bool is_window; //!< true if in window mode for h2rg, false if not
         bool is_autofetch;
+        bool is_unp;                        //!< should I write unprocessed files?
         int win_hstart;
         int win_hstop;
         int win_vstart;
         int win_vstop;
         int taplines_store; //!< int number of original taplines
         std::string tapline0_store; //!< store tapline0 for window mode so can restore later
+        std::string power_status;             //!< archon power status
 
         bool lastcubeamps;
+
+        int ring_index;                     //!< index into ring buffer, counts 0,1,0,1,...
+        std::vector<char*> signal_buf;      //!< signal frame data ring buffer
+        std::vector<char*> reset_buf;       //!< reset frame data ring buffer
+        char *archon_buf;                   //!< image data buffer as FETCH-ed from Archon
+        uint32_t archon_buf_bytes;          //!< requested number of bytes allocated for archon_buf rounded up to block size
+        uint32_t archon_buf_allocated;      //!< allocated number of bytes for archon_buf
 
         std::string trigin_state; //!< for external triggering of exposures
 
@@ -146,10 +262,6 @@ namespace Archon {
         float heater_target_min; //!< minimum heater target temperature
         float heater_target_max; //!< maximum heater target temperature
 
-        char *image_data; //!< image data buffer
-        uint32_t image_data_bytes; //!< requested number of bytes allocated for image_data rounded up to block size
-        uint32_t image_data_allocated; //!< allocated number of bytes for image_data
-
         std::atomic<bool> archon_busy; //!< indicates a thread is accessing Archon
         std::mutex archon_mutex;
         //!< protects Archon from being accessed by multiple threads,
@@ -163,9 +275,14 @@ namespace Archon {
 
         // Functions
         //
+        void ring_index_inc() { if (++this->ring_index==2) this->ring_index=0; }
+        int  prev_ring_index() { int i=this->ring_index-1; return( i<0 ? 1 : i ); }
+        long save_unp(std::string args, std::string &retstring);
+        long fits_compression(std::string args, std::string &retstring);
+
         static long interface(std::string &iface); //!< get interface type
         long configure_controller(); //!< get configuration parameters
-        long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed
+        long prepare_archon_buffer(); //!< prepare archon_buf, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller
         long disconnect_controller(); //!< disconnect from archon controller
         long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING
@@ -226,12 +343,13 @@ namespace Archon {
 
         void add_filename_key();
 
-        long get_status_key( std::string key, std::string &value );     /// get value for indicated key from STATUS string
+        long get_status_key( std::string key, std::string &value );  /// get value for indicated key from STATUS string
 
-        long power( std::string state_in, std::string &retstring );     /// wrapper for do_power
-        long do_power( std::string state_in, std::string &retstring );  /// set/get Archon power state
+        long power( std::string args, std::string &retstring );      /// wrapper for do_power
+        long do_power( std::string args, std::string &retstring );   /// set/get Archon power state
 
-        long expose(std::string nseq_in);
+        long expose(std::string nseq_in);    /// new version
+        long __expose(std::string nseq_in);  /// old version
 
         long hexpose(std::string nseq_in);
 
@@ -421,4 +539,5 @@ namespace Archon {
          */
         map_t statusmap;
     };
+    /***** Archon::Interface **************************************************/
 }

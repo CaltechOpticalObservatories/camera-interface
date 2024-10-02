@@ -24,7 +24,7 @@
 
 const int FITS_WRITE_WAIT = 5000; /// approx time (in msec) to wait for a frame to be written
 
-class FITS_file {
+class __FITS_file {               // prepended "__" to designate old version
 private:
     std::atomic<int> threadcount; /// keep track of number of write_image_thread threads
     std::atomic<int> framen; /// internal frame counter for data cubes
@@ -41,7 +41,7 @@ public:
     bool iserror() { return this->error; }; /// allows outsiders access to errors that occurred in a fits writing thread
     bool isopen() { return this->file_open; }; /// allows outsiders access file open status
 
-    FITS_file() : threadcount(0), framen(0), writing_file(false), error(false), file_open(false) {
+    __FITS_file() : threadcount(0), framen(0), writing_file(false), error(false), file_open(false) {
     }
 
     /**************** FITS_file::open_file ************************************/
@@ -56,7 +56,7 @@ public:
      *
      */
     long open_file(bool writekeys, Camera::Information &info) {
-        std::string function = "FITS_file::open_file";
+        std::string function = "__FITS_file::open_file";
         std::stringstream message;
 
         long axes[2]; // local variable of image axes size
@@ -177,7 +177,7 @@ public:
      *
      */
     void close_file(bool writekeys, Camera::Information &info) {
-        std::string function = "FITS_file::close_file";
+        std::string function = "__FITS_file::close_file";
         std::stringstream message;
 
         // Nothing to do if not open
@@ -357,8 +357,8 @@ public:
      *
      */
     template<class T>
-    void write_image_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
-        std::string function = "FITS_file::write_image_thread";
+    void write_image_thread(std::valarray<T> &data, Camera::Information &info, __FITS_file *self) {
+        std::string function = "__FITS_file::write_image_thread";
         std::stringstream message;
 
         // This makes the thread wait while another thread is writing images. This
@@ -422,8 +422,8 @@ public:
      *
      */
     template<class T>
-    void write_cube_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
-        std::string function = "FITS_file::write_cube_thread";
+    void write_cube_thread(std::valarray<T> &data, Camera::Information &info, __FITS_file *self) {
+        std::string function = "__FITS_file::write_cube_thread";
         std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
@@ -552,7 +552,7 @@ public:
      *
      */
     void make_camera_header(Camera::Information &info) {
-        std::string function = "FITS_file::make_camera_header";
+        std::string function = "__FITS_file::make_camera_header";
         std::stringstream message;
         try {
             // To put just the filename into the header (and not the path), find the last slash
@@ -581,7 +581,7 @@ public:
      * Uses CCFits
      */
     void add_key(std::string keyword, std::string type, std::string value, std::string comment) {
-        std::string function = "FITS_file::add_key";
+        std::string function = "__FITS_file::add_key";
         std::stringstream message;
 
         // The file must have been opened first
