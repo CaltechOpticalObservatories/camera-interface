@@ -7,6 +7,7 @@
  */
 #include "archon.h"
 #include "exposure_modes.h"
+#include "deinterlace_modes.h"
 
 #include <sstream>   // for std::stringstream
 #include <iomanip>   // for setfil, setw, etc.
@@ -4041,14 +4042,17 @@ namespace Archon {
       }
     }
 
-    // call the expose() in the ExposureBase class which will call the
-    // correct expose function for the current Exposure Mode
+    // *****************************************************************
+    // * call the expose() in the ExposureBase class which will call the
+    // * correct expose function for the current Exposure Mode
+    // *****************************************************************
     //
     if ( this->pExposureMode ) error = pExposureMode->expose(nseq);
     else {
       this->camera.log_error( function, "exposure mode pointer not initialized" );
       error = ERROR;
     }
+    // *****************************************************************
 
     return error;
   }

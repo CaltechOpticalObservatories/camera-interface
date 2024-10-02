@@ -18,8 +18,51 @@
 
 namespace Archon {
 
+  /***** Archon::ExposureBase *************************************************/
+  /**
+   * @class      Archon::ExposureBase
+   * @brief      exposure base class
+   * @details    This class gets inherited by a derived Exposure_xxx class and
+   *             contains a virtual declaration for expose_for_mode() which is
+   *             overridden in each derived class and contains the exposure
+   *             sequence for that exposure mode.
+   *
+   */
+  class ExposureBase {
+    protected:
+      Archon::Interface* interface;  // pointer to the Archon::Interface class
+      std::unique_ptr<DeInterlaceBase> deinterlacer;
+      int nseq;
+
+      // Each exposure gets its own copy of the Camera::Information class.
+      // There is one each for processed and unprocessed images.
+      //
+      Camera::Information fits_info;  /// processed images
+      Camera::Information unp_info;   /// un-processed images
+
+    public:
+      ExposureBase(Interface* interface) : interface(interface), deinterlacer(nullptr), nseq(1) { }
+
+      virtual ~ExposureBase() = default;
+
+      virtual long expose_for_mode() = 0;
+
+      long expose( const int &nseq_in );
+
+      template <typename T>
+      void create_deinterlacer( const std::string &mode, const std::vector<T> &buf, const size_t imgsz ) {
+        this->deinterlacer = deinterlacer_factory(mode, buf, imgsz);
+      }
+  };
+  /***** Archon::ExposureBase *************************************************/
+
 
   /***** Archon::Expose_Raw ***************************************************/
+  /**
+   * @class      Archon::Expose_Raw
+   * @brief      derived exposure mode class for raw sampling, oscilloscope mode
+   *
+   */
   class Expose_Raw : public ExposureBase {
     public:
       Expose_Raw(Interface* interface) : ExposureBase(interface) { }
@@ -30,10 +73,15 @@ namespace Archon {
         return NO_ERROR;
       }
   };
-  /***** Archon::Expose_CCD ***************************************************/
+  /***** Archon::Expose_Raw ***************************************************/
 
 
   /***** Archon::Expose_CCD ***************************************************/
+  /**
+   * @class      Archon::Expose_CCD
+   * @brief      derived exposure mode class for CCDs
+   *
+   */
   class Expose_CCD : public ExposureBase {
     public:
       Expose_CCD(Interface* interface) : ExposureBase(interface) { }
@@ -48,6 +96,11 @@ namespace Archon {
 
 
   /***** Archon::Expose_UTR ***************************************************/
+  /**
+   * @class      Archon::Expose_UTR
+   * @brief      derived exposure mode class for Up The Ramp
+   *
+   */
   class Expose_UTR : public ExposureBase {
     public:
       Expose_UTR(Interface* interface) : ExposureBase(interface) { }
@@ -62,6 +115,11 @@ namespace Archon {
 
 
   /***** Archon::Expose_Fowler ************************************************/
+  /**
+   * @class      Archon::Expose_Fowler
+   * @brief      derived exposure mode class for Fowler sampling
+   *
+   */
   class Expose_Fowler : public ExposureBase {
     public:
       Expose_Fowler(Interface* interface) : ExposureBase(interface) { }
@@ -86,6 +144,22 @@ namespace Archon {
    *
    */
   class Expose_RXRV : public ExposureBase {
+    private:
+      template <typename T>
+      void process_frame() {
+        std::vector<T> converted_buf = convert_archon_buffer<T,T>(interface->archon_buf, interface->camera_info.image_size);
+        this->deinterlace(converted_buf, interface->camera_info.image_size);
+      }
+
+      template <typename T>
+      void deinterlace( const std::vector<T> &converted_buf, const size_t imgsz ) {
+        auto deinterlacer = deinterlace_factory<T>("rxrv", converted_buf, imgsz);
+        if ( deinterlacer ) deinterlacer->deinterlace();
+        else {
+          throw std::runtime_error("Archon::Expose_RXRV::deinterlace failed to create deinterlacer");
+        }
+      }
+
     public:
       Expose_RXRV(Interface* interface) : ExposureBase(interface) { }
 
@@ -122,9 +196,25 @@ namespace Archon {
           return ERROR;
         }
 
+        // Processing the first frame pair will convert the Archon char* buffer
+        // and deinterlace, producing a pair of properly typed and deinterlaced
+        // frames in _sigbuf[i] and _resbuf[i].
+        //
+        switch (interface->camera_info.bitpix) {
+          case ULONG_IMG:  process_frame<uint32_t>();
+                           break;
+          case USHORT_IMG: process_frame<uint16_t>();
+                           break;
+        }
+
         // Always deinterlace first frame.
         // Write here only if is_unp set to write unprocessed images.
         //
+        if ( deinterlacer ) deinterlacer->deinterlace();
+        else {
+          logwrite( function, "ERROR no deinterlacer" );
+          return ERROR;
+        }
 
         //
         // -- MAIN SEQUENCE LOOP --

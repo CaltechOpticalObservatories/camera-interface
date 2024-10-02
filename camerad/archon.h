@@ -23,7 +23,7 @@
 #include "network.h"
 #include "fits.h"       /// old version renames FITS_file to __FITS_file, will go away soon
 #include "fits_file.h"  /// new version implements FITS_file
-
+#include "deinterlace_modes.h"
 
 constexpr int MAXADCCHANS =   16;              //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 constexpr int MAXADMCHANS =   72;              //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
@@ -95,35 +95,84 @@ namespace Archon {
       EXPOSUREMODE_UTR
     };
 
-    class Interface;
-
-    /***** Archon::ExposureBase ***********************************************/
     /**
-     * @class      Archon::ExposureBase
-     * @brief      exposure base class
+     * @brief      deinterlace modes
+     */
+    enum class DeInterlaceMode {
+      DEINTERLACE_NONE,
+      DEINTERLACE_RXRVIDEO
+    };
+
+    class Interface;     //!< forward declaration
+    class ExposureBase;  //!< forward declaration
+
+
+    /***** Archon::convert_archon_buffer **************************************/
+    /**
+     * @brief      convert Archon char* buffer to the correct type
+     * @details    The Archon transmits 8-bit Bytes which must be organized as
+     *             either 16-bit words or 32-bit words, depending on whether
+     *             the Archon is using HDR mode. This function casts the Archon
+     *             buffer to the appropriate type as well as performs optional
+     *             right-shifting.
+     * @param[in]  bufin     Archon buffer
+     * @param[in]  imgsz     image size, i.e. number of pixels in buffer
+     * @param[in]  hdrshift  number of right-shift bits in HDR mode
+     * @return     newly allocated and converted buffer of type U
      *
      */
-    class ExposureBase {
-      protected:
-        Archon::Interface* interface;  // pointer to the Archon::Interface class
-        int nseq;
+    template <typename T, typename U=T>
+    std::vector<U> convert_archon_buffer( const char* bufin, size_t imgsz, int hdrshift=0 ) {
+      // cast the char* buffer from Archon to the requested type <T>
+      const T* typecast_bufin = reinterpret_cast<const T*>(bufin);
 
-        // Each exposure gets its own copy of the Camera::Information class.
-        // There is one each for processed and unprocessed images.
-        //
-        Camera::Information fits_info;  /// processed images
-        Camera::Information unp_info;   /// un-processed images
+      // return buffer can be of a different type <U>
+      std::vector<U> bufout(imgsz);
 
-      public:
-        ExposureBase(Interface* interface) : interface(interface), nseq(1) { }
+      for ( size_t pix=0; pix<imgsz; ++pix ) {
+        // for 32-bit scale by hdrshift
+        if constexpr ( std::is_same<T, uint32_t>::value ) {
+          bufout[pix] = static_cast<U>(typecast_bufin[pix] >> hdrshift);
+        }
+        else
+        // for signed 16-bit subtract 2^15 from every pixel
+        if constexpr ( std::is_same<T, int16_t>::value ) {
+          bufout[pix] = typecast_bufin[pix] - 32768;
+        }
+        // for all others it's a straight copy
+        else {
+          bufout[pix] = typecast_bufin[pix];
+        }
+      }
+      return bufout;
+    }
+    /***** Archon::convert_archon_buffer **************************************/
 
-        virtual ~ExposureBase() = default;
 
-        virtual long expose_for_mode() = 0;
-
-        long expose( const int &nseq_in );
-    };
-    /***** Archon::ExposureBase ***********************************************/
+    /***** Archon::createDeInterlacer *******************************************/
+    /**
+     * @brief      factory function for creating a deinterlacer object
+     * @details    This is the main entry point for the expose command. Things
+     *             common to all exposure modes are done here, and things unique
+     *             to a specialization are handled by calling expose_for_mode().
+     * @param[in]  nseq_in
+     * @return     ERROR | NO_ERROR
+     *
+     */
+    template <typename T>
+    std::unique_ptr<DeInterlaceBase> createDeInterlacer( const std::vector<T> &buffer,
+                                                         const std::string &mode ) {
+      if ( mode == "none" ) {
+        return std::make_unique<DeInterlace_None<T>>(buffer);
+      }
+      else
+      if ( mode == "rxrv" ) {
+        return std::make_unique<DeInterlace_RXRVideo<T>>(buffer);
+      }
+      else
+      return nullptr;
+    }
+    /***** Archon::createDeInterlacer *******************************************/
 
 
     /***** Archon::Interface **************************************************/
