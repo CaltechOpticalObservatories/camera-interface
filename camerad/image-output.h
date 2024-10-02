@@ -5,14 +5,15 @@
 #ifndef IMAGE_OUTPUT_H
 #define IMAGE_OUTPUT_H
 
-#include <vector>
-#include <cstdint> // For uint8_t
+#include "camera.h"
 
 class ImageOutput {
-  // Pure virtual function to be implemented by derived classes
-  virtual void processImage(const char* imageData) = 0;
+  template<class T>
+  void writeImage(const T* imageData, Camera::Information &info) {
+    // Will be hidden
+    std::cout << "Processing data: " << std::endl;
+  };
 
-  // Virtual destructor to allow derived classes to clean up properly
   virtual ~ImageOutput() = default;
 };
 
