@@ -3,16 +3,18 @@
 //
 
 #include "save-to-disk.h"
-#include <filesystem>
 
-SaveToDisk::SaveToDisk(const std::string& outputDir) : outputDirectory(outputDir) {
-  // Ensure the directory exists or create it
-  if (!std::filesystem::exists(outputDirectory)) {
-    std::filesystem::create_directories(outputDirectory);
-  }
-}
+SaveToDisk::SaveToDisk() = default;
 
 template <class T>
-void SaveToDisk::writeImage(T *imageData, Camera::Information &info) {
+long SaveToDisk::write_image(T *imageData, Camera::Information &info) {
+  return this->fits_file.write_image(imageData, info);
+}
 
+long SaveToDisk::open(bool writekeys, Camera::Information &info) {
+  return this->fits_file.open_file(writekeys, info);
+}
+
+void SaveToDisk::close(bool writekeys, Camera::Information &info) {
+  return this->fits_file.close_file(writekeys, info);
 }

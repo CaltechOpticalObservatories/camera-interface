@@ -6,19 +6,21 @@
 #define SAVE_TO_DISK_H
 
 #include "image-output.h"
-#include <string>
+#include "fits.h"
 
 class SaveToDisk : public ImageOutput {
 public:
-  explicit SaveToDisk(const std::string& outputDirectory);
+  FITS_file fits_file; //!< instantiate a FITS container object
+
+  explicit SaveToDisk();
 
   template<class T>
-  void writeImage(T* imageData, Camera::Information &info);
+  long write_image(T* imageData, Camera::Information &info);
 
-  ~SaveToDisk() override;
+  long open(bool writekeys, Camera::Information &info) override;
 
-private:
-  std::string outputDirectory;
+  void close(bool writekeys, Camera::Information &info) override;
+
 };
 
 #endif //SAVE_TO_DISK_H

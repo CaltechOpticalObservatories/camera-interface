@@ -21,6 +21,8 @@
 #include "logentry.h"
 #include "network.h"
 #include "fits.h"
+#include "image-output.h"
+#include "image-output-factory.h"
 
 #define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 #define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
@@ -103,6 +105,8 @@ namespace Archon {
         Config config;
 
         FITS_file fits_file; //!< instantiate a FITS container object
+
+        std::unique_ptr<ImageOutput> image_output;
 
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
