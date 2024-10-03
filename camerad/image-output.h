@@ -12,7 +12,7 @@ public:
   virtual ~ImageOutput() = default;
 
   template <class T>
-  long write_image(const T* imageData, Camera::Information &info) {
+  long write_image(const T* image_data, Camera::Information &info) {
     // Will be hidden
     std::cout << "Processing data: " << std::endl;
     return NO_ERROR;
