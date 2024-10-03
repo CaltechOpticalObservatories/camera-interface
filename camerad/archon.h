@@ -169,7 +169,7 @@ namespace Archon {
         // Functions
         //
         static long interface(std::string &iface); //!< get interface type
-        ImageOutput* getImageOutput();
+        ImageOutput* get_image_output();
         long configure_controller(); //!< get configuration parameters
         long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller
