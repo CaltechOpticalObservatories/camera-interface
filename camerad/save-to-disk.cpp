@@ -18,3 +18,8 @@ long SaveToDisk::open(bool writekeys, Camera::Information &info) {
 void SaveToDisk::close(bool writekeys, Camera::Information &info) {
   return this->fits_file.close_file(writekeys, info);
 }
+
+bool SaveToDisk::is_open() {
+  return this->fits_file.isopen();
+}
+

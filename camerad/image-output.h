@@ -21,6 +21,8 @@ public:
   virtual long open(bool writekeys, Camera::Information &info) = 0;
 
   virtual void close(bool writekeys, Camera::Information &info) = 0;
+
+  virtual bool is_open() = 0;
 };
 
 #endif //IMAGE_OUTPUT_H

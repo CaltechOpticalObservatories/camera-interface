@@ -21,6 +21,7 @@ public:
 
   void close(bool writekeys, Camera::Information &info) override;
 
+  bool is_open() override;
 };
 
 #endif //SAVE_TO_DISK_H

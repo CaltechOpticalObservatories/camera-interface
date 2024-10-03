@@ -20,7 +20,6 @@
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
-#include "fits.h"
 #include "image-output.h"
 #include "image-output-factory.h"
 
@@ -103,8 +102,6 @@ namespace Archon {
         Common::FitsKeys systemkeys; //!< instantiate a Common object
 
         Config config;
-
-        FITS_file fits_file; //!< instantiate a FITS container object
 
         std::string image_output_type;
         std::unique_ptr<ImageOutput> output_handler;
