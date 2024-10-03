@@ -106,7 +106,8 @@ namespace Archon {
 
         FITS_file fits_file; //!< instantiate a FITS container object
 
-        std::unique_ptr<ImageOutput> image_output;
+        std::string image_output_type;
+        std::unique_ptr<ImageOutput> output_handler;
 
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
@@ -168,6 +169,7 @@ namespace Archon {
         // Functions
         //
         static long interface(std::string &iface); //!< get interface type
+        ImageOutput* getImageOutput();
         long configure_controller(); //!< get configuration parameters
         long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller
