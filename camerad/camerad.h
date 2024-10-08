@@ -50,10 +50,10 @@ namespace Camera {
     public:
         int nbport; //!< non-blocking port
         int blkport; //!< blocking port
-        int asyncport; //!< asynchronous message port
+        int messageport; //!< asynchronous message port
         std::atomic<int> cmd_num;
 
-        Server() : nbport(-1), blkport(-1), asyncport(-1), cmd_num(0) {
+        Server() : nbport(-1), blkport(-1), messageport(-1), cmd_num(0) {
         }
 
         ~Server() {
@@ -62,7 +62,7 @@ namespace Camera {
             close_log(); // close the logfile, if open
         }
 
-        std::string asyncgroup; //!< asynchronous multicast group
+        std::string messagegroup; //!< asynchronous multicast group
 
         int nonblocking_socket;
         int blocking_socket;
@@ -145,20 +145,20 @@ namespace Camera {
                     applied++;
                 }
 
-                // ASYNCPORT
-                if (config.param[entry].compare(0, 9, "ASYNCPORT") == 0) {
+                // MESSAGEPORT
+                if (config.param[entry]=="MESSAGEPORT") {
                     int port;
                     try {
                         port = std::stoi(config.arg[entry]);
                     } catch (std::invalid_argument &) {
-                        this->camera.log_error(function, "bad ASYNCPORT: unable to convert to integer");
+                        this->camera.log_error(function, "bad MESSAGEPORT: unable to convert to integer");
                         return (ERROR);
                     }
                     catch (std::out_of_range &) {
-                        this->camera.log_error(function, "ASYNCPORT number out of integer range");
+                        this->camera.log_error(function, "MESSAGEPORT number out of integer range");
                         return (ERROR);
                     }
-                    this->asyncport = port;
+                    this->messageport = port;
                     message.str("");
                     message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
                     logwrite(function, message.str());
@@ -166,9 +166,9 @@ namespace Camera {
                     applied++;
                 }
 
-                // ASYNCGROUP
-                if (config.param[entry].compare(0, 10, "ASYNCGROUP") == 0) {
-                    this->asyncgroup = config.arg[entry];
+                // MESSAGEGROUP
+                if (config.param[entry]=="MESSAGEGROUP") {
+                    this->messagegroup = config.arg[entry];
                     message.str("");
                     message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
                     logwrite(function, message.str());

@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
 
     // Instantiate a multicast UDP object and spawn a thread to send asynchronous messages
     //
-    Network::UdpSocket async(server.asyncport, server.asyncgroup);
+    Network::UdpSocket async(server.messageport, server.messagegroup);
     std::thread(async_main, async).detach();
 
     // thread to start a new logbook each day

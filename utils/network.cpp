@@ -101,7 +101,7 @@ namespace Network {
    * @param[in]  none
    * @return     0 on success, -1 on error, 1 to indicate user-requested disable
    *
-   * If the .cfg file contains ASYNCGROUP=none (any case) then do not create
+   * If the .cfg file contains MESSAGEGROUP=none (any case) then do not create
    * the socket. Return a 1 so the caller knows that no socket was created
    * by user request, as opposed to an error.
    *
@@ -117,31 +117,31 @@ namespace Network {
       return -1;
     }
 
-    // don't do anything if the ASYNCGROUP is not initialized
+    // don't do anything if the MESSAGEGROUP is not initialized
     //
     if (this->group.empty()) {
-      logwrite(function, "ERROR: ASYNCGROUP not initialized. Cannot create socket");
+      logwrite(function, "ERROR: MESSAGEGROUP not initialized. Cannot create socket");
       return -1;
     }
 
-    // the user can set ASYNCGROUP=none to disable the async status message port
+    // the user can set MESSAGEGROUP=none to disable the async status message port
     //
     try {
       std::transform( this->group.begin(), this->group.end(), this->group.begin(), ::toupper );    // make uppercase
     }
     catch (...) {
-      logwrite(function, "error converting ASYNCGROUP to uppercase");
+      logwrite(function, "error converting MESSAGEGROUP to uppercase");
       return -1;
     }
     if (this->group == "NONE") {
-      logwrite(function, "ASYNCGROUP=none. UDP multicast socket disabled.");
+      logwrite(function, "MESSAGEGROUP=none. UDP multicast socket disabled.");
       return 1;
     }
 
     // now that there is a group, check that the port is initialized
     //
     if (this->port < 0) {
-      logwrite(function, "ERROR: ASYNCPORT not initialized. Cannot create socket");
+      logwrite(function, "ERROR: MESSAGEPORT not initialized. Cannot create socket");
       return -1;
     }
 
@@ -224,31 +224,31 @@ namespace Network {
       return -1;
     }
 
-    // don't do anything if the ASYNCGROUP is not initialized
+    // don't do anything if the MESSAGEGROUP is not initialized
     //
     if ( this->group.empty() ) {
-      logwrite( function, "ERROR: ASYNCGROUP not initialized. Cannot create socket" );
+      logwrite( function, "ERROR: MESSAGEGROUP not initialized. Cannot create socket" );
       return -1;
     }
 
-    // the user can set ASYNCGROUP=none to disable the async status message port
+    // the user can set MESSAGEGROUP=none to disable the async status message port
     //
     try {
       std::transform( this->group.begin(), this->group.end(), this->group.begin(), ::toupper );    // make uppercase
     }
     catch (...) {
-      logwrite( function, "error converting ASYNCGROUP to uppercase" );
+      logwrite( function, "error converting MESSAGEGROUP to uppercase" );
       return -1;
     }
     if ( this->group == "NONE" ) {
-      logwrite( function, "ASYNCGROUP=none. UDP multicast socket disabled." );
+      logwrite( function, "MESSAGEGROUP=none. UDP multicast socket disabled." );
       return 1;
     }
 
     // now that there is a group, check that the port is initialized
     //
     if ( this->port < 0 ) {
-      logwrite( function, "ERROR: ASYNCPORT not initialized. Cannot create socket" );
+      logwrite( function, "ERROR: MESSAGEPORT not initialized. Cannot create socket" );
       return -1;
     }
 
