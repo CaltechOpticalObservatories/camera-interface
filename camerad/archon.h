@@ -99,36 +99,48 @@ namespace Archon {
     class PostProcess {
       protected:
         DeInterlaceMode _mode;
-        size_t _bufsz;
         std::vector<std::vector<T>> _sigbuf;
         std::vector<std::vector<T>> _resbuf;
         std::vector<int32_t> _cdsbuf;
 
+        // naxes = axis lengths element 0=cols 1=rows
+        // This is for the pair of frames in a single Archon buffer, so cols will be 2*2112=4224
+        // but rows can be <= 2048.
+        //
+        std::vector<long> _naxes;
+
+        long _cols;
+        long _rows;
+
       public:
 
-        PostProcess( DeInterlaceMode mode, size_t bufsz ) : _mode(mode), _bufsz(bufsz/2) {
-          _sigbuf.resize( 2, std::vector<T>(2048*2112) );
-          _resbuf.resize( 2, std::vector<T>(2048*2112) );
-          _cdsbuf.resize(2048*2112);
-        }
+        PostProcess( DeInterlaceMode mode, std::vector<long> naxes ) : _mode(mode), _naxes(naxes) {
+          const std::string function="Archon::PostProcess::PostProcess";
+          std::stringstream message;
 
-        PostProcess(size_t bufsz) : _bufsz(bufsz) {
-          _sigbuf.resize( 2, std::vector<T>(bufsz) );
-          _resbuf.resize( 2, std::vector<T>(bufsz) );
-          _cdsbuf.resize(bufsz);
+          // rows and cols in an image (not the buffer)
+          // half as many cols because the buffer contains two frames
+          //
+          _cols = _naxes[0] / 2;
+          _rows = _naxes[1];
+
+          long single_image_size = _cols * _rows;
+
+          _sigbuf.resize( 2, std::vector<T>(single_image_size) );
+          _resbuf.resize( 2, std::vector<T>(single_image_size) );
+          _cdsbuf.resize(single_image_size);
         }
 
         void deinterlace(const T* typed_image, size_t idx) {
           std::stringstream message;
           message << "[DEBUG] datatype=" << demangle(typeid(T).name()) << " storing pair for idx=" << idx;
           logwrite( "PostProcess::deinterlace", message.str() );
-//        std::copy(typed_image, typed_image+(_bufsz/2), _cdsbuf.begin());
           T* psignal = _sigbuf[idx].data();
           T* preset  = _resbuf[idx].data();
-          for ( int row=0; row < 2048; ++row ) {
-            for ( int col=0; col < 2112; col+=64 ) {
-              std::memcpy( &psignal[row*2112 + col], &typed_image[row*2112*2 + col*2],      64*sizeof(T) );
-              std::memcpy(  &preset[row*2112 + col], &typed_image[row*2112*2 + col*2 + 64], 64*sizeof(T) );
+          for ( long row=0; row < _rows; ++row ) {
+            for ( long col=0; col < _cols; col+=64 ) {
+              std::memcpy( &psignal[row*_cols + col], &typed_image[row*_cols*2 + col*2],      64*sizeof(T) );
+              std::memcpy(  &preset[row*_cols + col], &typed_image[row*_cols*2 + col*2 + 64], 64*sizeof(T) );
             }
           }
         }
@@ -146,8 +158,8 @@ namespace Archon {
           logwrite( "PostProcess::cds_subtract", message.str() );
 
 // force some pixels for testing
-_sigbuf[sigidx][0]=0;    _sigbuf[sigidx][1]=8675; _sigbuf[sigidx][2]=8675; _sigbuf[sigidx][3]=999; _sigbuf[sigidx][4]=666;
-_resbuf[residx][0]=8675; _resbuf[residx][1]=0;    _resbuf[residx][2]=8675; _resbuf[residx][3]=666; _resbuf[residx][4]=999;
+//_sigbuf[sigidx][0]=0;    _sigbuf[sigidx][1]=8675; _sigbuf[sigidx][2]=8675; _sigbuf[sigidx][3]=999; _sigbuf[sigidx][4]=666;
+//_resbuf[residx][0]=8675; _resbuf[residx][1]=0;    _resbuf[residx][2]=8675; _resbuf[residx][3]=666; _resbuf[residx][4]=999;
 
           T* psignal = _sigbuf[sigidx].data();
           T* preset  = _resbuf[residx].data();
@@ -157,15 +169,15 @@ _resbuf[residx][0]=8675; _resbuf[residx][1]=0;    _resbuf[residx][2]=8675; _resb
 
           // this will hold the subtracted frame
           //
-          std::unique_ptr<cv::Mat> cdsframe( new cv::Mat( cv::Mat::zeros( 2048, 2048, CV_32S ) ) );
+          std::unique_ptr<cv::Mat> cdsframe( new cv::Mat( cv::Mat::zeros( _rows, 2048, CV_32S ) ) );
 
           try {
             // create (pointers to) Mat objects to hold the sig and res frames
             // This instantiation of cv::Mat sets the dimensions to 2048 and
             // the distance between the start of subsequent rows, 2112*sizeof(T)
             //
-            std::shared_ptr<cv::Mat> sigframe = std::make_shared<cv::Mat>( 2048, 2048, CV_16U, psignal, 2112 * sizeof(uint16_t) );
-            std::shared_ptr<cv::Mat> resframe = std::make_shared<cv::Mat>( 2048, 2048, CV_16U, preset,  2112 * sizeof(uint16_t) );
+            std::shared_ptr<cv::Mat> sigframe = std::make_shared<cv::Mat>( _rows, 2048, CV_16U, psignal, 2112 * sizeof(uint16_t) );
+            std::shared_ptr<cv::Mat> resframe = std::make_shared<cv::Mat>( _rows, 2048, CV_16U, preset,  2112 * sizeof(uint16_t) );
 //          sigframe.reset( new cv::Mat( 2048, 2048, CV_16U, psignal ) );
 //          resframe.reset( new cv::Mat( 2048, 2048, CV_16U, preset  ) );
 
@@ -213,18 +225,17 @@ for (int i=0; i<5; i++) {
          */
         void write_unp( Camera::Information &camera_info, FITS_file<T> &fits_file, int idx ) {
 
-          #ifdef LOGLEVEL_DEBUG
           std::stringstream message;
           message << "[DEBUG] file=" << camera_info.fits_name
                   << " extension=" << camera_info.extension
                   << " datatype=" << demangle(typeid(T).name());
           logwrite( "PostProcess::write_unp", message.str() );
-          #endif
+
 
           camera_info.region_of_interest[0]=1;
-          camera_info.region_of_interest[1]=2112;
+          camera_info.region_of_interest[1]=_cols;
           camera_info.region_of_interest[2]=1;
-          camera_info.region_of_interest[3]=2048;
+          camera_info.region_of_interest[3]=_rows;
 
           camera_info.set_axes(USHORT_IMG);
 
@@ -305,17 +316,34 @@ for (int i=0; i<5; i++) {
           #ifdef LOGLEVEL_DEBUG
           std::stringstream message;
           std::string function="Archon::Interface::typed_write_frame";
-          message << "[DEBUG] extension=" << fits_info.extension << " datatype=" << demangle(typeid(T).name())
-                                          << " compression=" << fits_info.fits_compression_type;
+          message.str(""); message << "[DEBUG] before override:"
+                                   << " fits_info.region_of_interest[0]=" << fits_info.region_of_interest[0]
+                                   << " [1]=" << fits_info.region_of_interest[1]
+                                   << " [2]=" << fits_info.region_of_interest[2]
+                                   << " [3]=" << fits_info.region_of_interest[3];
           logwrite( function, message.str() );
           #endif
 
+          // must override the width
+          //
           fits_info.region_of_interest[0]=1;
           fits_info.region_of_interest[1]=2048;
-          fits_info.region_of_interest[2]=1;
-          fits_info.region_of_interest[3]=2048;
+//        fits_info.region_of_interest[2]=1;
+//        fits_info.region_of_interest[3]=2048;
 
           fits_info.set_axes(LONG_IMG);
+
+          #ifdef LOGLEVEL_DEBUG
+          message.str(""); message << "[DEBUG]  after override:"
+                                   << " fits_info.region_of_interest[0]=" << fits_info.region_of_interest[0]
+                                   << " [1]=" << fits_info.region_of_interest[1]
+                                   << " [2]=" << fits_info.region_of_interest[2]
+                                   << " [3]=" << fits_info.region_of_interest[3];
+          logwrite( function, message.str() );
+          message.str(""); message << "[DEBUG] extension=" << fits_info.extension << " datatype=" << demangle(typeid(T).name())
+                                                           << " compression=" << fits_info.fits_compression_type;
+          logwrite( function, message.str() );
+          #endif
 
           fits_file.write_image( buffer,
                                  get_timestamp(),
@@ -510,6 +538,9 @@ for (int i=0; i<5; i++) {
         long cds(std::string args, std::string &retstring);
 
         long inreg(std::string args);
+
+        long do_boi(std::string args, std::string &retstring);
+        long band_of_interest(std::string args, std::string &retstring);
 
         long region_of_interest(std::string args, std::string &retstring);
 

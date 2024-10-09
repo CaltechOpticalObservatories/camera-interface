@@ -24,6 +24,23 @@
 #include "logentry.h"
 
 namespace Archon {
+
+    /**************** Archon::Interface::band_of_interest *******************/
+    /**
+     * @brief      define a band of interest
+     * @param[in]  args
+     * @param[out] retstring
+     * @return     ERROR | NO_ERROR
+     *
+     */
+    long Interface::band_of_interest(std::string args, std::string &retstring) {
+      std::string function = "Archon::Interface::band_of_interest";
+      std::stringstream message;
+      return this->do_boi( args, retstring );
+    }
+    /**************** Archon::Interface::band_of_interest *******************/
+
+
     /**************** Archon::Interface::region_of_interest *****************/
     /**
      * @fn         region_of_interest
@@ -39,7 +56,6 @@ namespace Archon {
         this->camera.log_error(function, "ROI not supported");
         return (ERROR);
     }
-
     /**************** Archon::Interface::region_of_interest *****************/
 
 

@@ -637,10 +637,10 @@ namespace Camera {
 
           this->naxis = 2;
 
-          this->axis_pixels[0] = this->region_of_interest[1] -
-                                 this->region_of_interest[0] + 1;
-          this->axis_pixels[1] = this->region_of_interest[3] -
-                                 this->region_of_interest[2] + 1;
+          this->axis_pixels[0] = std::abs(this->region_of_interest[1] -
+                                          this->region_of_interest[0]) + 1;
+          this->axis_pixels[1] = std::abs(this->region_of_interest[3] -
+                                          this->region_of_interest[2]) + 1;
 
           // set the array lengths of each axis in pixels
           //

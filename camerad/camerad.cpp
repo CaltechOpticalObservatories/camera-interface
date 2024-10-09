@@ -686,6 +686,9 @@ void doit(Network::TcpSocket sock) {
         if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
     }
 #endif
+        else if (cmd == CAMERAD_BOI ) {
+          ret = server.band_of_interest( args, retstring );
+        }
         else if (cmd == "roi") {
             ret = server.region_of_interest(args, retstring);
             if (!retstring.empty()) {

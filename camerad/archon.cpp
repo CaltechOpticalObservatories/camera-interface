@@ -209,6 +209,123 @@ namespace Archon {
   /***** Archon::Interface::fits_compression **********************************/
 
 
+  /***** Archon::Interface::do_boi ********************************************/
+  /**
+   * @brief      set/get the band of interest
+   * @param[in]  args        input string contains <skip> <rows>
+   * @param[out] retstring   return string contains the current boi
+   * @return     ERROR | NO_ERROR
+   *
+   */
+  long Interface::do_boi( std::string args, std::string &retstring ) {
+    std::string function = "Archon::Interface::do_boi";
+    std::stringstream message;
+
+    // read-only, return args and exit
+    //
+    if ( args.empty() ) {
+      message << this->camera_info.region_of_interest[2]-1 << " "
+              << this->camera_info.region_of_interest[3];
+      retstring = message.str();
+      logwrite( function, retstring );
+      return NO_ERROR;
+    }
+
+    // help
+    //
+    if ( args == "?" || args == "help" ) {
+      retstring=CAMERAD_BOI;
+      retstring.append( " [ <skip> <rows> ]\n" );
+      retstring.append( "   Set/get band of interest parameters where <skip> is number of rows\n" );
+      retstring.append( "   to skip and <rows> is number of rows to read. Returns \"<skip> <rows>\".\n" );
+      retstring.append( "   If no args supplied return current settings.\n" );
+      return HELP;
+    }
+
+    // tokenize input args. must have two, which will be interpreted as <skip> <rows>
+    //
+    std::vector<std::string> tokens;
+    Tokenize( args, tokens, " " );
+
+    if ( tokens.size() != 2 ) {
+      logwrite( function, "ERROR expected <skip> <rows>" );
+      retstring="invalid_argument";
+      return ERROR;
+    }
+
+    // parse <skip> and <rows> from the args tokens
+    //
+    long skip, rows;
+    try {
+      skip = std::stol( tokens.at(0) );
+      rows = std::stol( tokens.at(1) );
+    }
+    catch ( const std::exception &e ) {
+      message.str(""); message << "ERROR parsing args: " << e.what();
+      logwrite( function, message.str() );
+      retstring="invalid_argument";
+      return ERROR;
+    }
+
+    // range checking
+    //
+    if ( skip < 0 || skip > 2047 || rows < 1 || rows > 2048 ) {
+      logwrite( function, "ERROR skip must be in range {0:2047} and rows in {1:2048}" );
+      retstring="out_of_range";
+      return ERROR;
+    }
+    if ( skip+rows > 2048 ) {
+      logwrite( function, "ERROR skip + rows must be <= 2048" );
+      retstring="out_of_range";
+      return ERROR;
+    }
+
+    // Update the camera_info class with new row information
+    //
+    this->camera_info.detector_pixels[0]    = 4224;
+    this->camera_info.detector_pixels[1]    = rows;
+
+    this->camera_info.region_of_interest[0] = 1;                                     // col start x1
+    this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];  // col stop  x2
+    this->camera_info.region_of_interest[2] = skip+1;                                // row start y1
+    this->camera_info.region_of_interest[3] = skip+rows;                             // row stop  y2
+
+    // Update the memory space. Use the bitpix we already have.
+    //
+    long error = this->camera_info.set_axes( this->camera_info.bitpix );
+
+    // set LINECOUNT
+    //
+    std::string dontcare;
+    message.str(""); message << "LINECOUNT " << rows;
+    error |= this->cds( message.str(), dontcare );
+
+    // update parameters
+    //
+    error |= this->set_parameter( "H2RG_rows", rows );
+    error |= this->set_parameter( "H2RG_rows_skip", skip );
+
+    // allocate archon_buf in blocks because the controller outputs data in units of blocks
+    //
+    this->archon_buf_bytes = (uint32_t) floor( (this->camera_info.image_memory + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
+
+    if (this->archon_buf_bytes == 0) {
+      this->camera.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
+      error = ERROR;
+    }
+
+    // log and return <skip> <rows>
+    //
+    message.str(""); message << this->camera_info.region_of_interest[2]-1 << " "
+                             << this->camera_info.region_of_interest[3];
+    retstring = message.str();
+    logwrite( function, retstring );
+
+    return NO_ERROR;
+  }
+  /***** Archon::Interface::do_boi ********************************************/
+
+
   /***** Archon::Interface::do_power ******************************************/
   /**
    * @brief      set/get the power state
@@ -3959,15 +4076,15 @@ namespace Archon {
     std::unique_ptr<PostProcess<uint16_t>> postproc_ushort;
 
     switch ( this->camera_info.bitpix ) {
-      case FLOAT_IMG:  postproc_float  = std::make_unique<PostProcess<float>>(deinterlace_mode, this->camera_info.image_size);
+      case FLOAT_IMG:  postproc_float  = std::make_unique<PostProcess<float>>(deinterlace_mode, this->camera_info.naxes );
                        break;
-      case LONG_IMG:   postproc_long   = std::make_unique<PostProcess<int32_t>>(deinterlace_mode, this->camera_info.image_size);
+      case LONG_IMG:   postproc_long   = std::make_unique<PostProcess<int32_t>>(deinterlace_mode, this->camera_info.naxes );
                        break;
-      case SHORT_IMG:  postproc_short  = std::make_unique<PostProcess<int16_t>>(deinterlace_mode, this->camera_info.image_size);
+      case SHORT_IMG:  postproc_short  = std::make_unique<PostProcess<int16_t>>(deinterlace_mode, this->camera_info.naxes );
                        break;
-      case ULONG_IMG:  postproc_ulong  = std::make_unique<PostProcess<uint32_t>>(deinterlace_mode, this->camera_info.image_size);
+      case ULONG_IMG:  postproc_ulong  = std::make_unique<PostProcess<uint32_t>>(deinterlace_mode, this->camera_info.naxes );
                        break;
-      case USHORT_IMG: postproc_ushort = std::make_unique<PostProcess<uint16_t>>(deinterlace_mode, this->camera_info.image_size);
+      case USHORT_IMG: postproc_ushort = std::make_unique<PostProcess<uint16_t>>(deinterlace_mode, this->camera_info.naxes );
                        break;
       default:         message.str(""); message << "unknown datatype " << this->camera_info.bitpix;
                        this->camera.log_error( function, message.str() );
@@ -3999,6 +4116,7 @@ namespace Archon {
 
     message << "\n  framenum=" << camera_info.framenum;
     message << "\n  image_size=" << camera_info.image_size;
+    message << "\n  naxes[0]=" << camera_info.naxes[0] << " naxes[1]=" << camera_info.naxes[1];
     message << "\n  image_memory=" << camera_info.image_memory;
     message << "\n bitpix=" << camera_info.bitpix;
     message << "\n directory=" << camera_info.directory;
