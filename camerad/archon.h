@@ -13,53 +13,58 @@
 #include <numeric>
 #include <fenv.h>
 #include <string_view>
+#include <variant>
+#include <memory>
 
+#include "opencv2/opencv.hpp"
 #include "utilities.h"
 #include "common.h"
 #include "camera.h"
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
-#include "fits.h"
+#include "fits.h"       // old
+#include "fits_file.h"  // new
 
-#define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
-#define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
-#define BLOCK_LEN 1024             //!< Archon block size
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
-
-// Archon commands
-//
-#define  SYSTEM        std::string("SYSTEM")
-#define  STATUS        std::string("STATUS")
-#define  FRAME         std::string("FRAME")
-#define  CLEARCONFIG   std::string("CLEARCONFIG")
-#define  POLLOFF       std::string("POLLOFF")
-#define  POLLON        std::string("POLLON")
-#define  APPLYALL      std::string("APPLYALL")
-#define  POWERON       std::string("POWERON")
-#define  POWEROFF      std::string("POWEROFF")
-#define  APPLYCDS      std::string("APPLYCDS")
-#define  APPLYSYSTEM   std::string("APPLYSYSTEM")
-#define  RESETTIMING   std::string("RESETTIMING")
-#define  LOADTIMING    std::string("LOADTIMING")
-#define  HOLDTIMING    std::string("HOLDTIMING")
-#define  RELEASETIMING std::string("RELEASETIMING")
-#define  LOADPARAMS    std::string("LOADPARAMS")
-#define  TIMER         std::string("TIMER")
-#define  FETCHLOG      std::string("FETCHLOG")
-#define  UNLOCK        std::string("LOCK0")
-
-// Minimum required backplane revisions for certain features
-//
-#define REV_RAMP           std::string("1.0.548")
-#define REV_SENSORCURRENT  std::string("1.0.758")
-#define REV_HEATERTARGET   std::string("1.0.1087")
-#define REV_FRACTIONALPID  std::string("1.0.1054")
-#define REV_VCPU           std::string("1.0.784")
 
 namespace Archon {
 
-    constexpr std::string_view QUIET = "quiet";  // allows sending commands without logging
+    constexpr int MAXADCCHANS =   16;            //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
+    constexpr int MAXADMCHANS =   72;            //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
+    constexpr int BLOCK_LEN   = 1024;            //!< Archon block size
+
+    // Archon commands
+    //
+    const std::string  SYSTEM        = "SYSTEM";
+    const std::string  STATUS        = "STATUS";
+    const std::string  FRAME         = "FRAME";
+    const std::string  CLEARCONFIG   = "CLEARCONFIG";
+    const std::string  POLLOFF       = "POLLOFF";
+    const std::string  POLLON        = "POLLON";
+    const std::string  APPLYALL      = "APPLYALL";
+    const std::string  POWERON       = "POWERON";
+    const std::string  POWEROFF      = "POWEROFF";
+    const std::string  APPLYCDS      = "APPLYCDS";
+    const std::string  APPLYSYSTEM   = "APPLYSYSTEM";
+    const std::string  RESETTIMING   = "RESETTIMING";
+    const std::string  LOADTIMING    = "LOADTIMING";
+    const std::string  HOLDTIMING    = "HOLDTIMING";
+    const std::string  RELEASETIMING = "RELEASETIMING";
+    const std::string  LOADPARAMS    = "LOADPARAMS";
+    const std::string  TIMER         = "TIMER";
+    const std::string  FETCHLOG      = "FETCHLOG";
+    const std::string  UNLOCK        = "LOCK0";
+
+    // Minimum required backplane revisions for certain features
+    //
+    const std::string REV_RAMP          = "1.0.548";
+    const std::string REV_SENSORCURRENT = "1.0.758";
+    const std::string REV_HEATERTARGET  = "1.0.1087";
+    const std::string REV_FRACTIONALPID = "1.0.1054";
+    const std::string REV_VCPU          = "1.0.784";
+
+    const std::string_view QUIET = "quiet";      // allows sending commands without logging
     constexpr uint32_t MSEC_TO_TICK = 100000;    // Archon clock ticks per millisecond
     constexpr uint32_t MAX_EXPTIME  = 0xFFFFF;   // Archon parameters are limited to 20 bits
 
@@ -81,12 +86,176 @@ namespace Archon {
     const int DEF_SHUTENABLE_ENABLE = 1;
     const int DEF_SHUTENABLE_DISABLE = 0;
 
+    /**
+     * @brief   deinterlacing modes
+     */
+    enum class DeInterlaceMode {
+      NONE,
+      RXRVIDEO
+    };
+
+    /***** Archon::PostProcess ***********************************************/
+    template <typename T>
+    class PostProcess {
+      protected:
+        DeInterlaceMode _mode;
+        std::vector<std::vector<T>> _sigbuf;
+        std::vector<std::vector<T>> _resbuf;
+        std::vector<int32_t> _cdsbuf;
+
+        // naxes = axis lengths element 0=cols 1=rows
+        // This is for the pair of frames in a single Archon buffer, so cols will be 2*2112=4224
+        // but rows can be <= 2048.
+        //
+        std::vector<long> _naxes;
+
+        long _cols;
+        long _rows;
+
+      public:
+
+        PostProcess( DeInterlaceMode mode, std::vector<long> naxes ) : _mode(mode), _naxes(naxes) {
+          const std::string function="Archon::PostProcess::PostProcess";
+          std::stringstream message;
+
+          // rows and cols in an image (not the buffer)
+          // half as many cols because the buffer contains two frames
+          //
+          _cols = _naxes[0] / 2;
+          _rows = _naxes[1];
+
+          long single_image_size = _cols * _rows;
+
+          _sigbuf.resize( 2, std::vector<T>(single_image_size) );
+          _resbuf.resize( 2, std::vector<T>(single_image_size) );
+          _cdsbuf.resize(single_image_size);
+        }
+
+        void deinterlace(const T* typed_image, size_t idx) {
+          std::stringstream message;
+          message << "[DEBUG] datatype=" << demangle(typeid(T).name()) << " storing pair for idx=" << idx;
+          logwrite( "PostProcess::deinterlace", message.str() );
+          T* psignal = _sigbuf[idx].data();
+          T* preset  = _resbuf[idx].data();
+          for ( long row=0; row < _rows; ++row ) {
+            for ( long col=0; col < _cols; col+=64 ) {
+              std::memcpy( &psignal[row*_cols + col], &typed_image[row*_cols*2 + col*2],      64*sizeof(T) );
+              std::memcpy(  &preset[row*_cols + col], &typed_image[row*_cols*2 + col*2 + 64], 64*sizeof(T) );
+            }
+          }
+        }
+
+        /***** Archon::PostProcess::cds_subtract ******************************/
+        /**
+         * @brief
+         * @param
+         * @param
+         */
+        void cds_subtract(int sigidx, int residx) {
+          std::string function="PostProcess::cds_subtract";
+          std::stringstream message;
+          message << "[DEBUG] subtracting signal[" << sigidx << "] - reset[" << residx << "]";
+          logwrite( "PostProcess::cds_subtract", message.str() );
+
+// force some pixels for testing
+//_sigbuf[sigidx][0]=0;    _sigbuf[sigidx][1]=8675; _sigbuf[sigidx][2]=8675; _sigbuf[sigidx][3]=999; _sigbuf[sigidx][4]=666;
+//_resbuf[residx][0]=8675; _resbuf[residx][1]=0;    _resbuf[residx][2]=8675; _resbuf[residx][3]=666; _resbuf[residx][4]=999;
+
+          T* psignal = _sigbuf[sigidx].data();
+          T* preset  = _resbuf[residx].data();
+
+          if (psignal==nullptr) { logwrite(function, "[DEBUG] ERROR psignal is null" ); return; }
+          if (preset==nullptr)  { logwrite(function, "[DEBUG] ERROR preset is null" );  return; }
+
+          // this will hold the subtracted frame
+          //
+          std::unique_ptr<cv::Mat> cdsframe( new cv::Mat( cv::Mat::zeros( _rows, 2048, CV_32S ) ) );
+
+          try {
+            // create (pointers to) Mat objects to hold the sig and res frames
+            // This instantiation of cv::Mat sets the dimensions to 2048 and
+            // the distance between the start of subsequent rows, 2112*sizeof(T)
+            //
+            std::shared_ptr<cv::Mat> sigframe = std::make_shared<cv::Mat>( _rows, 2048, CV_16U, psignal, 2112 * sizeof(uint16_t) );
+            std::shared_ptr<cv::Mat> resframe = std::make_shared<cv::Mat>( _rows, 2048, CV_16U, preset,  2112 * sizeof(uint16_t) );
+//          sigframe.reset( new cv::Mat( 2048, 2048, CV_16U, psignal ) );
+//          resframe.reset( new cv::Mat( 2048, 2048, CV_16U, preset  ) );
+
+            // perform the subtraction, storing the result in a 32-bit signed object
+            //
+            cv::subtract(*sigframe, *resframe, *cdsframe, cv::noArray(), CV_32S);
+
+logwrite(function,"[DEBUG] cv::subtract(*sigframe, *resframe, *cdswork, cv::noArray(), CV_16S)");
+for (int i=0; i<5; i++) {
+  message.str(""); message << "[DEBUG] pix " << cdsframe->at<int32_t>(i);
+  logwrite(function, message.str());
+}
+/*
+            cv::subtract(*sigframe, *resframe, *cdswork);
+logwrite(function,"[DEBUG] cv::subtract(*sigframe, *resframe, *cdswork)");
+for (int i=0; i<5; i++) {
+  message.str(""); message << "[DEBUG] pix " << cdswork->at<uint16_t>(i);
+  logwrite(function, message.str());
+}
+*/
+            std::copy(cdsframe->begin<int32_t>(), cdsframe->end<int32_t>(), _cdsbuf.begin());
+          }
+          catch ( const cv::Exception &e ) {
+            message.str(""); message << "ERROR OpenCV exception: " << e.what();
+            logwrite( function, message.str() );
+            return;
+          }
+          catch ( const std::exception &e ) {
+            message.str(""); message << "ERROR std exception: " << e.what();
+            logwrite( function, message.str() );
+            return;
+          }
+        }
+        /***** Archon::PostProcess::cds_subtract ******************************/
+
+
+        int32_t* get_cdsbuf() { return _cdsbuf.data(); }
+
+        /***** Archon::PostProcess::write_unp *********************************/
+        /**
+         * @param[in]  camera_info  Camera::Information structure
+         * @param[in]  fits_file    FITS_file object
+         * @param[in]  idx          index into ring buffer
+         *
+         */
+        void write_unp( Camera::Information &camera_info, FITS_file<T> &fits_file, int idx ) {
+
+          std::stringstream message;
+          message << "[DEBUG] file=" << camera_info.fits_name
+                  << " extension=" << camera_info.extension
+                  << " datatype=" << demangle(typeid(T).name());
+          logwrite( "PostProcess::write_unp", message.str() );
+
+
+          camera_info.region_of_interest[0]=1;
+          camera_info.region_of_interest[1]=_cols;
+          camera_info.region_of_interest[2]=1;
+          camera_info.region_of_interest[3]=_rows;
+
+          camera_info.set_axes(USHORT_IMG);
+
+          T* sigbuf = _sigbuf[idx].data();
+          fits_file.write_image( sigbuf, get_timestamp(), ++camera_info.extension-1, camera_info );
+
+          T* resbuf = _resbuf[idx].data();
+          fits_file.write_image( resbuf, get_timestamp(), ++camera_info.extension-1, camera_info );
+        }
+        /***** Archon::PostProcess::write_unp *********************************/
+    };
+    /***** Archon::PostProcess ***********************************************/
+
+
     class Interface {
-    private:
+      private:
         unsigned long int start_timer, finish_timer; //!< Archon internal timer, start and end of exposure
         int n_hdrshift; //!< number of right-shift bits for Archon buffer in HDR mode
 
-    public:
+      public:
         Interface();
 
         ~Interface();
@@ -95,15 +264,99 @@ namespace Archon {
         //
         Network::TcpSocket archon;
         Camera::Information camera_info; /// this is the main camera_info object
-        Camera::Information fits_info; /// used to copy the camera_info object to preserve info for FITS writing
-        Camera::Camera camera; /// instantiate a Camera object
-        Common::FitsKeys userkeys; //!< instantiate a Common object
-        Common::FitsKeys systemkeys; //!< instantiate a Common object
+        Camera::Information fits_info;   /// used to copy the camera_info object to preserve info for FITS writing
+        Camera::Camera camera;           /// instantiate a Camera object
+        Common::FitsKeys userkeys;       //!< instantiate a Common object
+        Common::FitsKeys systemkeys;     //!< instantiate a Common object
+
+/********
+        // Create a deinterlacer using a variant of acceptable data types
+        //
+        std::variant<LostProcess<int16_t>,
+                     LostProcess<uint16_t>,
+                     LostProcess<uint32_t>> lostprocessor;
+
+        void set_frame_dimensions( uint16_t r, uint16_t c ) {
+          auto SetDimensions = [rows=r, cols=c](auto &lostprocessor) { lostprocessor.set_dimensions(rows,cols); };
+          std::visit( SetDimensions, lostprocessor );
+          return;
+        }
+********/
+
+        template<typename Tin, typename Tout>
+        Tout* typed_convert_buffer( Tin* buffer_in ) {
+          // create a buffer of the correct type and space
+          Tout* buffer_out = new Tout[this->camera_info.image_size];
+          for (size_t pix=0; pix<this->camera_info.image_size; ++pix) {
+            // for 32b scale by hdrshift
+            if constexpr (std::is_same<Tin, uint32_t>::value) {
+              buffer_out[pix] = static_cast<Tout>(buffer_in[pix] >> this->n_hdrshift);
+            }
+            else
+            // for signed 16b subtract 2^15 from every pixel
+            if constexpr (std::is_same<Tin, int16_t>::value) {
+              buffer_out[pix] = buffer_in[pix] - 32768;  // subtract 2^15 from every pixel
+            }
+            else {
+            // for all others (unsigned int) its a straight copy
+              buffer_out[pix] = buffer_in[pix];
+            }
+          }
+          return buffer_out;  // caller must release this!
+        }
+
+
+        // write the image data based on the type T
+        //
+        template<typename T>
+        void typed_write_frame( T* buffer, FITS_file<T> &fits_file ) {
+          ++this->camera_info.extension;
+          Camera::Information fits_info( this->camera_info );
+
+          #ifdef LOGLEVEL_DEBUG
+          std::stringstream message;
+          std::string function="Archon::Interface::typed_write_frame";
+          message.str(""); message << "[DEBUG] before override:"
+                                   << " fits_info.region_of_interest[0]=" << fits_info.region_of_interest[0]
+                                   << " [1]=" << fits_info.region_of_interest[1]
+                                   << " [2]=" << fits_info.region_of_interest[2]
+                                   << " [3]=" << fits_info.region_of_interest[3];
+          logwrite( function, message.str() );
+          #endif
+
+          // must override the width
+          //
+          fits_info.region_of_interest[0]=1;
+          fits_info.region_of_interest[1]=2048;
+//        fits_info.region_of_interest[2]=1;
+//        fits_info.region_of_interest[3]=2048;
+
+          fits_info.set_axes(LONG_IMG);
+
+          #ifdef LOGLEVEL_DEBUG
+          message.str(""); message << "[DEBUG]  after override:"
+                                   << " fits_info.region_of_interest[0]=" << fits_info.region_of_interest[0]
+                                   << " [1]=" << fits_info.region_of_interest[1]
+                                   << " [2]=" << fits_info.region_of_interest[2]
+                                   << " [3]=" << fits_info.region_of_interest[3];
+          logwrite( function, message.str() );
+          message.str(""); message << "[DEBUG] extension=" << fits_info.extension << " datatype=" << demangle(typeid(T).name())
+                                                           << " compression=" << fits_info.fits_compression_type;
+          logwrite( function, message.str() );
+          #endif
+
+          fits_file.write_image( buffer,
+                                 get_timestamp(),
+                                 fits_info.extension-1,
+                                 fits_info,
+                                 fits_info.fits_compression_code );
+        }
 
         Config config;
 
-        FITS_file fits_file; //!< instantiate a FITS container object
+        bITS_file fits_file; //!< instantiate a FITS container object
 
+        int activebufs; //!< Archon controller number of active frame buffers
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
         int taplines;
@@ -116,6 +369,7 @@ namespace Archon {
         bool is_longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
         bool is_window; //!< true if in window mode for h2rg, false if not
         bool is_autofetch;
+        bool is_unp;               //!< should I write unp images?
         int win_hstart;
         int win_hstop;
         int win_vstart;
@@ -146,9 +400,12 @@ namespace Archon {
         float heater_target_min; //!< minimum heater target temperature
         float heater_target_max; //!< maximum heater target temperature
 
-        char *image_data; //!< image data buffer
-        uint32_t image_data_bytes; //!< requested number of bytes allocated for image_data rounded up to block size
-        uint32_t image_data_allocated; //!< allocated number of bytes for image_data
+        int ring_index;                     //!< index into ring buffer, counts 0,1,0,1,...
+        std::vector<char*> signal_buf;      //!< signal frame data ring buffer
+        std::vector<char*> reset_buf;       //!< reset frame data ring buffer
+        char *archon_buf;                   //!< image data buffer
+        uint32_t archon_buf_bytes;          //!< requested number of bytes allocated for archon_buf rounded up to block size
+        uint32_t archon_buf_allocated;      //!< allocated number of bytes for archon_buf
 
         std::atomic<bool> archon_busy; //!< indicates a thread is accessing Archon
         std::mutex archon_mutex;
@@ -163,9 +420,13 @@ namespace Archon {
 
         // Functions
         //
+        void ring_index_inc() { if (++this->ring_index==2) this->ring_index=0; }
+        int  prev_ring_index() { int i=this->ring_index-1; return( i<0 ? 1 : i ); }
+        long save_unp(std::string args, std::string &retstring);
+        long fits_compression(std::string args, std::string &retstring);
         static long interface(std::string &iface); //!< get interface type
         long configure_controller(); //!< get configuration parameters
-        long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed
+        long prepare_archon_buffer(); //!< prepare archon_buf, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller
         long disconnect_controller(); //!< disconnect from archon controller
         long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING
@@ -277,6 +538,9 @@ namespace Archon {
         long cds(std::string args, std::string &retstring);
 
         long inreg(std::string args);
+
+        long do_boi(std::string args, std::string &retstring);
+        long band_of_interest(std::string args, std::string &retstring);
 
         long region_of_interest(std::string args, std::string &retstring);
 

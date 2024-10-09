@@ -24,16 +24,21 @@ constexpr long TIMEOUT = 3;
 constexpr long HELP = 4;
 
 namespace Common {
-    /**************** Common::FitsKeys ******************************************/
+    /***** Common::FitsKeys ***************************************************/
     /*
      * @class  FitsKeys
      * @brief  provides a user-defined keyword database
      *
      */
     class FitsKeys {
-    private:
-    public:
+      public:
         FitsKeys() = default;
+
+        // copy constructor
+        //
+        FitsKeys( const FitsKeys &other ) {
+          this->keydb = other.keydb;
+        }
 
         std::string get_keytype(std::string keyvalue); /// return type of keyword based on value
         long listkeys(); /// list FITS keys in the internal database
@@ -41,7 +46,7 @@ namespace Common {
         long delkey(std::string arg); /// delete FITS key from the internal database
         void erasedb() { this->keydb.clear(); }; /// erase the entire contents of the internal database
 
-        /***** Common::FitsKeys::addkey *****************************************/
+        /***** Common::FitsKeys::addkey ***************************************/
         /**
          * @brief      template function adds FITS keyword to internal database
          * @details    no parsing is done here
@@ -121,7 +126,7 @@ namespace Common {
             return (NO_ERROR);
         }
 
-        /***** Common::FitsKeys::addkey *****************************************/
+        /***** Common::FitsKeys::addkey ***************************************/
 
 
         typedef struct {
@@ -175,11 +180,10 @@ namespace Common {
             return;
         }
     };
+    /***** Common::FitsKeys ***************************************************/
 
-    /**************** Common::FitsKeys ******************************************/
 
-
-    /**************** Common::Queue *********************************************/
+    /***** Common::Queue ******************************************************/
     /**
      * @class  Queue
      * @brief  provides a thread-safe messaging queue
@@ -202,6 +206,5 @@ namespace Common {
         void enqueue(std::string message); /// push an element into the queue.
         std::string dequeue(void); /// pop an element from the queue
     };
-
-    /**************** Common::Queue *********************************************/
+    /***** Common::Queue ******************************************************/
 }

@@ -130,12 +130,18 @@ add_library(camera STATIC
 find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
 find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
 
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+
 find_package(Threads)
 
 add_executable(camerad
         ${CAMERA_DIR}/camerad.cpp
         ${INTERFACE_INCLUDES}
 )
+
+find_package(Boost REQUIRED COMPONENTS thread chrono)
+include_directories(${BOOST_INCLUDES})
 
 # ----------------------------------------------------------------------------
 # Everyone gets this:
@@ -151,11 +157,32 @@ target_link_libraries(camerad
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
         ${CFITS_LIB}
+        ${OpenCV_LIBS}
+        Boost::thread
+        Boost::chrono
+        pthread
+        ${BOOST_INCLUDES}
 )
 
 target_link_libraries(camerad ${CARC_BASE})
 target_link_libraries(camerad ${CARC_DEVICE})
 target_link_libraries(camerad ${CARC_FITS})
+
+add_executable(fitstest
+        ${CAMERA_DIR}/fits_test.cpp
+)
+
+target_link_libraries(fitstest
+        logentry
+        common
+        utilities
+        ${CCFITS_LIB}
+        ${CFITS_LIB}
+        Boost::thread
+        Boost::chrono
+        pthread
+        ${BOOST_INCLUDES}
+)
 
 # ----------------------------------------------------------------------------
 # cURL is not used here, so it's not strictly required, but cfitsio can

@@ -15,6 +15,7 @@
 #include <fstream>
 #include <algorithm>  //!< vector iterators, find, count
 #include <functional> //!< pass by reference to threads
+#include <utility>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -505,7 +506,11 @@ namespace Camera {
     }
 
     long Camera::get_fitsname(std::string controllerid, std::string &name_out) {
-        std::string function = "Camera::Camera::get_fitsname";
+      logwrite( "Camera::Camera::get_fitsname", "ERROR no longer in use" );
+      return ERROR;
+    }
+    long Camera::set_fitsname( Information &camera_info ) {
+        std::string function = "Camera::Camera::set_fitsname";
         std::stringstream message;
         std::stringstream fn, fitsname;
 
@@ -551,10 +556,10 @@ namespace Camera {
         fitsname.str("");
         fitsname << basedir.str() << "/" << this->base_name << "_";
 
-        // add the controllerid if one is given
+        // add the detector name if one is given
         //
-        if (!controllerid.empty()) {
-            fitsname << controllerid << "_";
+        if (!camera_info.det_name.empty()) {
+            fitsname << camera_info.det_name << "_";
         }
 
         // add the time or number suffix
@@ -578,28 +583,51 @@ namespace Camera {
             fitsname << std::setfill('0') << std::setw(width) << this->image_num;
         }
 
+        // set the extension based on compression type
+        //
+        std::string extension;
+        if ( camera_info.fits_compression_code == 0 ) {
+          extension = ".fits";
+        }
+        else
+        if ( camera_info.fits_compression_code == RICE_1 ) {
+          extension = ".fits.fz";
+        }
+        else
+        if ( camera_info.fits_compression_code == GZIP_1 ) {
+          extension = ".fits.gz";
+        }
+        else
+        if ( camera_info.fits_compression_code == PLIO_1 ) {
+          extension = ".fits.pz";
+        }
+        else {
+          message.str(""); message << "ERROR unknown compression type "
+                                   << camera_info.fits_compression_code;
+          logwrite( function, message.str() );
+          return ERROR;
+        }
+
         // Check if file exists and include a -# to set apart duplicates.
         //
         struct stat st;
         int dupnumber = 1;
         fn.str("");
         fn << fitsname.str();
-        fn << ".fits";
+        fn << extension;
         while (stat(fn.str().c_str(), &st) == 0) {
             fn.str("");
             fn << fitsname.str();
-            fn << "-" << dupnumber << ".fits";
+            fn << "-" << dupnumber << extension;
             dupnumber++; // keep incrementing until we have a unique filename
         }
 
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "[DEBUG] fits_naming=" << this->fits_naming
-                             << " controllerid=" << controllerid
-                             << " will write to file: " << fn.str();
+    message.str(""); message << "[DEBUG] will write to file: " << fn.str();
     logwrite(function, message.str());
 #endif
 
-        name_out = fn.str();
+        camera_info.fits_name = fn.str();
         return NO_ERROR;
     }
 
@@ -867,6 +895,76 @@ namespace Camera {
             }
         }
     }
-
     /**************** Camera::Information::pre_exposures ************************/
+
+
+    /***** Camera::Information::swap ******************************************/
+    /**
+     * @brief      swaps the contents of this Information object with another
+     * @param[in]  other  reference to the other Information object to swap with
+     *
+     */
+      void Information::swap( Information &other ) noexcept {
+        std::swap( det_id, other.det_id );
+        std::swap( amp_id, other.amp_id );
+        std::swap( framenum, other.framenum );
+        std::swap( serial_prescan, other.serial_prescan );
+        std::swap( serial_overscan, other.serial_overscan );
+        std::swap( parallel_overscan, other.parallel_overscan );
+        std::swap( image_cols, other.image_cols );
+        std::swap( image_rows, other.image_rows );
+        std::swap( det_name, other.det_name );
+        std::swap( amp_name, other.amp_name );
+        std::swap( detector, other.detector );
+        std::swap( detector_software, other.detector_software );
+        std::swap( detector_firmware, other.detector_firmware );
+        std::swap( pixel_scale, other.pixel_scale );
+        std::swap( det_gain, other.det_gain );
+        std::swap( read_noise, other.read_noise );
+        std::swap( dark_current, other.dark_current );
+        std::swap( image_size, other.image_size );
+        std::swap( ccdsec, other.ccdsec );
+        std::swap( ampsec, other.ampsec );
+        std::swap( trimsec, other.trimsec );
+        std::swap( datasec, other.datasec );
+        std::swap( biassec, other.biassec );
+        std::swap( detsec, other.detsec );
+        std::swap( detsize, other.detsize );
+        std::swap( detid, other.detid );
+        std::swap( bytes_per_pixel, other.bytes_per_pixel );
+        std::swap( gain, other.gain );
+        std::swap( fits_compression_code, other.fits_compression_code );
+        std::swap( fits_compression_type, other.fits_compression_type );
+        std::swap( fits_noisebits, other.fits_noisebits );
+        std::swap( frame_exposure_time, other.frame_exposure_time );
+        std::swap( directory, other.directory );
+        std::swap( basename, other.basename );
+        std::swap( bitpix, other.bitpix );
+        std::swap( naxes, other.naxes );
+        std::swap( frame_type, other.frame_type );
+        std::swap( detector_pixels, other.detector_pixels );
+        std::swap( section_size, other.section_size );
+        std::swap( image_memory, other.image_memory );
+        std::swap( current_observing_mode, other.current_observing_mode );
+        std::swap( readout_name, other.readout_name );
+        std::swap( readout_type, other.readout_type );
+        std::swap( naxis, other.naxis );
+        std::swap( binning, other.binning );
+        std::swap( axis_pixels, other.axis_pixels );
+        std::swap( region_of_interest, other.region_of_interest );
+        std::swap( abortexposure, other.abortexposure );
+        std::swap( extension, other.extension );
+        std::swap( shutterenable, other.shutterenable );
+        std::swap( shutteractivate, other.shutteractivate );
+        std::swap( exposure_progress, other.exposure_progress );
+        std::swap( num_pre_exposures, other.num_pre_exposures );
+        std::swap( fits_name, other.fits_name );
+        std::swap( start_time, other.start_time );
+        std::swap( amp_section, other.amp_section );
+        std::swap( exposure_time, other.exposure_time );
+        std::swap( userkeys, other.userkeys );
+        std::swap( systemkeys, other.systemkeys );
+      }
+    /***** Camera::Information::swap ******************************************/
+
 }
