@@ -41,6 +41,9 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 
     set(INTERFACE_SOURCE
             "${CAMERA_DIR}/astrocam.cpp"
+            write-to-zmq.cpp
+            write-to-zmq.h
+            zmq-push-socket.h
     )
 
     set(INTERFACE_INCLUDES
@@ -116,7 +119,7 @@ endif ()
 # Now add the defined interface target:
 #
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE}
-        save-to-disk.cpp image-output-factory.cpp)
+        write-to-zmq.cpp write-to-disk.cpp image-output/image-output-factory.cpp)
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 
@@ -152,6 +155,7 @@ target_link_libraries(camerad
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
         ${CFITS_LIB}
+        zmq
 )
 
 target_link_libraries(camerad ${CARC_BASE})

@@ -6,7 +6,8 @@
 #define IMAGEOUTPUTFACTORY_H
 
 #include "image-output.h"
-#include "save-to-disk.h"
+#include "../write-to-disk.h"
+#include "../write-to-zmq.h"
 
 class ImageOutputFactory {
 public:

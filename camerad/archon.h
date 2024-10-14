@@ -20,8 +20,8 @@
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
-#include "image-output.h"
-#include "image-output-factory.h"
+#include "image-output/image-output.h"
+#include "image-output/image-output-factory.h"
 
 #define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 #define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)

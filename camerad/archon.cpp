@@ -100,7 +100,16 @@ namespace Archon {
   ImageOutput* Interface::get_image_output() {
     if (!image_output) {
       output_handler = ImageOutputFactory::create_image_output(image_output_type);
-      image_output = dynamic_cast<SaveToDisk*>(output_handler.get());
+
+      if (image_output_type == "disk") {
+        image_output = dynamic_cast<WriteToDisk*>(output_handler.get());
+      } else if (image_output_type == "zmq") {
+        image_output = dynamic_cast<WriteToZmq*>(output_handler.get());
+      } else {
+        // throw error
+      }
+
+
     }
     return image_output;
   }

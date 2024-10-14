@@ -5,7 +5,7 @@
 #ifndef IMAGE_OUTPUT_H
 #define IMAGE_OUTPUT_H
 
-#include "camera.h"
+#include "../camera.h"
 
 class ImageOutput {
 public:
