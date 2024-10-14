@@ -120,6 +120,7 @@ endif ()
 #
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE}
         write-to-zmq.cpp write-to-disk.cpp image-output/image-output-factory.cpp)
+
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 
