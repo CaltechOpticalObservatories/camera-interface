@@ -115,7 +115,8 @@ endif ()
 
 # Now add the defined interface target:
 #
-add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
+add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE}
+        save-to-disk.cpp image-output-factory.cpp)
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 

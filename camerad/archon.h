@@ -20,7 +20,8 @@
 #include "config.h"
 #include "logentry.h"
 #include "network.h"
-#include "fits.h"
+#include "image-output.h"
+#include "image-output-factory.h"
 
 #define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 #define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
@@ -85,7 +86,7 @@ namespace Archon {
     private:
         unsigned long int start_timer, finish_timer; //!< Archon internal timer, start and end of exposure
         int n_hdrshift; //!< number of right-shift bits for Archon buffer in HDR mode
-
+        ImageOutput* image_output;
     public:
         Interface();
 
@@ -102,7 +103,8 @@ namespace Archon {
 
         Config config;
 
-        FITS_file fits_file; //!< instantiate a FITS container object
+        std::string image_output_type;
+        std::unique_ptr<ImageOutput> output_handler;
 
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
@@ -164,6 +166,7 @@ namespace Archon {
         // Functions
         //
         static long interface(std::string &iface); //!< get interface type
+        ImageOutput* get_image_output();
         long configure_controller(); //!< get configuration parameters
         long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller
