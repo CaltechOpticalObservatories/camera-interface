@@ -87,7 +87,7 @@ namespace Archon {
     private:
         unsigned long int start_timer, finish_timer; //!< Archon internal timer, start and end of exposure
         int n_hdrshift; //!< number of right-shift bits for Archon buffer in HDR mode
-        ImageOutput* image_output;
+        std::unique_ptr<ImageOutput> image_output;
     public:
         Interface();
 
@@ -105,7 +105,6 @@ namespace Archon {
         Config config;
 
         std::string image_output_type;
-        std::unique_ptr<ImageOutput> output_handler;
 
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;

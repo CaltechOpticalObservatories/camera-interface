@@ -4,10 +4,14 @@
 
 #include "write-to-disk.h"
 
-WriteToDisk::WriteToDisk() = default;
+WriteToDisk::WriteToDisk() {
+  std::string function = "WriteToDisk::WriteToDisk";
+  logwrite(function, "WriteToDisk contructor");
+};
 
 template <class T>
 long WriteToDisk::write_image(T *imageData, Camera::Information &info) {
+  logwrite("WriteToDisk::write_image", "WriteToDisk::write_image");
   return this->fits_file.write_image(imageData, info);
 }
 

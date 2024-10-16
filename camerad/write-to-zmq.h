@@ -11,12 +11,29 @@
 
 class WriteToZmq: public ImageOutput {
 public:
-  explicit WriteToZmq();
+  WriteToZmq() {
+    const std::string function = "WriteToZmq::WriteToZmq";
+    logwrite(function, "WriteToZmq constructor");
+    logwrite(function, "opening ZMQ push socket");
+
+    this->push_socket.connect("tcp://localhost:5555");
+  }
 
   ZmqPushSocket push_socket;
 
   template<class T>
-  long write_image(T* imageData, Camera::Information &info);
+  long write_image(T* imageData, Camera::Information &info) {
+    const std::string function = "WriteToZmq::write_image";
+    logwrite(function, "writing image to ZMQ");
+
+    std::string timestamp = get_timestamp("");
+    std::string zmq_message = timestamp + ", image data: " + imageData;
+    logwrite(function, "Sending: " + zmq_message);
+
+    // Send the message to the server (asynchronously)
+    this->push_socket.send_data(zmq::buffer(zmq_message));
+    return NO_ERROR;
+  };
 
   long open(bool writekeys, Camera::Information &info) override;
 

@@ -3,18 +3,19 @@
 //
 
 #include "image-output-factory.h"
-#include "../write-to-disk.h"
-#include "../write-to-zmq.h"
 
+std::unique_ptr<ImageOutput> ImageOutputFactory::create_image_output_object(std::string output_type) {
+  const std::string function = "ImageOutputFactory::create_image_output";
+  logwrite(function, "creating image output: " + output_type);
 
-std::unique_ptr<ImageOutput> ImageOutputFactory::create_image_output(const std::string& output_type) {
   if (output_type == "disk") {
     return std::make_unique<WriteToDisk>();
   } else if (output_type == "zmq") {
-    // Return a MessageQueueSender, assuming it takes a connection string or queue name
+    logwrite(function, "return zmq");
+
     return std::make_unique<WriteToZmq>();
   } else {
-    std::cerr << "Error: Unknown output type '" << output_type << "' provided." << std::endl;
-    throw std::invalid_argument("Unknown output type: " + output_type);
+    logwrite(function, "Error: Unknown output type '" + output_type + "' provided.");
+    return nullptr;
   }
 }

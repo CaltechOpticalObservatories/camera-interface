@@ -11,7 +11,7 @@
 
 class ImageOutputFactory {
 public:
-  static std::unique_ptr<ImageOutput> create_image_output(const std::string& output_type);
+  static std::unique_ptr<ImageOutput> create_image_output_object(std::string output_type);
 };
 
 

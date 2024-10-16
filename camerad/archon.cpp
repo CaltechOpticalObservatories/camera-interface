@@ -89,26 +89,51 @@ namespace Archon {
     this->frame.bufretimestamp.resize( Archon::nbufs );
     this->frame.buffetimestamp.resize( Archon::nbufs );
 
-    image_output_type = "disk";
+    this->image_output_type = "zmq";
   }
 
   // Archon::Interface deconstructor
   //
   Interface::~Interface() = default;
 
-
   ImageOutput* Interface::get_image_output() {
-    if (!image_output) {
-      output_handler = ImageOutputFactory::create_image_output(image_output_type);
-      if (image_output_type == "disk") {
-        image_output = dynamic_cast<WriteToDisk*>(output_handler.get());
-      } else if (image_output_type == "zmq") {
-        image_output = dynamic_cast<WriteToZmq*>(output_handler.get());
+    std::string function = "Archon::Interface::get_image_output";
+    logwrite(function, "getting image output adapter");
+
+    // if (this->image_output == nullptr) {
+    logwrite(function, "setting new output adapter: " + this->image_output_type);
+    ImageOutputFactory factory;
+    std::unique_ptr<ImageOutput> image_output_handler = factory.create_image_output_object(this->image_output_type);
+    if (this->image_output_type == "disk") {
+      logwrite(function, "image output adapter: save to disk");
+      auto write_to_disk = dynamic_cast<WriteToDisk*>(image_output_handler.get());
+      // write_to_disk->write_image("ewrtrtyhtrytytr", camera_info);
+      return write_to_disk;
+      // return nullptr;
+    } else if (this->image_output_type == "zmq") {
+      logwrite(function, "image output adapter: save to zmq");
+
+      if (image_output_handler) {
+        logwrite(function, "found image_output_handler");
+        auto write_to_zmq = dynamic_cast<WriteToZmq*>(image_output_handler.get());
+        if (write_to_zmq) {
+          logwrite(function, "cast successful");
+          return write_to_zmq;
+        } else {
+          logwrite(function, "cast failed");
+        }
+
       } else {
-        // throw error
+        logwrite(function, "image output is nullptr");
       }
+
+      // return nullptr;
+    } else {
+      logwrite(function, "Error: Could not find image output adapter");
+      return nullptr;
     }
-    return image_output;
+    // }
+
   }
 
   /**************** Archon::Interface::interface ******************************/
@@ -3316,7 +3341,8 @@ namespace Archon {
               logwrite( function, message.str() );
               #endif
 
-              error = this->get_image_output()->write_image(fext, this->camera_info);
+              ImageOutput* image_output_adapter = this->get_image_output();
+              error = image_output_adapter->write_image(fext, this->camera_info);
               this->camera_info.extension++;                                // increment extension for cubes
               if ( fext != nullptr ) { delete [] fext; fext=nullptr; }            // dynamic object not automatic so must be destroyed
 

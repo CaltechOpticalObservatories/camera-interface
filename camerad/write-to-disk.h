@@ -10,9 +10,9 @@
 
 class WriteToDisk : public ImageOutput {
 public:
-  FITS_file fits_file; //!< instantiate a FITS container object
-
   explicit WriteToDisk();
+
+  FITS_file fits_file; //!< instantiate a FITS container object
 
   template<class T>
   long write_image(T* imageData, Camera::Information &info);

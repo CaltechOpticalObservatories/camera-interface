@@ -13,9 +13,8 @@ public:
 
   template <class T>
   long write_image(const T* image_data, Camera::Information &info) {
-
-    // Will be hidden
-    std::cout << "Processing data: " << std::endl;
+    const std::string function = "ImageOutput::write_image";
+    logwrite(function, "member function should not be used");
     return NO_ERROR;
   };
 
