@@ -14,9 +14,17 @@ public:
   WriteToZmq() {
     const std::string function = "WriteToZmq::WriteToZmq";
     logwrite(function, "WriteToZmq constructor");
-    logwrite(function, "opening ZMQ push socket");
 
-    this->push_socket.connect("tcp://localhost:5555");
+    const std::string zmq_port = "5555";
+    logwrite(function, "Connecting to ZMQ push socket on port " + zmq_port);
+
+    try {
+      // Attempt to connect
+      this->push_socket.connect("tcp://localhost:" + zmq_port);
+      logwrite(function, "Socket connected successfully.");
+    } catch (const zmq::error_t& e) {
+      logwrite(function, "Error while connecting: " + std::string(e.what()));
+    }
   }
 
   ZmqPushSocket push_socket;
@@ -31,7 +39,13 @@ public:
     logwrite(function, "Sending: " + zmq_message);
 
     // Send the message to the server (asynchronously)
-    this->push_socket.send_data(zmq::buffer(zmq_message));
+    try {
+      this->push_socket.send_data(zmq::buffer(zmq_message));
+      logwrite(function, "Message sent successfully.");
+    } catch (const zmq::error_t& e) {
+      logwrite(function, "Error while sending message: " + std::string(e.what()));
+    }
+
     return NO_ERROR;
   };
 
