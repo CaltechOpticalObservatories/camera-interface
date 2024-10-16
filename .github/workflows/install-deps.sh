@@ -3,4 +3,4 @@ sudo apt-get install libccfits-dev &&
 sudo apt-get install libcfitsio-dev &&
 sudo apt-get install libcurl4-openssl-dev &&
 sudo apt-get install libgtest-dev &&
-sudo apt-get install libzmq3-dev cppzmq
+sudo apt-get install libzmq3-dev cppzmq-dev
