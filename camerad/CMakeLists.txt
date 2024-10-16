@@ -43,7 +43,7 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
             "${CAMERA_DIR}/astrocam.cpp"
             write-to-zmq.cpp
             write-to-zmq.h
-            zmq-push-socket.h
+            zmq-socket.h
     )
 
     set(INTERFACE_INCLUDES

@@ -108,8 +108,8 @@ namespace Archon {
       logwrite(function, "image output adapter: save to disk");
       auto write_to_disk = dynamic_cast<WriteToDisk*>(image_output_handler.get());
       // write_to_disk->write_image("ewrtrtyhtrytytr", camera_info);
+
       return write_to_disk;
-      // return nullptr;
     } else if (this->image_output_type == "zmq") {
       logwrite(function, "image output adapter: save to zmq");
 
@@ -126,8 +126,6 @@ namespace Archon {
       } else {
         logwrite(function, "image output is nullptr");
       }
-
-      // return nullptr;
     } else {
       logwrite(function, "Error: Could not find image output adapter");
       return nullptr;

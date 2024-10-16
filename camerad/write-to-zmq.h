@@ -7,7 +7,7 @@
 
 #include "zmq.hpp"
 #include "image-output/image-output.h"
-#include "zmq-push-socket.h"
+#include "zmq-socket.h"
 
 class WriteToZmq: public ImageOutput {
 public:
@@ -20,14 +20,14 @@ public:
 
     try {
       // Attempt to connect
-      this->push_socket.connect("tcp://localhost:" + zmq_port);
+      this->zmq_socket.connect("tcp://localhost:" + zmq_port);
       logwrite(function, "Socket connected successfully.");
     } catch (const zmq::error_t& e) {
       logwrite(function, "Error while connecting: " + std::string(e.what()));
     }
   }
 
-  ZmqPushSocket push_socket;
+  ZmqSocket zmq_socket;
 
   template<class T>
   long write_image(T* imageData, Camera::Information &info) {
@@ -36,11 +36,11 @@ public:
 
     std::string timestamp = get_timestamp("");
     std::string zmq_message = timestamp + ", image data: " + imageData;
-    logwrite(function, "Sending: " + zmq_message);
+    logwrite(function, "Sending image data...");
 
     // Send the message to the server (asynchronously)
     try {
-      this->push_socket.send_data(zmq::buffer(zmq_message));
+      this->zmq_socket.send_data(zmq::buffer(zmq_message));
       logwrite(function, "Message sent successfully.");
     } catch (const zmq::error_t& e) {
       logwrite(function, "Error while sending message: " + std::string(e.what()));
