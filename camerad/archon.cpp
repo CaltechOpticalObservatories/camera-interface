@@ -4262,6 +4262,16 @@ namespace Archon {
     // ******** first frame here ********
     // **********************************
 
+    // Wait for detector readout into Archon internal frame buffer
+    //
+    error = this->wait_for_readout();
+
+    if ( error != NO_ERROR ) {
+      logwrite( function, "ERROR: waiting for readout" );
+      this->fits_file.close_file(this->camera.writekeys_when == "after", this->camera_info );
+      return error;
+    }
+
     // Read the first frame buffer from Archon to host and decrement my local
     // frame counter.  This call to read_frame() reads into this->archon_buf.
     //
