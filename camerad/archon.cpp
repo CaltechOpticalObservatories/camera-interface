@@ -2908,7 +2908,7 @@ namespace Archon {
    *
    */
   long Interface::fetch(uint64_t bufaddr, uint32_t bufblocks) {
-    debug( "FETCH_ENTRY" );
+    debug( "FETCH_ENTRY frame="+std::to_string(this->lastframe) );
     std::string function = "Archon::Interface::fetch";
     std::stringstream message;
     uint32_t maxblocks = (uint32_t)(1.5E9 / this->camera_info.activebufs / 1024 );
@@ -2949,7 +2949,7 @@ namespace Archon {
 
     message.str(""); message << "reading " << (this->camera_info.frame_type==Camera::FRAME_RAW?"raw":"image") << " with " << scmd;
     logwrite(function, message.str());
-    debug( "FETCH_EXIT" );
+    debug( "FETCH_EXIT frame="+std::to_string(this->lastframe) );
     return NO_ERROR;
   }
   /**************** Archon::Interface::fetch **********************************/
@@ -2974,7 +2974,6 @@ namespace Archon {
    *
    */
   long Interface::read_frame() {
-    debug( "READ_FRAME_ENTRY" );
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
     long error = NO_ERROR;
@@ -3050,7 +3049,6 @@ namespace Archon {
       }
     }
 
-    debug( "READ_FRAME_EXIT" );
     return error;
   }
   /**************** Archon::Interface::read_frame *****************************/
@@ -3070,7 +3068,6 @@ namespace Archon {
    *
    */
   long Interface::read_frame(Camera::frame_type_t frame_type) {
-    debug( "READ_FRAME_ENTRY" );
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
 
@@ -3080,7 +3077,6 @@ namespace Archon {
       message.str(""); message << "[DEBUG] ringcount=" << std::dec << this->ringcount << " address of ptr=" << std::hex << (void*)ptr;
       logwrite( function, message.str() );
 #endif
-      debug( "READ_FRAME_EXIT" );
       return this->read_frame(frame_type, ptr, this->ringcount);  //TODO not sure this is correct for all cases
     }
     catch ( std::out_of_range & ) {
@@ -3108,7 +3104,7 @@ namespace Archon {
    *
    */
   long Interface::read_frame( Camera::frame_type_t frame_type, char* &ptr_in, int ringcount_in ) {
-    debug( "READ_FRAME_ENTRY" );
+    debug( "READ_FRAME_ENTRY frame="+std::to_string(this->lastframe) );
     std::string function = "Archon::Interface::read_frame";
     std::stringstream message;
     int retval;
@@ -3327,7 +3323,7 @@ namespace Archon {
     else {
       logwrite( function, "ERROR: reading Archon camera data to memory!" );
     }
-    debug( "READ_FRAME_EXIT" );
+    debug( "READ_FRAME_EXIT frame="+std::to_string(this->lastframe) );
     return error;
   }
   /**************** Archon::Interface::read_frame *****************************/
@@ -3354,7 +3350,7 @@ namespace Archon {
     return ERROR;
   }
   long Interface::write_frame( int ringcount_in ) {
-    debug( "WRITE_FRAME_ENTRY ring="+std::to_string(ringcount_in) );
+    debug( "WRITE_FRAME_ENTRY frame="+std::to_string(this->lastframe)+ " ring="+std::to_string(ringcount_in) );
     std::string function = "Archon::Interface::write_frame";
     std::stringstream message;
     uint32_t   *cbuf32;                  //!< used to cast char buf into 32 bit int
@@ -3571,7 +3567,7 @@ namespace Archon {
       logwrite( function, "ERROR: writing image" );
     }
 
-    debug( "WRITE_FRAME_EXIT ring="+std::to_string(ringcount_in) );
+    debug( "WRITE_FRAME_EXIT frame="+std::to_string(this->lastframe)+ " ring="+std::to_string(ringcount_in) );
     return(error);
   }
   /**************** Archon::Interface::write_frame ****************************/
@@ -5156,7 +5152,7 @@ namespace Archon {
    *
    */
   long Interface::wait_for_readout() {
-    debug( "WAIT_FOR_READOUT_ENTRY" );
+    debug( "WAIT_FOR_READOUT_ENTRY frame="+std::to_string(this->lastframe+1) );
     std::string function = "Archon::Interface::wait_for_readout";
     std::stringstream message;
     long error = NO_ERROR;
@@ -5178,7 +5174,7 @@ namespace Archon {
     catch(std::out_of_range &) {
       message.str(""); message << "readout time for Archon not found from config file";
       this->camera.log_error( function, message.str() );
-      debug( "WAIT_FOR_READOUT_EXIT" );
+      debug( "WAIT_FOR_READOUT_EXIT "+std::to_string(this->lastframe+1)+" ERROR" );
       return(ERROR);
     }
 
@@ -5256,7 +5252,7 @@ namespace Archon {
       error = this->get_frame_status();
       if ( error != NO_ERROR ) {
         logwrite( function, "ERROR: unable to get frame status" );
-      debug( "WAIT_FOR_READOUT_EXIT" );
+      debug( "WAIT_FOR_READOUT_EXIT ERROR" );
         return error;
       }
       message.str(""); message << "LINECOUNT:" << this->frame.buflines[ this->frame.index ];
@@ -5265,7 +5261,7 @@ namespace Archon {
 
     if ( error != NO_ERROR ) {
       this->camera.log_error( function, "waiting for readout" );
-      debug( "WAIT_FOR_READOUT_EXIT" );
+      debug( "WAIT_FOR_READOUT_EXIT ERROR" );
       return error;
     }
 
@@ -5285,7 +5281,7 @@ namespace Archon {
       message.str("");
       message << "received currentframe: " << currentframe;
       logwrite(function, message.str());
-      debug( "WAIT_FOR_READOUT_EXIT" );
+      debug( "WAIT_FOR_READOUT_EXIT frame="+std::to_string(currentframe) );
       return NO_ERROR;
     }
     // If the wait was stopped, log a message and return NO_ERROR
@@ -9049,7 +9045,7 @@ namespace Archon {
    *
    */
   void Interface::dothread_writeframe( Interface *self, int ringcount_in ) {
-    debug( "DOTHREAD_WRITEFRAME_ENTRY" );
+    debug( "DOTHREAD_WRITEFRAME_ENTRY ring="+std::to_string(ringcount_in) );
     std::string function = "Archon::Interface::dothread_writeframe";
     std::stringstream message;
 
@@ -9083,7 +9079,7 @@ namespace Archon {
     logwrite( function, message.str() );
 #endif
 
-    debug( "DOTHREAD_WRITEFRAME_EXIT" );
+    debug( "DOTHREAD_WRITEFRAME_EXIT ring="+std::to_string(ringcount_in) );
     return;
   }
   /***** Archon::Interface::dothread_writeframe *******************************/
