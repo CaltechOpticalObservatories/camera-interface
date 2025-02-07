@@ -575,30 +575,6 @@ void doit(Network::TcpSocket sock) {
                     server.abort();
                     ret = 0;
                     }
-#ifdef ASTROCAM
-    else
-    if (cmd.compare("isopen")==0) {
-                    ret = server.is_connected( retstring );
-                    sock.Write(retstring);
-                    sock.Write(" ");
-                    }
-    else
-    if (cmd.compare("useframes")==0) {
-                    ret = server.access_useframes(args);
-                    if (!args.empty()) { sock.Write(args); sock.Write(" "); }
-                    }
-    else
-    if (cmd.compare("geometry")==0) {
-                    ret = server.geometry(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-                    }
-    else
-    if (cmd.compare("buffer")==0) {
-                    ret = server.buffer(args, retstring);
-                    if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-                    }
-#endif
-#ifdef STA_ARCHON
     else
     if (cmd.compare("temp")==0) {
                     ret = server.temp( retstring );
@@ -723,11 +699,6 @@ void doit(Network::TcpSocket sock) {
                     if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
                     }
     else
-    if (cmd.compare("trigin")==0) {
-                    ret = server.trigin(args);
-                    }
-#endif
-    else
     if (cmd.compare("expose")==0) {
                     ret = server.expose(args);
                     }
@@ -783,13 +754,7 @@ void doit(Network::TcpSocket sock) {
         logwrite(function, "error converting command to uppercase");
         ret=ERROR;
       }
-#ifdef ASTROCAM
-      ret = server.native(args, retstring);
-      if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
-#endif
-#ifdef STA_ARCHON
       ret = server.native(args);
-#endif
     }
 #endif
     else {  // if no matching command found

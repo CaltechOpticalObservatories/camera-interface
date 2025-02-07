@@ -922,24 +922,6 @@ namespace Archon {
 
       bool write_tapinfo_to_fits;            //!< set to write tapinfo (gain, offset) to FITS headers
 
-      std::string trigin_state;              //!< for external triggering of exposures
-
-      int trigin_expose;                     //!< current value of trigin expose
-      int trigin_expose_enable;              //!< value which enables trigin expose
-      int trigin_expose_disable;             //!< value which disables trigin expose
-
-      int trigin_untimed;                    //!< current value of trigin_untimed
-      int trigin_untimed_enable;             //!< value which enables trigin untimed
-      int trigin_untimed_disable;            //!< value which disables trigin untimed
-
-      int trigin_readout;                    //!< current value of trigin_readout
-      int trigin_readout_enable;             //!< value which enables trigin readout
-      int trigin_readout_disable;            //!< value which disables trigin readout
-
-      std::string trigin_exposeparam;        //!< parameter name to write for trigin_expose
-      std::string trigin_untimedparam;       //!< parameter name to write for trigin_untimed
-      std::string trigin_readoutparam;       //!< parameter name to write for trigin_readout
-
       float heater_target_min;               //!< minimum heater target temperature
       float heater_target_max;               //!< maximum heater target temperature
 

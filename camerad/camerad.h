@@ -21,11 +21,7 @@
 #include <thread>
 #include <vector>
 
-#ifdef ASTROCAM
-#include "astrocam.h"       //!< for any Leach interface, ARC-64 or ARC-66
-#elif STA_ARCHON
 #include "archon.h"         //!< for STA-Archon
-#endif
 
 #include "logentry.h"
 #include "config.h"
@@ -39,13 +35,9 @@ namespace Camera {
 
   const std::string DAEMON_NAME = "camerad";     /// when run as a daemon, this is my name
 
-// Camera::Server class must inherit appropriate interface class
-//
-#ifdef ASTROCAM
-  class Server : public AstroCam::Interface {
-#elif STA_ARCHON
+  // Camera::Server class must inherit appropriate interface class
+  //
   class Server : public Archon::Interface {
-#endif
     private:
     public:
       Server() {
