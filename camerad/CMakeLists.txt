@@ -32,7 +32,7 @@ set(CFITS_LIB ${CIT_ROOT}/heasarc/lib/libcfitsio.so CACHE FILEPATH "Path to cfit
 
 # ----------------------------------------------------------------------------
 
-add_definitions( -Wconversion -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb3 )
+add_definitions( -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb3 )
 
 add_executable(camerad
         ${CAMERA_DIR}/camerad.cpp
