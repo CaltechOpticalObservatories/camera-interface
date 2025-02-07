@@ -968,7 +968,6 @@ namespace Archon {
       long caltimer();                       //!< calibrate Archon timer
       long interface(std::string &iface);    //!< get interface type
       long configure_controller();           //!< get configuration parameters
-      long prepare_image_buffer();           //!< prepare image_data, allocating memory as needed
       long prepare_ring_buffer();            //!< prepare image_data, allocating memory as needed
       long connect_controller(std::string devices_in);  //!< open connection to archon controller
       long disconnect_controller();          //!< disconnect from archon controller
@@ -998,7 +997,6 @@ namespace Archon {
       long read_frame( Camera::frame_type_t frame_type, char* &ptr, int ringcount_in );
       long write_frame();                    //!< write (a previously read) Archon frame buffer to disk
       long write_frame(int ringcount_in);    //!< write (a previously read) Archon frame buffer to disk
-      long write_raw();                      //!< write raw 16 bit data to a FITS file
       long write_config_key( const char *key, const char *newvalue, bool &changed );
       long write_config_key( const char *key, int newvalue, bool &changed );
       long write_parameter( const char *paramname, const char *newvalue, bool &changed );
@@ -1030,7 +1028,6 @@ namespace Archon {
       long longexposure(std::string state_in, std::string &state_out);
       long shutter(std::string shutter_in, std::string& shutter_out);
       long hdrshift(std::string bits_in, std::string &bits_out);
-      long trigin(std::string state_in);
       long heater(std::string args, std::string &retstring);
       long sensor(std::string args, std::string &retstring);
       long bias(std::string args, std::string &retstring);

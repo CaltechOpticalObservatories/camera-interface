@@ -262,17 +262,6 @@ namespace Archon {
         applied++;
       }
 
-/**** mexamps never used with NIRC2 -- don't allow commands that can break it!
-
-      if (config.param[entry].compare(0, 12, "AMPS_AS_CUBE")==0) {
-        std::string dontcare;
-        if ( this->camera.mexamps( config.arg[entry], dontcare ) == ERROR ) {
-          this->camera.log_error( function, "setting mexamps" );
-          return( ERROR );
-        }
-      }
-****/
-
       if (config.param[entry].compare(0, 21, "WRITE_TAPINFO_TO_FITS")==0) {    // WRITE_TAPINFO_TO_FITS
         if ( config.arg[entry] == "no" ) {
           this->write_tapinfo_to_fits = false;
@@ -589,68 +578,6 @@ namespace Archon {
     return error;
   }
   /**************** Archon::Interface::configure_controller *******************/
-
-
-  /**************** Archon::Interface::prepare_image_buffer *******************/
-  /**
-   * @fn     prepare_image_buffer
-   * @brief  prepare image_data buffer, allocating memory as needed
-   * @param  none
-   * @return NO_ERROR if successful or ERROR on error
-   *
-   */
-  long Interface::prepare_image_buffer() {
-    std::string function = "Archon::Interface::prepare_image_buffer";
-    std::stringstream message;
-
-    // This is the amount of memory to allocate for each fits write.
-    // If this is multi-extension (mex) then this is memory per extension.
-    // If this is a 3D data cube then this includes the total cube depth.
-    //
-    uint32_t expected_allocation = this->image_data_bytes * this->camera_info.cubedepth;
-
-#ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "[DEBUG] expected allocation: " << this->image_data_bytes << " bytes/frame for "
-                             << this->camera_info.cubedepth << " cubes = " << expected_allocation << " bytes to be allocated";
-    logwrite( function, message.str() );
-#endif
-
-    // If there is already a correctly-sized buffer allocated,
-    // then don't do anything except initialize that space to zero.
-    //
-    if ( (this->image_data != nullptr)  &&
-         (expected_allocation != 0)  &&
-         (this->image_data_allocated == expected_allocation) ) {
-      memset(this->image_data, 0, expected_allocation);
-      message.str(""); message << "initialized " << expected_allocation << " bytes of image_data memory at " << (void*)this->image_data;
-      logwrite(function, message.str());
-    }
-
-    // If memory needs to be re-allocated, delete the old buffer
-    //
-    else {
-      if (this->image_data != nullptr) {
-        logwrite(function, "deleting old image_data buffer");
-        delete [] this->image_data;
-        this->image_data=nullptr;
-      }
-      // Allocate new memory
-      //
-      if (expected_allocation != 0) {
-        this->image_data = new char[expected_allocation]{};
-        this->image_data_allocated=expected_allocation;
-        message.str(""); message << "allocated " << expected_allocation << " bytes for image_data at " << (void*)this->image_data;
-        logwrite(function, message.str());
-      }
-      else {
-        this->camera.log_error( function, "cannot allocate zero-length image memory" );
-        return(ERROR);
-      }
-    }
-
-    return(NO_ERROR);
-  }
-  /**************** Archon::Interface::prepare_image_buffer *******************/
 
 
   /**************** Archon::Interface::prepare_ring_buffer ********************/
@@ -4355,26 +4282,6 @@ namespace Archon {
           this->openfits_error.store( false, std::memory_order_seq_cst );
           std::thread( std::ref( Archon::Interface::dothread_openfits ), this ).detach();
         }
-
-        // NIRC2 is never going to have a delay before a read,
-        // so only include this section when not using NIRC2.
-        //
-#ifndef INSTR_NIRC2
-        if ( this->camera_info.exposure_time != 0 ) {                   // wait for the exposure delay to complete (if there is one)
-          error = this->wait_for_exposure();
-          if ( error == ERROR ) {
-            logwrite( function, "ERROR: waiting for exposure" );
-            this->cleanup_memory();
-            return error;
-          }
-	  else
-          // If aborted then force this to be the end, but allow it to finish the loop,
-          // so that any deinterlacing threads can finish, deconstructors are called to free memory,
-          // files closed, etc.
-          //
-          if ( this->camera.is_aborted() ) { nseq=0; logwrite( function, "aborting sequence loop and waiting for threads to finish" ); }
-        }
-#endif
 
         if (this->camera.writekeys_when=="after") this->copy_keydb();   // copy the ACF and userkeys database into camera_info
 
