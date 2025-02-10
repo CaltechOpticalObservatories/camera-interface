@@ -33,6 +33,7 @@
 #include "logentry.h"
 #include "network.h"
 #include "fits.h"
+#include "fits_file.h"
 #include "nirc2.h"
 #include "opencv2/opencv.hpp"
 
@@ -883,8 +884,10 @@ namespace Archon {
 
       Config config;
 
-      FITS_file fits_file;                   //!< instantiate a FITS container object
-      FITS_file cds_file;                    //!< instantiate a FITS container object
+      xxxx_file fits_file;                   //!< instantiate a FITS container object *** old method to be removed
+      xxxx_file cds_file;                    //!< instantiate a FITS container object *** old method to be removed
+
+      std::unique_ptr<FITS_file<int32_t>>  __file_cds;
 
       typedef struct {
         int readout_type;                    //!< enum for readout type

@@ -25,7 +25,7 @@
 
 const int FITS_WRITE_WAIT = 5000;                   /// approx time (in msec) to wait for a frame to be written
 
-class FITS_file {
+class xxxx_file {                                   /// *** old method to be replaced by new FITS engine ***
   private:
     std::atomic<bool> writing_file;                 /// semaphore indicates file is being written
     std::atomic<bool> error;                        /// indicates an error occured in a file writing thread
@@ -46,10 +46,10 @@ class FITS_file {
 
     // Default constructor, only initializes values
     //
-    FITS_file() : writing_file(false), error(false), file_open(false), threadcount(0), framen(0) { }
+    xxxx_file() : writing_file(false), error(false), file_open(false), threadcount(0), framen(0) { }
 
 
-    /**************** FITS_file::open_file ************************************/
+    /**************** xxxx_file::open_file ************************************/
     /**
      * @fn         open_file
      * @brief      opens a FITS file
@@ -437,7 +437,7 @@ class FITS_file {
      *
      */
     template <class T>
-    void write_image_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
+    void write_image_thread(std::valarray<T> &data, Camera::Information &info, xxxx_file *self) {
       debug( "WRITE_IMAGE_THREAD_ENTRY filename="+this->fits_name );
       std::string function = "FITS_file::write_image_thread";
       std::stringstream message;
@@ -511,7 +511,7 @@ class FITS_file {
      *
      */
     template <class T>
-    void write_mex_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
+    void write_mex_thread(std::valarray<T> &data, Camera::Information &info, xxxx_file *self) {
       debug( "WRITE_MEX_THREAD_ENTRY filename="+this->fits_name+" framen="+std::to_string(this->framen) );
       std::string function = "FITS_file::write_mex_thread";
       std::stringstream message;

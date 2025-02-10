@@ -31,6 +31,12 @@ set(CCFITS_LIB ${CIT_ROOT}/heasarc/lib/libCCfits.so CACHE FILEPATH "Path to CCfi
 set(CFITS_LIB ${CIT_ROOT}/heasarc/lib/libcfitsio.so CACHE FILEPATH "Path to cfitsio library" FORCE)
 
 # ----------------------------------------------------------------------------
+# new FITS engine requires Boost
+# ----------------------------------------------------------------------------
+find_package(Boost REQUIRED PATHS "${CIT_ROOT}/boost" COMPONENTS thread chrono)
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+
+# ----------------------------------------------------------------------------
 
 add_definitions( -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb3 )
 
@@ -51,6 +57,8 @@ target_link_libraries(camerad
         ${CCFITS_LIB}
         ${CFITS_LIB}
         ${OpenCV_LIBS}
+        Boost::thread
+        Boost::chrono
         )
 
 # ----------------------------------------------------------------------------

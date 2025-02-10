@@ -211,9 +211,7 @@ namespace Archon {
     // and the new config file may not have everything defined.
     // This ensures nothing is carried over from any previous config.
     //
-    this->camera_info.hostname = "";
     this->archon.sethost( "" );
-    this->camera_info.port = -1;
     this->archon.setport( -1 );
 
     this->is_longexposure = false;
@@ -238,27 +236,32 @@ namespace Archon {
     //
     for (int entry=0; entry < this->config.n_entries; entry++) {
 
-      if (config.param[entry].compare(0, 9, "ARCHON_IP")==0) {
-        this->camera_info.hostname = config.arg[entry];
+      // ARCHON_IP is used to set the Archon host name in the Network::TcpSocket archon object
+      //
+      if (config.param[entry]=="ARCHON_IP") {
         this->archon.sethost( config.arg[entry] );
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
-      if (config.param[entry].compare(0, 11, "ARCHON_PORT")==0) {              // ARCHON_PORT
+      // ARCHON_PORT is used to set the Archon port in the Network::TcpSocket archon object
+      //
+      if (config.param[entry]=="ARCHON_PORT") {
         int port;
         try {
           port = std::stoi( config.arg[entry] );
         }
-        catch (std::invalid_argument &) {
-          this->camera.log_error( function, "unable to convert port number to integer" );
-          return(ERROR);
+        catch (std::exception &e) {
+          message.str(""); message << "parsing ARCHON_PORT number: " << e.what();
+          this->camera.log_error( function, message.str() );
+          return ERROR;
         }
-        catch (std::out_of_range &) {
-          this->camera.log_error( function, "port number out of integer range" );
-          return(ERROR);
-        }
-        this->camera_info.port = port;
         this->archon.setport(port);
+        message.str(""); message << "CONFIG:" << config.param[entry] << "=" << config.arg[entry];
+        logwrite( function, message.str() );
+        this->camera.async.enqueue( message.str() );
         applied++;
       }
 
@@ -675,14 +678,14 @@ namespace Archon {
     logwrite(function, "opening a connection to the camera system");
 
     if ( this->archon.Connect() != 0 ) {
-      message.str(""); message << "connecting to " << this->camera_info.hostname << ":" << this->camera_info.port << ": " << strerror(errno);
+      message.str(""); message << "connecting to " << this->archon.gethost() << ":" << this->archon.getport() << ": " << strerror(errno);
       this->camera.log_error( function, message.str() );
-      return(ERROR);
+      return ERROR;
     }
 
     message.str("");
-    message << "socket connection to " << this->camera_info.hostname << ":" << this->camera_info.port << " "
-            << "established on fd " << this->archon.getfd();;
+    message << "socket connection to " << this->archon.gethost() << ":" << this->archon.getport() << " "
+            << "established on fd " << this->archon.getfd();
     logwrite(function, message.str());
 
     // Get the current system information for the installed modules

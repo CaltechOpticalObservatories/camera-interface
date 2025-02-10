@@ -119,20 +119,86 @@ namespace Camera {
   class Information {
     private:
     public:
-      std::string   hostname;                //!< Archon controller hostname
-      int           port;                    //!< Archon controller TPC/IP port number
+      void swap( Information &other ) noexcept;
+      friend void swap( Information &first, Information &second ) noexcept { first.swap(second); }
+
+    int det_id;            //!< ID value of detector
+    int amp_id;            //!< ID value of amplifier
+    int framenum;          //!< Archon buffer frame number
+
+    int serial_prescan;                 //!< Serial prescan number
+    int serial_overscan;                //!< Serial overscan number
+    int parallel_overscan;      //!< Parallel overscan number
+    int image_cols;                                     //!< Number of columns in the image
+    int image_rows;                                     //!< Number of rows in the image
+    std::string det_name;  //!< name of detector
+    std::string amp_name;  //!< name of amplifier
+
+    std::string detector;                                               //!< Detector name string
+    std::string detector_software;      //!< Detector software version string
+    std::string detector_firmware;      //!< Detector hardware version string
+
+    float pixel_scale;  //!< Image pixel scale, like arcsec per pixel
+    float det_gain;                     //!< Gain value for detector electronics
+    float read_noise;           //!< Read noise value
+    float dark_current; //!< Dark current value
+
+    size_t image_size;     //!< pixels per CCD
+
+    // the following 4-element arrays are the components of FITS header
+    // keywords, [0:1,2:3], i.e CCDSEC[0:1,2:3] where 0,1,2,3 are the 4
+    // elements of detsize[]
+    int ccdsec[4];   //!< Detection section
+    int ampsec[4];   //!< amplifier section
+    int trimsec[4];  //!< trim section
+    int datasec[4];  //!< data section
+    int biassec[4];  //!< bias section (over-scan)
+    int detsec[4];   //!< detector section
+    int detsize[4];  //!< physical size of the CCD
+
+    std::vector<std::string> detid;  //!< DETID = unique detector identifier
+    int gain;                                                                           //!< Image gain value
+
+    int fits_compression_code;  //!< cfitsio code for compression type
+    std::string fits_compression_type;  //!< string representing FITS compression type
+    int fits_noisebits;                                 //!< noisebits parameter used when compressing floating-point images
+    float frame_exposure_time;  //!< Exposure time for individual frames
+
+      std::string directory;                          //!< Data directory
+      std::string image_name;                             //!< Name of the image, includes all info
+      std::string basename;                               //!< Basic image name
+
+
+      /** @var     bitpix
+       *  @brief   FITS datatype (not literally bits per pixel)
+       *  @details This is the datatype of the primary image. bitpix may be one
+       *           of the following CFITSIO constants: BYTE_IMG, SHORT_IMG,
+       *           LONG_IMG, FLOAT_IMG, DOUBLE_IMG, USHORT_IMG, ULONG_IMG,
+       *           LONGLONG_IMG. Note that if you send in a bitpix of USHORT_IMG
+       *           or ULONG_IMG, CCfits will set HDU::bitpix() to its signed
+       *           equivalent (SHORT_IMG or LONG_IMG), and then set BZERO to 2^15
+       *           or 2^31.
+       */
+      int         bitpix;
+
+      std::vector<long> naxes;             //!< array of axis lengths where element 0=cols, 1=rows, 2=cubedepth
+      frame_type_t frame_type;             //!< frame_type is IMAGE or RAW
+      long        detector_pixels[2];      //!< number of physical pixels. element 0=cols (pixels), 1=rows (lines)
+      uint64_t    section_size;            //!< pixels to write for this section (could be less than full sensor size but accounts for cubedepth)
+      uint64_t    image_memory;            //!< bytes per image sensor
+      std::string current_observing_mode;  //!< the current mode
+      std::string readout_name;            //!< name of the readout source
+      int         readout_type;            //!< type of the readout source is an enum
+      long        naxis;                   //!< number of axes in the image (3 for data cube)
+      long        axes[3];                 //!< array of axis lengths where element 0=cols, 1=rows, 2=cubedepth <-- here for old fits.h
+      int         binning[2];              //!< pixel binning, each axis
+      long        axis_pixels[2];          //!< number of physical pixels used, before binning
+      long        region_of_interest[4];   //!< region of interest
+      bool        abortexposure;
+
       int           activebufs;              //!< Archon controller number of active frame buffers
-      int           bitpix;                  //!< Archon bits per pixel based on SAMPLEMODE
       int           datatype;                //!< FITS data type (corresponding to bitpix) used in set_axes()
       bool          type_set;                //!< set when FITS data type has been defined
-      frame_type_t  frame_type;              //!< frame_type is IMAGE or RAW
-      long          detector_pixels[2];      //!< element 0=cols (pixels), 1=rows (lines)
-      long          section_size;            //!< pixels to write for this section (could be less than full sensor size but accounts for cubedepth)
-      long          image_memory;            //!< bytes per image sensor
-      std::string   current_observing_mode;  //!< the current mode
-      std::string   readout_name;            //!< name of the readout source
-      int           readout_type;            //!< type of the readout source is an enum
-      long          axes[3];                 //!< element 0=cols, 1=cols, 2=cubedepth
 
       // these break the STL map paradigm but it's simpler, and all that NIRC2 needs
       //
@@ -162,14 +228,11 @@ namespace Camera {
 
       int           ncoadd;                  /// current count of completed number of coadds
       int           nslice;                  /// current count of completed number of slices
-      int           binning[2];
-      long          axis_pixels[2];
-      long          region_of_interest[4];
-      long          image_center[2];
-      long          imwidth;                 /// image width displayed (written to FITS)
-      long          imheight;                /// image height displayed (written to FITS)
-      long          imwidth_read;            /// image width read from controller
-      long          imheight_read;           /// image height read from controller
+      int           image_center[2];
+      int           imwidth;                 /// image width displayed (written to FITS)
+      int           imheight;                /// image height displayed (written to FITS)
+      int           imwidth_read;            /// image width read from controller
+      int           imheight_read;           /// image height read from controller
       bool          exposure_aborted;        /// was this exposure aborted?
       bool          iscds;                   //!< is CDS subtraction requested?
       int           nmcds;                   ///  number of MCDS samples
@@ -205,192 +268,157 @@ namespace Camera {
 
       // Default Information class constructor and initializer list
       //
-      Information()
-        : datatype(0),
-          type_set(false),                   //!< set true when datatype has been defined
-          axes{1, 1, 1},
-          pixel_time(0),
-          pixel_skip_time(0),
-          row_overhead_time(0),
-          row_skip_time(0),
-          frame_start_time(0),
-          fs_pulse_time(0),
-          cubedepth(1),
-          fitscubed(1),
-          ncoadd(0),
-          nslice(0),
-          binning{1, 1},
-          region_of_interest{1, 1, 1, 1},
-          image_center{1, 1},
-          exposure_aborted(false),
-          iscds(false),
-          nmcds(0),
-          ismex(false),
-          shutteractivate(""),
-          exposure_time(-1),                 //!< default is undefined
-          requested_exptime(0),              //!< default is undefined
-          readouttime(-1),                   //!< default is undefined
-          exposure_unit(""),                 //!< default unit undefined
-          exposure_factor(-1),               //!< default factor is undefined
-          num_pre_exposures(0),              //!< default is no pre-exposures
-          is_cds(false),
-          nseq(1),
-          nexp(-1),
-          num_coadds(1),                     //!< default num of coadds
-          sampmode(-1),
-          sampmode_ext(-1),
-          sampmode_frames(-1)
-      {
-      }
+      Information() :
+        fits_compression_code(0),          //!< cfitsio code for compression type
+        fits_compression_type("none"),     //!< string representing FITS compression type
+        naxes({1, 1, 1}),                  //!< array of axis lengths where element 0=cols, 1=rows, 2=cubedepth
+        binning{1, 1},                     //!< pixel binning, each axis
+        region_of_interest{1, 1, 1, 1},    //!< region of interest
+        datatype(0),                       //!< FITS data type (corresponding to bitpix) used in set_axes()
+        type_set(false),                   //!< set when FITS data type has been defined
+        pixel_time(0),                     //!< pixel time in usec
+        pixel_skip_time(0),                //!< pixel skip time in usec
+        row_overhead_time(0),              //!< row overhead time in usec
+        row_skip_time(0),                  //!< row skip time in usec
+        frame_start_time(0),               //!< frame start time in usec
+        fs_pulse_time(0),                  //!< fs pulse time in usec
+        cubedepth(1),                      //!< cubedepth
+        fitscubed(1),                      //!< fitscubed
+        ncoadd(0),                         //!< current count of completed number of coadds
+        nslice(0),                         //!< current count of completed number of slices
+        image_center{1, 1},                //!< image center
+        exposure_aborted(false),           //!< was this exposure aborted?
+        iscds(false),                      //!< is CDS subtraction requested?
+        nmcds(0),                          //!< number of MCDS samples
+        ismex(false),                      //!< the info object given to the FITS writer will need to know multi-extension status
+        shutteractivate(""),               //!< shutter activation state
+        exposure_time(-1),                 //!< requested exposure time in exposure_unit
+        requested_exptime(0),              //!< user-requested exposure time
+        readouttime(-1),                   //!< readout time, or minimum exposure time
+        exposure_unit(""),                 //!< exposure time unit
+        exposure_factor(-1),               //!< multiplier for exposure_unit relative to 1 sec (=1 for sec, =1000 for msec, etc.)
+        num_pre_exposures(0),              //!< pre-exposures are exposures taken but not saved
+        is_cds(false),                     //!< is this a CDS exposure? (subtraction will be done)
+        nseq(1),                           //!< number of exposure sequences
+        nexp(-1),                          //!< the number to be passed to do_expose (not all instruments use this)
+        num_coadds(1),                     //!< number of coadds
+        sampmode(-1),                      //!< sample mode (NIRC2)
+        sampmode_ext(-1),                  //!< sample mode number of extensions (NIRC2)
+        sampmode_frames(-1)                //!< sample mode number of frames (NIRC2)
+        { }
 
     // Copy constructor needed because the default copy constructor is deleted,
     // due to the atomic variable (which doesn't have a copy or copy assignment
     // constructor). So this manually loads and stores the atomic. All of the
     // other variables have to come along, too.
     //
-    Information( const Information &other )
-        : hostname( other.hostname ),
-          port( other.port ),
-          activebufs( other.activebufs ),
-          bitpix( other.bitpix ),
-          datatype( other.datatype ),
-          type_set( other.type_set ),
-          frame_type( other.frame_type ),
-          detector_pixels{other.detector_pixels[0], other.detector_pixels[1]},
-          section_size( other.section_size ),
-          image_memory( other.image_memory ),
-          current_observing_mode( other.current_observing_mode ),
-          readout_name( other.readout_name ),
-          readout_type( other.readout_type ),
-          axes{other.axes[0], other.axes[1], other.axes[2]},
-          pixel_time( other.pixel_time ),
-          pixel_skip_time( other.pixel_skip_time ),
-          row_overhead_time( other.row_overhead_time ),
-          row_skip_time( other.row_skip_time ),
-          frame_start_time( other.frame_start_time ),
-          fs_pulse_time( other.fs_pulse_time ),
-          cubedepth( other.cubedepth ),
-          fitscubed( other.fitscubed ),
-          ncoadd( other.ncoadd ),
-          nslice( other.nslice ),
-          binning{other.binning[0], other.binning[1]},
-          axis_pixels{other.axis_pixels[0], other.axis_pixels[1]},
-          region_of_interest{other.region_of_interest[0], other.region_of_interest[1], other.region_of_interest[2], other.region_of_interest[3]},
-          image_center{other.image_center[0], other.image_center[1]},
-          imwidth( other.imwidth ),
-          imheight( other.imheight ),
-          imwidth_read( other.imwidth_read ),
-          imheight_read( other.imheight_read ),
-          exposure_aborted( other.exposure_aborted ),
-          iscds( other.iscds ),
-          nmcds( other.nmcds ),
-          ismex( other.ismex ),
-          extension( other.extension.load() ),
-          shutterenable( other.shutterenable ),
-          shutteractivate( other.shutteractivate ),
-          exposure_time( other.exposure_time ),
-          exposure_delay( other.exposure_delay ),
-          requested_exptime( other.requested_exptime ),
-          readouttime( other.readouttime ),
-          exposure_unit( other.exposure_unit ),
-          exposure_factor( other.exposure_factor ),
-          exposure_progress( other.exposure_progress ),
-          num_pre_exposures( other.num_pre_exposures ),
-          is_cds( other.is_cds ),
-          nseq( other.nseq ),
-          nexp( other.nexp ),
-          num_coadds( other.num_coadds ),
-          sampmode( other.sampmode ),
-          sampmode_ext( other.sampmode_ext ),
-          sampmode_frames( other.sampmode_frames ),
-          fits_name( other.fits_name ),
-          cmd_start_time( other.cmd_start_time ),
-          start_time( other.start_time ),
-          stop_time( other.stop_time ),
-          amp_section( other.amp_section ),
-          userkeys( other.userkeys ),
-          systemkeys( other.systemkeys ),
-          extkeys( other.extkeys )
-    {
+    // Copy Constructor
+    Information(const Information& other) :
+          det_id(other.det_id),
+          amp_id(other.amp_id),
+          framenum(other.framenum),
+          serial_prescan(other.serial_prescan),
+          serial_overscan(other.serial_overscan),
+          parallel_overscan(other.parallel_overscan),
+          image_cols(other.image_cols),
+          image_rows(other.image_rows),
+          det_name(other.det_name),
+          amp_name(other.amp_name),
+          detector(other.detector),
+          detector_software(other.detector_software),
+          detector_firmware(other.detector_firmware),
+          pixel_scale(other.pixel_scale),
+          det_gain(other.det_gain),
+          read_noise(other.read_noise),
+          dark_current(other.dark_current),
+          image_size(other.image_size),
+          detid(other.detid),
+          gain(other.gain),
+          fits_compression_code(other.fits_compression_code),
+          fits_compression_type(other.fits_compression_type),
+          fits_noisebits(other.fits_noisebits),
+          frame_exposure_time(other.frame_exposure_time),
+          directory(other.directory),
+          image_name(other.image_name),
+          basename(other.basename),
+          bitpix(other.bitpix),
+          naxes(other.naxes),
+          frame_type(other.frame_type),
+          section_size(other.section_size),
+          image_memory(other.image_memory),
+          current_observing_mode(other.current_observing_mode),
+          readout_name(other.readout_name),
+          readout_type(other.readout_type),
+          naxis(other.naxis),
+          abortexposure(other.abortexposure),
+          activebufs(other.activebufs),
+          datatype(other.datatype),
+          type_set(other.type_set),
+          pixel_time(other.pixel_time),
+          pixel_skip_time(other.pixel_skip_time),
+          row_overhead_time(other.row_overhead_time),
+          row_skip_time(other.row_skip_time),
+          frame_start_time(other.frame_start_time),
+          fs_pulse_time(other.fs_pulse_time),
+          cubedepth(other.cubedepth),
+          fitscubed(other.fitscubed),
+          ncoadd(other.ncoadd),
+          nslice(other.nslice),
+          imwidth(other.imwidth),
+          imheight(other.imheight),
+          imwidth_read(other.imwidth_read),
+          imheight_read(other.imheight_read),
+          exposure_aborted(other.exposure_aborted),
+          iscds(other.iscds),
+          nmcds(other.nmcds),
+          ismex(other.ismex),
+          extension(other.extension.load()),
+          shutterenable(other.shutterenable),
+          shutteractivate(other.shutteractivate),
+          exposure_time(other.exposure_time),
+          exposure_delay(other.exposure_delay),
+          requested_exptime(other.requested_exptime),
+          readouttime(other.readouttime),
+          exposure_unit(other.exposure_unit),
+          exposure_factor(other.exposure_factor),
+          exposure_progress(other.exposure_progress),
+          num_pre_exposures(other.num_pre_exposures),
+          is_cds(other.is_cds),
+          nseq(other.nseq),
+          nexp(other.nexp),
+          num_coadds(other.num_coadds),
+          sampmode(other.sampmode),
+          sampmode_ext(other.sampmode_ext),
+          sampmode_frames(other.sampmode_frames),
+          fits_name(other.fits_name),
+          cmd_start_time(other.cmd_start_time),
+          start_time(other.start_time),
+          stop_time(other.stop_time),
+          amp_section(other.amp_section),
+          userkeys(other.userkeys),
+          systemkeys(other.systemkeys),
+          extkeys(other.extkeys) {
+        // Copy fixed-size arrays
+        std::copy(std::begin(other.ccdsec), std::end(other.ccdsec), std::begin(ccdsec));
+        std::copy(std::begin(other.ampsec), std::end(other.ampsec), std::begin(ampsec));
+        std::copy(std::begin(other.trimsec), std::end(other.trimsec), std::begin(trimsec));
+        std::copy(std::begin(other.datasec), std::end(other.datasec), std::begin(datasec));
+        std::copy(std::begin(other.biassec), std::end(other.biassec), std::begin(biassec));
+        std::copy(std::begin(other.detsec), std::end(other.detsec), std::begin(detsec));
+        std::copy(std::begin(other.detsize), std::end(other.detsize), std::begin(detsize));
+        std::copy(std::begin(other.detector_pixels), std::end(other.detector_pixels), std::begin(detector_pixels));
+        std::copy(std::begin(other.axes), std::end(other.axes), std::begin(axes));
+        std::copy(std::begin(other.binning), std::end(other.binning), std::begin(binning));
+        std::copy(std::begin(other.axis_pixels), std::end(other.axis_pixels), std::begin(axis_pixels));
+        std::copy(std::begin(other.region_of_interest), std::end(other.region_of_interest), std::begin(region_of_interest));
+        std::copy(std::begin(other.image_center), std::end(other.image_center), std::begin(image_center));
     }
 
     // Copy assignment operator
     //
-    Information& operator=( const Information& other ) {
-        if ( this != &other ) {
-            hostname = other.hostname;
-            port = other.port;
-            activebufs = other.activebufs;
-            bitpix = other.bitpix;
-            datatype = other.datatype;
-            type_set = other.type_set;
-            frame_type = other.frame_type;
-            detector_pixels[0] = other.detector_pixels[0];
-            detector_pixels[1] = other.detector_pixels[1];
-            section_size = other.section_size;
-            image_memory = other.image_memory;
-            current_observing_mode = other.current_observing_mode;
-            readout_name = other.readout_name;
-            readout_type = other.readout_type;
-            axes[0] = other.axes[0];
-            axes[1] = other.axes[1];
-            axes[2] = other.axes[2];
-            pixel_time = other.pixel_time;
-            pixel_skip_time = other.pixel_skip_time;
-            row_overhead_time = other.row_overhead_time;
-            row_skip_time = other.row_skip_time;
-            frame_start_time = other.frame_start_time;
-            fs_pulse_time = other.fs_pulse_time;
-            cubedepth = other.cubedepth;
-            fitscubed = other.fitscubed;
-            ncoadd = other.ncoadd;
-            nslice = other.nslice;
-            binning[0] = other.binning[0];
-            binning[1] = other.binning[1];
-            axis_pixels[0] = other.axis_pixels[0];
-            axis_pixels[1] = other.axis_pixels[1];
-            region_of_interest[0] = other.region_of_interest[0];
-            region_of_interest[1] = other.region_of_interest[1];
-            region_of_interest[2] = other.region_of_interest[2];
-            region_of_interest[3] = other.region_of_interest[3];
-            image_center[0] = other.image_center[0];
-            image_center[1] = other.image_center[1];
-            imwidth = other.imwidth;
-            imheight = other.imheight;
-            imwidth_read = other.imwidth_read;
-            imheight_read = other.imheight_read;
-            exposure_aborted = other.exposure_aborted;
-            iscds = other.iscds;
-            nmcds = other.nmcds;
-            ismex = other.ismex;
-            extension.store( other.extension.load() );
-            shutterenable = other.shutterenable;
-            shutteractivate = other.shutteractivate;
-            exposure_time = other.exposure_time;
-            exposure_delay = other.exposure_delay;
-            requested_exptime = other.requested_exptime;
-            readouttime = other.readouttime;
-            exposure_unit = other.exposure_unit;
-            exposure_factor = other.exposure_factor;
-            exposure_progress = other.exposure_progress;
-            num_pre_exposures = other.num_pre_exposures;
-            is_cds = other.is_cds;
-            nseq = other.nseq;
-            nexp = other.nexp;
-            num_coadds = other.num_coadds;
-            sampmode = other.sampmode;
-            sampmode_ext = other.sampmode_ext;
-            sampmode_frames = other.sampmode_frames;
-            fits_name = other.fits_name;
-            cmd_start_time = other.cmd_start_time;
-            start_time = other.start_time;
-            stop_time = other.stop_time;
-            amp_section = other.amp_section;
-            userkeys = other.userkeys;
-            systemkeys = other.systemkeys;
-            extkeys = other.extkeys;
-        }
-        return *this;
+    Information& operator=(Information other) { // Pass-by-value enables copy-and-swap
+      swap(other);
+      return *this;
     }
 
     // Destructor
