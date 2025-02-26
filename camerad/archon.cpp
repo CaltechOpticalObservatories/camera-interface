@@ -1340,7 +1340,7 @@ namespace Archon {
    *
    */
   long Interface::load_acf(std::string acffile) {
-    std::string function = "Archon::Interface::load_acf";
+    const std::string function("Archon::Interface::load_acf");
     std::stringstream message;
     std::fstream filestream;  // I/O stream class
     std::string line;         // the line read from the acffile
@@ -1750,11 +1750,13 @@ namespace Archon {
       logwrite(function, "loaded Archon config file OK");
       this->firmwareloaded = true;
 
-      // add to systemkeys keyword database
+      // add firmware filename and checksum to systemkeys keyword database
       //
-      std::stringstream keystr;
-      keystr << "FIRMWARE=" << acffile << "// controller firmware";
-      this->systemkeys.addkey( keystr.str() );
+      this->systemkeys.addkey( "FIRMWARE=" + acffile + "// controller firmware" );
+
+      std::string hash;
+      md5_file( acffile, hash );
+      this->systemkeys.addkey( "FIRM_MD5=" + hash + "// MD5 checksum of firmware" );
     }
 
     // If there was an Archon error then read the Archon error log
