@@ -470,7 +470,10 @@ namespace Camera {
           this->axes[2] = 1;                                        // (no cube)
         }
 
+        for ( int i=0; i<3; i++ ) this->naxes[i]=this->axes[i];     // for Reed's FITS engine
+
         this->section_size = this->axes[0] * this->axes[1] * this->axes[2];    // Pixels to write for this image section, includes depth for 3D data cubes
+        this->image_size   = this->section_size;
 
         this->image_memory = this->detector_pixels[0] 
                            * this->detector_pixels[1] * bytes_per_pixel;       // Bytes per detector, single frame read

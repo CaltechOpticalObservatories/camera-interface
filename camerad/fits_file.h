@@ -318,9 +318,12 @@ private:
     std::string function("FITS_file::open_file");
     std::stringstream message;
 
-    message << "opening FITS file image for " << camera_info.image_name;
+    message << "opening FITS file image for " << camera_info.fits_name;
     logwrite(function, message.str());
     message.str("");
+
+    int num_axis = ( camera_info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes
+    long _axes[num_axis];                                  // local variable of image axes size
 
     try {
 
@@ -348,21 +351,20 @@ private:
       // this is a single frame image, then we need to allocate the space,
       // unless it is compressed in which case we also set the primary image
       // to a null image.
-      long* naxes;                                           // local variable of image axes size
-      int num_axis = ( camera_info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes
-      naxes = new long[num_axis];
 
       if (this->iscube == true){
         // multi-extension has no data associated with primary header
-        for ( int i=0; i<num_axis; i++ ) naxes[i]=0;
+        for ( int i=0; i<num_axis; i++ ) _axes[i]=0;
         num_axis = 0;
       }
       else {
-        for ( int i=0; i<num_axis; i++ ) naxes[i]=camera_info.naxes[i];
+        for ( int i=0; i<num_axis; i++ ) _axes[i]=camera_info.naxes[i];
       }
 
 
-      this->fits_name = camera_info.fits_name;
+auto it = camera_info.fits_name.find_last_of("/");
+this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.substr(it+1);
+//    this->fits_name = camera_info.fits_name;
 
       // Check that we can write the file, because CCFits will crash if not
       std::ofstream checkfile (this->fits_name.c_str());
@@ -379,12 +381,12 @@ private:
       // Allocate the FITS file container, which holds all of the information
       // used by CCfits to write a file
       this->pFits.reset( new CCfits::FITS(this->fits_name, camera_info.bitpix,
-                                          num_axis, naxes) );
+                                          num_axis, _axes) );
 
-      // Create the primary image header
-      this->make_header(this->fits_name.substr(camera_info.directory.length()+1),
-                          timestamp, sequence, camera_info);
-
+//    // Create the primary image header
+//    this->make_header(this->fits_name.substr(camera_info.directory.length()+1),
+//                        timestamp, sequence, camera_info);
+//
       // Set the compression. You have to do this after allocating the FITS file
       if (this->compression == FITS_COMPRESSION_RICE){
         this->pFits->setCompressionType(RICE_1);
@@ -423,7 +425,9 @@ private:
 
     // Write a log message and return a success value
     message << "opened FITS file " << this->fits_name << " with compression "
-            << print_compression(this->compression);
+            << print_compression(this->compression)
+            << " section_size=" << camera_info.section_size << " and axes =";
+    for ( int i=0; i<num_axis; i++ ) message << " " << _axes[i];
     logwrite(function, message.str());
     return(NO_ERROR);
   }
@@ -543,14 +547,14 @@ private:
 
     // Open the FITS file
     if (this->open_file(camera_info, timestamp, sequence, compress) != NO_ERROR){
-      message << "ERROR failed to open FITS file \"" << camera_info.image_name << "\", aborting";
+      message << "ERROR failed to open FITS file \"" << camera_info.fits_name << "\", aborting";
       logwrite(function, message.str());
       return(ERROR);
     }
 
     try {
       // Move the data into a valarray, necessary to wite it using CCFITS
-      std::valarray<T> array(data, camera_info.image_size);
+      std::valarray<T> array(data, camera_info.section_size);
 
       // Set the first pixel value to 1, this tells the FITS system where it
       // starts writing (we don't start at anything but 1)
@@ -558,12 +562,12 @@ private:
 
       // Write the primary image into the FITS file if compression is off
       if (this->compression == FITS_COMPRESSION_NONE){
-        this->pFits->pHDU().write(fpixel, camera_info.image_size, array);
+        this->pFits->pHDU().write(fpixel, camera_info.section_size, array);
       }
       // With compression, write to an extension
       else {
         CCfits::ExtHDU& pseudo_primary = this->pFits->extension(1);
-        pseudo_primary.write(fpixel, camera_info.image_size, array);
+        pseudo_primary.write(fpixel, camera_info.section_size, array);
       }
 
       // Flush the FITS container to make sure the image is written to disk
@@ -704,12 +708,12 @@ private:
         this->imageExt = this->pFits->addImage(image_key.str(),
                                         this->cube_frames[0].camera_info.bitpix,
                                         this->cube_frames[0].camera_info.naxes);
-        // Make the image cube header
-        this->make_cube_header(this->cube_frames[0].timestamp,
-                               this->cube_frames[0].camera_info);
-
+//      // Make the image cube header
+//      this->make_cube_header(this->cube_frames[0].timestamp,
+//                             this->cube_frames[0].camera_info);
+//
         // Write the image extension into the cube
-        this->imageExt->write(fpixel, this->cube_frames[0].camera_info.image_size,
+        this->imageExt->write(fpixel, this->cube_frames[0].camera_info.section_size,
                               this->cube_frames[0].array);
 
         // Flush the FITS container to make sure the image is written to disk
@@ -734,6 +738,17 @@ private:
         message << "ERROR FITS file error thrown: " << err.message();
         logwrite(function, message.str());
         message.str("");
+        break;
+      }
+      catch (const std::exception &err) {
+        message << "ERROR std exception: " << err.what();
+        logwrite(function, message.str());
+        message.str("");
+        break;
+      }
+      catch (...) {
+        logwrite(function, "ERROR unknown exception");
+        break;
       }
 
       // For cubes with lots of files, log the progress for writing the cube
@@ -1094,7 +1109,7 @@ public:
       }
 
       // Create the FITS frame object from the input data
-      FITS_cube_frame <T> frame(data, camera_info.image_size, timestamp,
+      FITS_cube_frame <T> frame(data, camera_info.section_size, timestamp,
                                 sequence, camera_info);
 
       boost::unique_lock<boost::timed_mutex> lock(this->cache_mutex);

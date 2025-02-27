@@ -62,7 +62,7 @@ class xxxx_file {                                   /// *** old method to be rep
      */
     long open_file( bool writekeys, Camera::Information & info ) {
       debug( "OPEN_FILE_ENTRY filename="+this->fits_name );
-      std::string function = "FITS_file::open_file";
+      std::string function = "xxxx_file::open_file";
       std::stringstream message;
 
       const std::lock_guard<std::mutex> lock(this->fits_mutex);
@@ -71,9 +71,9 @@ class xxxx_file {                                   /// *** old method to be rep
       int num_axis = ( info.fitscubed > 1 ? 3 : 2 );  // local variable for number of axes
       long* axes;                                     // local variable of image axes size
 
-      // Save the requested filename in the FITS_file class.
+      // Save the requested filename in the xxxx_file class.
       // The requested name in the info class is the final name, but the local name in
-      // the FITS_file class will add a ".writing" extension when it is opened, which
+      // the xxxx_file class will add a ".writing" extension when it is opened, which
       // will be used for writing. This will get removed after the file is closed.
       //
       this->fits_name = info.fits_name + this->in_process;
@@ -176,10 +176,10 @@ class xxxx_file {                                   /// *** old method to be rep
       debug( "OPEN_FILE_EXIT filename="+this->fits_name );
       return (0);
     }
-    /**************** FITS_file::open_file ************************************/
+    /**************** xxxx_file::open_file ************************************/
 
 
-    /**************** FITS_file::close_file ***********************************/
+    /**************** xxxx_file::close_file ***********************************/
     /**
      * @fn         close_file
      * @brief      closes fits file
@@ -192,7 +192,7 @@ class xxxx_file {                                   /// *** old method to be rep
      */
     void close_file( bool writekeys, Camera::Information & info ) {
       debug( "CLOSE_FILE_ENTRY filename="+this->fits_name );
-      std::string function = "FITS_file::close_file";
+      std::string function = "xxxx_file::close_file";
       std::stringstream message;
 
       // Nothing to do if not open
@@ -299,10 +299,10 @@ class xxxx_file {                                   /// *** old method to be rep
       this->fits_name="";
       debug( "CLOSE_FILE_EXIT filename="+this->fits_name );
     }
-    /**************** FITS_file::close_file ***********************************/
+    /**************** xxxx_file::close_file ***********************************/
 
 
-    /**************** FITS_file::write_image **********************************/
+    /**************** xxxx_file::write_image **********************************/
     /**
      * @fn         write_image
      * @brief      spawn threads to write image data to FITS file on disk
@@ -316,7 +316,7 @@ class xxxx_file {                                   /// *** old method to be rep
     template <class T>
     long write_image(T* data, Camera::Information& info) {
       debug( "WRITE_IMAGE_ENTRY filename="+this->fits_name );
-      std::string function = "FITS_file::write_image";
+      std::string function = "xxxx_file::write_image";
       std::stringstream message;
 
       if ( info.section_size==0 ) {
@@ -366,6 +366,7 @@ class xxxx_file {                                   /// *** old method to be rep
       }
       std::thread([&]() {                                    // create the detached thread here
         if (info.ismex) {
+logwrite(function,"[TESTTEST] spawned write_mex_thread");
           this->write_mex_thread(array, info, this);
         }
         else {
@@ -379,6 +380,7 @@ class xxxx_file {                                   /// *** old method to be rep
       logwrite(function, message.str());
 #endif
 
+logwrite(function,"[TESTTEST] waiting for all threads to complete");
       // wait for all threads to complete
       //
       int last_threadcount = this->threadcount.load( std::memory_order_seq_cst );
@@ -420,16 +422,16 @@ class xxxx_file {                                   /// *** old method to be rep
       debug( "WRITE_IMAGE_EXIT filename="+this->fits_name);
       return ( this->error.load( std::memory_order_seq_cst ) ? ERROR : NO_ERROR );
     }
-    /**************** FITS_file::write_image **********************************/
+    /**************** xxxx_file::write_image **********************************/
 
 
-    /**************** FITS_file::write_image_thread ***************************/
+    /**************** xxxx_file::write_image_thread ***************************/
     /**
      * @fn         write_image_thread
      * @brief      This is where the data are actually written for flat fits files
      * @param[in]  T &data, reference to the data
      * @param[in]  Camera::Information &info, reference to the info structure
-     * @param[in]  FITS_file *self, pointer to this-> object
+     * @param[in]  xxxx_file *self, pointer to this-> object
      * @return     nothing
      *
      * This is the worker thread, to write the data using CCFits,
@@ -439,7 +441,7 @@ class xxxx_file {                                   /// *** old method to be rep
     template <class T>
     void write_image_thread(std::valarray<T> &data, Camera::Information &info, xxxx_file *self) {
       debug( "WRITE_IMAGE_THREAD_ENTRY filename="+this->fits_name );
-      std::string function = "FITS_file::write_image_thread";
+      std::string function = "xxxx_file::write_image_thread";
       std::stringstream message;
 
       // This makes the thread wait while another thread is writing images. This
@@ -494,16 +496,16 @@ class xxxx_file {                                   /// *** old method to be rep
       debug( "WRITE_IMAGE_THREAD_EXIT filename="+this->fits_name );
       self->writing_file.store( false, std::memory_order_seq_cst );
     }
-    /**************** FITS_file::write_image_thread ***************************/
+    /**************** xxxx_file::write_image_thread ***************************/
 
 
-    /**************** FITS_file::write_mex_thread *****************************/
+    /**************** xxxx_file::write_mex_thread *****************************/
     /**
      * @fn         write_mex_thread
      * @brief      This is where the data are actually written for multi-extensions
      * @param[in]  T &data, reference to the data
      * @param[in]  Camera::Information &info, reference to the info structure
-     * @param[in]  FITS_file *self, pointer to this-> object
+     * @param[in]  xxxx_file *self, pointer to this-> object
      * @return     nothing
      *
      * This is the worker thread, to write the data using CCFits,
@@ -513,7 +515,7 @@ class xxxx_file {                                   /// *** old method to be rep
     template <class T>
     void write_mex_thread(std::valarray<T> &data, Camera::Information &info, xxxx_file *self) {
       debug( "WRITE_MEX_THREAD_ENTRY filename="+this->fits_name+" framen="+std::to_string(this->framen) );
-      std::string function = "FITS_file::write_mex_thread";
+      std::string function = "xxxx_file::write_mex_thread";
       std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
@@ -686,10 +688,10 @@ class xxxx_file {                                   /// *** old method to be rep
       this->framen++;
       self->writing_file.store( false, std::memory_order_seq_cst );
     }
-    /**************** FITS_file::write_mex_thread *****************************/
+    /**************** xxxx_file::write_mex_thread *****************************/
 
 
-    /**************** FITS_file::make_camera_header ***************************/
+    /**************** xxxx_file::make_camera_header ***************************/
     /**
      * @fn         make_camera_header
      * @brief      this writes header info from the camera_info class
@@ -702,7 +704,7 @@ class xxxx_file {                                   /// *** old method to be rep
      *
      */
     void make_camera_header(Camera::Information &info) {
-      std::string function = "FITS_file::make_camera_header";
+      std::string function = "xxxx_file::make_camera_header";
       std::stringstream message;
       try {
       }
@@ -711,10 +713,10 @@ class xxxx_file {                                   /// *** old method to be rep
         logwrite(function, message.str());
       }
     }
-    /**************** FITS_file::make_camera_header ***************************/
+    /**************** xxxx_file::make_camera_header ***************************/
 
 
-    /***** FITS_file::add_key *************************************************/
+    /***** xxxx_file::add_key *************************************************/
     /**
      * @brief      wrapper to write keywords to the FITS file header
      * @param[in]  primary  boolean is true for primary, false for extension
@@ -727,7 +729,7 @@ class xxxx_file {                                   /// *** old method to be rep
      * 
      */
     void add_key( bool primary, std::string keyword, std::string type, std::string value, std::string comment ) {
-      std::string function = "FITS_file::add_key";
+      std::string function = "xxxx_file::add_key";
       std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
@@ -800,7 +802,7 @@ class xxxx_file {                                   /// *** old method to be rep
         logwrite(function, message.str());
       }
     }
-    /***** FITS_file::add_key *************************************************/
+    /***** xxxx_file::add_key *************************************************/
 
 };
 #endif

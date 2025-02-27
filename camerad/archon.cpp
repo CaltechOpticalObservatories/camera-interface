@@ -2053,6 +2053,7 @@ namespace Archon {
     // Image can be 16 or 32 bpp depending on SAMPLEMODE setting in ACF.
     // Call set_axes(datatype) with the FITS data type needed, which will set the info.datatype variable.
     //
+logwrite(function,"[TESTTEST] calling set_axes");
     error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
 /*********
     if (this->camera_info.frame_type == Camera::FRAME_RAW) {
@@ -3195,6 +3196,7 @@ namespace Archon {
               // This call to set_axes() is to set the axis_pixels, axes, and section_size,
               // needed for the FITS writer
               //
+logwrite(function,"[TESTTEST] calling set_axes");
               error = this->camera_info.set_axes();
 
 #ifdef LOGLEVEL_DEBUG
@@ -4032,6 +4034,7 @@ namespace Archon {
         break;
 
       case Archon::READOUT_NONE:
+logwrite(function,"[TESTTEST] calling set_axes");
         this->camera_info.set_axes();
         break;
 
@@ -4041,6 +4044,8 @@ namespace Archon {
         return(ERROR);
         break;
     }
+    for (int i=0; i<3; i++) this->camera_info.naxes[i]=this->camera_info.axes[i];  // for Reed's FITS engine
+
 #ifdef LOGLEVEL_DEBUG
     message.str(""); message << "[DEBUG] axes[0]=" << this->camera_info.axes[0] << " axes[1]=" << this->camera_info.axes[1];
     logwrite( function, message.str() );
@@ -4086,6 +4091,7 @@ namespace Archon {
         this->cds_info.datatype = LONG_IMG;
         this->cds_info.bitpix = 32;
       }
+logwrite(function,"[TESTTEST] spawning dothread_runcds");
       std::thread( std::ref( Archon::Interface::dothread_runcds ), this ).detach();
       error = this->alloc_cdsring();
     }
@@ -4189,6 +4195,9 @@ namespace Archon {
         logwrite( function, "[DEBUG] opening fits file for CDS processed images" );
 #endif
         error |= this->cds_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->cds_info );
+logwrite(function,"[TESTTEST] make_unique<FITS_file> pointer");
+        this->__file_cds = std::make_unique<FITS_file<int32_t>>(false);  // false = not multi-extension
+logwrite(function,"[TESTTEST] made_unique<FITS_file> pointer");
       }
 
       if ( error != NO_ERROR ) {
@@ -4409,7 +4418,11 @@ namespace Archon {
           if ( error != NO_ERROR ) {
             logwrite( function, "ERROR: reading frame buffer" );
             this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
-            if ( this->camera_info.iscds ) this->cds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
+            if ( this->camera_info.iscds ) {
+              this->cds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
+logwrite(function,"[TESTTEST] __file_cds complete");
+              if (this->__file_cds) this->__file_cds->complete();
+            }
             this->cleanup_memory();
             return error;
           }
@@ -8120,7 +8133,14 @@ namespace Archon {
     //
     long error=NO_ERROR;
     if ( ! self->camera.is_aborted() && self->camera_info.nmcds == 0 ) {
+logwrite(function,"dothread_runcds (a) calling orig cds_file.write_image()");
       error = self->cds_file.write_image( self->coaddbuf, self->cds_info );
+logwrite(function,"dothread_runcds (a) calling __file_cds->write_image");
+self->__file_cds->write_image( self->coaddbuf,
+                               get_timestamp(),
+                               0,
+                               self->cds_info
+                             );
     }
     else if ( ! self->camera.is_aborted() ) {
 #ifdef LOGLEVEL_DEBUG
@@ -8136,7 +8156,14 @@ namespace Archon {
       }
       debug( "CDS_FILE_WRITE_START frame="+std::to_string(self->frame.bufframen[self->frame.index])+
              " deinterlace_count="+std::to_string(deinterlace_count) );
+logwrite(function,"dothread_runcds (b) calling orig cds_file.write_image()");
       error = self->cds_file.write_image( self->coaddbuf, self->cds_info );
+logwrite(function,"dothread_runcds (b) calling __file_cds->write_image");
+self->__file_cds->write_image( self->coaddbuf,
+                               get_timestamp(),
+                               0,
+                               self->cds_info
+                             );
       debug( "CDS_FILE_WRITE_END frame="+std::to_string(self->frame.bufframen[self->frame.index])+
              " deinterlace_count="+std::to_string(deinterlace_count) );
     }
