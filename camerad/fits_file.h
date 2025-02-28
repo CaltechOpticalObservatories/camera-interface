@@ -387,6 +387,19 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 //    this->make_header(this->fits_name.substr(camera_info.directory.length()+1),
 //                        timestamp, sequence, camera_info);
 //
+      for ( const auto & [key,val] : camera_info.systemkeys.keydb ) {
+        this->add_primary_key( val.keyword, val.keytype, val.keyvalue, val.keycomment );
+      }
+
+      if (camera_info.datatype == SHORT_IMG) {
+        this->pFits->pHDU().addKey( "BZERO", 32768, "offset for signed short int" );
+        this->pFits->pHDU().addKey( "BSCALE", 1, "scaling factor" );
+      }
+      else {
+        this->pFits->pHDU().addKey( "BZERO", 0.0, "offset" );
+        this->pFits->pHDU().addKey( "BSCALE", 1, "scaling factor" );
+      }
+
       // Set the compression. You have to do this after allocating the FITS file
       if (this->compression == FITS_COMPRESSION_RICE){
         this->pFits->setCompressionType(RICE_1);
@@ -422,7 +435,6 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
                                                this);
       }
     }
-
     // Write a log message and return a success value
     message << "opened FITS file " << this->fits_name << " with compression "
             << print_compression(this->compression)
@@ -434,11 +446,32 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
   /**************** FITS_file::open_file ****************/
 
 
+  void final_words(Camera::Information& info) {
+    // Get the date- and time-only out of info.start_time into separate keywords
+    //
+    std::vector<std::string> datevec;
+    std::string dateobs, timeobs;
+    Tokenize( info.start_time, datevec, "T" );      // format is "YYYY-MM-DDTHH:MM:SS.s"
+    if ( datevec.size() == 2 ) {
+      dateobs = datevec.at(0);                      // date-only is the first of two tokens
+      timeobs = datevec.at(1);                      // time-only is the second of two tokens
+    }
+
+    this->pFits->pHDU().addKey("DATE-BEG", info.start_time, "exposure start time" );
+    this->pFits->pHDU().addKey("DATE-END", info.stop_time, "exposure stop time" );
+    this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write time");
+    this->pFits->pHDU().addKey("COMPSTAT", ( info.exposure_aborted ? "aborted" : "completed" ) , "exposure completion status");
+    this->pFits->pHDU().addKey("DATE-CMD", info.cmd_start_time, "time of expose command" );
+    this->pFits->pHDU().addKey("DATE-OBS", dateobs, "exposure start date" );
+    this->pFits->pHDU().addKey("TIME-OBS", timeobs, "exposure start time" );
+  }
+
+
   /**************** FITS_file::close_file ****************/
   /**
    Closes a FITS image file; this version is meant to close a single frame file.
    */
-  int close_file()
+  int close_file(Camera::Information& camera_info)
   {
     // Set the function information for logging
     std::string function("FITS_file::close_file");
@@ -451,6 +484,8 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 
     // Add a header keyword for the time the file was written (right now!)
     this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write date");
+
+    final_words(camera_info);
 
     // Write the checksum
     this->pFits->pHDU().writeChecksum();
@@ -473,7 +508,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
   /**
    Close a FITS cube file.
    */
-  int close_cube()
+  int close_cube(Camera::Information& camera_info)
   {
     // Set the function information for logging
     std::string function("FITS_file::close_file");
@@ -502,6 +537,8 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     this->pFits->pHDU().addKey("NFRAMES", this->num_frames,
                                "number of frames in FITS file");
     this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write date");
+
+    final_words(camera_info);
 
     // Write the checksum
     this->pFits->pHDU().writeChecksum();
@@ -586,7 +623,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     }
 
     // Close the FITS file
-    if (this->close_file() != NO_ERROR){
+    if (this->close_file(camera_info) != NO_ERROR){
       message << "ERROR failed to close FITS file properly: " << this->fits_name;
       logwrite(function, message.str());
       return(ERROR);
@@ -712,6 +749,10 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 //      this->make_cube_header(this->cube_frames[0].timestamp,
 //                             this->cube_frames[0].camera_info);
 //
+        for ( const auto& [key,val] : this->cube_frames[0].camera_info.systemkeys.keydb ) {
+          this->add_extension_key( val.keyword, val.keytype, val.keyvalue, val.keycomment );
+        }
+
         // Write the image extension into the cube
         this->imageExt->write(fpixel, this->cube_frames[0].camera_info.section_size,
                               this->cube_frames[0].array);
@@ -791,7 +832,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     }
 
     // Close the final cube
-    error = this->close_cube();
+    error = this->close_cube(this->cube_frames[0].camera_info);
     if (error != NO_ERROR){
       message << "ERROR there was a problem closing the FITS cube, error code: "
               << error;
@@ -984,6 +1025,78 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     }
   }
   /**************** FITS_file::make_cube_header ****************/
+
+
+  void add_primary_key( std::string keyword, std::string type, std::string value, std::string comment ) {
+    add_key( true, keyword, type, value, comment );
+  }
+  void add_extension_key( std::string keyword, std::string type, std::string value, std::string comment ) {
+    add_key( false, keyword, type, value, comment );
+  }
+  void add_key( bool isprimary, std::string keyword, std::string type, std::string value, std::string comment ) {
+    const std::string function("FITS_file::add_key");
+    std::stringstream message;
+
+    try {
+      if (type.compare("BOOL") == 0) {
+        bool boolvalue = ( value == "T" ? true : false );
+        ( isprimary ? this->pFits->pHDU().addKey( keyword, boolvalue, comment )
+                    : this->imageExt->addKey( keyword, boolvalue, comment ) );
+      }
+      else if (type.compare("INT") == 0) {
+        ( isprimary ? this->pFits->pHDU().addKey(keyword, std::stoi(value), comment)
+                    : this->imageExt->addKey( keyword, std::stoi(value), comment ) );
+      }
+      else if (type.compare("LONG") == 0) {
+        ( isprimary ? this->pFits->pHDU().addKey(keyword, std::stol(value), comment)
+                    : this->imageExt->addKey( keyword, std::stol(value), comment ) );
+      }
+      else if (type.compare("FLOAT") == 0) {
+        ( isprimary ? this->pFits->pHDU().addKey(keyword, std::stof(value), comment)
+                    : this->imageExt->addKey( keyword, std::stof(value), comment ) );
+      }
+      else if (type.compare("DOUBLE") == 0) {
+        ( isprimary ? this->pFits->pHDU().addKey(keyword, std::stod(value), comment)
+                    : this->imageExt->addKey( keyword, std::stod(value), comment ) );
+      }
+      else if (type.compare("STRING") == 0) {
+        ( isprimary ? this->pFits->pHDU().addKey(keyword, value, comment)
+                    : this->imageExt->addKey( keyword, value, comment ) );
+      }
+      else {
+        message.str(""); message << "ERROR unknown type: " << type << " for user keyword: " << keyword << "=" << value
+                                 << ": expected {INT,LONG,FLOAT,DOUBLE,STRING,BOOL}";
+        logwrite(function, message.str());
+      }
+    }
+    // There could be an error converting a value to INT or FLOAT with stoi or stof,
+    // in which case save the keyword as a STRING.
+    //
+    catch ( std::invalid_argument & ) {
+      message.str(""); message << "ERROR: unable to convert value " << value;
+      logwrite( function, message.str() );
+      if (type.compare("STRING") != 0) {
+        ( isprimary ? this->pFits->pHDU().addKey(keyword, value, comment)
+                    : this->imageExt->addKey( keyword, value, comment ) );
+      }
+    }
+    catch ( std::out_of_range & ) {
+      message.str(""); message << "ERROR: value " << value << " out of range";
+      logwrite( function, message.str() );
+      if (type.compare("STRING") != 0) {
+        ( isprimary ? this->pFits->pHDU().addKey(keyword, value, comment)
+                    : this->imageExt->addKey( keyword, value, comment ) );
+      }
+    }
+    catch (CCfits::FitsError & err) {
+      message.str(""); message << "ERROR adding key " << keyword << "=" << value << " / " << comment << " (" << type << ")"
+                               << " to " << ( isprimary ? "primary" : "extension" ) << " :"
+                               << err.message();
+      logwrite(function, message.str());
+    }
+  message.str(""); message << "[TESTTEST] added " << (isprimary?"pri":"ext") << " key " << keyword << "=" << value << " // " << comment;
+  logwrite(function, message.str());
+  }
 
 
 public:

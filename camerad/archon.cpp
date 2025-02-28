@@ -1862,11 +1862,13 @@ namespace Archon {
       logwrite(function, "loaded Archon config file OK");
       this->firmwareloaded = true;
 
-      // add to systemkeys keyword database
+      // add firmware filename and checksum to systemkeys keyword database
       //
-      std::stringstream keystr;
-      keystr << "FIRMWARE=" << acffile << "// controller firmware";
-      this->systemkeys.addkey( keystr.str() );
+      this->systemkeys.addkey( "FIRMWARE=" + acffile + "// controller firmware" );
+
+      std::string hash;
+      md5_file( acffile, hash );
+      this->systemkeys.addkey( "FIRM_MD5=" + hash + "// MD5 checksum of firmware" );
     }
 
     // If there was an Archon error then read the Archon error log
@@ -4195,9 +4197,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
         logwrite( function, "[DEBUG] opening fits file for CDS processed images" );
 #endif
         error |= this->cds_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->cds_info );
-logwrite(function,"[TESTTEST] make_unique<FITS_file> pointer");
         this->__file_cds = std::make_unique<FITS_file<int32_t>>(false);  // false = not multi-extension
-logwrite(function,"[TESTTEST] made_unique<FITS_file> pointer");
       }
 
       if ( error != NO_ERROR ) {
@@ -4369,9 +4369,11 @@ logwrite(function,"[TESTTEST] made_unique<FITS_file> pointer");
 	  // At the halfway point, use this dts to add a header keyword for TRUITIME
 	  //
           if ( ( slicecounter%2 == 0 ) && ( slice == slicecounter/2 ) ) {
-            double truitime = dts/100000000.;
+            double truitime = static_cast<double>(dts)/100000000.0;
             std::stringstream truitimestr;
             truitimestr << truitime;
+            message.str(""); message << "TRUITIME=" << truitime << "// True integration time in seconds (calculated)";
+            this->cds_info.systemkeys.addkey( message.str() );  // new FITS engine will pick this up
             this->cds_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
             this->fits_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
           }
@@ -4396,15 +4398,17 @@ logwrite(function,"[TESTTEST] made_unique<FITS_file> pointer");
           if ( error != NO_ERROR ) {
             logwrite( function, "ERROR: waiting for readout" );
             this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
-            if ( this->camera_info.iscds ) this->cds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
+            if ( this->camera_info.iscds ) {
+              this->cds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
+              if (this->__file_cds) this->__file_cds->complete();
+            }
             this->cleanup_memory();
             return error;
           }
 
           // If this ring buffer is already locked for writing then there is a problem
           //
-          bool ringlock = (*this->ringlock.at( this->ringcount )).load( std::memory_order_seq_cst );
-          if ( ringlock ) {
+          if ( (*this->ringlock.at( this->ringcount )).load( std::memory_order_seq_cst ) ) {
             message.str(""); message << "RING BUFFER OVERFLOW: ring buffer " << this->ringcount << " is already locked for writing";
             this->camera.log_error( function, message.str() );
             this->cleanup_memory();
@@ -4420,7 +4424,6 @@ logwrite(function,"[TESTTEST] made_unique<FITS_file> pointer");
             this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
             if ( this->camera_info.iscds ) {
               this->cds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
-logwrite(function,"[TESTTEST] __file_cds complete");
               if (this->__file_cds) this->__file_cds->complete();
             }
             this->cleanup_memory();
