@@ -110,6 +110,7 @@ namespace Archon {
       long configure_controller();           //!< get configuration parameters from .cfg file
       long system_report(std::string buf, std::string &retstring);         
       long status_report(std::string &retstring);
+      void timer_report(uint64_t &timestamp);
       long timer_report(std::string &retstring);
       unsigned long  get_timer();
       long frame_report(std::string &retstring);

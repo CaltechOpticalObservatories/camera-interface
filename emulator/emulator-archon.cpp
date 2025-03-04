@@ -291,7 +291,25 @@ namespace Archon {
   /**************** Interface::status_report ****8*****************************/
 
 
-  /**************** Interface::timer_report *****8*****************************/
+  /**************** Interface::timer_report ***********************************/
+  /**
+   * @brief    returns the "Archon TIMER"
+   * @details  uses overloaded timer_report
+   * @param    timestamp  reference to uint64 timer
+   *
+   */
+  void Interface::timer_report(uint64_t &timestamp) {
+    timestamp=0;
+    std::string retstring;
+    long error = this->timer_report(retstring);
+    if (error==NO_ERROR && !retstring.empty()) {
+      timestamp = std::stoll(retstring, nullptr, 16);
+    }
+  }
+  /**************** Interface::timer_report ***********************************/
+
+
+  /**************** Interface::timer_report ***********************************/
   /**
    * @fn     timer_report
    * @brief  returns the "Archon TIMER"
@@ -303,7 +321,7 @@ namespace Archon {
    *
    */
   long Interface::timer_report(std::string &retstring) {
-    std::string function = "(Archon::Interface::timer_report) ";
+    const std::string function("(Archon::Interface::timer_report) ");
     struct timespec data;     // container for the time
     unsigned long long tm;    // 64 bit int time in 10 nsec
     std::stringstream tmstr;  // padded hex representation
@@ -314,6 +332,9 @@ namespace Archon {
     retstring = tmstr.str();
     return( NO_ERROR );
   }
+  /**************** Interface::timer_report ***********************************/
+
+
   unsigned long Interface::get_timer() {
     struct timespec data;     // container for the time
     unsigned long long tm;    // 64 bit int time in 10 nsec
@@ -321,7 +342,6 @@ namespace Archon {
     tm = 1E8 * ( data.tv_sec + (data.tv_nsec / 1E9) ) - this->init_time;
     return( tm );
   }
-  /**************** Interface::timer_report *****8*****************************/
 
 
   /**************** Interface::frame_report *****8*****************************/
@@ -912,6 +932,10 @@ namespace Archon {
 
         rowtime *= 1.05;  // 2024-MAY-17
         int i=0;
+
+        // add a timestamp to this frame buffer
+        //
+        iface.timer_report(iface.frame.buftimestamp.at(iface.frame.index));
 
         std::cout << function << "readout line: ";
         for ( iface.frame.buflines.at(iface.frame.index) = 0; iface.frame.buflines.at(iface.frame.index) < iface.image.linecount; iface.frame.buflines.at(iface.frame.index)++ ) {
