@@ -4372,8 +4372,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
             double truitime = static_cast<double>(dts)/100000000.0;
             std::stringstream truitimestr;
             truitimestr << truitime;
-            message.str(""); message << "TRUITIME=" << truitime << "// True integration time in seconds (calculated)";
-            this->cds_info.systemkeys.addkey( message.str() );  // new FITS engine will pick this up
+            this->cds_info.systemkeys.addkey( "TRUITIME", truitime, "True integration time in seconds (calculated)", 3 );  // new FITS engine will pick this up
             this->cds_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
             this->fits_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
           }
