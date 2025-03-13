@@ -2874,22 +2874,24 @@ namespace Archon {
         std::cerr << "reading bytes: ";
         for (block=0; block<bufblocks; block++) {
 
-            // Are there data to read?
-            if ( (retval=this->archon.Poll()) <= 0) {
-                if (retval==0) {
-                    message.str("");
-                    message << "Poll timeout waiting for Archon frame data";
-                    error = ERROR;
-                }  // TODO should error=TIMEOUT?
+            if (!this->is_autofetch) {
+              // Are there data to read?
+              if ( (retval=this->archon.Poll()) <= 0) {
+                  if (retval==0) {
+                      message.str("");
+                      message << "Poll timeout waiting for Archon frame data";
+                      error = ERROR;
+                  }  // TODO should error=TIMEOUT?
 
-                if (retval<0)  {
-                    message.str("");
-                    message << "Poll error waiting for Archon frame data";
-                    error = ERROR;
-                }
+                  if (retval<0)  {
+                      message.str("");
+                      message << "Poll error waiting for Archon frame data";
+                      error = ERROR;
+                  }
 
-                if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
-                break;                         // breaks out of for loop
+                  if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
+                  break;                         // breaks out of for loop
+              }
             }
 
             // Wait for a block+header Bytes to be available
