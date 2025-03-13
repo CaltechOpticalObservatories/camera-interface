@@ -134,7 +134,7 @@ if(NOT TARGET cfitsio)
   message(STATUS "cfitsio package file not found, maybe an old old system. Try finding library manually")
   find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
   add_library(cfitsio UNKNOWN IMPORTED)
-  set_target_properties(cfitsio IMPORTED_LOCATION ${CFITS_LIB})
+  set_target_properties(cfitsio PROPERTIES IMPORTED_LOCATION ${CFITS_LIB})
 endif()
 
 #for CCfits, we now provide our own find module

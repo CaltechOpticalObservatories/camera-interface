@@ -22,6 +22,6 @@ else()
   #have included a pkg-config file and mentioned it, or you should have dropped in your
   #own find module here. Good luck.
   add_library(CCfits UNKNOWN IMPORTED)
-  set_target_properties(CCfits IMPORTED_LOCATION ${CCFITS_LIB})
+  set_target_properties(CCfits PROPERTIES IMPORTED_LOCATION ${CCFITS_LIB})
   
 endif()
