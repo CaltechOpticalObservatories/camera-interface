@@ -133,7 +133,7 @@ find_package(cfitsio)
 if(NOT TARGET cfitsio)
   message(STATUS "cfitsio package file not found, maybe an old old system. Try finding library manually")
   find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
-  add_library(cfitsio IMPORTED)
+  add_library(cfitsio UNKNOWN IMPORTED)
   set_target_properties(cfitsio IMPORTED_LOCATION ${CFITS_LIB})
 endif()
 

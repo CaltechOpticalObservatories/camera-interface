@@ -21,7 +21,7 @@ else()
   #If you have a non-standard include path, your CCfits installation should
   #have included a pkg-config file and mentioned it, or you should have dropped in your
   #own find module here. Good luck.
-  add_library(CCfits IMPORTED)
+  add_library(CCfits UNKNOWN IMPORTED)
   set_target_properties(CCfits IMPORTED_LOCATION ${CCFITS_LIB})
   
 endif()
