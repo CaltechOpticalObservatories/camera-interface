@@ -8,18 +8,18 @@ set( EMULATOR_DIR ${PROJECT_BASE_DIR}/emulator )
 
 add_definitions( -Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb )
 
-include_directories( ${PROJECT_BASE_DIR}/utils 
-                     ${PROJECT_BASE_DIR}/camerad 
-                     ${PROJECT_BASE_DIR}/common )
+include_directories( ${CMAKE_SOURCE_DIR}/utils 
+                     ${CMAKE_SOURCE_DIR}/camerad 
+                     ${CMAKE_SOURCE_DIR}/common )
 
 if( ${INTERFACE_TYPE} STREQUAL "Archon" )
         add_definitions(-DSTA_ARCHON)
         set( EMULATOR_TARGET emulatorArchon )
         list(APPEND EMULATOR_SOURCE
-                "${EMULATOR_DIR}/emulator-archon.cpp"
+                "emulator-archon.cpp"
                 )
         add_library(emulatorInterface STATIC
-                ${EMULATOR_DIR}/emulator-archon.cpp
+                emulator-archon.cpp
                 )
 
 add_library(${EMULATOR_TARGET} ${EMULATOR_SOURCE})
@@ -27,7 +27,7 @@ add_library(${EMULATOR_TARGET} ${EMULATOR_SOURCE})
 target_include_directories(${EMULATOR_TARGET} PUBLIC ${PROJECT_INCL_DIR})
 
 add_executable(emulator
-        ${EMULATOR_DIR}/emulator-server.cpp
+        emulator-server.cpp
         )
 
 target_link_libraries(emulator

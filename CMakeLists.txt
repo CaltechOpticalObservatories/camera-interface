@@ -59,8 +59,9 @@ endif()
 
 find_package(Threads)
 
-add_subdirectory(${PROJECT_BASE_DIR}/utils)
-add_subdirectory(${PROJECT_BASE_DIR}/common)
-add_subdirectory(${PROJECT_BASE_DIR}/camerad)
-add_subdirectory(${PROJECT_BASE_DIR}/emulator)
-add_subdirectory(${PROJECT_BASE_DIR}/tests EXCLUDE_FROM_ALL)
+#no need for absolute paths here, they are by default relative to ${CMAKE_CURRENT_LIST_DIR}
+add_subdirectory(utils)
+add_subdirectory(common)
+add_subdirectory(camerad)
+add_subdirectory(emulator)
+add_subdirectory(tests EXCLUDE_FROM_ALL)

@@ -6,8 +6,8 @@ cmake_minimum_required(VERSION 3.12)
 
 set(CAMERA_DIR ${PROJECT_BASE_DIR}/camerad)
 
-include_directories(${PROJECT_BASE_DIR}/utils)
-include_directories(${PROJECT_BASE_DIR}/common)
+include_directories(${CMAKE_SOURCE_DIR}/utils)
+include_directories(${CMAKE_SOURCE_DIR}/common)
 link_directories(${PROJECT_BASE_DIR}/lib)
 
 # ----------------------------------------------------------------------------
@@ -68,7 +68,7 @@ elseif (${INTERFACE_TYPE} STREQUAL "Archon")
     add_definitions(-Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb)
     add_definitions(-DSTA_ARCHON)
     list(APPEND INTERFACE_SOURCE
-            "${CAMERA_DIR}/archon.cpp"
+            "archon.cpp"
     )
     list(APPEND INTERFACE_INCLUDES
             "${ARCHON_INCLUDE}"
@@ -95,17 +95,17 @@ if (NOT DEFINED INSTR)
 else ()
     if (${INSTR} STREQUAL "nirc2")
         message(STATUS "building for nirc2 instrument")
-        list(APPEND INTERFACE_SOURCE "${CAMERA_DIR}/nirc2.cpp")
+        list(APPEND INTERFACE_SOURCE "nirc2.cpp")
     elseif (${INSTR} STREQUAL "generic")
         message(STATUS "building for generic instrument")
-        list(APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp")
+        list(APPEND INTERFACE_SOURCE "generic.cpp")
     elseif (${INSTR} STREQUAL "undefined")
         message(STATUS "no INSTR defined. using generic but other options are:")
         message(STATUS "cmake -DINSTR=nirc2,generic ..")
-        list(APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp")
+        list(APPEND INTERFACE_SOURCE "generic.cpp")
     else ()
         message(STATUS "unknown instrument " ${INSTR} ": using generic")
-        list(APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp")
+        list(APPEND INTERFACE_SOURCE "generic.cpp")
     endif ()
 endif ()
 
@@ -120,7 +120,7 @@ target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 
 add_library(camera STATIC
-        ${CAMERA_DIR}/camera.cpp
+        camera.cpp
 )
 
 # ----------------------------------------------------------------------------
@@ -130,10 +130,14 @@ add_library(camera STATIC
 find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
 find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
 
+message("CCFITS library: ${CCFITS_LIB}")
+
+
 find_package(Threads)
 
+
 add_executable(camerad
-        ${CAMERA_DIR}/camerad.cpp
+        camerad.cpp
         ${INTERFACE_INCLUDES}
 )
 

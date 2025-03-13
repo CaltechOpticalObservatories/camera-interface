@@ -10,9 +10,9 @@ set(PROJECT_UTILS_DIR ${PROJECT_BASE_DIR}/common)
 
 add_definitions(-Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb)
 
-include_directories(${PROJECT_BASE_DIR}/common)
-include_directories(${PROJECT_BASE_DIR}/utils)    # needed for logentry
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_SOURCE_DIR}/utils)    # needed for logentry
 
 add_library(common STATIC
-        ${PROJECT_UTILS_DIR}/common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
 )
