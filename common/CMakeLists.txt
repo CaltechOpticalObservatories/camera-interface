@@ -6,13 +6,12 @@
 
 cmake_minimum_required(VERSION 3.12)
 
-set(PROJECT_UTILS_DIR ${PROJECT_BASE_DIR}/common)
+add_definitions(-Wall -Wno-variadic-macros)
 
-add_definitions(-Wall -ansi -O2 -Wno-variadic-macros -std=c++17 -ggdb)
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+#for now have hard coded path here, better in future
+#to add include directory as a link interface property
+#of a preceeding target. But that may not be available in
+#cmake 3.12
 include_directories(${CMAKE_SOURCE_DIR}/utils)    # needed for logentry
 
-add_library(common STATIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
-)
+add_library(common  common.cpp)

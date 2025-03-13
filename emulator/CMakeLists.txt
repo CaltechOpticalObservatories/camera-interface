@@ -3,10 +3,7 @@
 # ----------------------------------------------------------------------------
 
 cmake_minimum_required( VERSION 3.12 )
-
-set( EMULATOR_DIR ${PROJECT_BASE_DIR}/emulator )
-
-add_definitions( -Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb )
+add_definitions( -Wall -Wno-variadic-macros)
 
 include_directories( ${CMAKE_SOURCE_DIR}/utils 
                      ${CMAKE_SOURCE_DIR}/camerad 
@@ -26,8 +23,7 @@ add_library(${EMULATOR_TARGET} ${EMULATOR_SOURCE})
 
 target_include_directories(${EMULATOR_TARGET} PUBLIC ${PROJECT_INCL_DIR})
 
-add_executable(emulator
-        emulator-server.cpp
+add_executable(emulator emulator-server.cpp
         )
 
 target_link_libraries(emulator

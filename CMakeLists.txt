@@ -2,17 +2,34 @@
 # CMakeLists.txt
 # top-level CMake input file
 # ----------------------------------------------------------------------------
+cmake_minimum_required(VERSION 3.12)
+project(camera C CXX)
+
 
 # ----------------------------------------------------------------------------
 # user must define the interface type here
 # valid types are: "AstroCam" | "Archon"
 # ----------------------------------------------------------------------------
+set(INTERFACE_TYPE "Archon" CACHE STRING "Type of instrument interface to build for")
+set_property(CACHE INTERFACE_TYPE PROPERTY STRINGS Archon AstroCam)
+
+#for some reason all libraries are built static by default
+#I'm not sure if this is for technical reasons or just preferred
+#Anyway, give the option but set it to static by default 
+option(BUILD_SHARED_LIBS "build shared libraries instead of static" OFF)
 
 
-# Interface type can be set via command line ( Archon | AstroCam )
-IF (NOT DEFINED INTERFACE_TYPE)
-    set(INTERFACE_TYPE "Archon")
-endif ()
+#the build system of camerad previously outputted binaries to the source folder
+# leave this by default for compatibility but allow an option to put the binaries in the usual place
+# (the build folder)
+option(OUTPUT_TO_SRC_DIR "output binaries and libraries to source folder rather than build folder" ON)
+
+
+
+if(NOT CMAKE_BUILD_TYPE)
+  message(STATUS "no build type specified defaulting to RelWithDebInfo")
+  set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
 
 # Instrument can be set via command line generic is the default value
 IF (NOT DEFINED INSTR)
@@ -28,30 +45,19 @@ endif ()
 # un-comment the following to log verbose debug messages
 #add_definitions(-DLOGLEVEL_DEBUG)
 
-cmake_minimum_required(VERSION 3.12)
+#setting these standard variables will (since CMake 3.1)
+#setup the proper -std=c++17 etc flags, no need to do it manually
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_program(GXX_COMPILER NAMES g++)
 
-if(GXX_COMPILER)
-    message(STATUS "Found g++: ${GXX_COMPILER}")
-    set(CMAKE_CXX_COMPILER ${GXX_COMPILER})
-else()
-    message(FATAL_ERROR "g++ compiler not found. Please install g++ and try again.")
+if(OUTPUT_TO_SRC_DIR)
+  #this is the "legacy" behaviour
+  #if this option is not set, binaries will output in their default place in the CMake build output folder
+  set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin)
+  set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
 endif()
-
-project(camera)
-
-set(CMAKE_GXX_STANDARD 17)
-set(CMAKE_GXX_STANDARD_REQUIRED ON)
-set(CMAKE_GXX_EXTENSIONS OFF)
-
-# Run "cmake .." from the project's build/ directory!
-#
-set(PROJECT_BASE_DIR $ENV{PWD}/../)
-
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
-set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
-
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories(/usr/local/include)

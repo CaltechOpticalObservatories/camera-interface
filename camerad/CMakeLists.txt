@@ -4,11 +4,8 @@
 
 cmake_minimum_required(VERSION 3.12)
 
-set(CAMERA_DIR ${PROJECT_BASE_DIR}/camerad)
-
 include_directories(${CMAKE_SOURCE_DIR}/utils)
 include_directories(${CMAKE_SOURCE_DIR}/common)
-link_directories(${PROJECT_BASE_DIR}/lib)
 
 # ----------------------------------------------------------------------------
 # Setup for appropriate hardware interface...
@@ -119,27 +116,37 @@ add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 
-add_library(camera STATIC
-        camera.cpp
-)
+add_library(camera camera.cpp)
 
 # ----------------------------------------------------------------------------
 # External libraries, such as FITS, etc.
 # ----------------------------------------------------------------------------
 
-find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
-find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
+#cfitsio has provided a cmake config file for quite a long time
+#on some systems where include files are not in the default place, this will still find them
+#if it fails, we fall back to camerad previous behaviour, manually finding the library file ONLY
+#(and not bothering about includes if they're not in the right place)
+find_package(cfitsio)
 
-message("CCFITS library: ${CCFITS_LIB}")
+#the package file defines a cmake target rather than just the variables
+#that target will also have correct path to include files
+if(NOT TARGET cfitsio)
+  message(STATUS "cfitsio package file not found, maybe an old old system. Try finding library manually")
+  find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
+  add_library(cfitsio IMPORTED)
+  set_target_properties(cfitsio IMPORTED_LOCATION ${CFITS_LIB})
+endif()
 
+#for CCfits, we now provide our own find module
+#this allows for systems with non-standard paths to
+#replace that find module without hacking our build system (e.g. fedora, suse, etc)
+
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+find_package(CCfits REQUIRED)
 
 find_package(Threads)
-
-
-add_executable(camerad
-        camerad.cpp
-        ${INTERFACE_INCLUDES}
-)
+add_executable(camerad camerad.cpp  ${INTERFACE_INCLUDES})
 
 # ----------------------------------------------------------------------------
 # Everyone gets this:
@@ -153,8 +160,8 @@ target_link_libraries(camerad
         utilities
         ${INTERFACE_TARGET}
         ${CMAKE_THREAD_LIBS_INIT}
-        ${CCFITS_LIB}
-        ${CFITS_LIB}
+	cfitsio
+	CCfits
 )
 
 target_link_libraries(camerad ${CARC_BASE})
@@ -167,7 +174,7 @@ target_link_libraries(camerad ${CARC_FITS})
 # If it's installed on the system then link it, but don't make it mandatory.
 # ----------------------------------------------------------------------------
 #
-include(FindCURL)
+find_package(CURL)
 
 if (CURL_FOUND STREQUAL "FALSE")
     message(STATUS "cURL was not found but may be needed by some systems if built into cfitsio.\n   If you experience undefined curl references during linking \n   then please your cURL installation.")
