@@ -18,9 +18,15 @@ public:
     return NO_ERROR;
   };
 
-  virtual long open(bool writekeys, Camera::Information &info) = 0;
+  virtual long open(bool writekeys, Camera::Information &info) {
+    const std::string function = "ImageOutput::open";
+    logwrite(function, "member function should not be used");
+  }
 
-  virtual void close(bool writekeys, Camera::Information &info) = 0;
+  virtual void close(bool writekeys, Camera::Information &info) {
+    const std::string function = "ImageOutput::close";
+    logwrite(function, "member function should not be used");
+  }
 
   virtual bool is_open() = 0;
 };

@@ -52,7 +52,6 @@ set(PROJECT_BASE_DIR $ENV{PWD}/../)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 
-
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     include_directories(/usr/local/include)
 endif()

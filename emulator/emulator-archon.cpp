@@ -416,7 +416,7 @@ namespace Archon {
     size_t byteswritten;     //!< bytes written for this block
     int totalbyteswritten;   //!< total bytes written for this image
     size_t towrite=0;        //!< remaining bytes to write for this block
-    char* image_data=nullptr;
+    int16_t* image_data=nullptr;
 
     std::cout << get_timestamp() << function << "got command " << cmd << "\n";
 
@@ -443,34 +443,89 @@ namespace Archon {
       return ERROR;
     }
 
-    image_data = new char[reqblocks * BLOCKLEN];
+    const unsigned int image_size = reqblocks * BLOCKLEN;
+    image_data = new int16_t[image_size]();
 
     std::srand( time( nullptr ) );
-    for ( unsigned int i=0; i<(reqblocks*BLOCKLEN)/2; i+=10 ) {
-      image_data[i] = rand() % 40000 + 30000;
+
+    logwrite(function, "reqblocks: " + std::to_string(reqblocks) + ", BLOCKLEN: " + std::to_string(BLOCKLEN));
+    // for ( unsigned int i=0; i<(reqblocks*BLOCKLEN)/2; i+=10 ) {
+    //   image_data[i] = rand() % 40000 + 30000;
+    // }
+    // for (int i = 0; i < image_size; i++) {
+    //   image_data[i] = 1000;
+    // }
+
+    const int width = 2048;
+    const int height = 516;
+    const int16_t intensity = 255;
+    const int radius = 20;
+    const int center_x = width / 2;
+    const int center_y = height / 2;
+
+    // Allocate a flat array to hold the pixel data
+    // int16_t* image = new int16_t[width * height]();
+
+    // Set the light source in the center
+    for (int y = center_y - radius; y <= center_y + radius; y++) {
+      for (int x = center_x - radius; x <= center_x + radius; x++) {
+        if ((x - center_x) * (x - center_x) + (y - center_y) * (y - center_y) <= radius * radius) {
+          image_data[y * width + x] = intensity;
+        }
+      }
     }
+
+    // const int width = 2048;
+    // const int height = 516;
+    // const int block_size = 10;
+    //
+    // // Calculate the top-left corner of the 10x10 block
+    // int start_row = (height / 2) - (block_size / 2);
+    // int start_col = (width / 2) - (block_size / 2);
+    //
+    // // Declare the 2D matrix
+    // int matrix[height][width] = {0}; // Initializes all to 0
+    //
+    // // Set the 10x10 area to 255
+    // for (int i = 0; i < block_size; ++i) {
+    //   for (int j = 0; j < block_size; ++j) {
+    //     matrix[start_row + i][start_col + j] = 255;
+    //   }
+    // }
+    //
+    // // Declare the flat array
+    // // int flat_matrix[width * height];
+    //
+    // // Flatten the 2D matrix into the flat array
+    // for (int i = 0; i < height; ++i) {
+    //   for (int j = 0; j < width; ++j) {
+    //     image_data[i * width + j] = matrix[i][j];
+    //   }
+    // }
+
+    logwrite(function, "first element: " + std::to_string(image_data[0]) + ", second element: " + std::to_string(image_data[1]) + ", size: " + std::to_string(image_size));
 
     std::string header = "<" + ref + ":";
     totalbyteswritten = 0;
 
     std::cout << get_timestamp() << function << "host requested " << std::dec << reqblocks << " (0x" << std::hex << reqblocks << ") blocks \n";
 
-    std::cout << "writing bytes: ";
-
     for ( block = 0; block < reqblocks; block++ ) {
       sock.Write(header);
-      byteswritten = 0;
-      do {
-        int retval=0;
-        towrite = BLOCKLEN - byteswritten;
-        if ( ( retval = sock.Write(image_data, towrite) ) > 0 ) {
-          byteswritten += retval;
+      // byteswritten = 0;
+      // do {
+        int retval = 0;
+        towrite = BLOCKLEN;
+        if ( ( retval = sock.Write(image_data + totalbyteswritten, towrite) ) > 0 ) {
+          // byteswritten += retval;
           totalbyteswritten += retval;
           std::cout << std::dec << std::setw(10) << totalbyteswritten << "\b\b\b\b\b\b\b\b\b\b";
         }
-      } while ( byteswritten < BLOCKLEN );
+      // } while ( byteswritten < BLOCKLEN );
     }
-    std::cout << std::dec << std::setw(10) << totalbyteswritten << " complete\n";
+
+
+    logwrite(function, totalbyteswritten + " complete\n");
     std::cout << get_timestamp() << function << "wrote " << std::dec << block << " blocks to host\n";
 
     delete[] image_data;

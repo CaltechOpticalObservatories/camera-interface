@@ -361,6 +361,8 @@ public:
         std::string function = "FITS_file::write_image_thread";
         std::stringstream message;
 
+        logwrite(function, "Write image thread");
+
         // This makes the thread wait while another thread is writing images. This
         // function is really for single image writing, it's here just in case.
         //
@@ -425,6 +427,8 @@ public:
     void write_cube_thread(std::valarray<T> &data, Camera::Information &info, FITS_file *self) {
         std::string function = "FITS_file::write_cube_thread";
         std::stringstream message;
+
+        logwrite(function, "Write cube thread");
 
 #ifdef LOGLEVEL_DEBUG
       message.str(""); message << "[DEBUG] info.extension=" << info.extension << " this->framen=" << this->framen;

@@ -10,12 +10,13 @@ std::unique_ptr<ImageOutput> ImageOutputFactory::create_image_output_object(std:
 
   if (output_type == "disk") {
     return std::make_unique<WriteToDisk>();
-  } else if (output_type == "zmq") {
+  }
+  if (output_type == "zmq") {
     logwrite(function, "return zmq");
 
     return std::make_unique<WriteToZmq>();
-  } else {
-    logwrite(function, "Error: Unknown output type '" + output_type + "' provided.");
-    return nullptr;
   }
+
+  logwrite(function, "Error: Unknown output type '" + output_type + "' provided.");
+  return nullptr;
 }

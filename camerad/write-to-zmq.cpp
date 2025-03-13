@@ -6,18 +6,46 @@
 #include "zmq.hpp"
 
 long WriteToZmq::open(bool writekeys, Camera::Information &info) {
-  // std::string function = "WriteToZmq::open";
+  std::string function = "WriteToZmq::open";
+  logwrite(function, "open");
+  return NO_ERROR;
+}
 
-  // logwrite(function, "opening ZMQ push socket");
+long WriteToZmq::open_socket() {
+  std::string function = "WriteToZmq::open_socket";
+  logwrite(function, "opening ZMQ socket");
+  //
+  // std::string addr = "tcp://localhost:5555";
+  //
+  // try {
+  //   publisher.bind(addr);
+  is_socket_open = true;
+  //   std::cout << "Publisher bound to " << addr << std::endl;
+  // } catch(const zmq::error_t& e) {
+  //   std::cerr << "Binding failed: " << e.what() << std::endl;
+  //   return ERROR;
+  // }
 
-  // this->push_socket.connect("tcp://localhost:5555");
   return NO_ERROR;
 }
 
 void WriteToZmq::close(bool writekeys, Camera::Information &info) {
+  std::string function = "WriteToZmq::close";
+  logwrite(function, "close");
+}
 
+void WriteToZmq::close_socket() {
+  std::string function = "WriteToZmq::close_socket";
+  logwrite(function, "closing ZMQ socket");
+  //
+  // try {
+  //   publisher.unbindAll();
+  is_socket_open = false;
+  // } catch(const zmq::error_t& e) {
+  //   std::cerr << "Unbinding failed: " << e.what() << std::endl;
+  // }
 }
 
 bool WriteToZmq::is_open() {
-  return true;
+  return this->is_socket_open;
 }

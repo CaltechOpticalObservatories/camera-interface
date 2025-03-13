@@ -14,8 +14,11 @@ public:
 
   FITS_file fits_file; //!< instantiate a FITS container object
 
-  template<class T>
-  long write_image(T* imageData, Camera::Information &info);
+  template <class T>
+  long write_image(T *imageData, Camera::Information &info) {
+    logwrite("WriteToDisk::write_image", "WriteToDisk::write_image");
+    return this->fits_file.write_image(imageData, info);
+  }
 
   long open(bool writekeys, Camera::Information &info) override;
 

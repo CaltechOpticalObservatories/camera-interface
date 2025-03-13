@@ -87,7 +87,8 @@ namespace Archon {
     private:
         unsigned long int start_timer, finish_timer; //!< Archon internal timer, start and end of exposure
         int n_hdrshift; //!< number of right-shift bits for Archon buffer in HDR mode
-        std::unique_ptr<ImageOutput> image_output;
+        WriteToZmq* image_output;
+        bool is_image_output_set = false;
     public:
         Interface();
 
@@ -166,7 +167,7 @@ namespace Archon {
         // Functions
         //
         static long interface(std::string &iface); //!< get interface type
-        ImageOutput* get_image_output();
+        long get_image_output();
         long configure_controller(); //!< get configuration parameters
         long prepare_image_buffer(); //!< prepare image_data, allocating memory as needed
         long connect_controller(const std::string &devices_in); //!< open connection to archon controller

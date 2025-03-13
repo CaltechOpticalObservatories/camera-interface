@@ -41,9 +41,6 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 
     set(INTERFACE_SOURCE
             "${CAMERA_DIR}/astrocam.cpp"
-            write-to-zmq.cpp
-            write-to-zmq.h
-            zmq-socket.h
     )
 
     set(INTERFACE_INCLUDES
@@ -136,6 +133,7 @@ find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
 find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
 
 find_package(Threads)
+find_package(nlohmann_json)
 
 add_executable(camerad
         ${CAMERA_DIR}/camerad.cpp
