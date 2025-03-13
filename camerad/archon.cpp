@@ -2874,35 +2874,34 @@ namespace Archon {
         std::cerr << "reading bytes: ";
         for (block=0; block<bufblocks; block++) {
 
-            if (!this->is_autofetch) {
-              // Are there data to read?
-              if ( (retval=this->archon.Poll()) <= 0) {
-                  if (retval==0) {
-                      message.str("");
-                      message << "Poll timeout waiting for Archon frame data";
-                      error = ERROR;
-                  }  // TODO should error=TIMEOUT?
+            // Are there data to read?
+            if ( (retval=this->archon.Poll()) <= 0) {
+                if (retval==0) {
+                    message.str("");
+                    message << "Poll timeout waiting for Archon frame data";
+                    error = ERROR;
+                }  // TODO should error=TIMEOUT?
 
-                  if (retval<0)  {
-                      message.str("");
-                      message << "Poll error waiting for Archon frame data";
-                      error = ERROR;
-                  }
+                if (retval<0)  {
+                    message.str("");
+                    message << "Poll error waiting for Archon frame data";
+                    error = ERROR;
+                }
 
-                  if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
-                  break;                         // breaks out of for loop
-              }
+                if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
+                break;                         // breaks out of for loop
             }
-
+            
             // Wait for a block+header Bytes to be available
             // (but don't wait more than 1 second -- this should be tens of microseconds or less)
             //
             auto start = std::chrono::steady_clock::now();               // start a timer now
 
+            logwrite(function, "Bytes ready: " + std::to_string(this->archon.Bytes_ready()));
             while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) {
                 auto now = std::chrono::steady_clock::now();             // check the time again
                 std::chrono::duration<double> diff = now-start;          // calculate the duration
-                if (diff.count() > 1) {                                  // break while loop if duration > 1 second
+                if (diff.count() > 20) {                                  // break while loop if duration > 1 second
                     std::cerr << "\n";
                     this->camera.log_error( function, "timeout waiting for data from Archon" );
                     error = ERROR;
@@ -2913,6 +2912,8 @@ namespace Archon {
 
             // Check message header
             //
+
+            logwrite(function, "Check message header");
             SNPRINTF(check, "<%02X:", this->msgref)
             if ( (retval=this->archon.Read(header, 4)) != 4 ) {
                 message.str(""); message << "code " << retval << " reading Archon frame header";
