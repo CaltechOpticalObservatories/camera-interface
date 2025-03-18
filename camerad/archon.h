@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include <zmq.hpp>
 #include <CCfits/CCfits>           //!< needed here for types in set_axes()
 #include <atomic>
 #include <chrono>
@@ -86,6 +87,12 @@ namespace Archon {
         unsigned long int start_timer, finish_timer; //!< Archon internal timer, start and end of exposure
         int n_hdrshift; //!< number of right-shift bits for Archon buffer in HDR mode
 
+        // For ZMQ
+        std::unique_ptr<zmq::context_t> context_;
+        std::unique_ptr<zmq::socket_t> publisher_;
+        std::thread serverThread_;
+        std::mutex serverMutex_;
+
     public:
         Interface();
 
@@ -116,6 +123,7 @@ namespace Archon {
         bool is_longexposure_set; //!< true for long exposure mode (exptime in sec), false for exptime in msec
         bool is_window; //!< true if in window mode for h2rg, false if not
         bool is_autofetch;
+        bool is_zmq;
         int win_hstart;
         int win_hstop;
         int win_vstart;
@@ -242,6 +250,10 @@ namespace Archon {
         long hwindow(std::string state_in, std::string &state_out);
 
         long autofetch(std::string state_in, std::string &state_out);
+
+        long zmq(std::string state_in, std::string &state_out);
+
+        long int write_to_zmq(const std::string& message);
 
         long video();
 
