@@ -70,7 +70,7 @@ namespace Daemon {
 
     // Close all open file descriptors
     //
-    for( int fd = sysconf( _SC_OPEN_MAX ); fd >= 0; fd-- ) close( fd );
+    for( long fd = sysconf( _SC_OPEN_MAX ); fd >= 0; fd-- ) close( static_cast<int>(fd) );
 
     // reopen stdin, stdout, stderr
     //

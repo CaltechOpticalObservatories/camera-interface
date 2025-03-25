@@ -968,6 +968,9 @@ namespace Camera {
     std::swap(nmcds, other.nmcds);
     std::swap(ismex, other.ismex);
 //  std::swap(extension, other.extension);
+    int temp = extension.load();
+    extension.store(other.extension.load());
+    other.extension.store(temp);
     std::swap(shutterenable, other.shutterenable);
     std::swap(shutteractivate, other.shutteractivate);
     std::swap(exposure_time, other.exposure_time);

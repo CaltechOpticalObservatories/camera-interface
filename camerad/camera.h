@@ -216,7 +216,7 @@ namespace Camera {
        *          same as fitscubed, which is used to force the fits writer to create a cube.
        *
        */
-      long          cubedepth;
+      uint32_t      cubedepth;
 
       /**
        * @var     fitscubed
@@ -262,6 +262,8 @@ namespace Camera {
 
       std::vector< std::vector<long> > amp_section;
 
+      bool writekeys_before;
+
       Common::FitsKeys userkeys;     /// create a FitsKeys object for FITS keys specified by the user
       Common::FitsKeys systemkeys;   /// create a FitsKeys object for FITS keys imposed by the software
       Common::FitsKeys extkeys;      /// create a FitsKeys object for FITS keys imposed by the software
@@ -271,7 +273,7 @@ namespace Camera {
       Information() :
         fits_compression_code(0),          //!< cfitsio code for compression type
         fits_compression_type("none"),     //!< string representing FITS compression type
-        naxes({1, 1, 1}),                  //!< array of axis lengths where element 0=cols, 1=rows, 2=cubedepth
+        naxes({0, 0, 0}),                  //!< array of axis lengths where element 0=cols, 1=rows, 2=cubedepth
         binning{1, 1},                     //!< pixel binning, each axis
         region_of_interest{1, 1, 1, 1},    //!< region of interest
         datatype(0),                       //!< FITS data type (corresponding to bitpix) used in set_axes()
@@ -291,6 +293,7 @@ namespace Camera {
         iscds(false),                      //!< is CDS subtraction requested?
         nmcds(0),                          //!< number of MCDS samples
         ismex(false),                      //!< the info object given to the FITS writer will need to know multi-extension status
+        extension(0),
         shutteractivate(""),               //!< shutter activation state
         exposure_time(-1),                 //!< requested exposure time in exposure_unit
         requested_exptime(0),              //!< user-requested exposure time
@@ -304,7 +307,8 @@ namespace Camera {
         num_coadds(1),                     //!< number of coadds
         sampmode(-1),                      //!< sample mode (NIRC2)
         sampmode_ext(-1),                  //!< sample mode number of extensions (NIRC2)
-        sampmode_frames(-1)                //!< sample mode number of frames (NIRC2)
+        sampmode_frames(-1),               //!< sample mode number of frames (NIRC2)
+        writekeys_before(true)             //!< 
         { }
 
     // Copy constructor needed because the default copy constructor is deleted,
@@ -395,6 +399,7 @@ namespace Camera {
           start_time(other.start_time),
           stop_time(other.stop_time),
           amp_section(other.amp_section),
+          writekeys_before(other.writekeys_before),
           userkeys(other.userkeys),
           systemkeys(other.systemkeys),
           extkeys(other.extkeys) {
@@ -412,12 +417,14 @@ namespace Camera {
         std::copy(std::begin(other.axis_pixels), std::end(other.axis_pixels), std::begin(axis_pixels));
         std::copy(std::begin(other.region_of_interest), std::end(other.region_of_interest), std::begin(region_of_interest));
         std::copy(std::begin(other.image_center), std::end(other.image_center), std::begin(image_center));
+// std::cout << "Information copy constructor extension=" << other.extension.load() << "\n";
     }
 
     // Copy assignment operator
     //
     Information& operator=(Information other) { // Pass-by-value enables copy-and-swap
       swap(other);
+// std::cout << "Information copy assignment extension=" << other.extension.load() << "\n";
       return *this;
     }
 
@@ -430,7 +437,7 @@ namespace Camera {
       long set_axes() {
         std::string function = "Camera::Information::set_axes";
         std::stringstream message;
-        long bytes_per_pixel;
+        uint8_t bytes_per_pixel;
 
         if ( this->frame_type == FRAME_RAW ) {
           bytes_per_pixel = 2;
@@ -459,20 +466,27 @@ namespace Camera {
         this->axis_pixels[1] = this->region_of_interest[3] -
                                this->region_of_interest[2] + 1;
 
+        long num_axis = ( this->cubedepth > 1 ? 3 : 2 );
+
         if ( this->cubedepth > 1 ) {
           this->axes[0] = this->axis_pixels[0] / this->binning[0];  // cols
           this->axes[1] = this->axis_pixels[1] / this->binning[1];  // rows
           this->axes[2] = this->cubedepth;                          // cubedepth
+          // Pixels to write for this image section, includes depth for 3D data cubes
+          this->section_size = this->axes[0] * this->axes[1] * this->axes[2];
         }
         else {
           this->axes[0] = this->axis_pixels[0] / this->binning[0];  // cols
           this->axes[1] = this->axis_pixels[1] / this->binning[1];  // rows
-          this->axes[2] = 1;                                        // (no cube)
+          this->axes[2] = 0;                                        // (no cube)
+          // Pixels to write for this image section, includes depth for 3D data cubes
+          this->section_size = this->axes[0] * this->axes[1];
         }
 
-        for ( int i=0; i<3; i++ ) this->naxes[i]=this->axes[i];     // for Reed's FITS engine
+        this->naxes.resize(num_axis);
 
-        this->section_size = this->axes[0] * this->axes[1] * this->axes[2];    // Pixels to write for this image section, includes depth for 3D data cubes
+        for ( int i=0; i<num_axis; i++ ) this->naxes[i]=this->axes[i];     // for Reed's FITS engine
+
         this->image_size   = this->section_size;
 
         this->image_memory = this->detector_pixels[0] 
@@ -483,6 +497,7 @@ namespace Camera {
                 << " region_of_interest[0]=" << this->region_of_interest[0]
                 << " region_of_interest[3]=" << this->region_of_interest[3]
                 << " region_of_interest[2]=" << this->region_of_interest[2]
+                << " num_axis=" << num_axis
                 << " axes[0]=" << this->axes[0]
                 << " axes[1]=" << this->axes[1]
                 << " axes[2]=" << this->axes[2];

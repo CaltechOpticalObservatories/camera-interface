@@ -45,14 +45,14 @@ constexpr int FITS_COMPRESSION_PLIO=PLIO_1;
 /// Maximum file size supported for image data cubes = 1GB
 const unsigned long MAX_IMAGE_DATA_SIZE = 1073741824;
 
-/** \class FITS_cube_frame
- \brief FITS cube frame object
+/** \class FITS_mex_frame
+ \brief FITS mex frame object
  \details This class contains the information that goes into a frame of a data
  cube.  These are put into a vector and written out by the FITS_file class in
- its cube writing thread.
+ its mex writing thread.
  */
 template <class T>
-class FITS_cube_frame
+class FITS_mex_frame
 {
 public:
 
@@ -73,17 +73,19 @@ public:
   Camera::Information camera_info;
 
 
-  /**************** FITS_file::FITS_cube_frame ****************/
+  /**************** FITS_file::FITS_mex_frame ****************/
   /**
-   This function constructs the FITS_cube_frame class.  Note that the array is
+   This function constructs the FITS_mex_frame class.  Note that the array is
    automatically filled by the valarray constructor when this class is
    constructed.
    */
-  FITS_cube_frame(T * data, int size, std::string timestamp_in, int sequence_in,
+  FITS_mex_frame(T * data, int size, std::string timestamp_in, int sequence_in,
                   Camera::Information camera_info_in): array(data, size)
   {
+// std::cout << "(FITS_mex_frame) constructing FITS_mex_frame. camera_info_in.extension=" << camera_info_in.extension.load() << "\n";
     // Copy the camera info from the input
     this->camera_info = camera_info_in;
+// std::cout << "(FITS_mex_frame) -> camera_info.extension=" << this->camera_info.extension.load() << "\n";
 
     // Copy the timestamp from the input
     this->timestamp = timestamp_in;
@@ -91,7 +93,7 @@ public:
     // Copy the sequence number from the input
     this->sequence = sequence_in;
   };
-  /**************** FITS_file::FITS_cube_frame ****************/
+  /**************** FITS_file::FITS_mex_frame ****************/
 
 };
 
@@ -161,33 +163,33 @@ private:
    \details Reported telescope dec (in degrees), needed for WCS entry */
   float teldecd;
 
-  /** \var boost::thread fits_cube_thread
-   \details Boost thread variable for the cube writing thread */
-  boost::thread fits_cube_thread;
+  /** \var boost::thread fits_mex_thread
+   \details Boost thread variable for the mex writing thread */
+  boost::thread fits_mex_thread;
 
-  /** \var bool run_cube_thread
+  /** \var bool run_mex_thread
    \details Flag that the FITS file is open for writing */
-  bool run_cube_thread;
+  bool run_mex_thread;
 
-  /** \var bool iscube
-   \details Flag that this FITS object writes data cubes */
-  bool iscube;
+  /** \var bool ismex
+   \details Flag that this FITS object writes a multi-extension file */
+  bool ismex;
 
-  /** \var std::vector<FITS_cube_frame <T> > cube_frames
+  /** \var std::vector<FITS_mex_frame <T> > mex_frames
    \details Queue containing the information for each frame of the data cube */
-  std::deque<FITS_cube_frame <T> > cube_frames;
+  std::deque<FITS_mex_frame <T> > mex_frames;
 
-  /** \var std::vector<FITS_cube_frame <T> > cube_cache
+  /** \var std::vector<FITS_mex_frame <T> > mex_cache
    \details Cache of incoming frames that will be written to a data cube */
-  std::deque<FITS_cube_frame <T> > cube_cache;
+  std::deque<FITS_mex_frame <T> > mex_cache;
 
-  /** \var bool cube_thread_running
+  /** \var bool mex_thread_running
    \details Flag the the thread writing the cubes is running */
-  bool cube_thread_running;
+  bool mex_thread_running;
 
-  /** \var long cube_size
+  /** \var long mex_size
    \details The size of the data cube in bytes (more or less) */
-  long cube_size;
+  long mex_size;
 
   /** \var bool last_image
    \details Flag that the last image has been delivered to the FITS cube */
@@ -201,10 +203,10 @@ private:
    \details This is the max allowed size for any single data cube */
   int max_size;
 
-  /** \var int max_cube_frames
+  /** \var int max_mex_frames
    \details This is the max allowed number of frames that can be written to any
    single data cube */
-  int max_cube_frames;
+  int max_mex_frames;
 
 
   /**************** FITS_file::swap ****************/
@@ -233,17 +235,17 @@ private:
     std::swap(first.open_timestamp, second.open_timestamp);
     std::swap(first.telrad, second.telrad);
     std::swap(first.teldecd, second.teldecd);
-    std::swap(first.fits_cube_thread, second.fits_cube_thread);
-    std::swap(first.run_cube_thread, second.run_cube_thread);
-    std::swap(first.iscube, second.iscube);
-    std::swap(first.cube_frames, second.cube_frames);
-    std::swap(first.cube_cache, second.cube_cache);
-    std::swap(first.cube_thread_running, second.cube_thread_running);
-    std::swap(first.cube_size, second.cube_size);
+    std::swap(first.fits_mex_thread, second.fits_mex_thread);
+    std::swap(first.run_mex_thread, second.run_mex_thread);
+    std::swap(first.ismex, second.ismex);
+    std::swap(first.mex_frames, second.mex_frames);
+    std::swap(first.mex_cache, second.mex_cache);
+    std::swap(first.mex_thread_running, second.mex_thread_running);
+    std::swap(first.mex_size, second.mex_size);
     std::swap(first.last_image, second.last_image);
     std::swap(first.total_frames, second.total_frames);
     std::swap(first.max_size, second.max_size);
-    std::swap(first.max_cube_frames, second.max_cube_frames);
+    std::swap(first.max_mex_frames, second.max_mex_frames);
   }
   /**************** FITS_file::swap ****************/
 
@@ -287,14 +289,14 @@ private:
     this->compression = FITS_COMPRESSION_NONE;
     this->telrad = 9999;
     this->teldecd = 9999;
-    this->iscube = false;
-    this->run_cube_thread = false;
-    this->cube_thread_running = false;
-    this->cube_size = 0;
+    this->ismex = false;
+    this->run_mex_thread = false;
+    this->mex_thread_running = false;
+    this->mex_size = 0;
     this->last_image = false;
     this->total_frames = 0;
     this->max_size = MAX_IMAGE_DATA_SIZE;
-    this->max_cube_frames = 10000;
+    this->max_mex_frames = 10000;
   }
   /**************** FITS_file::initialize_class ****************/
 
@@ -310,7 +312,7 @@ private:
    \param [compress] Compression to use on the image (NONE is default)
    \note None.
    */
-  int open_file(Camera::Information & camera_info,
+  int open_file(Camera::Information & _camera_info,
                 std::string & timestamp, int sequence,
                 int compress = FITS_COMPRESSION_NONE)
   {
@@ -318,12 +320,16 @@ private:
     std::string function("FITS_file::open_file");
     std::stringstream message;
 
-    message << "opening FITS file image for " << camera_info.fits_name;
+    message << "opening FITS file image for " << _camera_info.fits_name;
     logwrite(function, message.str());
     message.str("");
 
-    int num_axis = ( camera_info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes
-    long _axes[num_axis];                                  // local variable of image axes size
+    message << "[DEBUG] cubedepth=" << _camera_info.cubedepth << " fitscubed=" << _camera_info.fitscubed;
+    logwrite(function, message.str());
+    message.str("");
+//  int num_axis = ( _camera_info.cubedepth > 1 ? 3 : 2 );  // local variable for number of axes   CHECK
+    int num_axis = ( _camera_info.fitscubed > 1 ? 3 : 2 );  // local variable for number of axes
+    long _axes[num_axis];                                   // local variable of image axes size
 
     try {
 
@@ -346,25 +352,25 @@ private:
         }
       }
 
-      // If the image is a data cube, we don't want to write anything into the
+      // If the image is multi-extension, we don't want to write anything into the
       // primary image, so set the axes to 0 to avoid allocating the space. If
       // this is a single frame image, then we need to allocate the space,
       // unless it is compressed in which case we also set the primary image
       // to a null image.
 
-      if (this->iscube == true){
+      if (this->ismex == true){
         // multi-extension has no data associated with primary header
         for ( int i=0; i<num_axis; i++ ) _axes[i]=0;
         num_axis = 0;
       }
       else {
-        for ( int i=0; i<num_axis; i++ ) _axes[i]=camera_info.naxes[i];
+        for ( int i=0; i<num_axis; i++ ) _axes[i]=_camera_info.naxes[i];
       }
 
 
-auto it = camera_info.fits_name.find_last_of("/");
-this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.substr(it+1);
-//    this->fits_name = camera_info.fits_name;
+      this->fits_name = _camera_info.fits_name;
+//    auto it = _camera_info.fits_name.find_last_of("/");
+//    this->fits_name=_camera_info.fits_name.substr(0,it)+"/__"+_camera_info.fits_name.substr(it+1);
 
       // Check that we can write the file, because CCFits will crash if not
       std::ofstream checkfile (this->fits_name.c_str());
@@ -380,18 +386,19 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 
       // Allocate the FITS file container, which holds all of the information
       // used by CCfits to write a file
-      this->pFits.reset( new CCfits::FITS(this->fits_name, camera_info.bitpix,
+      this->pFits.reset( new CCfits::FITS(this->fits_name, _camera_info.bitpix,
                                           num_axis, _axes) );
 
 //    // Create the primary image header
-//    this->make_header(this->fits_name.substr(camera_info.directory.length()+1),
-//                        timestamp, sequence, camera_info);
-//
-      for ( const auto & [key,val] : camera_info.systemkeys.keydb ) {
+      this->make_header(this->fits_name.substr(_camera_info.directory.length()+1),
+                          timestamp, sequence, _camera_info);
+  
+      for ( const auto &[key,val] : _camera_info.systemkeys.keydb ) {
         this->add_primary_key( val.keyword, val.keytype, val.keyvalue, val.keycomment );
       }
 
-      if (camera_info.datatype == SHORT_IMG) {
+/**
+      if (_camera_info.datatype == SHORT_IMG) {
         this->pFits->pHDU().addKey( "BZERO", 32768, "offset for signed short int" );
         this->pFits->pHDU().addKey( "BSCALE", 1, "scaling factor" );
       }
@@ -399,6 +406,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
         this->pFits->pHDU().addKey( "BZERO", 0.0, "offset" );
         this->pFits->pHDU().addKey( "BSCALE", 1, "scaling factor" );
       }
+**/
 
       // Set the compression. You have to do this after allocating the FITS file
       if (this->compression == FITS_COMPRESSION_RICE){
@@ -422,25 +430,23 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     this->file_open = true;
     this->num_frames = 0;
 
-    // If this is a data cube, start the cube writing thread and set initial
+    // If this is a multi-extension, start the cube writing thread and set initial
     // cube parameters
-    if (this->iscube == true){
-      this->cube_size = 0;
-      if (this->cube_thread_running == false){
-        this->open_info = camera_info;
+    if (this->ismex == true){
+      this->mex_size = 0;
+      if (this->mex_thread_running == false){
+        this->open_info = _camera_info;
         this->open_sequence = sequence;
         this->open_timestamp = timestamp;
-        this->run_cube_thread = true;
-        this->fits_cube_thread = boost::thread(&FITS_file::write_cube_thread,
+        this->run_mex_thread = true;
+        this->fits_mex_thread = boost::thread(&FITS_file::write_mex_thread,
                                                this);
       }
     }
     // Write a log message and return a success value
     message << "opened FITS file " << this->fits_name << " with compression "
             << print_compression(this->compression)
-            << " section_size=" << camera_info.section_size << " and axes =";
-    for ( int i=0; i<num_axis; i++ ) message << " " << _axes[i];
-    logwrite(function, message.str());
+            << " section_size=" << _camera_info.section_size;
     return(NO_ERROR);
   }
   /**************** FITS_file::open_file ****************/
@@ -471,7 +477,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
   /**
    Closes a FITS image file; this version is meant to close a single frame file.
    */
-  int close_file(Camera::Information& camera_info)
+  int close_file(Camera::Information& _camera_info)
   {
     // Set the function information for logging
     std::string function("FITS_file::close_file");
@@ -485,7 +491,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     // Add a header keyword for the time the file was written (right now!)
     this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write date");
 
-    final_words(camera_info);
+    final_words(_camera_info);
 
     // Write the checksum
     this->pFits->pHDU().writeChecksum();
@@ -504,18 +510,18 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
   /**************** FITS_file::close_file ****************/
 
 
-  /**************** FITS_file::close_cube ****************/
+  /**************** FITS_file::close_mex ****************/
   /**
-   Close a FITS cube file.
+   Close a FITS mex file.
    */
-  int close_cube(Camera::Information& camera_info)
+  int close_mex(Camera::Information& _camera_info)
   {
     // Set the function information for logging
-    std::string function("FITS_file::close_file");
+    std::string function("FITS_file::close_mex");
     std::stringstream message;
 
     if (this->file_open == false){
-      logwrite(function, "FITS cube file already closed");
+      logwrite(function, "FITS mex file already closed");
       return(NO_ERROR);
     }
 
@@ -523,22 +529,22 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     message << "closing FITS data cube " << this->fits_name;
     logwrite(function, message.str());
 
-    // Stop the cube writing thread only after the final image is received and
+    // Stop the mex writing thread only after the final image is received and
     // processed
-    if (this->last_image == true && this->cube_frames.size() == 0 &&
-        this->cube_cache.size() == 0){
-      logwrite(function, "closing the last cube file...");
-      this->run_cube_thread = false;
+    if (this->last_image == true && this->mex_frames.size() == 0 &&
+        this->mex_cache.size() == 0){
+      logwrite(function, "closing the last mex file...");
+      this->run_mex_thread = false;
     }
 
     // Add a header keyword for the time the file was written (right now!), the
     // number of frames written into the cube, and the time the system stopped
     // taking cube data
-    this->pFits->pHDU().addKey("NFRAMES", this->num_frames,
-                               "number of frames in FITS file");
+//  this->pFits->pHDU().addKey("NFRAMES", this->num_frames,
+//                             "number of frames in FITS file");
     this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write date");
 
-    final_words(camera_info);
+    final_words(_camera_info);
 
     // Write the checksum
     this->pFits->pHDU().writeChecksum();
@@ -552,13 +558,13 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     // Log that the file closed successfully
     message.str("");
     message << "successfully closed FITS data cube " << this->fits_name
-            << ", wrote " << this->num_frames << " cube frames and "
-            << this->cube_size << " image bytes, frames waiting: "
-            << this->cube_frames.size() << " " << this->cube_cache.size();
+            << ", wrote " << this->num_frames << " mex frames and "
+            << this->mex_size << " image bytes, frames waiting: "
+            << this->mex_frames.size() << " " << this->mex_cache.size();
     logwrite(function, message.str());
     return(NO_ERROR);
   }
-  /**************** FITS_file::close_cube ****************/
+  /**************** FITS_file::close_mex ****************/
 
 
   /**************** FITS_file::write_single_image ****************/
@@ -572,7 +578,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
    \param [compress] Compression to use on the image (NONE is default)
    */
   int write_single_image(T * data, std::string timestamp, int sequence,
-                         Camera::Information camera_info,
+                         Camera::Information _camera_info,
                          int compress = FITS_COMPRESSION_NONE)
   {
     // Set the function information for logging
@@ -583,15 +589,15 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     CCfits::FITS::setVerboseMode(true);
 
     // Open the FITS file
-    if (this->open_file(camera_info, timestamp, sequence, compress) != NO_ERROR){
-      message << "ERROR failed to open FITS file \"" << camera_info.fits_name << "\", aborting";
+    if (this->open_file(_camera_info, timestamp, sequence, compress) != NO_ERROR){
+      message << "ERROR failed to open FITS file \"" << _camera_info.fits_name << "\", aborting";
       logwrite(function, message.str());
       return(ERROR);
     }
 
     try {
       // Move the data into a valarray, necessary to wite it using CCFITS
-      std::valarray<T> array(data, camera_info.section_size);
+      std::valarray<T> array(data, _camera_info.section_size);
 
       // Set the first pixel value to 1, this tells the FITS system where it
       // starts writing (we don't start at anything but 1)
@@ -599,12 +605,12 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 
       // Write the primary image into the FITS file if compression is off
       if (this->compression == FITS_COMPRESSION_NONE){
-        this->pFits->pHDU().write(fpixel, camera_info.section_size, array);
+        this->pFits->pHDU().write(fpixel, _camera_info.section_size, array);
       }
       // With compression, write to an extension
       else {
         CCfits::ExtHDU& pseudo_primary = this->pFits->extension(1);
-        pseudo_primary.write(fpixel, camera_info.section_size, array);
+        pseudo_primary.write(fpixel, _camera_info.section_size, array);
       }
 
       // Flush the FITS container to make sure the image is written to disk
@@ -623,7 +629,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
     }
 
     // Close the FITS file
-    if (this->close_file(camera_info) != NO_ERROR){
+    if (this->close_file(_camera_info) != NO_ERROR){
       message << "ERROR failed to close FITS file properly: " << this->fits_name;
       logwrite(function, message.str());
       return(ERROR);
@@ -634,47 +640,50 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
   /**************** FITS_file::write_single_image ****************/
 
 
-  /**************** FITS_file::write_cube_thread ****************/
+  /**************** FITS_file::write_mex_thread ****************/
   /** Writes FITS data cubes.  This is run in a thread, started when the FITS
    file is opened, and runs until the final image is received.  If the data
    cube goes over the maximum allowed size, the thread closed the cube and
    creates a new one with the same name.
    */
-  void write_cube_thread()
+  void write_mex_thread()
   {
-    std::string function("FITS_file::write_cube_thread");
+    std::string function("FITS_file::write_mex_thread");
     std::stringstream message;
     int error;
 
+    // local copy of camera_info from the current mex_frames[0] deque element
+    Camera::Information _camera_info;
+
     // If the thread is already flagged as running, stop here
-    if (this->cube_thread_running == true){
+    if (this->mex_thread_running == true){
       logwrite(function, "thread is already running, stopping!");
       return;
     }
 
     // Set the thread running flag
-    this->cube_thread_running = true;
+    this->mex_thread_running = true;
 
     // Log that the thread is starting
-    logwrite(function, "starting thread to write cube frames...");
+    logwrite(function, "starting thread to write mex frames...");
 
     // Set some initial values for parameters used in writing the thread
     bool finished = false;
-    this->cube_size = 0;
+    this->mex_size = 0;
     this->last_image = false;
     this->total_frames = 0;
 
     // Loop until the flag to finish processing is set
-    while (this->run_cube_thread == true && finished == false){
+    while (this->run_mex_thread == true && finished == false){
 
       // Pull data out of the cube cache if there is something in it.  This is
       // done here to avoid the writing process slowing down the process putting
       // images in the cache.
-      if (this->cube_cache.size() > 0){
+      if (this->mex_cache.size() > 0){
 
         // Pull a maximum of 5 images over.  This limits how much the system is
         // accessing the cache to avoid slowing the writing process.
-        int size = this->cube_cache.size();
+        int size = this->mex_cache.size();
         if (size > 5){
           size = 5;
         }
@@ -689,8 +698,8 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
             if (this->cache_mutex.try_lock_for(boost::chrono::milliseconds(1))){
               boost::lock_guard<boost::timed_mutex> lock(this->cache_mutex,
                                                          boost::adopt_lock_t());
-              this->cube_frames.push_back(this->cube_cache[0]);
-              this->cube_cache.pop_front();
+              this->mex_frames.push_back(this->mex_cache[0]);
+              this->mex_cache.pop_front();
             }
           }
         }
@@ -701,22 +710,22 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
       }
 
       // Don't do anything if there are no frames available
-      if (this->cube_frames.size() == 0){
+      if (this->mex_frames.size() == 0){
         // Time out to save resources, this should be fast enough for data
         // acquisition expected by this system
         timeout(0.00001);
         // Check flags and set an exit flag if the image process is complete and
         // all images have been written out.
-        if (this->last_image == true && this->cube_frames.size() == 0 &&
-            this->cube_cache.size() == 0){
+        if (this->last_image == true && this->mex_frames.size() == 0 &&
+            this->mex_cache.size() == 0){
           finished = true;
         }
         continue;
       }
 
-      // Open the cube file if it's not already open
+      // Open the mex file if it's not already open
       if (this->file_open == false){
-        logwrite(function, "opening a new cube file...");
+        logwrite(function, "opening a new mex file...");
         error = this->open_file(this->open_info, this->open_timestamp,
                                 this->open_sequence, this->compression);
         if (error != NO_ERROR){
@@ -728,8 +737,12 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
         }
       }
 
-      // Write the image to the cube file
+
+      // Write the image to the mex file
       try {
+        // copy camera_info from the current element, preserved for call to close_mex()
+        _camera_info = this->mex_frames[0].camera_info;
+
         // Set the FITS system to verbose mode so it writes error messages
         CCfits::FITS::setVerboseMode(true);
 
@@ -743,25 +756,28 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 
         // Add the new image to the image extension
         this->imageExt = this->pFits->addImage(image_key.str(),
-                                        this->cube_frames[0].camera_info.bitpix,
-                                        this->cube_frames[0].camera_info.naxes);
-//      // Make the image cube header
-//      this->make_cube_header(this->cube_frames[0].timestamp,
-//                             this->cube_frames[0].camera_info);
-//
-        for ( const auto& [key,val] : this->cube_frames[0].camera_info.systemkeys.keydb ) {
-          this->add_extension_key( val.keyword, val.keytype, val.keyvalue, val.keycomment );
-        }
+                                        this->mex_frames[0].camera_info.datatype,  /* was bitpix */
+                                        this->mex_frames[0].camera_info.naxes);
+//      // Make the image mex header
+        this->make_mex_header(this->mex_frames[0].timestamp,
+                               this->mex_frames[0].camera_info);
+  
+// moved to make_mex_header
+//        for ( const auto &[key,val] : this->mex_frames[0].camera_info.systemkeys.keydb ) {
+//message.str(""); message << "[MICKY] SYSTEM: " << val.keyword << "=" << val.keyvalue;
+//logwrite(function,message.str()); message.str("");
+//        this->add_extension_key( val.keyword, val.keytype, val.keyvalue, val.keycomment );
+//        }
 
-        // Write the image extension into the cube
-        this->imageExt->write(fpixel, this->cube_frames[0].camera_info.section_size,
-                              this->cube_frames[0].array);
+        // Write the image extension into the mex
+        this->imageExt->write(fpixel, this->mex_frames[0].camera_info.section_size,
+                              this->mex_frames[0].array);
 
         // Flush the FITS container to make sure the image is written to disk
         this->pFits->flush();
 
         #ifdef LOGLEVEL_DEBUG
-        message << "[DEBUG] wrote extension " << this->cube_frames[0].camera_info.extension;
+        message << "[DEBUG] wrote extension " << this->mex_frames[0].camera_info.extension;
         logwrite( function, message.str() ); message.str("");
         #endif
 
@@ -770,9 +786,9 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
         this->total_frames++;
 
         // Add size of the new frame to the size of the cube
-        this->cube_size += this->cube_frames[0].camera_info.image_memory;
+        this->mex_size += this->mex_frames[0].camera_info.image_memory;
 
-        this->cube_frames.pop_front();
+        this->mex_frames.pop_front();
       }
       // Catch any errors from the FITS system and log them
       catch (const CCfits::FitsError &err){
@@ -795,8 +811,8 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
       // For cubes with lots of files, log the progress for writing the cube
       if (this->num_frames % 1000 == 0){
         message << "number of frames written: " << this->num_frames << " size: "
-                << this->cube_size << " bytes, frames waiting: "
-                << this->cube_frames.size() << " " << this->cube_cache.size();
+                << this->mex_size << " bytes, frames waiting: "
+                << this->mex_frames.size() << " " << this->mex_cache.size();
         logwrite(function, message.str());
         message.str("");
       }
@@ -804,17 +820,17 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 /******** temporarily (?) disable size and frame limit
 
       // If the cube has grown too large, close it
-      if (this->cube_size >= this->max_size ||
-          this->num_frames >= this->max_cube_frames){
-        logwrite(function, "closing the cube file...");
+      if (this->mex_size >= this->max_size ||
+          this->num_frames >= this->max_mex_frames){
+        logwrite(function, "closing the mex file...");
         #ifdef LOGLEVEL_DEBUG
-        message << "[DEBUG] cube_size=" << this->cube_size << " max_size=" << this->max_size
-                << " num_frames=" << this->num_frames << " max_frames=" << this->max_cube_frames;
+        message << "[DEBUG] mex_size=" << this->mex_size << " max_size=" << this->max_size
+                << " num_frames=" << this->num_frames << " max_frames=" << this->max_mex_frames;
         logwrite( function,  message.str() ); message.str("");
         #endif
-        error = this->close_cube();
+        error = this->close_mex();
         if (error != NO_ERROR){
-          message << "ERROR there was a problem closing the FITS cube, error code: "
+          message << "ERROR there was a problem closing the FITS mex, error code: "
                   << error;
           logwrite(function, message.str());
           message.str("");
@@ -824,29 +840,29 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 
       // If the flag for a complete observation is set, and if the cache and
       // cube queues are empty, flag that the system can finish.
-      if (this->last_image == true && this->cube_frames.size() == 0 &&
-          this->cube_cache.size() == 0){
+      if (this->last_image == true && this->mex_frames.size() == 0 &&
+          this->mex_cache.size() == 0){
         finished = true;
-        logwrite(function, "flag set to finish writing the data cube");
+        logwrite(function, "flag set to finish writing the data mex");
       }
     }
 
     // Close the final cube
-    error = this->close_cube(this->cube_frames[0].camera_info);
+    error = this->close_mex(_camera_info);
     if (error != NO_ERROR){
-      message << "ERROR there was a problem closing the FITS cube, error code: "
+      message << "ERROR there was a problem closing the FITS mex, error code: "
               << error;
       logwrite(function, message.str());
       message.str("");
     }
 
     // Log that the thread is complete and set the flag
-    message << "stopping cube frame writing thread, total frames written: "
+    message << "stopping mex frame writing thread, total frames written: "
             << this->total_frames;
     logwrite(function, message.str());
-    this->cube_thread_running = false;
+    this->mex_thread_running = false;
   }
-  /**************** FITS_file::write_cube_thread ****************/
+  /**************** FITS_file::write_mex_thread ****************/
 
 
   /**************** FITS_file::make_header ****************/
@@ -863,7 +879,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
    \note None.
    */
   void make_header(std::string filename, std::string timestamp, int sequence,
-                   Camera::Information & camera_info)
+                   Camera::Information & _camera_info)
   {
     // Set the function information for logging
     std::string function("FITS_file::make_header");
@@ -876,6 +892,27 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 
     // Write the header keys to the FITS header
     try {
+      // Iterate through the system-defined FITS keyword databases and add them to the primary header.
+      //
+      Common::FitsKeys::fits_key_t::iterator keyit;
+      for (keyit  = _camera_info.systemkeys.keydb.begin();
+           keyit != _camera_info.systemkeys.keydb.end();
+           keyit++) {
+        this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+      }
+
+      // If specified, iterate through the user-defined FITS keyword databases and add them to the primary header.
+      //
+      if ( _camera_info.writekeys_before ) {
+        logwrite( function, "writing user-defined keys before exposure" );
+        for (keyit  = _camera_info.userkeys.keydb.begin();
+             keyit != _camera_info.userkeys.keydb.end();
+             keyit++) {
+          this->add_key( true, keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue, keyit->second.keycomment );
+        }
+      }
+
+/**********
       // Add timestamp for the image
       this->pFits->pHDU().addKey("DATE-OBS", timestamp, "Time of observation");
 
@@ -909,6 +946,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
       this->pFits->pHDU().addKey("ORIGNAME", filename, "Original file name");
       this->pFits->pHDU().addKey("FRAMENUM", camera_info.framenum,
                                  "Detector frame number");
+**********/
     }
     // Catch any errors from the FITS system and log them
     catch (CCfits::FitsError & err) {
@@ -919,11 +957,11 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
   /**************** FITS_file::make_header ****************/
 
 
-  /**************** FITS_file::make_cube_header ****************/
+  /**************** FITS_file::make_mex_header ****************/
   /**
    Writes the FITS header for image extensions in a data cube.  Each cube should
    have a header, which is limited to just the information required for the
-   individual cube images; information common to all of the images (such as
+   individual mex images; information common to all of the images (such as
    telescope coordinates or sensor data) should be written in the primary
    header.
    \param [imageExt] The FITS image extension being written
@@ -932,14 +970,38 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
       size, pixel scales, detector information
    \note None.
    */
-  void make_cube_header(std::string & timestamp, Camera::Information & camera_info)
+  void make_mex_header(std::string & timestamp, Camera::Information & _camera_info)
   {
     // Set the function information for logging
-    std::string function("FITS_file::make_cube_header");
+    std::string function("FITS_file::make_mex_header");
     std::stringstream message;
     std::stringstream temp;
 
     try {
+/**
+      if ( _camera_info.datatype == SHORT_IMG ) {
+        this->imageExt->addKey("BZERO", 32768, "offset for signed short int");
+        this->imageExt->addKey("BSCALE", 1, "scaling factor");
+      }
+      else {
+        this->imageExt->addKey("BZERO", 0.0, "offset");
+        this->imageExt->addKey("BSCALE", 1, "scaling factor");
+      }
+**/
+
+//      for ( const auto &[key,val] : _camera_info.systemkeys.keydb ) {
+//        this->add_extension_key( val.keyword, val.keytype, val.keyvalue, val.keycomment );
+//message.str(""); message << "[RICKY] SYSTEM: " << val.keyword << "=" << val.keyvalue;
+//logwrite(function,message.str());
+//      }
+
+      for ( const auto &[key,val] : _camera_info.extkeys.keydb ) {
+        this->add_extension_key( val.keyword, val.keytype, val.keyvalue, val.keycomment );
+//message.str(""); message << "[RICKY] EXT: " << val.keyword << "=" << val.keyvalue;
+//logwrite(function,message.str());
+      }
+
+/**********
       // Write the timestamp of observation for the image extension.
       this->imageExt->addKey("UTC", timestamp, "Time of observation");
 
@@ -1017,6 +1079,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
 
       // Add the time that the FITS frame was added to the cube
       this->imageExt->addKey("DATE", get_timestamp(), "FITS frame write date");
+**********/
     }
     // Catch any errors from the FITS system and log them
     catch (CCfits::FitsError & err) {
@@ -1024,7 +1087,7 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
       logwrite(function, message.str());
     }
   }
-  /**************** FITS_file::make_cube_header ****************/
+  /**************** FITS_file::make_mex_header ****************/
 
 
   void add_primary_key( std::string keyword, std::string type, std::string value, std::string comment ) {
@@ -1094,8 +1157,8 @@ this->fits_name=camera_info.fits_name.substr(0,it)+"/__"+camera_info.fits_name.s
                                << err.message();
       logwrite(function, message.str());
     }
-  message.str(""); message << "[TESTTEST] added " << (isprimary?"pri":"ext") << " key " << keyword << "=" << value << " // " << comment;
-  logwrite(function, message.str());
+//message.str(""); message << "[TESTTEST] added " << (isprimary?"pri":"ext") << " key " << keyword << "=" << value << " // " << comment;
+//logwrite(function, message.str());
   }
 
 
@@ -1106,14 +1169,13 @@ public:
   /**
    This function constructs the FITS file class
    */
-  FITS_file(bool cube_state_in = false)
+  FITS_file(bool mex_state_in = false)
   {
     // Initialize the class
     this->initialize_class();
 
     // Set flag to make this FITS object output cubes
-    this->iscube = cube_state_in;
-    logwrite("FITS_file::FITS_file","constructed");
+    this->ismex = mex_state_in;
   };
   /**************** FITS_file::FITS_file ****************/
 
@@ -1200,20 +1262,20 @@ public:
    \return ERROR if there is a failure, NO_ERROR on success
    */
   int write_image(T * data, std::string timestamp, int sequence,
-                  Camera::Information camera_info,
+                  Camera::Information _camera_info,
                   int compress = FITS_COMPRESSION_NONE)
   {
     std::string function("FITS_file::write_image");
     std::stringstream message;
     int error;
-
+// std::cout << "*** sequence="<<sequence << " *** extension=" << camera_info.extension << "\n";
     // Write into the data cube
-    if (this->iscube == true){
+    if (this->ismex == true){
 
       // Open the file if it's not already open
-      if (this->file_open == false  && this->cube_thread_running == false){
-        logwrite(function, "opening the cube file for writing...");
-        error = this->open_file(camera_info, timestamp, sequence, compress);
+      if (this->file_open == false  && this->mex_thread_running == false){
+        logwrite(function, "opening the mex file for writing...");
+        error = this->open_file(_camera_info, timestamp, sequence, compress);
         if (error != NO_ERROR){
           message << "ERROR failed to open FITS file \"" << this->fits_name <<"\"";
           logwrite(function, message.str());
@@ -1222,18 +1284,20 @@ public:
       }
 
       // Create the FITS frame object from the input data
-      FITS_cube_frame <T> frame(data, camera_info.section_size, timestamp,
-                                sequence, camera_info);
+      FITS_mex_frame <T> frame(data, _camera_info.section_size, timestamp,
+                                sequence, _camera_info);
 
       boost::unique_lock<boost::timed_mutex> lock(this->cache_mutex);
-      this->cube_cache.push_back(frame);
+// std::cout << "*** frame.info.extension=" << frame.camera_info.extension << "\n";
+      this->mex_cache.push_back(frame);
+// std::cout << "*** frame.info.extension=" << " mex_cache.info.extension=" << mex_cache[0].camera_info.extension << "\n";
       boost::timed_mutex *m = lock.release();
       m->unlock();
     }
 
     // Write a single frame FITS image
     else {
-      error = this->write_single_image(data, timestamp, sequence, camera_info,
+      error = this->write_single_image(data, timestamp, sequence, _camera_info,
                                        compress);
       if (error != NO_ERROR){
         message << "ERROR failed to write FITS file " << this->fits_name;
@@ -1256,7 +1320,7 @@ public:
    */
   void complete()
   {
-    std::string function("FITS_file::write_image");
+    std::string function("FITS_file::complete");
     std::stringstream message;
 
     // Set the flag that tells the system the last image has been delivered
@@ -1266,23 +1330,23 @@ public:
     logwrite(function, "completion signal sent");
 
     // Wait for the cube thread to finish
-    this->fits_cube_thread.join();
+    this->fits_mex_thread.join();
 
-    // Log that the cube is closed and everything is good
-    logwrite(function, "FITS cube processing complete");
+    // Log that the mex is closed and everything is good
+    logwrite(function, "FITS mex processing complete");
   }
   /**************** FITS_file::complete ****************/
 
 
-  /**************** FITS_file::get_iscube ****************/
+  /**************** FITS_file::get_ismex ****************/
   /**
    Return data cube flag value, true if this is FITS container is a data cube
    and false if it is not.
    */
-  bool get_iscube()
+  bool get_ismex()
   {
-    return(this->iscube);
+    return(this->ismex);
   }
-  /**************** FITS_file::get_iscube ****************/
+  /**************** FITS_file::get_ismex ****************/
 
 };

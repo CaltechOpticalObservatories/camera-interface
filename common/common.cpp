@@ -116,6 +116,10 @@ namespace Common {
     catch ( std::out_of_range & ) {
       return std::string( "STRING" );
     }
+    catch ( std::exception &e ) {
+      logwrite( "Common::FitsKeys::get_keytype", "ERROR: "+std::string(e.what()) );
+      return std::string( "ERROR" );
+    }
     return( check_type );
 
   }
@@ -260,6 +264,12 @@ namespace Common {
 
     keytype = this->get_keytype(keyvalue);
 
+    if ( keytype=="ERROR" ) {
+      message.str(""); message << "ERROR determining type for keyvalue \"" << keyvalue << "\"";
+      logwrite( function, message.str() );
+      return( ERROR );
+    }
+
     if ( keytype=="INT" || keytype=="LONG" || keytype=="FLOAT" || keytype=="DOUBLE" ) {
       if ( keyvalue.length() > 20 ) {
         message.str(""); message << "ERROR numerical keyvalue \"" << keyvalue << "\" cannot exceed 20 bytes";
@@ -290,10 +300,10 @@ namespace Common {
     this->keydb[keyword].keyvalue   = keyvalue;
     this->keydb[keyword].keycomment = keycomment;
 
-#ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "[DEBUG] added key: " << keyword << "=" << keyvalue << " (" << this->keydb[keyword].keytype << ") // " << keycomment;
-    logwrite( function, message.str() );
-#endif
+//#ifdef LOGLEVEL_DEBUG
+//    message.str(""); message << "[DEBUG] added key: " << keyword << "=" << keyvalue << " (" << this->keydb[keyword].keytype << ") // " << keycomment;
+//    logwrite( function, message.str() );
+//#endif
 
     return(NO_ERROR);
   }

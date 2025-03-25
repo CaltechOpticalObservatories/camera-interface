@@ -76,7 +76,9 @@ class xxxx_file {                                   /// *** old method to be rep
       // the xxxx_file class will add a ".writing" extension when it is opened, which
       // will be used for writing. This will get removed after the file is closed.
       //
-      this->fits_name = info.fits_name + this->in_process;
+//    this->fits_name = info.fits_name + this->in_process;
+      auto it = info.fits_name.find_last_of("/");
+      this->fits_name = info.fits_name.substr(0,it)+"/xxxx_"+info.fits_name.substr(it+1) + this->in_process;
 
       // This is probably a programming error, if file_open is true here
       //
@@ -621,12 +623,12 @@ logwrite(function,"[TESTTEST] waiting for all threads to complete");
         // Add extension-only keys now
         //
         if (info.datatype == SHORT_IMG) {
-          this->imageExt->addKey("BZERO", 32768, "offset for signed short int");
-          this->imageExt->addKey("BSCALE", 1, "scaling factor");
+//        this->imageExt->addKey("BZERO", 32768, "offset for signed short int");
+//        this->imageExt->addKey("BSCALE", 1, "scaling factor");
         }
         else {
-          this->imageExt->addKey("BZERO", 0.0, "offset");
-          this->imageExt->addKey("BSCALE", 1, "scaling factor");
+//        this->imageExt->addKey("BZERO", 0.0, "offset");
+//        this->imageExt->addKey("BSCALE", 1, "scaling factor");
         }
 
         Common::FitsKeys::fits_key_t::iterator keyit;

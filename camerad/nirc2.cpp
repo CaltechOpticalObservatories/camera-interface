@@ -273,13 +273,15 @@ namespace Archon {
         if (error==NO_ERROR) error = get_parammap_value( "nPixelsPair", check_npp );
         if (error==NO_ERROR) error = get_parammap_value( "nRowsQuad", check_nrq );
 
-        this->camera_info.imwidth_read  = 32 * check_npp;
-        this->camera_info.imheight_read =  8 * check_nrq;
+        this->camera_info.imwidth_read  = 32 * static_cast<int>(check_npp);
+        this->camera_info.imheight_read =  8 * static_cast<int>(check_nrq);
         this->camera_info.imwidth       = this->camera_info.imwidth_read;
         this->camera_info.imheight      = this->camera_info.imheight_read - 8;
 
         error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
-        this->camera_info.section_size = this->camera_info.imwidth * this->camera_info.imheight * this->camera_info.axes[2];
+        this->camera_info.section_size = this->camera_info.imwidth
+                                       * this->camera_info.imheight
+                                       * ( this->camera_info.fitscubed>1 ? this->camera_info.axes[2] : 1 );
 
         // allocate image_data in blocks because the controller outputs data in units of blocks
         //
@@ -654,7 +656,7 @@ namespace Archon {
         }
 
         int mode_in=-1;
-        int multisamp=-1;
+        uint32_t multisamp=0;
         int coadds=-1;
 
         // process args only if not empty
@@ -673,7 +675,9 @@ namespace Archon {
           //
           try {
             mode_in   = std::stoi( tokens.at(0) );
-            multisamp = std::stoi( tokens.at(1) );
+            unsigned long value = std::stoul( tokens.at(1) );
+            if ( value > std::numeric_limits<uint32_t>::max() ) throw std::out_of_range("value exceeds uint32_t range");
+            multisamp = static_cast<uint32_t>(value);
             coadds    = std::stoi( tokens.at(2) );
           }
           catch( std::invalid_argument const &e ) {

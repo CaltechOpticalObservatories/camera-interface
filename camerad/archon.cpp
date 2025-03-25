@@ -109,10 +109,6 @@ namespace Archon {
    */
   Interface::~Interface() {
 
-#ifdef LOGLEVEL_DEBUG
-    logwrite( "Interface::~Interface", "[DEBUG] deconstructor will free memory" );
-#endif
-
     if (this->image_data != nullptr) { delete [] this->image_data; this->image_data=nullptr; }
 
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
@@ -175,16 +171,13 @@ namespace Archon {
         break;
     }
     }
-#ifdef LOGLEVEL_DEBUG
-    logwrite( "Interface::~Interface", "[DEBUG] deconstructed" );
-#endif
   }
   /***** Archon::Interface::~Interface ****************************************/
 
 
   /**************** Archon::Interface::interface ******************************/
   long Interface::interface(std::string &iface) {
-    std::string function = "Archon::Interface::interface";
+    const std::string function("Archon::Interface::interface");
     iface = "STA-Archon";
     logwrite(function, iface);
     return(0);
@@ -201,7 +194,7 @@ namespace Archon {
    *
    */
   long Interface::configure_controller() {
-    std::string function = "Archon::Interface::configure_controller";
+    const std::string function("Archon::Interface::configure_controller");
     std::stringstream message;
     int applied=0;
     long error;
@@ -401,27 +394,21 @@ namespace Archon {
       // DEFAULT_SAMPMODE
       if (config.param[entry].compare(0, 16, "DEFAULT_SAMPMODE")==0) {
         this->camera.default_sampmode = config.arg[entry];
-#ifdef LOGLEVEL_DEBUG
-        message.str(""); message << "[DEBUG] default_sampmode=" << this->camera.default_sampmode; logwrite( function, message.str() );
-#endif
+        message.str(""); message << "default_sampmode=" << this->camera.default_sampmode; logwrite( function, message.str() );
         applied++;
       }
 
       // DEFAULT_EXPTIME
       if (config.param[entry].compare(0, 15, "DEFAULT_EXPTIME")==0) {
         this->camera.default_exptime = config.arg[entry];
-#ifdef LOGLEVEL_DEBUG
-        message.str(""); message << "[DEBUG] default_exptime=" << this->camera.default_exptime; logwrite( function, message.str() );
-#endif
+        message.str(""); message << "default_exptime=" << this->camera.default_exptime; logwrite( function, message.str() );
         applied++;
       }
 
       // DEFAULT_ROI
       if (config.param[entry].compare(0, 11, "DEFAULT_ROI")==0) {
         this->camera.default_roi = config.arg[entry];
-#ifdef LOGLEVEL_DEBUG
-        message.str(""); message << "[DEBUG] default_roi=" << this->camera.default_roi; logwrite( function, message.str() );
-#endif
+        message.str(""); message << "default_roi=" << this->camera.default_roi; logwrite( function, message.str() );
         applied++;
       }
 
@@ -585,14 +572,13 @@ namespace Archon {
 
   /**************** Archon::Interface::prepare_ring_buffer ********************/
   /**
-   * @fn     prepare_ring_buffer
-   * @brief  prepare image_data buffer, allocating memory as needed
-   * @param  none
-   * @return NO_ERROR if successful or ERROR on error
+   * @brief    prepare image_data buffer, allocating memory as needed
+   * @details  This is called once per exposure, by do_expose()
+   * @return   NO_ERROR if successful or ERROR on error
    *
    */
   long Interface::prepare_ring_buffer() {
-    std::string function = "Archon::Interface::prepare_ring_buffer";
+    const std::string function("Archon::Interface::prepare_ring_buffer");
     std::stringstream message;
 
     // This is the amount of memory to allocate for each fits write.
@@ -600,12 +586,6 @@ namespace Archon {
     // If this is a 3D data cube then this includes the total cube depth.
     //
     uint32_t expected_allocation = this->image_data_bytes * this->camera_info.cubedepth;
-
-#ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "[DEBUG] ringcount=" << this->ringcount << " expected allocation: " << this->image_data_bytes << " bytes/frame for "
-                             << this->camera_info.cubedepth << " cubes = " << expected_allocation << " bytes to be allocated";
-    logwrite( function, message.str() );
-#endif
 
     try {
       for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
@@ -663,14 +643,14 @@ namespace Archon {
    *
    */
   long Interface::connect_controller(std::string devices_in="") {
-    std::string function = "Archon::Interface::connect_controller";
+    const std::string function("Archon::Interface::connect_controller");
     std::stringstream message;
     int adchans=0;
     long   error = ERROR;
 
     if ( this->archon.isconnected() ) {
       logwrite(function, "camera connection already open");
-      return(NO_ERROR);
+      return NO_ERROR;
     }
 
     // Initialize the camera connection
@@ -795,7 +775,7 @@ namespace Archon {
    *
    */
   long Interface::disconnect_controller() {
-    std::string function = "Archon::Interface::disconnect_controller";
+    const std::string function("Archon::Interface::disconnect_controller");
     std::stringstream message;
 
     if (!this->archon.isconnected()) {
@@ -830,7 +810,7 @@ namespace Archon {
    *
    */
   long Interface::cleanup_memory() {
-    std::string function = "Archon::Interface::cleanup_memory";
+    const std::string function("Archon::Interface::cleanup_memory");
     std::stringstream message;
     long error = NO_ERROR;
 
@@ -933,7 +913,7 @@ namespace Archon {
    *
    */
   long Interface::native(std::string cmd) {
-    std::string function = "Archon::Interface::native";
+    const std::string function("Archon::Interface::native");
     std::stringstream message;
     std::string reply;
     std::vector<std::string> tokens;
@@ -976,7 +956,7 @@ namespace Archon {
     return( archon_cmd(cmd, reply) );
   }
   long Interface::archon_cmd(std::string cmd, std::string &reply) {
-    std::string function = "Archon::Interface::archon_cmd";
+    const std::string function("Archon::Interface::archon_cmd");
     std::stringstream message;
     int     retval;
     char    check[4];
@@ -1142,11 +1122,11 @@ namespace Archon {
    *
    */
   long Interface::read_parameter(std::string paramname, std::string &value) {
-    std::string function = "Archon::Interface::read_parameter";
+    const std::string function("Archon::Interface::read_parameter");
     std::stringstream message;
     std::stringstream cmd;
     std::string reply;
-    int   error   = NO_ERROR;
+    long  error   = NO_ERROR;
 
     if (this->parammap.find(paramname.c_str()) == this->parammap.end()) {
       message.str(""); message << "parameter \"" << paramname << "\" not found in ACF";
@@ -1174,7 +1154,7 @@ namespace Archon {
     // and we want just the VALUE here
     //
 
-    unsigned int loc;
+    size_t loc;
     value = reply;
     if (value.compare(0, 9, "PARAMETER") == 0) {                                      // value: PARAMETERn=PARAMNAME=VALUE
       if ( (loc=value.find("=")) != std::string::npos ) value = value.substr(++loc);  // value: PARAMNAME=VALUE
@@ -1215,10 +1195,10 @@ namespace Archon {
    *
    */
   long Interface::prep_parameter(std::string paramname, std::string value) {
-    std::string function = "Archon::Interface::prep_parameter";
+    const std::string function("Archon::Interface::prep_parameter");
     std::stringstream message;
     std::stringstream scmd;
-    int error = NO_ERROR;
+    long error = NO_ERROR;
 
     // Prepare to apply it to the system -- will be loaded on next EXTLOAD signal
     //
@@ -1244,10 +1224,10 @@ namespace Archon {
    *
    */
   long Interface::load_parameter(std::string paramname, std::string value) {
-    std::string function = "Archon::Interface::load_parameter";
+    const std::string function("Archon::Interface::load_parameter");
     std::stringstream message;
     std::stringstream scmd;
-    int error = NO_ERROR;
+    long error = NO_ERROR;
 
     scmd << "FASTLOADPARAM " << paramname << " " << value;
     error = this->archon_cmd(scmd.str());
@@ -1277,10 +1257,10 @@ namespace Archon {
    *
    */
   long Interface::fetchlog() {
-    std::string function = "Archon::Interface::fetchlog";
+    const std::string function("Archon::Interface::fetchlog");
     std::string reply;
     std::stringstream message;
-    int  retval;
+    long retval;
 
     // send FETCHLOG command while reply is not (null)
     //
@@ -1318,7 +1298,7 @@ namespace Archon {
     return( this->load_timing( acffile ) );
   }
   long Interface::load_timing(std::string acffile) {
-    std::string function = "Archon::Interface::load_timing";
+    const std::string function("Archon::Interface::load_timing");
 
     // load the ACF file and write to Archon configuration memory
     //
@@ -1366,7 +1346,7 @@ namespace Archon {
    *
    */
   long Interface::load_firmware(std::string acffile) {
-    std::string function = "Archon::Interface::load_firmware";
+    const std::string function("Archon::Interface::load_firmware");
     // load the ACF file and write to Archon configuration memory
     //
     long error = this->load_acf( acffile, true );
@@ -1447,7 +1427,7 @@ namespace Archon {
    *
    */
   long Interface::load_acf( std::string acffile, bool write_to_archon ) {
-    std::string function = "Archon::Interface::load_acf";
+    const std::string function("Archon::Interface::load_acf");
     std::stringstream message;
     std::fstream filestream;  // I/O stream class
     std::string line;         // the line read from the acffile
@@ -1593,8 +1573,8 @@ namespace Archon {
       // This is what keeps TAGS: in the [MODE_xxxx] sections from being written to Archon,
       // because these do not populate key.
       //
-      key="";
-      value="";
+      key.clear();
+      value.clear();
 
       //  ************************************************************
       // Store actual Archon parameters in their own STL map IN ADDITION to the map
@@ -1621,7 +1601,6 @@ namespace Archon {
       if (line.compare(0,4,"ACF:")==0) {
         std::vector<std::string> tokens;
         line = line.substr(4);                                            // strip off the "ACF:" portion
-        std::string key, value;
 
         try {
           Tokenize(line, tokens, "=");                                    // separate into tokens by "="
@@ -1692,16 +1671,23 @@ namespace Archon {
           return ERROR;
         }
 
+        int ivalue = std::stoi( tokens[1] );
+        if ( ivalue < 0 ) {
+          message.str(""); message << "ERROR value for " << tokens[0] << " cannot be negative";
+          this->camera.log_error( function, message.str() );
+	  filestream.close();
+          return ERROR;
+        }
         if ( tokens[0] == "NUM_DETECT" ) {
-          this->modemap[mode].geometry.num_detect = std::stoi( tokens[1] );
+          this->modemap[mode].geometry.num_detect = ivalue;
         }
         else
         if ( tokens[0] == "HORI_AMPS" ) {
-          this->modemap[mode].geometry.amps[0] = std::stoi( tokens[1] );
+          this->modemap[mode].geometry.amps[0] = ivalue;
         }
         else
         if ( tokens[0] == "VERT_AMPS" ) {
-          this->modemap[mode].geometry.amps[1] = std::stoi( tokens[1] );
+          this->modemap[mode].geometry.amps[1] = ivalue;
         }
         else {
           message.str(""); message << "unrecognized internal parameter specified: "<< tokens[0];
@@ -1903,7 +1889,7 @@ namespace Archon {
    *
    */
   long Interface::set_camera_mode(std::string mode) {
-    std::string function = "Archon::Interface::set_camera_mode";
+    const std::string function("Archon::Interface::set_camera_mode");
     std::stringstream message;
     bool configchanged = false;
     bool paramchanged = false;
@@ -2055,7 +2041,6 @@ namespace Archon {
     // Image can be 16 or 32 bpp depending on SAMPLEMODE setting in ACF.
     // Call set_axes(datatype) with the FITS data type needed, which will set the info.datatype variable.
     //
-logwrite(function,"[TESTTEST] calling set_axes");
     error = this->camera_info.set_axes();                                                 // 16 bit raw is unsigned short int
 /*********
     if (this->camera_info.frame_type == Camera::FRAME_RAW) {
@@ -2160,7 +2145,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    * the Archon controller.
    */
   long Interface::load_mode_settings(std::string mode) {
-    std::string function = "Archon::Interface::load_mode_settings";
+    const std::string function("Archon::Interface::load_mode_settings");
     std::stringstream message;
 
     long error=NO_ERROR;
@@ -2390,11 +2375,11 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::get_frame_status() {
-    std::string function = "Archon::Interface::get_frame_status";
+    const std::string function("Archon::Interface::get_frame_status");
     std::string reply;
     std::stringstream message;
     int   newestframe, newestbuf;
-    int   error=NO_ERROR;
+    long  error=NO_ERROR;
 //logwrite( function, "[TIMESTAMP] start" );
 
     // send FRAME command to get frame buffer status
@@ -2427,7 +2412,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
       if (subtokens.size() != 2) {
         message.str("");
         message << "expected 2 but received invalid number of tokens (" << subtokens.size() << ") in FRAME message:";
-        for (size_t i=0; i<subtokens.size(); i++) message << " " << subtokens.at(i);
+        for (size_t j=0; i<subtokens.size(); i++) message << " " << subtokens.at(j);
         this->camera.log_error( function, message.str() );
         return(ERROR);  // We could continue; but if one is bad then we could miss seeing a larger problem
       }
@@ -2569,7 +2554,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   void Interface::print_frame_status() {
-    std::string function = "Archon::Interface::print_frame_status";
+    const std::string function("Archon::Interface::print_frame_status");
     std::stringstream message;
     int bufn;
     char statestr[Archon::nbufs][4];
@@ -2619,7 +2604,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::lock_buffer(int buffer) {
-    std::string function = "Archon::Interface::lock_buffer";
+    const std::string function("Archon::Interface::lock_buffer");
     std::stringstream message;
     std::stringstream sscmd;
 
@@ -2649,11 +2634,11 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::get_timer(unsigned long int *timer) {
-    std::string function = "Archon::Interface::get_timer";
+    const std::string function("Archon::Interface::get_timer");
     std::string reply;
     std::stringstream message, timer_ss;
     std::vector<std::string> tokens;
-    int  error;
+    long error;
 
     // send TIMER command to get frame buffer status
     //
@@ -2701,7 +2686,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    */
   long Interface::fetch(uint64_t bufaddr, uint32_t bufblocks) {
     debug( "FETCH_ENTRY frame="+std::to_string(this->lastframe) );
-    std::string function = "Archon::Interface::fetch";
+    const std::string function("Archon::Interface::fetch");
     std::stringstream message;
     uint32_t maxblocks = (uint32_t)(1.5E9 / this->camera_info.activebufs / 1024 );
     uint64_t maxoffset = this->frame.bufbase[this->frame.index];
@@ -2766,7 +2751,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::read_frame() {
-    std::string function = "Archon::Interface::read_frame";
+    const std::string function("Archon::Interface::read_frame");
     std::stringstream message;
     long error = NO_ERROR;
 
@@ -2860,7 +2845,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::read_frame(Camera::frame_type_t frame_type) {
-    std::string function = "Archon::Interface::read_frame";
+    const std::string function("Archon::Interface::read_frame");
     std::stringstream message;
 
     try {
@@ -2897,7 +2882,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    */
   long Interface::read_frame( Camera::frame_type_t frame_type, char* &ptr_in, int ringcount_in ) {
     debug( "READ_FRAME_ENTRY frame="+std::to_string(this->lastframe) );
-    std::string function = "Archon::Interface::read_frame";
+    const std::string function("Archon::Interface::read_frame");
     std::stringstream message;
     int retval;
     int bufready;
@@ -3143,7 +3128,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
   }
   long Interface::write_frame( int ringcount_in ) {
     debug( "WRITE_FRAME_ENTRY frame="+std::to_string(this->lastframe)+ " ring="+std::to_string(ringcount_in) );
-    std::string function = "Archon::Interface::write_frame";
+    const std::string function("Archon::Interface::write_frame");
     std::stringstream message;
     uint32_t   *cbuf32;                  //!< used to cast char buf into 32 bit int
     uint16_t   *cbuf16;                  //!< used to cast char buf into 16 bit int
@@ -3163,6 +3148,8 @@ logwrite(function,"[TESTTEST] calling set_axes");
 
     // The Archon sends four 8-bit numbers per pixel. To convert this into something usable,
     // cast the image buffer into integers. Handled differently depending on bits per pixel.
+    //
+    // *** ONLY bitpix=16 IS USED FOR NIRC2 ***
     //
     switch (this->camera_info.bitpix) {
 
@@ -3198,7 +3185,6 @@ logwrite(function,"[TESTTEST] calling set_axes");
               // This call to set_axes() is to set the axis_pixels, axes, and section_size,
               // needed for the FITS writer
               //
-logwrite(function,"[TESTTEST] calling set_axes");
               error = this->camera_info.set_axes();
 
 #ifdef LOGLEVEL_DEBUG
@@ -3231,12 +3217,14 @@ logwrite(function,"[TESTTEST] calling set_axes");
               }
 
 #ifdef LOGLEVEL_DEBUG
-              message.str(""); message << "[DEBUG] calling fits_file.write_image( ) for extension "
+              message.str(""); message << "[DEBUG] calling xfits_file.write_image( ) for extension "
                                        << this->camera_info.extension.load( std::memory_order_seq_cst )+1;
               logwrite( function, message.str() );
 #endif
 
-              error = this->fits_file.write_image(fext, this->camera_info); // write the image to disk
+              logwrite( function, "ERROR THIS SHOULD NOT BE HAPPENING" );
+              return ERROR;
+//            error = this->xfits_file.write_image(fext, this->camera_info); // write the image to disk
               this->camera_info.extension.fetch_add(1);                     // atomically increment extension for multi-extension files
               if ( fext != nullptr ) { delete [] fext; fext=nullptr; }      // dynamic object not automatic so must be destroyed
             }
@@ -3261,8 +3249,8 @@ logwrite(function,"[TESTTEST] calling set_axes");
             fbuf[pix] = (float) ( cbuf32[pix] >> this->n_hdrshift ); // right shift the requested number of bits
           }
 
-//        error = fits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
-          error = this->fits_file.write_image(fbuf, this->camera_info); // write the image to disk
+//        error = xfits_file.write_image(fbuf, this->fits_info);   // write the image to disk //TODO
+//        error = this->xfits_file.write_image(fbuf, this->camera_info); // write the image to disk
           if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 32-bit image to disk" ); }
           if (fbuf != nullptr) {
             delete [] fbuf;
@@ -3275,22 +3263,28 @@ logwrite(function,"[TESTTEST] calling set_axes");
       // convert four 8-bit values into 16 bit values
       //
       case 16: {
+        // *** ONLY USHORT IS USED FOR NIRC2 ***
         if (this->camera_info.datatype == USHORT_IMG) {                    // raw
           cbuf16   = (uint16_t *)this->work_ring.at(ringcount_in);         // cast to 16b unsigned int
-          error = this->fits_file.write_image(cbuf16, this->camera_info);  // write the image to disk
+//        error = this->xfits_file.write_image(cbuf16, this->camera_info);  // write the image to disk
+          error = this->__fits_file->write_image( cbuf16,
+                                                  get_timestamp(),
+                                                  this->camera_info.extension.load(),
+                                                  this->camera_info
+                                                );
           if ( this->camera_info.iscds ) {
 //          cdsbuf16 = (uint16_t *)this->cds_ring.at(ringcount_in);          // cast to 16b unsigned int
-//          error |= this->cds_file.write_image( cdsbuf16, this->cds_info ); // write the cds image to disk
+//          error |= this->xcds_file.write_image( cdsbuf16, this->cds_info ); // write the cds image to disk
           }
           if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 16-bit unsigned image to disk" ); }
         }
         else
         if (this->camera_info.datatype == SHORT_IMG) {
           cbuf16s   = (int16_t *)this->work_ring.at(ringcount_in);             // cast to 16b signed int
-          error = this->fits_file.write_image( cbuf16s, this->camera_info );   // write the image to disk
+//        error = this->xfits_file.write_image( cbuf16s, this->camera_info );   // write the image to disk
           if ( this->camera_info.iscds ) {
 //          cdsbuf16s = (int16_t *)this->cds_ring.at(ringcount_in);            // cast to 16b signed int
-//          error |= this->cds_file.write_image( cdsbuf16s, this->cds_info );  // write the cds image to disk
+//          error |= this->xcds_file.write_image( cdsbuf16s, this->cds_info );  // write the cds image to disk
 	  }
           if ( error != NO_ERROR ) { this->camera.log_error( function, "writing 16-bit signed image to disk" ); }
         }
@@ -3321,7 +3315,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
         case 32:
           if ( this->camera_info.datatype == LONG_IMG ) {
             cdsbuf32s = (int32_t *)this->cds_ring.at(ringcount_in);               // cast to 32b signed int
-            error    |= this->cds_file.write_image( cdsbuf32s, this->cds_info );  // write the cds image to disk
+//          error    |= this->xcds_file.write_image( cdsbuf32s, this->cds_info );  // write the cds image to disk
 	  }
 	  else {
 	    message.str(""); message << "unrecognized bitpix " << this->cds_info.bitpix << " for datatype LONG_IMG";
@@ -3332,7 +3326,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
         case 16:
           if ( this->camera_info.datatype == USHORT_IMG ) {                    // raw
             cdsbuf16 = (uint16_t *)this->cds_ring.at(ringcount_in);          // cast to 16b unsigned int
-            error |= this->cds_file.write_image( cdsbuf16, this->cds_info ); // write the cds image to disk
+//          error |= this->xcds_file.write_image( cdsbuf16, this->cds_info ); // write the cds image to disk
 	  }
           break;
 	default:
@@ -3376,9 +3370,9 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::write_config_key( const char *key, const char *newvalue, bool &changed ) {
-    std::string function = "Archon::Interface::write_config_key";
+    const std::string function("Archon::Interface::write_config_key");
     std::stringstream message, sscmd;
-    int error=NO_ERROR;
+    long error=NO_ERROR;
 
     if ( key==NULL || newvalue==NULL ) {
       error = ERROR;
@@ -3452,9 +3446,9 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::write_parameter( const char *paramname, const char *newvalue, bool &changed ) {
-    std::string function = "Archon::Interface::write_parameter";
+    const std::string function("Archon::Interface::write_parameter");
     std::stringstream message, sscmd;
-    int error=NO_ERROR;
+    long error=NO_ERROR;
 
 #ifdef LOGLEVEL_DEBUG
     message.str(""); message << "[DEBUG] paramname=" << paramname << " value=" << newvalue;
@@ -3541,7 +3535,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::get_parammap_value( std::string param_in, long& value_out ) {
-    std::string function = "Archon::Interface::get_parammap_value";
+    const std::string function("Archon::Interface::get_parammap_value");
     std::stringstream message;
     std::string retstring;
     long error = NO_ERROR;
@@ -3588,7 +3582,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    */
   template <class T>
   long Interface::get_configmap_value(std::string key_in, T& value_out) {
-    std::string function = "Archon::Interface::get_configmap_value";
+    const std::string function("Archon::Interface::get_configmap_value");
     std::stringstream message;
 
     if ( this->configmap.find(key_in) != this->configmap.end() ) {
@@ -3638,7 +3632,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    */
   void Interface::add_filename_key( Camera::Information &info ) {
     std::stringstream keystr;
-    int loc = info.fits_name.find_last_of( "/" );
+    auto loc = info.fits_name.find_last_of( "/" );
     std::string filename;
     filename = info.fits_name.substr( loc+1 );
     keystr << "FILENAME=" << filename << "// this filename";
@@ -3656,7 +3650,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::get_status_key( std::string key, std::string &value ) {
-    std::string function = "Archon::Interface::get_status_key";
+    const std::string function("Archon::Interface::get_status_key");
     std::stringstream message;
     std::string reply;
 
@@ -3696,7 +3690,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::temp( std::string &retstring ) {
-    std::string function = "Archon::Interface::temp";
+    const std::string function("Archon::Interface::temp");
     std::stringstream message;
 
     if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
@@ -3719,7 +3713,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::fan( std::string &retstring ) {
-    std::string function = "Archon::Interface::fan";
+    const std::string function("Archon::Interface::fan");
     std::stringstream message;
 
     if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
@@ -3742,7 +3736,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::overheat( std::string &retstring ) {
-    std::string function = "Archon::Interface::overheat";
+    const std::string function("Archon::Interface::overheat");
     std::stringstream message;
 
     if ( !this->archon.isconnected() ) {                        // nothing to do if no connection open to controller
@@ -3767,7 +3761,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::tempinfo( std::string &retstring ) {
-    std::string function = "Archon::Interface::tempinfo";
+    const std::string function("Archon::Interface::tempinfo");
     std::stringstream message;
     long error = ERROR;
 
@@ -3808,7 +3802,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    *
    */
   long Interface::do_power(std::string state_in, std::string &retstring) {
-    std::string function = "Archon::Interface::do_power";
+    const std::string function("Archon::Interface::do_power");
     std::stringstream message;
     long error = ERROR;
 
@@ -3920,7 +3914,7 @@ logwrite(function,"[TESTTEST] calling set_axes");
    */
   long Interface::do_expose(std::string nseq_in) {
     debug( "DO_EXPOSE_ENTRY" );
-    std::string function = "Archon::Interface::do_expose";
+    const std::string function("Archon::Interface::do_expose");
     std::stringstream message;
     long error = NO_ERROR;
     std::string nseqstr;
@@ -4036,7 +4030,6 @@ logwrite(function,"[TESTTEST] calling set_axes");
         break;
 
       case Archon::READOUT_NONE:
-logwrite(function,"[TESTTEST] calling set_axes");
         this->camera_info.set_axes();
         break;
 
@@ -4093,7 +4086,6 @@ logwrite(function,"[TESTTEST] calling set_axes");
         this->cds_info.datatype = LONG_IMG;
         this->cds_info.bitpix = 32;
       }
-logwrite(function,"[TESTTEST] spawning dothread_runcds");
       std::thread( std::ref( Archon::Interface::dothread_runcds ), this ).detach();
       error = this->alloc_cdsring();
     }
@@ -4184,11 +4176,15 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
 
     // Open the FITS file now for multi-extensions
     //
+    // *** THIS IS THE FITS FILE CREATION USED BY NIRC2 ***
+    //
     if ( this->camera.mex() && !this->camera.mexamps() ) {
 #ifdef LOGLEVEL_DEBUG
       logwrite( function, "[DEBUG] opening fits file for multi-exposure sequence using multi-extensions" );
 #endif
-      error  = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
+//    error  = this->xfits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
+      this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
+      this->__fits_file = std::make_unique<FITS_file<uint16_t>>(true);  // true = multi-extension
 
       // Also open a CDS file if needed
       //
@@ -4196,7 +4192,8 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
 #ifdef LOGLEVEL_DEBUG
         logwrite( function, "[DEBUG] opening fits file for CDS processed images" );
 #endif
-        error |= this->cds_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->cds_info );
+//      error |= this->xcds_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->cds_info );
+        this->cds_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
         this->__file_cds = std::make_unique<FITS_file<int32_t>>(false);  // false = not multi-extension
       }
 
@@ -4373,8 +4370,9 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
             std::stringstream truitimestr;
             truitimestr << truitime;
             this->cds_info.systemkeys.addkey( "TRUITIME", truitime, "True integration time in seconds (calculated)", 3 );  // new FITS engine will pick this up
-            this->cds_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
-            this->fits_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
+            this->camera_info.systemkeys.addkey( "TRUITIME", truitime, "True integration time in seconds (calculated)", 3 );  // new FITS engine will pick this up
+//          this->xcds_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
+//          this->xfits_file.add_key( true, "TRUITIME", "DOUBLE", truitimestr.str(), "True integration time in seconds (calculated)" );
           }
 
           // Add Archon TIMESTAMP for this frame buffer to the extkeys database.
@@ -4394,11 +4392,16 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
           message.str(""); message << "NSLICE=" << slice_ts << "// slice number";
           this->extkeys.addkey( message.str() );
 
+          // close FITS object on error
+          //
           if ( error != NO_ERROR ) {
-            logwrite( function, "ERROR: waiting for readout" );
-            this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+            logwrite( function, "ERROR waiting for readout: closing FITS file" );
+//          this->xfits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+            this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
+            if (this->__fits_file) this->__fits_file->complete();
             if ( this->camera_info.iscds ) {
-              this->cds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
+//            this->xcds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
+              this->cds_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
               if (this->__file_cds) this->__file_cds->complete();
             }
             this->cleanup_memory();
@@ -4418,11 +4421,16 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
           error = this->read_frame( Camera::FRAME_IMAGE, ptr_image, this->ringcount );      // read image frame buffer to host, no write
           (*this->ringlock.at( this->ringcount )).store(false, std::memory_order_seq_cst);  // clear the ring buffer lock flag
 
+          // close FITS object on error
+          //
           if ( error != NO_ERROR ) {
-            logwrite( function, "ERROR: reading frame buffer" );
-            this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+            logwrite( function, "ERROR reading frame buffer: closing FITS file" );
+//          this->xfits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+            this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
+            if (this->__fits_file) this->__fits_file->complete();
             if ( this->camera_info.iscds ) {
-              this->cds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
+//            this->xcds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info );
+//            this->cds_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
               if (this->__file_cds) this->__file_cds->complete();
             }
             this->cleanup_memory();
@@ -4533,7 +4541,9 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
           logwrite( function, "[DEBUG] closing fits file (1)" );
 #endif
           this->camera_info.exposure_aborted = this->camera.is_aborted();
-          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using multi-extensions
+          this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
+//        this->xfits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info ); // close the file when not using multi-extensions
+          if (this->__fits_file) this->__fits_file->complete();
           this->camera.increment_imnum();                           // increment image_num when fitsnaming == "number"
 
           // ASYNC status message on completion of each file
@@ -4584,6 +4594,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
 //    }
 
     }
+/***** not used for NIRC2:
     else if ( mode == "RAW") {
       error = this->get_frame_status();                             // Get the current frame buffer status
       if (error != NO_ERROR) {
@@ -4603,7 +4614,9 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
 
       this->copy_keydb();                                           // copy the ACF and userkeys databases into camera_info
 
-      error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
+      this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
+
+      error = this->xfits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
       if ( error != NO_ERROR ) {
         this->camera.log_error( function, "couldn't open fits file" );
         this->cleanup_memory();
@@ -4611,9 +4624,10 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       }
       error = read_frame();                    // For raw mode just read (and write) immediately
       this->camera_info.exposure_aborted = this->camera.is_aborted();
-      this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+      this->xfits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
       this->camera.increment_imnum();          // increment image_num when fitsnaming == "number"
     }
+*****/
 
     // for multi-exposure (non-mexamps) multi-extension files, close the FITS file now that they've all been written
     //
@@ -4649,8 +4663,11 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       logwrite( function, "[DEBUG] closing fits file (2)" );
 #endif
       this->camera_info.exposure_aborted = this->camera.is_aborted();
-      this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
-//    if ( this->camera_info.iscds ) this->cds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info    );
+      // *** THIS IS NORMAL CLOSE FOR NIRC2 ***
+//    this->xfits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+      this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
+      if (this->__fits_file) this->__fits_file->complete();
+//    if ( this->camera_info.iscds ) this->xcds_file.close_file(  (this->camera.writekeys_when=="after"?true:false), this->cds_info    );
       this->camera.increment_imnum();          // increment image_num when fitsnaming == "number"
 
       // ASYNC status message on completion of each file
@@ -4699,12 +4716,12 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   long Interface::wait_for_exposure() {
     debug( "WAIT_FOR_EXPOSURE_ENTRY" );
-    std::string function = "Archon::Interface::wait_for_exposure";
+    const std::string function("Archon::Interface::wait_for_exposure");
     std::stringstream message;
     long error = NO_ERROR;
 
     int exposure_timeout_time;  // Time to wait for the exposure delay to time out
-    unsigned long int timer, increment=0;
+    uint64_t timer, increment=0;
 
     // "exposure_delay" is the amount of time that the Archon is told to delay.
     // This is not "exposure_time" which is the total exposure time, exposure_delay + readouttime.
@@ -4727,7 +4744,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
     // and is computed as last_frame_timer + exposure_delay in Archon ticks.
     // Each Archon tick is 10 nsec (1e8 sec). Divide by exposure_factor (=1 for sec, =1000 for msec).
     //
-    unsigned long int prediction   = this->last_frame_timer + this->camera_info.exposure_delay * 1e8 / this->camera_info.exposure_factor;
+    uint64_t prediction   = this->last_frame_timer + this->camera_info.exposure_delay * 100000000 / this->camera_info.exposure_factor;
 
 #ifdef LOGLEVEL_DEBUG
     message.str(""); message << "[DEBUG] exposure_delay=" << this->camera_info.exposure_delay << " exposure_factor=" << this->camera_info.exposure_factor
@@ -4788,7 +4805,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       // Archon timer ticks are in 10 nsec (1e-8) so when comparing to exposure_delay,
       // multiply exposure_delay by 1e8/exposure_factor, where exposure_factor=1 or =1000 for exposure_unit sec or msec.
       //
-      if ( (timer - this->last_frame_timer) >= ( this->camera_info.exposure_delay * 1e8 / this->camera_info.exposure_factor ) ) {
+      if ( (timer - this->last_frame_timer) >= ( this->camera_info.exposure_delay * 100000000 / this->camera_info.exposure_factor ) ) {
         this->finish_timer = timer;
         done  = true;
         break;
@@ -4836,7 +4853,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   long Interface::wait_for_readout() {
     debug( "WAIT_FOR_READOUT_ENTRY frame="+std::to_string(this->lastframe+1) );
-    std::string function = "Archon::Interface::wait_for_readout";
+    const std::string function("Archon::Interface::wait_for_readout");
     std::stringstream message;
     long error = NO_ERROR;
     int currentframe=this->lastframe;
@@ -4988,7 +5005,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::get_parameter(std::string parameter, std::string &retstring) {
-    std::string function = "Archon::Interface::get_parameter";
+    const std::string function("Archon::Interface::get_parameter");
 
     return this->read_parameter(parameter, retstring);
   }
@@ -5011,7 +5028,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
     return( set_parameter( paramstring.str() ) );
   }
   long Interface::set_parameter(std::string parameter) {
-    std::string function = "Archon::Interface::set_parameter";
+    const std::string function("Archon::Interface::set_parameter");
     std::stringstream message;
     long ret=ERROR;
     std::vector<std::string> tokens;
@@ -5059,7 +5076,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::exptime( int32_t exptime_in ) {
-    std::string function = "Archon::Interface::exptime";
+    const std::string function("Archon::Interface::exptime");
     std::stringstream message;
     std::string dontcare;
     std::string exptime;
@@ -5109,7 +5126,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::exptime(std::string exptime_in, std::string &retstring) {
-    std::string function = "Archon::Interface::exptime";
+    const std::string function("Archon::Interface::exptime");
     std::stringstream message;
     long ret=NO_ERROR;
     int32_t requested_exptime = -1;  // this is the user-requested total exposure time, extracted from exptime_in
@@ -5216,7 +5233,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::shutter(std::string shutter_in, std::string& shutter_out) {
-    std::string function = "Archon::Interface::shutter";
+    const std::string function("Archon::Interface::shutter");
     std::stringstream message;
     long error = NO_ERROR;
     int level=0, force=0;  // trigout level and force for activate
@@ -5356,7 +5373,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::hdrshift(std::string bits_in, std::string &bits_out) {
-    std::string function = "Archon::Interface::hdrshift";
+    const std::string function("Archon::Interface::hdrshift");
     std::stringstream message;
     int hdrshift_req=-1;
 
@@ -5408,7 +5425,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   void Interface::copy_keydb() {
-    std::string function = "Archon::Interface::copy_keydb";
+    const std::string function("Archon::Interface::copy_keydb");
     std::stringstream message;
 
     // copy the userkeys database object into camera_info
@@ -5488,7 +5505,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::heater(std::string args, std::string &retstring) {
-    std::string function = "Archon::Interface::heater";
+    const std::string function("Archon::Interface::heater");
     std::stringstream message;
     std::vector<std::string> tokens;
     int module;
@@ -6058,7 +6075,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::sensor(std::string args, std::string &retstring) {
-    std::string function = "Archon::Interface::sensor";
+    const std::string function("Archon::Interface::sensor");
     std::stringstream message;
     std::vector<std::string> tokens;
     std::string sensorid;                   //!< A | B | C
@@ -6380,7 +6397,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::bias(std::string args, std::string &retstring) {
-    std::string function = "Archon::Interface::bias";
+    const std::string function("Archon::Interface::bias");
     std::stringstream message;
     std::vector<std::string> tokens;
     std::stringstream biasconfig;
@@ -6551,7 +6568,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::cds(std::string args, std::string &retstring) {
-    std::string function = "Archon::Interface::cds";
+    const std::string function("Archon::Interface::cds");
     std::stringstream message;
     std::vector<std::string> tokens;
     std::string key, value;
@@ -6620,7 +6637,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::inreg( std::string args ) {
-    std::string function = "Archon::Interface::inreg";
+    const std::string function("Archon::Interface::inreg");
     std::stringstream message;
     std::vector<std::string> tokens;
     int module, reg, value;
@@ -6749,13 +6766,13 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::readout( std::string readout_in, std::string &readout_out ) {
-    std::string function = "Archon::Interface::readout";
+    const std::string function("Archon::Interface::readout");
     std::stringstream message;
     std::vector<std::string> tokens;
     long error = NO_ERROR;
 
-    uint32_t readout_arg;                   // argument associated with requested type
-    int readout_type;
+    uint32_t _readout_arg;                  // argument associated with requested type
+    int _readout_type;
     bool readout_name_valid = false;
 
     try {
@@ -6787,8 +6804,8 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       for ( auto source : this->readout_source ) {
         if ( source.first.compare( readout_in ) == 0 ) {  // found a match
           readout_name_valid = true;
-          readout_arg  = source.second.readout_arg;       // get the arg associated with this match
-          readout_type = source.second.readout_type;      // get the type associated with this match
+          _readout_arg  = source.second.readout_arg;      // get the arg associated with this match
+          _readout_type = source.second.readout_type;     // get the type associated with this match
           break;
         }
       }
@@ -6799,8 +6816,8 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       }
       else {  // requested readout type is known, so set it for each of the specified devices
         this->camera_info.readout_name = readout_in;
-        this->camera_info.readout_type = readout_type;
-        this->readout_arg = readout_arg;
+        this->camera_info.readout_type = _readout_type;
+        this->readout_arg = _readout_arg;
       }
     }
 
@@ -6832,7 +6849,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::caltimer() {
-    std::string function = "Archon::Interface::caltimer";
+    const std::string function("Archon::Interface::caltimer");
     std::stringstream message;
     long error = NO_ERROR;
 
@@ -6912,7 +6929,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *   timer     - test Archon time against system time
    */
   long Interface::test(std::string args, std::string &retstring) {
-    std::string function = "Archon::Interface::test";
+    const std::string function("Archon::Interface::test");
     std::stringstream message;
     std::vector<std::string> tokens;
     long error;
@@ -6950,8 +6967,8 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       logwrite( function, message.str() );
 
       message.str(""); message << "[ampinfo] gains =";
-      for ( auto gain : this->gain ) {
-        message << " " << gain;
+      for ( auto _gain : this->gain ) {
+        message << " " << _gain;
       }
       logwrite( function, message.str() );
 
@@ -7296,7 +7313,8 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
           // open the file now for multi-extensions
           //
           if ( this->camera.mex() ) {
-            error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
+            this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
+//          error = this->xfits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
             if ( error != NO_ERROR ) {
               this->camera.log_error( function, "couldn't open fits file" );
               return( error );
@@ -7331,7 +7349,8 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
           }
           this->add_filename_key();                                     // add filename to system keys database
 
-          error = this->fits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
+          this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
+//        error = this->xfits_file.open_file( (this->camera.writekeys_when=="before"?true:false), this->camera_info );
           if ( error != NO_ERROR ) {
             this->camera.log_error( function, "couldn't open fits file" );
             return( error );
@@ -7353,7 +7372,8 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
         if (error==NO_ERROR && ro) error = this->read_frame(Camera::FRAME_IMAGE);  // read image frame directly with no write
         if (error==NO_ERROR && rw) error = this->read_frame();                     // read (and write) image frame directly
         if (error==NO_ERROR && rw && !this->camera.mex()) {
-          this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+//        this->xfits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+          this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
           this->camera.increment_imnum();                                          // increment image_num when fitsnaming == "number"
         }
         if (error==NO_ERROR) frames_read++;
@@ -7364,7 +7384,8 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       // (or any time there is an error)
       //
       if ( rw && ( this->camera.mex() || (error==ERROR) ) ) {
-        this->fits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+//      this->xfits_file.close_file( (this->camera.writekeys_when=="after"?true:false), this->camera_info );
+        this->camera_info.writekeys_before = (this->camera.writekeys_when=="before"?true:false);
         this->camera.increment_imnum();                                            // increment image_num when fitsnaming == "number"
       }
 
@@ -7386,9 +7407,9 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       int nseq;
       int sleepus;
       double systime1, systime2;
-      unsigned long int archontime1, archontime2;
-      std::vector<int> deltatime;
-      int delta_archon, delta_system;
+      uint64_t archontime1, archontime2;
+      std::vector<long long> deltatime;
+      long long delta_archon, delta_system;
 
       if (tokens.size() < 3) {
         this->camera.log_error( function, "expected test timer <cycles> <sleepus>" );
@@ -7429,8 +7450,18 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
 
         // difference between two calls, converted to µsec
         //
-        delta_archon = (int)((archontime2 - archontime1) / 100.);  // archon time was in 10 nsec
-        delta_system = (int)((systime2 - systime1) * 1000000.);    // system time was in sec
+        if ( archontime2 > archontime1 ) {
+          delta_archon = static_cast<long long>(archontime2) - static_cast<long long>(archontime1);
+          delta_archon /= 100;                                                      // archon time was in 10 nsec
+        }
+        else {
+          message.str(""); message << "ERROR archontime2 " << archontime2
+                                   << " not greater than archontime1 " << archontime1;
+          logwrite( function, message.str() );
+          return ERROR;
+        }
+
+        delta_system = static_cast<long long>((systime2 - systime1) * 1000000.);  // system time was in sec
 
         // enque each line to the async message port
         //
@@ -7451,15 +7482,21 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
       // calculate the average and standard deviation of the difference
       // between system and archon
       //
-      double sum = std::accumulate(std::begin(deltatime), std::end(deltatime), 0.0);
-      double m =  sum / deltatime.size();
+      uint32_t _deltatimesize = static_cast<uint32_t>(deltatime.size());
+      if ( _deltatimesize < 1 ) {
+        logwrite( function, "ERROR no time" );
+        return ERROR;
+      }
+      long long sum = std::accumulate(deltatime.begin(), deltatime.end(), 0LL);
+      double m =  static_cast<double>(sum) / _deltatimesize;
 
       double accum = 0.0;
-      std::for_each (std::begin(deltatime), std::end(deltatime), [&](const double d) {
-          accum += (d - m) * (d - m);
+      std::for_each (deltatime.begin(), deltatime.end(), [&](const long long d) {
+          accum += (static_cast<double>(d) - m) * (static_cast<double>(d) - m);
       });
 
-      double stdev = sqrt(accum / (deltatime.size()-1));
+      double stdev = 0.;
+      if ( _deltatimesize > 1 ) stdev = sqrt(accum / static_cast<double>(_deltatimesize-1));
 
       message.str(""); message << "average delta=" << m << " stddev=" << stdev;
       logwrite(function, message.str());
@@ -7490,7 +7527,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::abort() {
-    std::string function = "Archon::Interface::abort";
+    const std::string function("Archon::Interface::abort");
     std::stringstream message;
 
     // Tell Archon to abort (the ACF must support this)
@@ -7541,7 +7578,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::alloc_workbuf() {
-    std::string function = "Archon::Interface::alloc_workbuf";
+    const std::string function("Archon::Interface::alloc_workbuf");
     std::stringstream message;
     long retval = NO_ERROR;
     void* ptr=nullptr;
@@ -7584,7 +7621,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   template <class T>
   void* Interface::alloc_workbuf(T* buf) {
-    std::string function = "Archon::Interface::alloc_workbuf";
+    const std::string function("Archon::Interface::alloc_workbuf");
     std::stringstream message;
 
     // Maybe the size of the existing buffer is already just right
@@ -7617,7 +7654,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::alloc_workring() {
-    std::string function = "Archon::Interface::alloc_workring";
+    const std::string function("Archon::Interface::alloc_workring");
     std::stringstream message;
     long retval = NO_ERROR;
     void* ptr=nullptr;
@@ -7661,7 +7698,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   long Interface::alloc_cdsring() {
-    std::string function = "Archon::Interface::alloc_cdsring";
+    const std::string function("Archon::Interface::alloc_cdsring");
     std::stringstream message;
     long retval = NO_ERROR;
     void* ptr=nullptr;
@@ -7708,7 +7745,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   template <class T>
   void Interface::alloc_cdsring( T* buf ) {
-    std::string function = "Archon::Interface::alloc_cdsring";
+    const std::string function("Archon::Interface::alloc_cdsring");
     std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
@@ -7763,7 +7800,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   template <class T>
   void Interface::alloc_workring( T* buf ) {
-    std::string function = "Archon::Interface::alloc_workring";
+    const std::string function("Archon::Interface::alloc_workring");
     std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
@@ -7806,7 +7843,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   template <class T>
   void Interface::free_workring( T* buf ) {
-    std::string function = "Archon::Interface::free_workring";
+    const std::string function("Archon::Interface::free_workring");
     std::stringstream message;
     message.str(""); message << "freed work ring buffer  ";
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
@@ -7832,7 +7869,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   template <class T>
   void Interface::free_cdsring( T* buf ) {
-    std::string function = "Archon::Interface::free_cdsring";
+    const std::string function("Archon::Interface::free_cdsring");
     std::stringstream message;
     message << "freed cds ring buffer    ";
     for ( int i=0; i<Archon::IMAGE_RING_BUFFER_SIZE; i++ ) {
@@ -7872,7 +7909,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   template <class T>
   void Interface::free_workbuf(T* buf) {
-    std::string function = "Archon::Interface::free_workbuf";
+    const std::string function("Archon::Interface::free_workbuf");
     std::stringstream message;
     if (this->workbuf != nullptr) {
       delete [] (T*)this->workbuf;
@@ -7888,16 +7925,16 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
   /***** Archon::Interface::deinterlace ***************************************/
   /**
    * @brief      spawns the deinterlacing threads
-   * @param[in]  imbuf         pointer to buffer which contains the original image
-   * @param[in]  workbuf       pointer to buffer that contains the deinterlaced image
-   * @param[in]  ringcount_in  the current ring buffer to deinterlace
+   * @param[in]  _imbuf      pointer to buffer which contains the original image
+   * @param[in]  _workbuf    pointer to buffer that contains the deinterlaced image
+   * @param[in]  _ringcount  the current ring buffer to deinterlace
    * @return     T* pointer to workbuf
    *
    */
   template <class T>
-  T* Interface::deinterlace( T* imbuf, T* workbuf, T* cdsbuf, int ringcount_in ) {
+  T* Interface::deinterlace( T* _imbuf, T* _workbuf, T* _cdsbuf, int _ringcount ) {
     debug( "DEINTERLACE_ENTRY" );
-    std::string function = "Archon::Instrument::deinterlace";
+    const std::string function("Archon::Instrument::deinterlace");
     std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
@@ -7919,9 +7956,9 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
     // This object contains the functions needed for the deinterlacing,
     // which will get called by the threads created here.
     //
-    DeInterlace<T> deinterlace( (T*)imbuf,                             // pointer to buffer that contains the raw image
-                                (T*)workbuf,                           // pointer to buffer that contains the deinterlaced image
-                                (T*)cdsbuf,                            // pointer to buffer that contains the deinterlaced image
+    DeInterlace<T> deinterlace( (T*)_imbuf,                            // pointer to buffer that contains the raw image
+                                (T*)_workbuf,                          // pointer to buffer that contains the deinterlaced image
+                                (T*)_cdsbuf,                           // pointer to buffer that contains the deinterlaced image
                                 coaddbuf,                              // pointer to buffer to contain the coadded image
                                 mcdsbuf_0,                             // pointer to buffer to contain the MCDS baseline sum (1st half)
                                 mcdsbuf_1,                             // pointer to buffer to contain the MCDS signal sum (2nd half)
@@ -7938,7 +7975,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
     {
 #ifdef LOGLEVEL_DEBUG
     logwrite( function, "[DEBUG] spawning deinterlacing thread" );
-    message.str(""); message << "[DEBUG] ringcount_in=" << ringcount_in << " iscds=" << this->camera_info.iscds
+    message.str(""); message << "[DEBUG] ringcount_in=" << _ringcount << " iscds=" << this->camera_info.iscds
                              << " this->camera_info.detector_pixels[0]=" << this->camera_info.detector_pixels[0]
                              << " this->camera_info.detector_pixels[1] * this->camera_info.axes[2]="
                              << this->camera_info.detector_pixels[1] * this->camera_info.axes[2]
@@ -7950,21 +7987,21 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
     std::thread( std::ref( Archon::Interface::dothread_deinterlace<T> ),
                  this,
                  std::ref( deinterlace ),                                           // reference to the DeInterlace object just created above
-                 ringcount_in                                                       // selects the ringbuffer to deinterlace
+                 _ringcount                                                         // selects the ringbuffer to deinterlace
                ).detach();
     }
 
     // Wait for the ring buffer to be deinterlaced
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "[DEBUG] waiting on deinterlace ringcount " << ringcount_in;
+    message.str(""); message << "[DEBUG] waiting on deinterlace ringcount " << _ringcount;
     logwrite( function, message.str() );
 #endif
     {
     std::unique_lock<std::mutex> lk( this->deinter_mtx );
-    while ( ! this->ringbuf_deinterlaced.at( ringcount_in ) ) this->deinter_cv.wait( lk );
+    while ( ! this->ringbuf_deinterlaced.at( _ringcount ) ) this->deinter_cv.wait( lk );
     }
 #ifdef LOGLEVEL_DEBUG
-    message.str(""); message << "[DEBUG] done waiting on deinterlace ringcount " << ringcount_in;
+    message.str(""); message << "[DEBUG] done waiting on deinterlace ringcount " << _ringcount;
     logwrite( function, message.str() );
 #endif
 
@@ -7985,7 +8022,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   template <class T> void Interface::dothread_deinterlace( Interface *self, DeInterlace<T> &deinterlace, int ringcount_in ) {
     debug( "DOTHREAD_DEINTERLACE_ENTRY ringcount="+std::to_string(ringcount_in) );
-    std::string function = "Archon::Interface::dothread_deinterlace";
+    const std::string function("Archon::Interface::dothread_deinterlace");
     std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG
@@ -8029,7 +8066,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    *
    */
   void Interface::dothread_runmcdsproc( Interface *self ) {
-    std::string function = "Archon::Interface::dothread_runmcdsproc";
+    const std::string function("Archon::Interface::dothread_runmcdsproc");
     std::stringstream message;
 /***
     CPyInstance hInstance;
@@ -8060,7 +8097,7 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
    */
   void Interface::dothread_runcds( Interface *self ) {
     debug( "DOTHREAD_RUNCDS_ENTRY" );
-    std::string function = "Archon::Interface::dothread_runcds";
+    const std::string function("Archon::Interface::dothread_runcds");
     std::stringstream message;
     int deinterlace_count = self->deinterlace_count.load( std::memory_order_seq_cst );
 
@@ -8135,14 +8172,14 @@ logwrite(function,"[TESTTEST] spawning dothread_runcds");
     //
     long error=NO_ERROR;
     if ( ! self->camera.is_aborted() && self->camera_info.nmcds == 0 ) {
-logwrite(function,"dothread_runcds (a) calling orig cds_file.write_image()");
-      error = self->cds_file.write_image( self->coaddbuf, self->cds_info );
-logwrite(function,"dothread_runcds (a) calling __file_cds->write_image");
-self->__file_cds->write_image( self->coaddbuf,
-                               get_timestamp(),
-                               0,
-                               self->cds_info
-                             );
+//logwrite(function,"dothread_runcds (a) calling orig xcds_file.write_image()");
+//      error = self->xcds_file.write_image( self->coaddbuf, self->cds_info );
+      logwrite( function, "[DEBUG] dothread_runcds (a) calling __file_cds->write_image" );
+      self->__file_cds->write_image( self->coaddbuf,
+                                     get_timestamp(),
+                                     0,
+                                     self->cds_info
+                                   );
     }
     else if ( ! self->camera.is_aborted() ) {
 #ifdef LOGLEVEL_DEBUG
@@ -8158,21 +8195,21 @@ self->__file_cds->write_image( self->coaddbuf,
       }
       debug( "CDS_FILE_WRITE_START frame="+std::to_string(self->frame.bufframen[self->frame.index])+
              " deinterlace_count="+std::to_string(deinterlace_count) );
-logwrite(function,"dothread_runcds (b) calling orig cds_file.write_image()");
-      error = self->cds_file.write_image( self->coaddbuf, self->cds_info );
-logwrite(function,"dothread_runcds (b) calling __file_cds->write_image");
-self->__file_cds->write_image( self->coaddbuf,
-                               get_timestamp(),
-                               0,
-                               self->cds_info
-                             );
+//logwrite(function,"dothread_runcds (b) calling orig xcds_file.write_image()");
+//      error = self->xcds_file.write_image( self->coaddbuf, self->cds_info );
+      logwrite( function, "[DEBUG] dothread_runcds (b) calling __file_cds->write_image" );
+      self->__file_cds->write_image( self->coaddbuf,
+                                     get_timestamp(),
+                                     0,
+                                     self->cds_info
+                                   );
       debug( "CDS_FILE_WRITE_END frame="+std::to_string(self->frame.bufframen[self->frame.index])+
              " deinterlace_count="+std::to_string(deinterlace_count) );
     }
     if ( error != NO_ERROR ) logwrite( function, "ERROR writing coadd image to disk" );
     if ( self->camera.is_aborted() ) logwrite( function, "closing aborted coadd image" );
     self->cds_info.exposure_aborted = self->camera.is_aborted();
-    self->cds_file.close_file(  (self->camera.writekeys_when=="after"?true:false), self->cds_info );
+//  self->xcds_file.close_file(  (self->camera.writekeys_when=="after"?true:false), self->cds_info );
 
 //cv::destroyAllWindows();
     logwrite( function, "exiting CDS thread" );
@@ -8191,7 +8228,7 @@ self->__file_cds->write_image( self->coaddbuf,
    */
   void Interface::dothread_openfits( Interface *self ) {
     debug( "DOTHREAD_OPENFITS_ENTRY" );
-    std::string function = "Archon::Interface::dothread_openfits";
+    const std::string function("Archon::Interface::dothread_openfits");
     std::stringstream message;
     long error = NO_ERROR;
 
@@ -8214,7 +8251,9 @@ self->__file_cds->write_image( self->coaddbuf,
     logwrite( function, "[DEBUG] reset extension=0 and opening new fits file" );
 #endif
     self->camera_info.extension.store(0);
-    error = self->fits_file.open_file( (self->camera.writekeys_when=="before"?true:false), self->camera_info );
+    self->camera_info.writekeys_before = (self->camera.writekeys_when=="before"?true:false);
+//  error = self->xfits_file.open_file( (self->camera.writekeys_when=="before"?true:false), self->camera_info );
+    self->__fits_file = std::make_unique<FITS_file<uint16_t>>(false);
     if ( error != NO_ERROR ) {
       self->camera.log_error( function, "couldn't open fits file" );
       self->openfits_error.store( true, std::memory_order_seq_cst );
@@ -8235,7 +8274,7 @@ self->__file_cds->write_image( self->coaddbuf,
    */
   void Interface::dothread_start_deinterlace( Interface *self, int ringcount_in ) {
     debug( "DOTHREAD_START_DEINTERLACE_ENTRY ring="+std::to_string(ringcount_in) );
-    std::string function = "Archon::Interface::dothread_start_deinterlace";
+    const std::string function("Archon::Interface::dothread_start_deinterlace");
     std::stringstream message;
 
     // If this ring buffer is marked as locked then that means a thread is currently reading data into it,
@@ -8301,10 +8340,12 @@ self->__file_cds->write_image( self->coaddbuf,
    * This thread will wait for the ringbuffer at ringcount_in to be deinterlaced,
    * then it will write the frame.
    *
+   * *** THIS IS THE ONLY CALL TO write_frame() USED BY NIRC2 ***
+   *
    */
   void Interface::dothread_writeframe( Interface *self, int ringcount_in ) {
     debug( "DOTHREAD_WRITEFRAME_ENTRY ring="+std::to_string(ringcount_in) );
-    std::string function = "Archon::Interface::dothread_writeframe";
+    const std::string function("Archon::Interface::dothread_writeframe");
     std::stringstream message;
 
 #ifdef LOGLEVEL_DEBUG

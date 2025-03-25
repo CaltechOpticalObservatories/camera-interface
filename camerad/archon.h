@@ -190,9 +190,9 @@ namespace Archon {
       int cols;
       int rows;
       int readout_type;
-      long frame_rows;
-      long frame_cols;
-      long depth;
+      int frame_rows;
+      int frame_cols;
+      int depth;
 
 
       /***** Archon::DeInterlace::test ****************************************/
@@ -206,7 +206,7 @@ namespace Archon {
 //      int bufrows = this->rows * this->depth;
 
         for (long pix=0; pix < 256*256; pix++) {
-          this->imbuf[pix] = pix % 65535;
+          this->imbuf[pix] = static_cast<T>(pix % 65535);
         }
 
         cv::Mat image;
@@ -524,10 +524,10 @@ namespace Archon {
           cv::hconcat( Q4f, Q3f, lowers );      // concatenate the two lower quadrants together, horizontally
           cv::vconcat( lowers, uppers, work );  // concatenate the uppers and lowers together, vertically
 #ifdef LOGLEVEL_DEBUG
-          message.str(""); message << "[DEBUG] uppers.rows=" << uppers.rows
-	                           << " lowers.rows=" << lowers.rows
-			           << " work.rows=" << work.rows;
-          logwrite( "Archon::DeInterlace::nirc2", message.str() );
+//        message.str(""); message << "[DEBUG] uppers.rows=" << uppers.rows
+//                                 << " lowers.rows=" << lowers.rows
+//                                 << " work.rows=" << work.rows;
+//        logwrite( "Archon::DeInterlace::nirc2", message.str() );
 #endif
           }
 
@@ -548,11 +548,11 @@ namespace Archon {
             }
           }
 #ifdef LOGLEVEL_DEBUG
-          message.str(""); message << "[DEBUG] work.rows=" << work.rows << " work.cols=" << work.cols 
-                                   << " resetframe.rows=" << this->resetframe.rows
-	                           << " resetframe.cols=" << this->resetframe.cols
-			           << " readframe.rows=" << this->readframe.rows << " readframe.cols=" << this->readframe.cols;
-          logwrite( "Archon::DeInterlace::nirc2", message.str() );
+//        message.str(""); message << "[DEBUG] work.rows=" << work.rows << " work.cols=" << work.cols 
+//                                 << " resetframe.rows=" << this->resetframe.rows
+//                                 << " resetframe.cols=" << this->resetframe.cols
+//                                 << " readframe.rows=" << this->readframe.rows << " readframe.cols=" << this->readframe.cols;
+//        logwrite( "Archon::DeInterlace::nirc2", message.str() );
 #endif
 
           // For CDS mode, copy the work buffer to the appropriate frame buffer
@@ -567,8 +567,8 @@ namespace Archon {
 	    //
             int32_t* ptr = ( (slicen < this->nmcds/2) ? this->mcdsbuf_0 : this->mcdsbuf_1 );
 #ifdef LOGLEVEL_DEBUG
-            message.str(""); message << "[DEBUG] " << ( (slicen < this->nmcds/2) ? "first" : "second" ) << " half of MCDS";
-            logwrite( "Archon::DeInterlace::nirc2", message.str() );
+//          message.str(""); message << "[DEBUG] " << ( (slicen < this->nmcds/2) ? "first" : "second" ) << " half of MCDS";
+//          logwrite( "Archon::DeInterlace::nirc2", message.str() );
 #endif
             // Create openCV image from the coadd buffer pointed above
 	    // and add the work buffer to it.
@@ -694,8 +694,8 @@ namespace Archon {
         unsigned long index=0;
         for ( int row=0; row<this->frame_rows; row++ ) {
           for ( int col=0; col<this->frame_cols; col++ ) {
-            *( this->cdsbuf   + index ) = (int32_t)(diff.at<int32_t>(row,col));
-            *( this->coaddbuf + index ) = (int32_t)(coadd.at<int32_t>(row,col));
+            *( this->cdsbuf   + index ) = static_cast<int32_t>(diff.at<int32_t>(row,col));
+            *( this->coaddbuf + index ) = static_cast<int32_t>(coadd.at<int32_t>(row,col));
             index++;
           }
         }
@@ -761,22 +761,22 @@ namespace Archon {
        * @param[in]  readout_type  
        *
        */
-      DeInterlace( T* imbuf_in, T* workbuf_in, T* cdsbuf_in, int32_t* coaddbuf, int32_t* mcdsbuf_0, int32_t* mcdsbuf_1,
-                   bool iscds, int nmcds, int cols, int rows, int readout_type, long height, long width, long depth ) {
-        this->imbuf = imbuf_in;
-        this->workbuf = workbuf_in;
-        this->cdsbuf = cdsbuf_in;
-        this->coaddbuf = coaddbuf;
-        this->mcdsbuf_0 = mcdsbuf_0;
-        this->mcdsbuf_1 = mcdsbuf_1;
-        this->iscds = iscds;
-        this->nmcds = nmcds;
-        this->cols = cols;
-        this->rows = rows;
-        this->readout_type = readout_type;
-        this->frame_rows = height;
-        this->frame_cols = width;
-        this->depth = depth;
+      DeInterlace( T* _imbuf, T* _workbuf, T* _cdsbuf, int32_t* _coaddbuf, int32_t* _mcdsbuf_0, int32_t* _mcdsbuf_1,
+                   bool _iscds, int _nmcds, int _cols, int _rows, int _readout_type, int _height, int _width, int _depth ) {
+        this->imbuf = _imbuf;
+        this->workbuf = _workbuf;
+        this->cdsbuf = _cdsbuf;
+        this->coaddbuf = _coaddbuf;
+        this->mcdsbuf_0 = _mcdsbuf_0;
+        this->mcdsbuf_1 = _mcdsbuf_1;
+        this->iscds = _iscds;
+        this->nmcds = _nmcds;
+        this->cols = _cols;
+        this->rows = _rows;
+        this->readout_type = _readout_type;
+        this->frame_rows = _height;
+        this->frame_cols = _width;
+        this->depth = _depth;
         debug( "DEINTERLACE_CLASS_CONSTRUCTED" );
       }
       /***** Archon::DeInterlace::DeInterlace *********************************/
@@ -861,11 +861,11 @@ namespace Archon {
    */
   class Interface {
     private:
-      unsigned long int start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
-      unsigned long int last_frame_timer;           /// Archon timer of last frame
-      int n_hdrshift;                               //!< number of right-shift bits for Archon buffer in HDR mode
+      uint64_t start_timer, finish_timer;  //!< Archon internal timer, start and end of exposure
+      uint64_t last_frame_timer;           //!< Archon timer of last frame
+      int n_hdrshift;                      //!< number of right-shift bits for Archon buffer in HDR mode
       struct timespec cal_systime;
-      unsigned long int cal_archontime;
+      uint64_t cal_archontime;
 
     public:
       Interface();
@@ -884,10 +884,11 @@ namespace Archon {
 
       Config config;
 
-      xxxx_file fits_file;                   //!< instantiate a FITS container object *** old method to be removed
-      xxxx_file cds_file;                    //!< instantiate a FITS container object *** old method to be removed
+//    xxxx_file xfits_file;                  //!< instantiate a FITS container object *** old method to be removed
+//    xxxx_file xcds_file;                   //!< instantiate a FITS container object *** old method to be removed
 
-      std::unique_ptr<FITS_file<int32_t>>  __file_cds;
+      std::unique_ptr<FITS_file<uint16_t>> __fits_file; /*** for new FITS engine ***/
+      std::unique_ptr<FITS_file<int32_t>>  __file_cds;  /*** for new FITS engine ***/
 
       typedef struct {
         int readout_type;                    //!< enum for readout type
@@ -1072,11 +1073,11 @@ namespace Archon {
        * @details structure of geometry which is unique to each observing mode
        */
       struct geometry_t {
-        int  amps[2];              // number of amplifiers per detector for each axis, set in set_camera_mode
-        int  num_detect;           // number of detectors, set in set_camera_mode
-        int  linecount;            // number of lines per tap
-        int  pixelcount;           // number of pixels per tap
-        int  framemode;            // Archon deinterlacing mode, 0=topfirst, 1=bottomfirst, 2=split
+        int  amps[2];         // number of amplifiers per detector for each axis, set in set_camera_mode
+        int  num_detect;      // number of detectors, set in set_camera_mode
+        int  linecount;       // number of lines per tap
+        int  pixelcount;      // number of pixels per tap
+        int  framemode;       // Archon deinterlacing mode, 0=topfirst, 1=bottomfirst, 2=split
       };
 
       /**
@@ -1141,8 +1142,8 @@ namespace Archon {
        */
       struct rawinfo_t {
         int adchan;          // selected A/D channels
-        int rawsamples;      // number of raw samples per line
-        int rawlines;        // number of raw lines
+        uint16_t rawsamples; // number of raw samples per line
+        uint16_t rawlines;   // number of raw lines
         int iteration;       // iteration number
         int iterations;      // number of iterations
       } rawinfo;
