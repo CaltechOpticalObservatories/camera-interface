@@ -65,12 +65,7 @@ elseif (${INTERFACE_TYPE} STREQUAL "Archon")
     set(INTERFACE_TARGET archon)
     add_definitions(-Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb)
     add_definitions(-DSTA_ARCHON)
-    # list(APPEND INTERFACE_SOURCE
-    #         "${CAMERA_DIR}/archon.cpp"
-    # )
-    # list(APPEND INTERFACE_INCLUDES
-    #         "${ARCHON_INCLUDE}"
-    # )
+
     set(INTERFACE_SOURCE
       "${CAMERA_DIR}/archon.cpp"
     )
@@ -125,7 +120,6 @@ add_executable(cleand
   ${CAMERA_DIR}/camerad.cpp
   ${CAMERA_DIR}/camera.cpp
   ${CAMERA_DIR}/camera_server.cpp
-  # ${CAMERA_DIR}/archon.cpp
   ${INTERFACE_INCLUDES}
 )
 
@@ -147,5 +141,5 @@ target_link_libraries(cleand
   Boost::chrono
   pthread
   ${BOOST_INCLUDES}
-  )
+)
 
