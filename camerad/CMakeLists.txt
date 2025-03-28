@@ -1,6 +1,6 @@
 cmake_minimum_required( VERSION 3.12 )
 
-set( CAMERA_DIR ${PROJECT_BASE_DIR}/camerad )
+set( CAMERAD_DIR ${PROJECT_BASE_DIR}/camerad )
 
 set( CMAKE_CXX_STANDARD 17 )
 
@@ -29,9 +29,9 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 # ----------------------------------------------------------------------------
 #   INTERFACE_SOURCE    list of sources required for target interface
 # ----------------------------------------------------------------------------
-  set(INTERFACE_SOURCE
-    "${CAMERA_DIR}/astrocam_interface.cpp"
-  )
+set(INTERFACE_SOURCE
+  "${CAMERAD_DIR}/astrocam_interface.cpp"
+)
 # ----------------------------------------------------------------------------
 #   INTERFACE_INCLUDES  list of include paths for target interface
 # ----------------------------------------------------------------------------
@@ -67,7 +67,7 @@ elseif (${INTERFACE_TYPE} STREQUAL "Archon")
     add_definitions(-DSTA_ARCHON)
 
     set(INTERFACE_SOURCE
-      "${CAMERA_DIR}/archon.cpp"
+      "${CAMERAD_DIR}/archon.cpp"
     )
     add_library(interface STATIC "${INTERFACE_SOURCE}")
     if (${DETECTOR_TYPE} STREQUAL "Hxrg")
@@ -86,13 +86,11 @@ endif ()
 # Now add the defined interface target:
 #
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
-# target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
-
+target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 add_library(camera STATIC
-        ${CAMERA_DIR}/camera.cpp
+        ${CAMERAD_DIR}/camera.cpp
 )
-
 
 # ----------------------------------------------------------------------------
 # External libraries, such as FITS, etc.
@@ -117,29 +115,55 @@ find_package(Boost REQUIRED COMPONENTS thread chrono)
 include_directories(${BOOST_INCLUDES})
 
 add_executable(cleand
-  ${CAMERA_DIR}/camerad.cpp
-  ${CAMERA_DIR}/camera.cpp
-  ${CAMERA_DIR}/camera_server.cpp
+  ${CAMERAD_DIR}/camerad.cpp
+  ${CAMERAD_DIR}/camera.cpp
+  ${CAMERAD_DIR}/camera_server.cpp
   ${INTERFACE_INCLUDES}
 )
 
-target_link_libraries(cleand
-  ${INTERFACE_TARGET}
-  camera
-  network
-  logentry
-  common
-  utilities
-  ${CMAKE_THREAD_LIBS_INIT}
-  ${CCFITS_LIB}
-  ${CFITS_LIB}
-  ${ZMQPP_LIB}
-  ${ZMQ_LIB}
-  ${OpenCV_LIBS}
-  nlohmann_json::nlohmann_json
-  Boost::thread
-  Boost::chrono
-  pthread
-  ${BOOST_INCLUDES}
-)
+if (${INTERFACE_TYPE} STREQUAL "AstroCam")
+  target_link_libraries(cleand
+      camera
+      network
+      logentry
+      common
+      utilities
+      logentry
+      CArcBase
+      CArcDevice
+      CArcFitsFile
+      ${INTERFACE_TARGET}
+      ${CMAKE_THREAD_LIBS_INIT}
+      ${CCFITS_LIB}
+      ${CFITS_LIB}
+      ${ZMQPP_LIB}
+      ${ZMQ_LIB}
+      ${OpenCV_LIBS}
+      nlohmann_json::nlohmann_json
+      Boost::thread
+      Boost::chrono
+      pthread
+      ${BOOST_INCLUDES}
+    )
+elseif (${INTERFACE_TYPE} STREQUAL "Archon")
+  target_link_libraries(cleand
+    ${INTERFACE_TARGET}
+    camera
+    network
+    logentry
+    common
+    utilities
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${CCFITS_LIB}
+    ${CFITS_LIB}
+    ${ZMQPP_LIB}
+    ${ZMQ_LIB}
+    ${OpenCV_LIBS}
+    nlohmann_json::nlohmann_json
+    Boost::thread
+    Boost::chrono
+    pthread
+    ${BOOST_INCLUDES}
+  )
 
+endif ()
