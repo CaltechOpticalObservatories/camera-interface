@@ -6,8 +6,12 @@
 #include <mutex>
 #include <limits.h>
 
-// #include "astrocam_interface.h"
-#include "archon.h"
+#ifdef ASTROCAM
+  #include "astrocam_interface.h"
+#elif STA_ARCHON
+  #include "archon.h"
+#endif
+
 #include "utilities.h"
 #include "network.h"
 #include "camerad_commands.h"
@@ -17,8 +21,11 @@ namespace Camera {
 
   class Server {
     private:
-      // AstroCam::Interface interface;
-      Archon::Interface interface;
+      #ifdef ASTROCAM
+        AstroCam::Interface interface;
+      #elif STA_ARCHON
+        Archon::Interface interface;
+      #endif
 
     public:
       Server() :
@@ -28,9 +35,12 @@ namespace Camera {
 
       ~Server() = default;
 
-      // AstroCam::Interface &get_interface();
-      // std::map<int, AstroCam::Controller> &get_controllers();
-      Archon::Interface &get_interface();
+      #ifdef ASTROCAM
+        AstroCam::Interface &get_interface();
+        std::map<int, AstroCam::Controller> &get_controllers();
+      #elif STA_ARCHON
+        Archon::Interface &get_interface();
+      #endif
 
       NumberPool id_pool;
       std::map<int, std::shared_ptr<Network::TcpSocket>> socklist;

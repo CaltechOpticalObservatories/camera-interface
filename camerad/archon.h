@@ -201,6 +201,7 @@ namespace Archon {
 
       public:
         Interface();
+
         ~Interface();
 
         void select_exposure_mode( ExposureMode mode );  /// select exposure mode
