@@ -16,7 +16,7 @@
 #include <zmqpp/zmqpp.hpp>
 #include <nlohmann/json.hpp>
 
-// #include "opencv2/opencv.hpp"      /// OpenCV used for image manipulation
+#include "opencv2/opencv.hpp"      /// OpenCV used for image manipulation
 #include "utilities.h"
 #include "common.h"
 #include "camera.h"

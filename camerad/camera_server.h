@@ -31,7 +31,6 @@ namespace Camera {
       // AstroCam::Interface &get_interface();
       // std::map<int, AstroCam::Controller> &get_controllers();
       Archon::Interface &get_interface();
-      // std::map<int, Archon::Controller> &get_controller();
 
       NumberPool id_pool;
       std::map<int, std::shared_ptr<Network::TcpSocket>> socklist;

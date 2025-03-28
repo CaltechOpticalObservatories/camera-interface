@@ -6,6 +6,7 @@
 
 namespace Camera {
 
+  // AstroCam::Interface &Server::get_interface() { return interface; }
   Archon::Interface &Server::get_interface() { return interface; }
 
   void Server::block_main( std::shared_ptr<Network::TcpSocket> sock ) {
