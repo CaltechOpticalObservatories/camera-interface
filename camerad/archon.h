@@ -26,7 +26,6 @@
 #include "fits.h"       /// old version renames FITS_file to __FITS_file, will go away soon
 #include "fits_file.h"  /// new version implements FITS_file
 #include "deinterlace_modes.h"
-#include "camerad_commands.h"
 
 constexpr int MAXADCCHANS =   16;              //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 constexpr int MAXADMCHANS =   72;              //!< max number of ADM channels per controller (4 mod * 18 ch/mod)

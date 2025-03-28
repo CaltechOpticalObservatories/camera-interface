@@ -6,8 +6,8 @@
  *
  */
 #include "archon.h"
-#include "deinterlace_modes.h"
 #include "exposure_modes.h"
+#include "deinterlace_modes.h"
 
 #include <sstream>   // for std::stringstream
 #include <iomanip>   // for setfil, setw, etc.
