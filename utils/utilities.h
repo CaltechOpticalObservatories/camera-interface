@@ -29,6 +29,7 @@
 #include <string>
 #include <string_view>
 #include <cctype>
+#include <cxxabi.h>
 
 extern std::string tmzone_cfg; /// time zone if set in cfg file
 extern std::mutex generate_tmpfile_mtx;
@@ -122,6 +123,8 @@ std::string generate_temp_filename(const std::string &prefix);
 
 
 void rtrim(std::string &s);
+
+std::string demangle( const char* name );
 
 inline bool caseCompareChar(char a, char b) { return (std::toupper(a) == std::toupper(b)); }
 

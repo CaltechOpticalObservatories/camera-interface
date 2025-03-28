@@ -13,8 +13,10 @@
 #include <numeric>
 #include <fenv.h>
 #include <string_view>
+#include <zmqpp/zmqpp.hpp>
+#include <nlohmann/json.hpp>
 
-#include "opencv2/opencv.hpp"      /// OpenCV used for image manipulation
+// #include "opencv2/opencv.hpp"      /// OpenCV used for image manipulation
 #include "utilities.h"
 #include "common.h"
 #include "camera.h"
@@ -24,6 +26,7 @@
 #include "fits.h"       /// old version renames FITS_file to __FITS_file, will go away soon
 #include "fits_file.h"  /// new version implements FITS_file
 #include "deinterlace_modes.h"
+#include "camerad_commands.h"
 
 constexpr int MAXADCCHANS =   16;              //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 constexpr int MAXADMCHANS =   72;              //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
@@ -188,10 +191,17 @@ namespace Archon {
 
         std::unique_ptr<ExposureBase> pExposureMode;  /// pointer to ExposureBase class
         std::string exposure_mode_str;                /// human readable representation of exposure mode
+        zmqpp::context context;
+        std::vector<int> configured_devnums;  //!< vector of configured Arc devices (from camerad.cfg file)
+        std::vector<int> devnums;    //!< vector of all opened and connected devices
+        int _expbuf;                 //!< points to next avail in exposure vector
+        std::mutex _expbuf_mutex;    //!< mutex to protect expbuf operations
+        std::mutex epend_mutex;
+        std::vector<int> exposures_pending;  //!< vector of devnums that have a pending exposure (which needs to be stored)
+        void retval_to_string( std::uint32_t check_retval, std::string& retstring );
 
       public:
         Interface();
-
         ~Interface();
 
         void select_exposure_mode( ExposureMode mode );  /// select exposure mode
@@ -202,6 +212,45 @@ namespace Archon {
         Network::TcpSocket archon;
         Camera::Information camera_info; /// this is the main camera_info object
         Camera::Information fits_info; /// used to copy the camera_info object to preserve info for FITS writing
+
+        std::mutex publish_mutex;
+        std::mutex collect_mutex;
+        std::condition_variable publish_condition;
+        std::condition_variable collect_condition;
+
+        std::atomic<bool> publish_enable;
+        std::atomic<bool> collect_enable;
+
+        std::unique_ptr<Common::PubSub> publisher;       ///< publisher object
+        std::string publisher_address;                   ///< publish socket endpoint
+        std::string publisher_topic;                     ///< my default topic for publishing
+        std::unique_ptr<Common::PubSub> subscriber;      ///< subscriber object
+        std::string subscriber_address;                  ///< subscribe socket endpoint
+        std::vector<std::string> subscriber_topics;      ///< list of topics I subscribe to
+        std::atomic<bool> is_subscriber_thread_running;  ///< is my subscriber thread running?
+        std::atomic<bool> should_subscriber_thread_run;  ///< should my subscriber thread run?
+        std::unordered_map<std::string,
+                          std::function<void(const nlohmann::json&)>> topic_handlers;
+                                                        ///< maps a handler function to each topic
+
+        // publish/subscribe functions
+        //
+        long init_pubsub(const std::initializer_list<std::string> &topics={}) {
+          return Common::PubSubHandler<Interface>::init_pubsub(context, *this, topics);
+        }
+        void start_subscriber_thread() { Common::PubSubHandler<Interface>::start_subscriber_thread(*this); }
+        void stop_subscriber_thread()  { Common::PubSubHandler<Interface>::stop_subscriber_thread(*this); }
+
+        void handletopic_snapshot( const nlohmann::json &jmessage ) {
+          //TODO:
+        }
+
+        void publish_snapshot();
+        void publish_snapshot(std::string &retstring);
+
+        int numdev;
+
+
         Camera::Camera camera; /// instantiate a Camera object
         Common::FitsKeys userkeys; //!< instantiate a Common object
         Common::FitsKeys systemkeys; //!< instantiate a Common object
@@ -283,7 +332,7 @@ namespace Archon {
         static long interface(std::string &iface); //!< get interface type
         long configure_controller(); //!< get configuration parameters
         long prepare_archon_buffer(); //!< prepare archon_buf, allocating memory as needed
-        long connect_controller(const std::string &devices_in); //!< open connection to archon controller
+        long connect_controller( const std::string devices_in, std::string &retstring ); //!< open connection to archon controller
         long disconnect_controller(); //!< disconnect from archon controller
         long load_timing(std::string acffile); //!< load specified ACF then LOADTIMING
         long load_timing(std::string acffile, std::string &retstring);

@@ -6,8 +6,8 @@
  *
  */
 #include "archon.h"
-#include "exposure_modes.h"
 #include "deinterlace_modes.h"
+#include "exposure_modes.h"
 
 #include <sstream>   // for std::stringstream
 #include <iomanip>   // for setfil, setw, etc.
@@ -23,80 +23,117 @@ namespace Archon {
 
   // Archon::Interface constructor
   //
-  Interface::Interface() {
-    this->pExposureMode=nullptr;
-    this->exposure_mode_str="not_set";
-    this->archon_busy = false;
-    this->is_camera_mode = false;
-    this->firmwareloaded = false;
-    this->msgref = 0;
-    this->lastframe = 0;
-    this->frame.index = 0;
-    this->frame.next_index = 0;
-    this->abort = false;
-    this->taplines = 0;
-    this->configlines = 0;
-    this->logwconfig = false;
-    this->archon_buf = nullptr;
-    this->archon_buf_bytes = 0;
-    this->archon_buf_allocated = 0;
-    this->is_longexposure_set = false;
-    this->is_window = false;
-    this->is_autofetch = false;
-    this->win_hstart = 0;
-    this->win_hstop = 2047;
-    this->win_vstart = 0;
-    this->win_vstop = 2047;
-    this->tapline0_store = "";
-    this->taplines_store = 0;
+  Interface::Interface()
+    : context(),
+      publish_enable(false),
+      collect_enable(false),
+      subscriber(std::make_unique<Common::PubSub>(context, Common::PubSub::Mode::SUB)),
+      is_subscriber_thread_running(false),
+      should_subscriber_thread_run(false) {
+        topic_handlers = {
+          { "_snapshot", std::function<void(const nlohmann::json&)>(
+                    [this](const nlohmann::json &msg) { handletopic_snapshot(msg); } ) }
+        };
 
-    this->n_hdrshift = 16;
-    this->backplaneversion="";
-
-    this->trigin_state="disabled";
-    this->trigin_expose = 0;
-    this->trigin_untimed = 0;
-    this->trigin_readout = 0;
-
-    this->lastcubeamps = this->camera.cubeamps();
-
-    this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
-    this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
-    this->trigin_untimed_enable  = DEF_TRIGIN_UNTIMED_ENABLE;
-    this->trigin_untimed_disable = DEF_TRIGIN_UNTIMED_DISABLE;
-    this->trigin_readout_enable  = DEF_TRIGIN_READOUT_ENABLE;
-    this->trigin_readout_disable = DEF_TRIGIN_READOUT_DISABLE;
-
-    this->shutenable_enable      = DEF_SHUTENABLE_ENABLE;
-    this->shutenable_disable     = DEF_SHUTENABLE_DISABLE;
-
-    // pre-size the modtype and modversion vectors to hold the max number of modules
-    //
-    this->modtype.resize( nmods );
-    this->modversion.resize( nmods );
-
-    // TODO I should change these to STL maps instead
-    //
-    this->frame.bufsample.resize( Archon::nbufs );
-    this->frame.bufcomplete.resize( Archon::nbufs );
-    this->frame.bufmode.resize( Archon::nbufs );
-    this->frame.bufbase.resize( Archon::nbufs );
-    this->frame.bufframen.resize( Archon::nbufs );
-    this->frame.bufwidth.resize( Archon::nbufs );
-    this->frame.bufheight.resize( Archon::nbufs );
-    this->frame.bufpixels.resize( Archon::nbufs );
-    this->frame.buflines.resize( Archon::nbufs );
-    this->frame.bufrawblocks.resize( Archon::nbufs );
-    this->frame.bufrawlines.resize( Archon::nbufs );
-    this->frame.bufrawoffset.resize( Archon::nbufs );
-    this->frame.buftimestamp.resize( Archon::nbufs );
-    this->frame.bufretimestamp.resize( Archon::nbufs );
-    this->frame.buffetimestamp.resize( Archon::nbufs );
+      this->pExposureMode=nullptr;
+      this->exposure_mode_str="not_set";
+      this->archon_busy = false;
+      this->is_camera_mode = false;
+      this->firmwareloaded = false;
+      this->msgref = 0;
+      this->lastframe = 0;
+      this->frame.index = 0;
+      this->frame.next_index = 0;
+      this->abort = false;
+      this->taplines = 0;
+      this->configlines = 0;
+      this->logwconfig = false;
+      this->archon_buf = nullptr;
+      this->archon_buf_bytes = 0;
+      this->archon_buf_allocated = 0;
+      this->is_longexposure_set = false;
+      this->is_window = false;
+      this->is_autofetch = false;
+      this->win_hstart = 0;
+      this->win_hstop = 2047;
+      this->win_vstart = 0;
+      this->win_vstop = 2047;
+      this->tapline0_store = "";
+      this->taplines_store = 0;
+  
+      this->n_hdrshift = 16;
+      this->backplaneversion="";
+  
+      this->trigin_state="disabled";
+      this->trigin_expose = 0;
+      this->trigin_untimed = 0;
+      this->trigin_readout = 0;
+  
+      this->lastcubeamps = this->camera.cubeamps();
+  
+      this->trigin_expose_enable   = DEF_TRIGIN_EXPOSE_ENABLE;
+      this->trigin_expose_disable  = DEF_TRIGIN_EXPOSE_DISABLE;
+      this->trigin_untimed_enable  = DEF_TRIGIN_UNTIMED_ENABLE;
+      this->trigin_untimed_disable = DEF_TRIGIN_UNTIMED_DISABLE;
+      this->trigin_readout_enable  = DEF_TRIGIN_READOUT_ENABLE;
+      this->trigin_readout_disable = DEF_TRIGIN_READOUT_DISABLE;
+  
+      this->shutenable_enable      = DEF_SHUTENABLE_ENABLE;
+      this->shutenable_disable     = DEF_SHUTENABLE_DISABLE;
+  
+      // pre-size the modtype and modversion vectors to hold the max number of modules
+      //
+      this->modtype.resize( nmods );
+      this->modversion.resize( nmods );
+  
+      // TODO I should change these to STL maps instead
+      //
+      this->frame.bufsample.resize( Archon::nbufs );
+      this->frame.bufcomplete.resize( Archon::nbufs );
+      this->frame.bufmode.resize( Archon::nbufs );
+      this->frame.bufbase.resize( Archon::nbufs );
+      this->frame.bufframen.resize( Archon::nbufs );
+      this->frame.bufwidth.resize( Archon::nbufs );
+      this->frame.bufheight.resize( Archon::nbufs );
+      this->frame.bufpixels.resize( Archon::nbufs );
+      this->frame.buflines.resize( Archon::nbufs );
+      this->frame.bufrawblocks.resize( Archon::nbufs );
+      this->frame.bufrawlines.resize( Archon::nbufs );
+      this->frame.bufrawoffset.resize( Archon::nbufs );
+      this->frame.buftimestamp.resize( Archon::nbufs );
+      this->frame.bufretimestamp.resize( Archon::nbufs );
+      this->frame.buffetimestamp.resize( Archon::nbufs );
   }
 
   // Archon::Interface deconstructor
   //
   Interface::~Interface() = default;
+
+  /***** Archon::Interface::publish_snapshot ********************************/
+  /**
+   * @brief      publishes snapshot of my telemetry
+   * @details    This publishes a JSON message containing a snapshot of my
+   *             telemetry.
+   *
+   */
+  void Interface::publish_snapshot() {
+    std::string dontcare;
+    this->publish_snapshot(dontcare);
+  }
+  void Interface::publish_snapshot(std::string &retstring) {
+    nlohmann::json jmessage_out;
+    jmessage_out["source"]     = "camerad";
+
+    try {
+      this->publisher->publish( jmessage_out );
+    }
+    catch ( const std::exception &e ) {
+      logwrite( "AstroCam::Interface::publish_snapshot",
+                "ERROR publishing message: "+std::string(e.what()) );
+      return;
+    }
+  }
+  /***** Archon::Interface::publish_snapshot ********************************/
 
 
   /***** Archon::ExposureBase::expose *****************************************/
@@ -870,7 +907,7 @@ namespace Archon {
    * @return     ERROR | NO_ERROR
    *
    */
-  long Interface::connect_controller(const std::string& devices_in="") {
+  long Interface::connect_controller( const std::string devices_in, std::string &retstring ) {
     std::string function = "Archon::Interface::connect_controller";
     std::stringstream message;
     int adchans=0;
