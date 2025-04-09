@@ -52,6 +52,11 @@ set(INTERFACE_SOURCE
       "${ARCAPI_CONIFACE}"
       "${ARCAPI_DEFS}"
     )
+    set(INTERFACE_LIBS
+      CArcBase
+      CArcDevice
+      CArcFitsFile
+    )
     find_library(CARC_BASE "CArcBase3.6" NAMES "libCArcBase3.6" PATHS ${ARCAPI_DIR}/Release)
     find_library(CARC_DEVICE "CArcDevice3.6" NAMES "libCArcDevice3.6.so" PATHS ${ARCAPI_DIR}/Release)
     find_library(CARC_FITS "CArcFitsFile3.6" NAMES "libCArcFitsFile3.6.so" PATHS ${ARCAPI_DIR}/Release)
@@ -70,6 +75,9 @@ elseif (${INTERFACE_TYPE} STREQUAL "Archon")
       "${CAMERAD_DIR}/archon.cpp"
     )
     add_library(interface STATIC "${INTERFACE_SOURCE}")
+
+    set(INTERFACE_LIBS)
+
     if (${DETECTOR_TYPE} STREQUAL "Hxrg")
         message(STATUS "compiling for HXRG detector")
         add_definitions(-DDET_HXRG)
@@ -116,46 +124,22 @@ add_executable(cleand
   ${INTERFACE_INCLUDES}
 )
 
-if (${INTERFACE_TYPE} STREQUAL "AstroCam")
-  target_link_libraries(cleand
-    network
-    logentry
-    common
-    utilities
-    logentry
-    CArcBase
-    CArcDevice
-    CArcFitsFile
-    ${INTERFACE_TARGET}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${CCFITS_LIB}
-    ${CFITS_LIB}
-    ${ZMQPP_LIB}
-    ${ZMQ_LIB}
-    ${OpenCV_LIBS}
-    nlohmann_json::nlohmann_json
-    Boost::thread
-    Boost::chrono
-    pthread
-    ${BOOST_INCLUDES}
-  )
-elseif (${INTERFACE_TYPE} STREQUAL "Archon")
-  target_link_libraries(cleand
-    network
-    logentry
-    common
-    utilities
-    ${INTERFACE_TARGET}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${CCFITS_LIB}
-    ${CFITS_LIB}
-    ${ZMQPP_LIB}
-    ${ZMQ_LIB}
-    ${OpenCV_LIBS}
-    nlohmann_json::nlohmann_json
-    Boost::thread
-    Boost::chrono
-    pthread
-    ${BOOST_INCLUDES}
-  )
-endif ()
+target_link_libraries(cleand
+  network
+  logentry
+  common
+  utilities
+  ${INTERFACE_LIBS}
+  ${INTERFACE_TARGET}
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${CCFITS_LIB}
+  ${CFITS_LIB}
+  ${ZMQPP_LIB}
+  ${ZMQ_LIB}
+  ${OpenCV_LIBS}
+  nlohmann_json::nlohmann_json
+  Boost::thread
+  Boost::chrono
+  pthread
+  ${BOOST_INCLUDES}
+)
