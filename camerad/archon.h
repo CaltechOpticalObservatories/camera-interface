@@ -274,6 +274,8 @@ namespace Archon {
 
         long bias(std::string args, std::string &retstring);
 
+        long preampgain(std::string args, std::string &retstring);
+
         long cds(std::string args, std::string &retstring);
 
         long inreg(std::string args);

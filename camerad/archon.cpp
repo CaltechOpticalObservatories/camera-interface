@@ -7404,6 +7404,110 @@ namespace Archon {
   /**************** Archon::Interface::bias ***********************************/
 
 
+  /***** Archon::Interface::preampgain ****************************************/
+  /**
+   * @brief    set/get the ADC preamp gain
+   * @param    args contains: gain {low|high}
+   * @return   ERROR or NO_ERROR
+   *
+   */
+  long Interface::preampgain(std::string args, std::string &retstring) {
+    const std::string function("Archon::Interface::preampgain");
+    std::stringstream message;
+    int gain;
+    long error = NO_ERROR;
+
+    // must have loaded firmware
+    //
+    if ( ! this->firmwareloaded ) {
+      this->camera.log_error( function, "firmware not loaded" );
+      return ERROR;
+    }
+
+    // make a list of installed AD modules
+    //
+    std::vector<int> admodules;
+    for ( int i=0; i<nmods; i++ ) {
+      if ( this->modtype[i] == 2 ) admodules.push_back(i);
+    }
+    if (admodules.size()==0) {
+      this->camera.log_error( function, "no AD modules found" );
+      return ERROR;
+    }
+
+    // no args is read gain
+    //
+    if ( args.empty() ) {
+      std::vector<int> gains;
+
+      // read gain of all AD modules into gains vecctor
+      for ( const auto &mod : admodules ) {
+        std::string key ( "MOD" + std::to_string(mod) + "/PREAMPGAIN" );
+        error |= this->get_configmap_value(key, gain);
+        gains.push_back(gain);
+      }
+
+      if ( error != NO_ERROR || gains.size() < 1 ) {
+        this->camera.log_error( function, "reading PREAMPGAIN or no AD modules found" );
+        return ERROR;
+      }
+
+      // are they all the same?
+      if ( ! std::equal(gains.begin()+1, gains.end(), gains.begin()) ) {
+        logwrite( function, "NOTICE: AD gains not the same" );
+        message.str(""); message << "gains =";
+        for ( const auto &gain : gains ) message << " " << (gain==0?"low":"high");
+        retstring = message.str();
+      }
+      else {
+        retstring = gains.front()==0 ? "low" : "high";
+      }
+      return NO_ERROR;
+    }
+
+    // if not read-only then get the arg is the requested gain level
+    //
+    if ( caseCompareString(args, "low") )  gain=0;
+    else
+    if ( caseCompareString(args, "high") ) gain=1;
+    else {
+      this->camera.log_error( function, "bad arguments: expected {low|high}" );
+      return ERROR;
+    }
+
+    // write preamp gain configuration to each AD module
+    //
+    for ( const auto &mod : admodules ) {
+      bool changed = false;
+      std::string key ( "MOD" + std::to_string(mod) + "/PREAMPGAIN" );
+      std::string val ( gain==0 ? "0" : "1" );
+
+      // write the config line
+      error |= this->write_config_key(key.c_str(), val.c_str(), changed);
+
+      // send the APPLYMODx command
+      std::stringstream applystr;
+      applystr << "APPLYMOD"
+               << std::setfill('0')
+               << std::setw(2)
+               << std::hex
+               << (mod-1);
+      if (error==NO_ERROR) error |= this->archon_cmd(applystr.str());
+
+      if (error==NO_ERROR) {
+        logwrite( function, "applied preamp gain="+args+" to AD "+std::to_string(mod) );
+      }
+      else {
+        this->camera.log_error( function, "applying preamp gain="+args+" to AD "+std::to_string(mod) );
+      }
+    }
+
+    retstring = gain==0?"LOW":"HIGH";
+    return error;
+  }
+  /***** Archon::Interface::preampgain ****************************************/
+
+
   /**************** Archon::Interface::cds ************************************/
   /**
    * @fn     cds
