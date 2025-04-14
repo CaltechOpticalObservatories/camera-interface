@@ -38,7 +38,7 @@ jobs:
     - name: Start Emulator
       run: |
         cd ${{github.workspace}}
-        bin/emulator Config/demo/demo.cfg -i generic &
+        bin/emulator Config/demo/demo.cfg -i nirc2 &
 
     - name: Start camera-daemon
       run: |
