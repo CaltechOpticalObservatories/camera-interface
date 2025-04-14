@@ -129,6 +129,7 @@ add_library(camera STATIC
 
 find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
 find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
+find_library(ZMQ_LIB zmq NAMES libzmq PATH /usr/local/lib)
 
 find_package(Threads)
 
@@ -151,6 +152,7 @@ target_link_libraries(camerad
         ${CMAKE_THREAD_LIBS_INIT}
         ${CCFITS_LIB}
         ${CFITS_LIB}
+        ${ZMQ_LIB}
 )
 
 target_link_libraries(camerad ${CARC_BASE})
