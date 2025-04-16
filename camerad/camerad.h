@@ -1,3 +1,10 @@
+/**
+ * @file    camerad.h
+ * @brief   camera daemon include file
+ * @author  David Hale <dhale@astro.caltech.edu>
+ *
+ */
+
 #pragma once
 
 #include <fstream>
@@ -18,3 +25,8 @@
 #include "daemonize.h"
 #include "camera_server.h"
 #include "utilities.h"
+#include "common.h"
+#include "logentry.h"
+
+//void signal_handler(int signo);   ///< handles ctrl-C and other signals
+int main(int argc, char** argv);  ///< the main function

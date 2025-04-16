@@ -1,3 +1,9 @@
+# ----------------------------------------------------------------------------
+# @file    camerad/CMakeLists.txt
+# @brief   input to the CMake build system for building camera daemon
+# @author  David Hale <dhale@caltech.edu>
+# ----------------------------------------------------------------------------
+
 cmake_minimum_required( VERSION 3.12 )
 
 set( CAMERAD_DIR ${PROJECT_BASE_DIR}/camerad )
@@ -6,7 +12,22 @@ set( CMAKE_CXX_STANDARD 17 )
 
 include_directories( ${PROJECT_BASE_DIR}/utils )
 include_directories( ${PROJECT_BASE_DIR}/common )
-link_directories(${PROJECT_BASE_DIR}/lib)
+
+link_directories( ${PROJECT_BASE_DIR}/lib )
+
+option(CONTROLLER "Choose controller type { bob joe archon astrocam }")
+
+if (CONTROLLER STREQUAL "bob")
+  add_definitions(-DCONTROLLER_BOB)
+elseif (CONTROLLER STREQUAL "joe")
+  add_definitions(-DCONTROLLER_JOE)
+elseif (CONTROLLER STREQUAL "astrocam")
+  add_definitions(-DCONTROLLER_ASTROCAM)
+elseif (CONTROLLER STREQUAL "archon")
+  add_definitions(-DCONTROLLER_ARCHON)
+else()
+  message(FATAL_ERROR "You must specify -DCONTROLLER={ bob joe archon astrocam }")
+endif()
 
 # ----------------------------------------------------------------------------
 # AstroCam ARC-64/66 PCI/e interfaces
@@ -30,7 +51,7 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
 #   INTERFACE_SOURCE    list of sources required for target interface
 # ----------------------------------------------------------------------------
 set(INTERFACE_SOURCE
-  "${CAMERAD_DIR}/astrocam_interface.cpp"
+  "${CAMERAD_DIR}/camera_interface.cpp"
 )
 # ----------------------------------------------------------------------------
 #   INTERFACE_INCLUDES  list of include paths for target interface
@@ -98,6 +119,8 @@ target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 # External libraries, such as FITS, etc.
 # ----------------------------------------------------------------------------
 
+# FITS
+#
 find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
 find_library(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/local/lib)
 
@@ -110,6 +133,7 @@ find_library( ZMQ_LIB zmq NAMES libzmq PATHS /usr/local/lib )
 find_package( OpenCV REQUIRED )
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
+
 find_package(Threads)
 find_package(nlohmann_json REQUIRED)
 
@@ -117,14 +141,19 @@ find_package(nlohmann_json REQUIRED)
 find_package(Boost REQUIRED COMPONENTS thread chrono)
 include_directories(${BOOST_INCLUDES})
 
-add_executable(cleand
+add_executable(camerad
+  # these are generic
   ${CAMERAD_DIR}/camerad.cpp
-  ${CAMERAD_DIR}/camera.cpp
   ${CAMERAD_DIR}/camera_server.cpp
+  ${CAMERAD_DIR}/camera_interface.cpp
+  # these will need something smarter to select the correct code
   ${INTERFACE_INCLUDES}
-)
+  #  ${CAMERAD_DIR}/bob_interface.cpp
+  ${CAMERAD_DIR}/astrocam_interface.cpp
+  ${CAMERAD_DIR}/astrocam_controller.cpp
+  )
 
-target_link_libraries(cleand
+target_link_libraries(camerad
   network
   logentry
   common
@@ -143,3 +172,4 @@ target_link_libraries(cleand
   pthread
   ${BOOST_INCLUDES}
 )
+

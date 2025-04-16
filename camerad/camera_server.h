@@ -1,17 +1,21 @@
+/**
+ * @file     camera_server.h
+ * @brief    
+ * @author   David Hale <dhale@astro.caltech.edu>
+ *
+ */
+
 #pragma once
 
-#include <map>
-#include <memory>
-#include <atomic>
-#include <mutex>
+//#include <map>
+//#include <memory>
+//#include <atomic>
+//#include <mutex>
 #include <limits.h>
 
-#ifdef ASTROCAM
-  #include "astrocam_interface.h"
-#elif STA_ARCHON
-  #include "archon.h"
-#endif
+//#include <json.hpp>
 
+#include "camera_interface.h"
 #include "utilities.h"
 #include "network.h"
 #include "camerad_commands.h"
@@ -19,28 +23,14 @@
 
 namespace Camera {
 
+  const int N_THREADS=10;
+
   class Server {
-    private:
-      #ifdef ASTROCAM
-        AstroCam::Interface interface;
-      #elif STA_ARCHON
-        Archon::Interface interface;
-      #endif
-
     public:
-      Server() :
-       id_pool(10),
-       threads_active(0) {
-       }
+      Server();
+      ~Server();
 
-      ~Server() = default;
-
-      #ifdef ASTROCAM
-        AstroCam::Interface &get_interface();
-        std::map<int, AstroCam::Controller> &get_controllers();
-      #elif STA_ARCHON
-        Archon::Interface &get_interface();
-      #endif
+      Interface* interface;
 
       NumberPool id_pool;
       std::map<int, std::shared_ptr<Network::TcpSocket>> socklist;
@@ -49,7 +39,6 @@ namespace Camera {
       std::atomic<int> cmd_num;
 
       void block_main(std::shared_ptr<Network::TcpSocket> socket);
-
       void doit(Network::TcpSocket sock);
   };
 }
