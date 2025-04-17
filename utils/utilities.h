@@ -36,7 +36,7 @@
 #include "time.h"
 #include <dirent.h>
 #include <map>
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 #include <condition_variable>
 #include <initializer_list>
 #include <bitset>
@@ -139,6 +139,8 @@ std::string generate_temp_filename(const std::string &prefix);
 
 
 void rtrim(std::string &s);
+
+std::string demangle( const char* name );
 
 inline bool caseCompareChar(char a, char b) { return (std::toupper(a) == std::toupper(b)); }
 
