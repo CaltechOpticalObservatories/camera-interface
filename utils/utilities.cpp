@@ -969,17 +969,17 @@ void rtrim(std::string &s) {
 /***** rtrim ***********************************************/
 
 
-/***** demangle ********************************************/
-/**
- * @brief      demangle a C++ symbol name
- * @param[in]  name  input symbol name
- * @return     human readable form of name
- *
- */
-std::string demangle( const char* name ) {
-  int status=999;
-  char* demangled_name = abi::__cxa_demangle( name, nullptr, nullptr, &status );
-  std::string result = (status==0) ? demangled_name : name;
-  std::free(demangled_name);
-  return result;
-}
+// /***** demangle ********************************************/
+// /**
+//  * @brief      demangle a C++ symbol name
+//  * @param[in]  name  input symbol name
+//  * @return     human readable form of name
+//  *
+//  */
+// std::string demangle( const char* name ) {
+//   int status=999;
+//   char* demangled_name = abi::__cxa_demangle( name, nullptr, nullptr, &status );
+//   std::string result = (status==0) ? demangled_name : name;
+//   std::free(demangled_name);
+//   return result;
+// }

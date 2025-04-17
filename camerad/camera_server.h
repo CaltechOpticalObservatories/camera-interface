@@ -19,7 +19,6 @@
 #include "utilities.h"
 #include "network.h"
 #include "camerad_commands.h"
-#include "number_pool.h"
 
 namespace Camera {
 
