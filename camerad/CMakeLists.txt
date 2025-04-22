@@ -149,7 +149,7 @@ target_link_libraries(camerad
   ${BOOST_INCLUDES}
   Boost::thread
   Boost::chrono
-#  ${ZMQPP_LIB}
-#  ${ZMQ_LIB}
+  ${ZMQPP_LIB}
+  ${ZMQ_LIB}
   )
 
