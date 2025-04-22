@@ -31,7 +31,7 @@ int main( int argc, char** argv ) {
 
   // testing
   //
-  camerad.interface->myfunction();
+  // camerad.interface->myfunction();
 
   // dynamically create a new listening socket and thread
   // to handle each connection request

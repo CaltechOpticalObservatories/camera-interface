@@ -45,6 +45,7 @@ elseif (CONTROLLER STREQUAL "archon")
   set (INTERFACE_TARGET archon)
   set (INTERFACE_SOURCES
       ${CAMERAD_DIR}/archon_interface.cpp
+      ${CAMERAD_DIR}/archon_controller.cpp
       )
 # ----------------------------------------------------------------------------
 # AstroCam ARC-64/66 PCI/e
