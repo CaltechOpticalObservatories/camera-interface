@@ -65,3 +65,4 @@ add_subdirectory(${PROJECT_BASE_DIR}/ARC)
 add_subdirectory(${PROJECT_BASE_DIR}/camerad)
 #add_subdirectory(${PROJECT_BASE_DIR}/emulator)
 #add_subdirectory(${PROJECT_BASE_DIR}/tests EXCLUDE_FROM_ALL)
+
