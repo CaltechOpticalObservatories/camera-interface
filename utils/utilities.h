@@ -140,8 +140,6 @@ std::string generate_temp_filename(const std::string &prefix);
 
 void rtrim(std::string &s);
 
-std::string demangle( const char* name );
-
 inline bool caseCompareChar(char a, char b) { return (std::toupper(a) == std::toupper(b)); }
 
 inline bool caseCompareString(const std::string &s1, const std::string &s2) {

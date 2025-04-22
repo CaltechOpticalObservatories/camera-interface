@@ -34,7 +34,6 @@ namespace Camera {
     interface->set_server(this);        // pointer back to this Server instance
   }
 
-
   Server::~Server() {
     delete interface;
   }

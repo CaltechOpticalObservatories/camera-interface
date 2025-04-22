@@ -1,5 +1,4 @@
 #include "network.h"
-#include "camera.h"
 
 struct network_details {
     std::string hostname;
