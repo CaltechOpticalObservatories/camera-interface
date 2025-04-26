@@ -581,6 +581,45 @@ namespace Camera {
   /***** Camera::ArchonInterface::exptime *************************************/
 
 
+  /***** Camera::ArchonInterface::get_status_key ******************************/
+  /**
+   * @brief      get value for the indicated key from the Archon "STATUS" string
+   * @param[in]  key    key to extract from STATUS
+   * @param[out] value  value of key
+   * @return     ERROR | NO_ERROR
+   *
+   */
+  long ArchonInterface::get_status_key( std::string key, std::string &value ) {
+    const std::string function("Camera::ArchonInterface::get_status_key");
+    std::stringstream message;
+    std::string reply;
+
+    long error = this->send_cmd( STATUS, reply );  // first the whole reply in one string
+
+    if ( error != NO_ERROR ) return error;
+
+    std::vector<std::string> lines, tokens;
+    Tokenize( reply, lines, " " );                 // then each line in a separate token "lines"
+
+    for ( auto line : lines ) {
+      Tokenize( line, tokens, "=" );               // break each line into tokens to get KEY=value
+      if ( tokens.size() != 2 ) continue;          // need 2 tokens
+      try {
+        if ( tokens.at(0) == key ) {               // looking for the KEY
+          value = tokens.at(1);                    // found the KEY= status here
+          break;                                   // done looking
+        } else continue;
+      }
+      catch (const std::exception &e) {            // should be impossible
+        logwrite(function, "ERROR: "+std::string(e.what()));
+        return ERROR;
+      }
+    }
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonInterface::get_status_key ******************************/
+
+
   /***** Camera::ArchonInterface::send_cmd ************************************/
   /**
    * @brief      send a command to Archon
@@ -607,13 +646,13 @@ namespace Camera {
   long ArchonInterface::send_cmd(std::string cmd, std::string &reply) {
     std::string function = "ArchonInterface::send_cmd";
     std::stringstream message;
+    std::stringstream check;
     int     retval;
-    char    check[4];
     char    buffer[4096];                       //!< temporary buffer for holding Archon replies
     int     error = NO_ERROR;
 
     if (!this->controller.is_connected) {       // nothing to do if no connection open to controller
-      logwrite( function, "connection not open to controller" );
+      logwrite( function, "ERROR connection not open to controller" );
       return ERROR;
     }
 
@@ -663,7 +702,7 @@ namespace Camera {
 
     // build the command checksum: msgref used to check that reply matches command
     //
-    SNPRINTF(check, "<%02X", this->controller.msgref)
+    check << "<" << std::setfill('0') << std::setw(2) << std::hex << this->controller.msgref;
 
     // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
     //
@@ -742,15 +781,14 @@ namespace Camera {
       error = ERROR;
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
       logwrite( function, message.str() );
-
-    } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
-        error = ERROR;
-        // std::string hdr = reply;
-        try {
-          scmd.erase(scmd.find('\n'), 1);
-        } catch(...) { }
-        message.str(""); message << "command-reply mismatch for command: " + scmd + ": expected " + check + " but received " + reply ;
-        logwrite( function, message.str() );
+    }
+    else
+    // First 3 bytes of reply must equal checksum else reply doesn't belong to command
+    if (reply.substr(0,3) != check.str()) {
+      error = ERROR;
+      scmd.erase( std::remove( scmd.begin(), scmd.end(), '\n' ), scmd.end() );
+      message.str(""); message << "ERROR command-reply mismatch for " + scmd + ": expected " + check.str() + " but received " + reply ;
+      logwrite( function, message.str() );
     } else {                                           // command and reply are a matched pair
       error = NO_ERROR;
 
@@ -809,6 +847,115 @@ namespace Camera {
     return retval;
   }
   /***** Camera::ArchonInterface::fetchlog ************************************/
+
+
+  /***** Camera::ArchonInterface::power ***************************************/
+  /**
+   * @brief      turn on controller bias power supplies
+   * @param[in]  args
+   * @param[out] retstring
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long ArchonInterface::power( const std::string args, std::string &retstring ) {
+    const std::string function("Camera::ArchonInterface::power");
+    std::stringstream message;
+    long error=NO_ERROR;
+
+    // Help
+    //
+    if (args=="?" || args=="help") {
+      retstring = CAMERAD_POWER;
+      retstring.append( " [ on | off ]\n" );
+      retstring.append( "  Turn on|off Archon bias power supplies. If no arg supplied then\n" );
+      retstring.append( "  return current state.\n" );
+      return HELP;
+    }
+
+    if (!this->controller.is_connected) {       // nothing to do if no connection open to controller
+      logwrite( function, "ERROR connection not open to controller" );
+      return ERROR;
+    }
+
+
+    // set the Archon power state as requested
+    //
+    if ( !args.empty() ) {
+      if ( caseCompareString(args, "on") ) {
+        // send POWERON command to Archon and wait 2s to ensure stable
+        if ( (error=this->send_cmd( POWERON )) == NO_ERROR ) {
+          std::this_thread::sleep_for( std::chrono::seconds(2) );
+        }
+      }
+      else
+      if ( caseCompareString(args, "off") ) {
+        // send POWEROFF command to Archon and wait 200ms to ensure off
+        if ( (error=this->send_cmd( POWEROFF )) == NO_ERROR ) {
+          std::this_thread::sleep_for( std::chrono::milliseconds(200) );
+        }
+      }
+      else {
+        logwrite(function, "ERROR expected {ON|OFF}");
+        return ERROR;
+      }
+      if ( error != NO_ERROR ) {
+        logwrite( function, "ERROR setting Archon power "+args);
+        return ERROR;
+      }
+    }
+
+    // Read the Archon power state directly from Archon
+    //
+    std::string power;
+    error = get_status_key( "POWER", power );
+
+    if ( error != NO_ERROR ) return ERROR;
+
+    int status=-1;
+
+    try { status = std::stoi( power ); }
+    catch (const std::exception &e) {
+      logwrite(function, "ERROR: "+std::string(e.what()));
+      return ERROR;
+    }
+
+    // set the power status (or not) depending on the value extracted from the STATUS message
+    //
+    switch( status ) {
+      case -1:                                                  // no POWER token found in status message
+        logwrite(function, "ERROR finding power in Archon status message" );
+        return ERROR;
+      case  0:                                                  // usually an internal error
+        this->controller.power_status = "UNKNOWN";
+        break;
+      case  1:                                                  // no configuration applied
+        this->controller.power_status = "NOT_CONFIGURED";
+        break;
+      case  2:                                                  // power is off
+        this->controller.power_status = "OFF";
+        break;
+      case  3:                                                  // some modules powered, some not
+        this->controller.power_status = "INTERMEDIATE";
+        break;
+      case  4:                                                  // power is on
+        this->controller.power_status = "ON";
+        break;
+      case  5:                                                  // system is in standby
+        this->controller.power_status = "STANDBY";
+        break;
+      default:                                                  // should be impossible
+        logwrite(function, "ERROR unknown power status: "+std::to_string(status));
+        return ERROR;
+    }
+
+    message.str(""); message << "POWER:" << this->controller.power_status;
+//  this->camera.async.enqueue( message.str() );
+
+    retstring = this->controller.power_status;
+
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonInterface::power ***************************************/
 
 
   /***** Camera::ArchonInterface::test ****************************************/
