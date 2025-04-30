@@ -17,6 +17,7 @@
 #include <string>
 #include <cstring>
 #include <iostream>
+#include <poll.h>
 
 #include <sys/ioctl.h>                 /// for ioctl, FIONREAD
 #include <poll.h>                      /// for pollfd
@@ -86,6 +87,7 @@ namespace Network {
       int Listen();                      /// create a TCP listening socket
       int Poll();                        /// polls a single file descriptor to wait for incoming data to read
       int Poll( int timeout );           /// polls a single file descriptor with specified timeout
+      int PollMicroseconds(int microseconds_total);
       int Connect();                     /// connect to this->host on this->port
       int Close();                       /// close a socket connection
       int Read(void* buf, size_t count); /// read data from connected socket
