@@ -97,6 +97,9 @@ list (APPEND INTERFACE_SOURCES
   ${CAMERAD_DIR}/camera_interface.cpp
   )
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
+target_link_libraries(${INTERFACE_TARGET}
+                      common
+                      )
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 # ----------------------------------------------------------------------------
@@ -138,7 +141,6 @@ add_executable(camerad
 # ----------------------------------------------------------------------------
 target_link_libraries(camerad
   network
-  common
   utilities
   logentry
   ${INTERFACE_TARGET}

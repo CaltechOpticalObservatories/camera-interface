@@ -849,6 +849,541 @@ namespace Camera {
   /***** Camera::ArchonInterface::fetchlog ************************************/
 
 
+  /***** Camera::ArchonInterface::load_acf ************************************/
+  /**
+   * @brief      loads the ACF file into configuration memory (no APPLY!)
+   * @param[in]  acffile
+   * @return     ERROR or NO_ERROR
+   *
+   * This function loads the specfied file into configuration memory.
+   * While the ACF is being read, an internal database (STL map) is being
+   * created to allow lookup access to the ACF file or parameters.
+   *
+   * The [MODE_XXX] sections are also parsed and parameters as a function
+   * of mode are saved in their own database.
+   *
+   * This function only loads (WCONFIGxxx) the configuration memory; it does
+   * not apply it to the system. Therefore, this function must be followed
+   * with a LOADTIMING or APPLYALL command, for example.
+   *
+   */
+  long ArchonInterface::load_acf(std::string acffile) {
+    const std::string function("Camera::ArchonInterface::load_acf");
+    std::stringstream message;
+    std::fstream filestream;  // I/O stream class
+    std::string line;         // the line read from the acffile
+    std::string mode;
+    std::string keyword, keystring, keyvalue, keytype, keycomment;
+    std::stringstream sscmd;
+    std::string key, value;
+
+    int      linecount;  // the Archon configuration line number is required for writing back to config memory
+    long     error=NO_ERROR;
+    bool     parse_config=false;
+
+    // get the acf filename, either passed here or from loaded default
+    //
+    if ( acffile.empty() ) {
+      acffile = this->camera_info.firmware[0];
+
+    } else {
+      this->camera_info.firmware[0] = acffile;
+    }
+
+    // try to open the file
+    //
+    try {
+      filestream.open(acffile, std::ios_base::in);
+    }
+    catch(const std::exception &e) {
+      logwrite( function, "ERROR opening "+acffile+": "+std::string(e.what()));
+      return ERROR;
+    }
+
+    if ( ! filestream.is_open() || ! filestream.good() ) {
+      logwrite(function, "ERROR opening "+acffile);
+      return ERROR;
+    }
+
+    logwrite(function, acffile);
+
+    // The CPU in Archon is single threaded, so it checks for a network
+    // command, then does some background polling (reading bias voltages etc.),
+    // then checks again for a network command.  "POLLOFF" disables this
+    // background checking, so network command responses are very fast.
+    // The downside is that bias voltages, temperatures, etc. are not updated
+    // until you give a "POLLON".
+    //
+    error = this->send_cmd(POLLOFF);
+
+    // clear configuration memory for this controller
+    //
+    if (error == NO_ERROR) error = this->send_cmd(CLEARCONFIG);
+
+    if ( error != NO_ERROR ) {
+        logwrite( function, "ERROR: could not prepare Archon for new ACF" );
+        return error;
+    }
+
+    // Any failure after clearing the configuration memory will mean
+    // no firmware is loaded.
+    //
+    this->controller.is_firmwareloaded=false;
+
+    this->controller.modemap.clear();            // file is open, clear all modes
+
+    linecount = 0;                               // init Archon configuration line number
+
+    while ( getline(filestream, line) ) {        // note that getline discards the newline "\n" character
+
+      // don't start parsing until [CONFIG] and stop on a newline or [SYSTEM]
+      //
+      if (line == "[CONFIG]") { parse_config=true;  continue; }
+      if (line == "\n"      ) { parse_config=false; continue; }
+      if (line == "[SYSTEM]") { parse_config=false; continue; }
+
+      std::string savedline = line;              // save un-edited line for error reporting
+
+      // parse mode sections, looking for "[MODE_xxxxx]"
+      //
+      if (line.substr(0,6)=="[MODE_") {          // this is a mode section
+        try {
+          line.erase(line.find('['), 1);         // erase the opening square bracket
+          line.erase(line.find(']'), 1);         // erase the closing square bracket
+        }
+        catch(const std::exception &e) {
+          logwrite(function, "ERROR parsing \""+savedline+"\": "+std::string(e.what())+": expected [MODE_xxxx]");
+          filestream.close();
+          return ERROR;
+        }
+        if ( ! line.empty() ) {                  // What's remaining should be MODE_xxxxx
+          mode = line.substr(5);                 // everything after "MODE_" is the mode name
+          std::transform( mode.begin(), mode.end(), mode.begin(), ::toupper );    // make uppercase
+
+          // got a mode, now check if one of this name has already been located
+          // and put into the modemap
+          //
+          if ( this->controller.modemap.find(mode) != this->controller.modemap.end() ) {
+            logwrite(function, "ERROR duplicate definition of mode "+mode+": load aborted");
+	          filestream.close();
+            return ERROR;
+          }
+          else {
+            parse_config = true;
+            message.str(""); message << "detected mode: " << mode; logwrite(function, message.str());
+            this->controller.modemap[mode].rawenable=-1;    // initialize to -1, require it be set somewhere in the ACF
+                                                 // this also ensures something is saved in the modemap for this mode
+          }
+
+        }
+        else {                                   // somehow there's no xxx left after removing "[MODE_" and "]"
+          logwrite(function, "ERROR malformed mode section \""+savedline+"\": expected [MODE_xxxx]");
+          filestream.close();
+          return ERROR;
+        }
+      }
+
+      // Everything else is for parsing configuration lines so if we didn't get [CONFIG] then
+      // skip to the next line.
+      //
+      if (!parse_config) continue;
+
+      // replace any TAB characters with a space
+      //
+      string_replace_char(line, "\t", " ");
+
+      // replace any backslash characters with a forward slash
+      //
+      string_replace_char(line, "\\", "/");
+
+      // erase all quotes
+      try {
+          line.erase( std::remove(line.begin(), line.end(), '"'), line.end() );
+      } catch(...) { }
+
+      // Initialize key, value strings used to form WCONFIG KEY=VALUE command.
+      // As long as key stays empty then the WCONFIG command is not written to the Archon.
+      // This is what keeps TAGS: in the [MODE_xxxx] sections from being written to Archon,
+      // because these do not populate key.
+      //
+      key="";
+      value="";
+
+      //  ************************************************************
+      // Store actual Archon parameters in their own STL map IN ADDITION to the map
+      // in which all other keywords are store, so that they can be accessed in
+      // a different way.  Archon PARAMETER KEY=VALUE paris are formatted as:
+      // PARAMETERn=ParameterName=value
+      // where "PARAMETERn" is the key and "ParameterName=value" is the value.
+      // However, it is logical to access them by ParameterName only. That is what the
+      // parammap is for, hence the need for this STL map indexed on only the "ParameterName"
+      // portion of the value. Conversely, the configmap is indexed by the key.
+      //
+      // parammap stores ONLY the parameters, which are identified as PARAMETERxx="paramname=value"
+      // configmap stores every configuration line sent to Archon (which includes parameters)
+      //
+      // In order to modify these keywords in Archon, the entire above phrase
+      // (KEY=VALUE pair) must be preserved along with the line number on which it
+      // occurs in the config file.
+      // ************************************************************
+
+      // Look for TAGS: in the .acf file mode sections
+      //
+      // If tag is "ACF:" then it's a .acf line (could be a parameter or configuration)
+      //
+      if (line.compare(0,4,"ACF:")==0) {
+        std::vector<std::string> tokens;
+        line = line.substr(4);              // strip off the "ACF:" portion
+        std::string acf_key, acf_value;
+
+        try {
+          Tokenize(line, tokens, "="); // separate into tokens by "="
+
+          if (tokens.size() == 1) {                    // KEY=, the VALUE is empty
+            acf_key   = tokens[0];
+            acf_value = "";
+
+          } else if (tokens.size() == 2) {             // KEY=VALUE
+                acf_key   = tokens[0];
+                acf_value = tokens[1];
+
+          } else {
+                logwrite(function, "ERROR malformed ACF line \""+savedline+": expected KEY=VALUE");
+	              filestream.close();
+                return ERROR;
+          }
+
+          bool keymatch = false;
+
+          // If this key is in the main parammap then store it in the modemap's parammap for this mode
+          if (this->controller.parammap.find( acf_key ) != this->controller.parammap.end()) {
+            this->controller.modemap[mode].parammap[ acf_key ].name  = acf_key;
+            this->controller.modemap[mode].parammap[ acf_key ].value = acf_value;
+            keymatch = true;
+          }
+
+          // If this key is in the main configmap, then store it in the modemap's configmap for this mode
+          //
+          if (this->controller.configmap.find( acf_key ) != this->controller.configmap.end()) {
+            this->controller.modemap[mode].configmap[ acf_key ].value = acf_value;
+            keymatch = true;
+          }
+
+          // If this key is neither in the parammap nor in the configmap then return an error
+          //
+          if ( ! keymatch ) {
+            message.str("");
+            message << "[MODE_" << mode << "] ACF directive: " << acf_key << "=" << acf_value << " is not a valid parameter or configuration key";
+            logwrite(function, message.str());
+            filestream.close();
+            return ERROR;
+          }
+
+        } catch (const std::exception &e) {
+          logwrite(function, "ERROR extracting KEY=VAUE pair from \""+savedline+"\": "+std::string(e.what()));
+          filestream.close();
+          return ERROR;
+        }
+        // end if (line.compare(0,4,"ACF:")==0)
+
+      } else if (line.compare(0,5,"ARCH:")==0) {
+          // The "ARCH:" tag is for internal (Archon_interface) variables
+          // using the KEY=VALUE format.
+          //
+          std::vector<std::string> tokens;
+          line = line.substr(5);                                            // strip off the "ARCH:" portion
+          Tokenize(line, tokens, "=");                                      // separate into KEY, VALUE tokens
+          if (tokens.size() != 2) {
+            logwrite(function, "ERROR malformed ARCH line \""+savedline+"\": expected ARCH:KEY=VALUE");
+	          filestream.close();
+            return ERROR;
+          }
+          if ( tokens[0] == "NUM_DETECT" ) {
+            this->controller.modemap[mode].geometry.num_detect = std::stoi( tokens[1] );
+
+          } else if ( tokens[0] == "HORI_AMPS" ) {
+            this->controller.modemap[mode].geometry.amps[0] = std::stoi( tokens[1] );
+
+          } else if ( tokens[0] == "VERT_AMPS" ) {
+            this->controller.modemap[mode].geometry.amps[1] = std::stoi( tokens[1] );
+
+          } else {
+            logwrite(function, "ERROR unrecognized internal parameter "+tokens[0]);
+	          filestream.close();
+            return ERROR;
+          }
+          // end else if (line.compare(0,5,"ARCH:")==0)
+
+      } else if (line.compare(0,5,"FITS:")==0) {
+          // the "FITS:" tag is used to write custom keyword entries of the form "FITS:KEYWORD=VALUE/COMMENT"
+          //
+          std::vector<std::string> tokens;
+          line = line.substr(5);           // strip off the "FITS:" portion
+
+          // First, tokenize on the equal sign "=".
+          // The token left of "=" is the keyword. Immediate right is the value
+          Tokenize(line, tokens, "=");
+          if (tokens.size() != 2) {    // need at least two tokens at this point
+            logwrite(function, "ERROR malformed FITS command "+savedline+": expected KEYWORD=VALUE/COMMENT");
+            filestream.close();
+            return ERROR;
+          }
+          keyword   = tokens[0].substr(0,8); // truncate keyword to 8 characters
+          keystring = tokens[1];                    // tokenize the rest in a moment
+          keycomment = "";                          // initialize comment, assumed empty unless specified below
+
+          // Next, tokenize on the slash "/".
+          // The token left of "/" is the value. Anything to the right is a comment.
+          //
+          Tokenize(keystring, tokens, "/");
+
+          if (tokens.empty()) {          // no tokens found means no "/" characeter which means no comment
+            keyvalue = keystring;        // therefore the keyvalue is the entire string
+          }
+
+          if (not tokens.empty()) {         // at least one token
+            keyvalue = tokens[0];
+          }
+
+          if (tokens.size() == 2) {      // If there are two tokens here then the second is a comment
+            keycomment = tokens[1];
+          }
+
+          if (tokens.size() > 2) {       // everything below this has been covered
+            logwrite(function, "ERROR malformed FITS command "+savedline+": expected KEYWORD=VALUE/COMMENT");
+            logwrite(function, "ERROR too many \"/\" in comment string? "+keystring);
+            filestream.close();
+            return ERROR;
+          }
+
+          // Save all the user keyword information in a map for later
+          this->controller.modemap[mode].acfkeys.keydb[keyword].keyword    = keyword;
+          this->controller.modemap[mode].acfkeys.keydb[keyword].keytype    = this->camera_info.userkeys.get_keytype(keyvalue);
+          this->controller.modemap[mode].acfkeys.keydb[keyword].keyvalue   = keyvalue;
+          this->controller.modemap[mode].acfkeys.keydb[keyword].keycomment = keycomment;
+          // end if (line.compare(0,5,"FITS:")==0)
+          //
+          // ----- all done looking for "TAGS:" -----
+          //
+
+      } else if ( (line.compare(0,11,"PARAMETERS=")!=0) &&   // not the "PARAMETERS=xx line
+            (line.compare(0, 9,"PARAMETER"  )==0) ) {  // but must start with "PARAMETER"
+          // If this is a PARAMETERn=ParameterName=value KEY=VALUE pair...
+          //
+
+          std::vector<std::string> tokens;
+          Tokenize(line, tokens, "=");                  // separate into PARAMETERn, ParameterName, value tokens
+
+          if (tokens.size() != 3) {
+            logwrite(function, "ERROR malformed parameter line "+savedline+": expected PARAMETERn=Param=value");
+            filestream.close();
+            return ERROR;
+          }
+
+          // Tokenize broke everything up at the "=" and
+          // we need all three parts, but we also need a version containing the last
+          // two parts together, "ParameterName=value" so re-assemble them here.
+          //
+          std::stringstream paramnamevalue;
+          paramnamevalue << tokens[1] << "=" << tokens[2];             // reassemble ParameterName=value string
+
+          // build an STL map "configmap" indexed on PARAMETERn, the part before the first "=" sign
+          //
+          this->controller.configmap[ tokens[0] ].line  = linecount;              // configuration line number
+          this->controller.configmap[ tokens[0] ].value = paramnamevalue.str();   // configuration value for PARAMETERn
+
+          // build an STL map "parammap" indexed on ParameterName so that we can look up by the actual name
+          //
+          this->controller.parammap[ tokens[1] ].key   = tokens[0];    // PARAMETERn
+          this->controller.parammap[ tokens[1] ].name  = tokens[1];    // ParameterName
+          this->controller.parammap[ tokens[1] ].value = tokens[2];    // value
+          this->controller.parammap[ tokens[1] ].line  = linecount;    // line number
+
+          // assemble a KEY=VALUE pair used to form the WCONFIG command
+          key   = tokens[0];                                      // PARAMETERn
+          value = paramnamevalue.str();                           // ParameterName=value
+          // end If this is a PARAMETERn=ParameterName=value KEY=VALUE pair...
+
+      } else {
+          // ...otherwise, for all other KEY=VALUE pairs, there is only the value and line number
+          // to be indexed by the key. Some lines may be equal to blank, e.g. "CONSTANTx=" so that
+          // only one token is made
+          //
+          std::vector<std::string> tokens;
+          // Tokenize will return a size=1 even if there are no delimiters,
+          // so work around this by first checking for delimiters
+          // before calling Tokenize.
+          //
+          if (line.find_first_of('=', 0) == std::string::npos) {
+            continue;
+          }
+
+          Tokenize(line, tokens, "=");                            // separate into KEY, VALUE tokens
+          if (tokens.empty()) {
+            continue;                                             // nothing to do here if no tokens (ie no "=")
+          }
+
+          key = tokens[0];                                        // not empty so at least one token is the KEY
+          value.clear();                                          // VALUE can be empty (e.g. labels not required)
+
+          if ( tokens.size() > 1 ) {                              // at least one more token is the value
+            value = tokens[1];                                    // VALUE (there is a second token)
+          }
+
+          if ( tokens.size() > 2 ) {                              // more tokens are possible
+            for ( size_t i=2; i<tokens.size(); ++i ) {            // loop through remaining tokens
+              value += "=" + tokens[i];                           // and put them back together as the VALUE
+            }
+          }
+
+          this->controller.configmap[ tokens[0] ].line  = linecount;
+          this->controller.configmap[ tokens[0] ].value = value;
+      } // end else
+
+      // Form the WCONFIG command to Archon and
+      // write the config line to the controller memory (if key is not empty).
+      //
+      if ( !key.empty() ) {                                     // value can be empty but key cannot
+        sscmd.str("");
+        sscmd << "WCONFIG"
+              << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
+              << linecount
+              << key << "=" << value << "\n";
+        // send the WCONFIG command here
+        if (error == NO_ERROR) error = this->send_cmd(sscmd.str());
+        linecount++;
+      } // end if ( !key.empty() && !value.empty() )
+    } // end while ( getline(filestream, line) )
+
+    this->controller.configlines = linecount;  // save the number of configuration lines
+
+    // re-enable background polling
+    //
+    if (error == NO_ERROR) error = this->send_cmd(POLLON);
+
+    filestream.close();
+    if (error == NO_ERROR) {
+      logwrite(function, "loaded Archon config file OK");
+      this->controller.is_firmwareloaded = true;
+
+      // add to systemkeys keyword database
+      //
+      std::stringstream keystr;
+      keystr << "FIRMWARE=" << acffile << "// controller firmware";
+      this->systemkeys.addkey( keystr.str() );
+    }
+
+    // If there was an Archon error then read the Archon error log
+    //
+    if (error != NO_ERROR) error = this->fetchlog();
+
+    this->controller.is_camera_mode = false;         // require that a mode be selected after loading new firmware
+
+    return error;
+  }
+  /***** Camera::ArchonInterface::load_acf ************************************/
+
+
+  /***** Camera::ArchonInterface::load_firmware *******************************/
+  /**
+   * @brief      send native commands directly to Archon and log result
+   * @details    sends the command directly to Archon but does not parse any
+   *
+   */
+  long ArchonInterface::load_firmware( const std::string args, std::string &retstring ) {
+    const std::string function("Camera::ArchonInterface::load_firmware");
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonInterface::load_firmware *******************************/
+
+
+  /***** Camera::ArchonInterface::load_timing *********************************/
+  /**
+   * @brief      loads the ACF file and applies the timing script and parameters only
+   * @param      acffile, specified ACF to load
+   * @param      retstring, reference to string for return values
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   * This function is overloaded.
+   *
+   * This function loads the ACF file then sends the LOADTIMING command
+   * which parses and compiles only the timing script and parameters.
+   *
+   */
+  long ArchonInterface::load_timing( const std::string args, std::string &retstring ) {
+    // Help
+    //
+    if (args.empty() || args=="?" || args=="help") {
+      retstring = CAMERAD_LOADTIMING;
+      retstring.append( " <timing.acf>\n" );
+      retstring.append( "  Loads <timing.acf> file into Archon, then sends the LOADTIMING command\n" );
+      retstring.append( "  which parses and compiles only the timing script and parameters.\n" );
+      return HELP;
+    }
+
+    return( this->load_timing(args) );
+  }
+  /***** Camera::ArchonInterface::load_timing *********************************/
+  /**
+   * @brief      loads the ACF file and applies the timing script and parameters only
+   * @param      acffile, specified ACF to load
+   * @return     ERROR | NO_ERROR
+   *
+   * This function is overloaded.
+   *
+   * This function loads the ACF file then sends the LOADTIMING command
+   * which parses and compiles only the timing script and parameters.
+   *
+   */
+  long ArchonInterface::load_timing( const std::string args ) {
+    // load the ACF file into configuration memory
+    //
+    long error = this->load_acf( args );
+
+    // parse timing script and parameters and apply them to the system
+    //
+    if (error == NO_ERROR) error = this->send_cmd(LOADTIMING);
+
+    return error;
+  }
+  /***** Camera::ArchonInterface::load_timing *********************************/
+
+
+  /***** Camera::ArchonInterface::native **************************************/
+  /**
+   * @brief      send native commands directly to Archon and log result
+   * @details    sends the command directly to Archon but does not parse any
+   *             reply. @TODO publish the reply?
+   * @param[in]  cmd  command to send to Archon
+   * @return     ERROR|NO_ERROR|BUSY, return from send_cmd() call
+   *
+   */
+  long ArchonInterface::native( const std::string args, std::string &retstring ) {
+    const std::string function("Camera::ArchonInterface::native");
+    std::string reply;
+
+    // Help
+    //
+    if (args.empty() || args=="?" || args=="help") {
+      retstring = CAMERAD_NATIVE;
+      retstring.append( " <cmd>\n" );
+      retstring.append( "  Sends <cmd> directly to Archon without parsing the reply, other than\n" );
+      retstring.append( "  to confirm that it did reply.\n" );
+      return HELP;
+    }
+
+    long error = send_cmd(args, reply);
+
+    if (!reply.empty()) {
+      logwrite(function, reply);
+      // TODO publish the reply?
+    }
+
+    return error;
+  }
+  /***** Camera::ArchonInterface::native **************************************/
+
+
   /***** Camera::ArchonInterface::power ***************************************/
   /**
    * @brief      turn on controller bias power supplies

@@ -67,8 +67,15 @@ namespace Camera {
       long connect_controller( const std::string args, std::string &retstring ) override;
       long disconnect_controller( const std::string args, std::string &retstring ) override;
       long exptime( const std::string args, std::string &retstring ) override;
+      long load_firmware( const std::string args, std::string &retstring ) override;
+      long native( const std::string args, std::string &retstring ) override;
       long power( const std::string args, std::string &retstring ) override;
       long test( const std::string args, std::string &retstring ) override;
+
+      // These functions are specific to the Archon Interface and are not
+      // found in the base class.
+      //
+      long load_timing(std::string cmd, std::string &reply);
 
     private:
       Controller controller;
@@ -81,6 +88,8 @@ namespace Camera {
       long connect_controller(const std::string& devices_in);
       template <class T> long get_configmap_value(std::string key_in, T& value_out);
       long get_status_key(std::string key, std::string &value);
+      long load_acf(std::string cmd);
+      long load_timing(std::string cmd);
       long send_cmd(std::string cmd, std::string &reply);
       long send_cmd(std::string cmd);
       long fetchlog();
