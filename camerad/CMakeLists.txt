@@ -46,6 +46,7 @@ elseif (CONTROLLER STREQUAL "archon")
   set (INTERFACE_SOURCES
       ${CAMERAD_DIR}/archon_interface.cpp
       ${CAMERAD_DIR}/archon_controller.cpp
+      ${CAMERAD_DIR}/archon_exposure_modes.cpp
       )
 # ----------------------------------------------------------------------------
 # AstroCam ARC-64/66 PCI/e
@@ -77,6 +78,7 @@ elseif (CONTROLLER STREQUAL "astrocam")
   set (INTERFACE_SOURCES
       ${CAMERAD_DIR}/astrocam_interface.cpp
       ${CAMERAD_DIR}/astrocam_controller.cpp
+      ${CAMERAD_DIR}/astrocam_exposure_modes.cpp
       )
   set (INTERFACE_LIBS
       CArcBase

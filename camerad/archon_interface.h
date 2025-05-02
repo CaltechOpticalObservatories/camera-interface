@@ -9,6 +9,7 @@
 
 #include "camera_interface.h"          //!< defines Camera::Interface base class
 #include "archon_controller.h"
+#include "archon_exposure_modes.h"
 
 constexpr int MAXADCCHANS =   16;              //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 constexpr int MAXADMCHANS =   72;              //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
@@ -46,6 +47,7 @@ const std::string REV_FRACTIONALPID  = "1.0.1054";
 const std::string REV_VCPU           = "1.0.784";
 
 namespace Camera {
+
   class Controller;
 
   class ArchonInterface : public Interface {
@@ -67,6 +69,7 @@ namespace Camera {
       long connect_controller( const std::string args, std::string &retstring ) override;
       long disconnect_controller( const std::string args, std::string &retstring ) override;
       long exptime( const std::string args, std::string &retstring ) override;
+      long expose( const std::string args, std::string &retstring ) override;
       long load_firmware( const std::string args, std::string &retstring ) override;
       long native( const std::string args, std::string &retstring ) override;
       long power( const std::string args, std::string &retstring ) override;
