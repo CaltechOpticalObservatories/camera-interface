@@ -2852,7 +2852,7 @@ namespace Archon {
         auto bytes_ready_start = std::chrono::high_resolution_clock::now();
 
         auto bytes_ready = 0;
-        while ( bytes_ready = this->archon.Bytes_ready() < (36 + 1) ) {  // header size + 1
+        while ( !this->archon.is_readable() ) {
           auto now = std::chrono::steady_clock::now();             // check the time again
           std::chrono::duration<double> diff = now-start;          // calculate the duration
           if (diff.count() > 1) {                                  // break while loop if duration > 1 second
@@ -2894,6 +2894,9 @@ namespace Archon {
         std::chrono::duration<double, std::micro> read_bytes_duration = read_bytes_end - read_bytes_start;
         logwrite(function, "\033[1;31mtiming read bytes: " + std::to_string(read_bytes_duration.count()) + " us\033[0m");
 
+
+        auto parse_header_start = std::chrono::high_resolution_clock::now();
+
         std::string frame_header(this->image_data, 36);
         std::cout << "First 36 ASCII chars: " << frame_header << std::endl;
         int frame_sample = std::stoi(frame_header.substr(3, 1), nullptr, 16);
@@ -2912,6 +2915,10 @@ namespace Archon {
         this->frame.bufframen[this->frame.index] = frame_number;
         this->frame.bufheight[this->frame.index] = frame_height;
         this->frame.bufwidth[this->frame.index] = frame_width;
+
+        auto parse_header_end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::micro> parse_header_duration = parse_header_end - parse_header_start;
+        logwrite(function, "\033[1;31mtiming parse header: " + std::to_string(parse_header_duration.count()) + " us\033[0m");
 
         // Process remaining as int16_t
         // size_t binary_start = 36;
@@ -2940,9 +2947,9 @@ namespace Archon {
 
       // give back the archon_busy semaphore to allow other threads to access the Archon now
       //
-      const std::unique_lock<std::mutex> lock(this->archon_mutex);
-      this->archon_busy = false;
-      this->archon_mutex.unlock();
+      // const std::unique_lock<std::mutex> lock(this->archon_mutex);
+      // this->archon_busy = false;
+      // this->archon_mutex.unlock();
 
       std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
 
@@ -4636,44 +4643,44 @@ namespace Archon {
         // This ensures that, if the client doesn't set these values then the server will have the
         // same default values that the ACF has, rather than hope that the ACF programmer picks
         // their defaults to match mine.
-        if ( ! this->camera_info.exposure_time.is_set() ) {
-            logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
-            this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
+        // if ( ! this->camera_info.exposure_time.is_set() ) {
+        //     logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
+        //     this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
 
-            // read the Archon configuration memory
-            //
-            std::string etime;
-            if ( read_parameter( "exptime", etime ) != NO_ERROR ) {
-              logwrite( function, "ERROR: reading \"exptime\" parameter from Archon" );
-               return ERROR;
-            }
+        //     // read the Archon configuration memory
+        //     //
+        //     std::string etime;
+        //     if ( read_parameter( "exptime", etime ) != NO_ERROR ) {
+        //       logwrite( function, "ERROR: reading \"exptime\" parameter from Archon" );
+        //        return ERROR;
+        //     }
 
-            // Tell the server these values
-            //
-            std::string retval;
-            if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
-        }
+        //     // Tell the server these values
+        //     //
+        //     std::string retval;
+        //     if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
+        // }
 
-        if ( ! this->is_longexposure_set && ! this->longexposeparam.empty() ) {
-            logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
-            this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
+        // if ( ! this->is_longexposure_set && ! this->longexposeparam.empty() ) {
+        //     logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
+        //     this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
-            // read the Archon configuration memory
-            //
-            std::string lexp;
-            if ( read_parameter( this->longexposeparam, lexp ) != NO_ERROR ) {
-              logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" );
-               return ERROR;
-            }
+        //     // read the Archon configuration memory
+        //     //
+        //     std::string lexp;
+        //     if ( read_parameter( this->longexposeparam, lexp ) != NO_ERROR ) {
+        //       logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" );
+        //        return ERROR;
+        //     }
 
-            // Tell the server these values
-            //
-            std::string retval;
-            if ( this->longexposure( lexp, retval ) != NO_ERROR ) {
-              logwrite( function, "ERROR setting longexposure" );
-              return ERROR;
-            }
-        }
+        //     // Tell the server these values
+        //     //
+        //     std::string retval;
+        //     if ( this->longexposure( lexp, retval ) != NO_ERROR ) {
+        //       logwrite( function, "ERROR setting longexposure" );
+        //       return ERROR;
+        //     }
+        // }
 
         // If nseq_in is not supplied then set nseq to 1.
         if ( nseq_in.empty() ) {
@@ -4747,26 +4754,42 @@ namespace Archon {
         int ns = nseq;      // Iterate with ns, to preserve original request
 
         while (ns-- > 0 && this->lastframe < finalframe) {
-            auto read_start = std::chrono::steady_clock::now();
+          auto frame_start = std::chrono::steady_clock::now();
 
-            // then read the frame buffer to host (and write file) when frame ready.
-            error = hread_frame();
-            if ( error != NO_ERROR ) {
-              logwrite( function, "ERROR: reading frame buffer" );
-              return error;
-            }
+          // Wait for exposure message
+          message.str("");
+          message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
+          logwrite(function, message.str());
 
-            auto read_end = std::chrono::steady_clock::now();
-            auto read_duration = std::chrono::duration_cast<std::chrono::microseconds>(read_end - read_start).count();
-            logwrite(function, "reading took " + std::to_string(read_duration) + " µs");
+          // Wait for readout message
+          message.str("");
+          message << "received currentframe: " << this->lastframe << " from buffer " << this->frame.index+1;
+          logwrite(function, message.str());
 
-            // ASYNC status message on completion of each readout
-            nread++;
-            message.str(""); message << "READOUT COMPLETE (" << nread << " of " << nseq << " read)";
-            this->camera.async.enqueue( message.str() );
-            logwrite( function, message.str() );
+          auto read_start = std::chrono::steady_clock::now();
 
-            if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
+          // then read the frame buffer to host (and write file) when frame ready.
+          error = hread_frame();
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: reading frame buffer" );
+            return error;
+          }
+
+          auto read_end = std::chrono::steady_clock::now();
+          auto read_duration = std::chrono::duration_cast<std::chrono::microseconds>(read_end - read_start).count();
+          logwrite(function, "\033[1;31m reading took: " + std::to_string(read_duration) + " us\033[0m");
+
+          // ASYNC status message on completion of each readout
+          nread++;
+          message.str(""); message << "READOUT COMPLETE (" << nread << " of " << nseq << " read)";
+          this->camera.async.enqueue( message.str() );
+          logwrite( function, message.str() );
+
+          if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
+
+          auto frame_end = std::chrono::steady_clock::now();
+          auto frame_duration = std::chrono::duration_cast<std::chrono::microseconds>(frame_end - frame_start).count();
+          logwrite(function, "\033[1;31m whole frame took: " + std::to_string(frame_duration) + " us\033[0m");
 
         }  // end of sequence loop, while (ns-- > 0 && this->lastframe < finalframe)
 
@@ -5475,10 +5498,6 @@ namespace Archon {
         message.str("");
         message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
         logwrite(function, message.str());
-
-        if (!this->is_autofetch) {
-          usleep( 700 );  // tune for size of window
-        }
 
         this->frame.index += 1;
 

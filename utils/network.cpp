@@ -680,6 +680,11 @@ namespace Network {
         return -1;
       }
 
+      // Increase the socket's receive buffer size
+      int buffer_size = 1024 * 1024;  // 1MB for example
+      setsockopt(this->fd, SOL_SOCKET, SO_RCVBUF, &buffer_size, sizeof(buffer_size));
+      setsockopt(this->fd, SOL_SOCKET, SO_SNDBUF, &buffer_size, sizeof(buffer_size));
+
       // connect to the socket file descriptor
       //
       int retval = connect( this->fd, sa->ai_addr, sa->ai_addrlen );
@@ -729,10 +734,6 @@ namespace Network {
           logwrite(function, errstm.str());
           return -1;
         }
-
-        // Increase the socket's receive buffer size
-        int buffer_size = 1024 * 1024;  // 1MB for example
-        setsockopt(this->fd, SOL_SOCKET, SO_RCVBUF, &buffer_size, sizeof(buffer_size));
 
         // Set TCP_NODELAY to disable Nagle's algorithm
         int flag = 1;
@@ -1064,6 +1065,20 @@ namespace Network {
   }
   /**************** Network::TcpSocket::Bytes_ready ***************************/
 
+  /**************** Network::TcpSocket::is_readable ***************************/
+  /**
+   * @fn         is_readable
+   * @brief      check if bytes are available on the socket file descriptor this->fd
+   * @param[in]  none
+   * @return     number of bytes read
+   *
+   */
+  bool TcpSocket::is_readable() {
+    struct pollfd pfd = {this->fd, POLLIN, 0};
+    int ret = poll(&pfd, 1, 0);  // non-blocking poll
+    return ret > 0 && (pfd.revents & POLLIN);
+  }
+  /**************** Network::TcpSocket::is_readable ***************************/
 
   /**************** Network::TcpSocket::Flush *********************************/
   /**
