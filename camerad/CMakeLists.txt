@@ -45,6 +45,8 @@ elseif (CONTROLLER STREQUAL "archon")
   set (INTERFACE_TARGET archon)
   set (INTERFACE_SOURCES
       ${CAMERAD_DIR}/archon_interface.cpp
+      ${CAMERAD_DIR}/archon_controller.cpp
+      ${CAMERAD_DIR}/archon_exposure_modes.cpp
       )
 # ----------------------------------------------------------------------------
 # AstroCam ARC-64/66 PCI/e
@@ -76,6 +78,7 @@ elseif (CONTROLLER STREQUAL "astrocam")
   set (INTERFACE_SOURCES
       ${CAMERAD_DIR}/astrocam_interface.cpp
       ${CAMERAD_DIR}/astrocam_controller.cpp
+      ${CAMERAD_DIR}/astrocam_exposure_modes.cpp
       )
   set (INTERFACE_LIBS
       CArcBase
@@ -96,6 +99,9 @@ list (APPEND INTERFACE_SOURCES
   ${CAMERAD_DIR}/camera_interface.cpp
   )
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
+target_link_libraries(${INTERFACE_TARGET}
+                      common
+                      )
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 # ----------------------------------------------------------------------------
@@ -137,7 +143,6 @@ add_executable(camerad
 # ----------------------------------------------------------------------------
 target_link_libraries(camerad
   network
-  common
   utilities
   logentry
   ${INTERFACE_TARGET}
