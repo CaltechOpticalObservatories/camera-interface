@@ -20,6 +20,7 @@
  *
  */
 
+#include <netinet/tcp.h>
 #include "network.h"
 #include "logentry.h"  // for logwrite() within the Network namespace
 
@@ -538,6 +539,17 @@ namespace Network {
       return(-1);
     }
 
+    // Increase the socket's receive buffer size
+    int buffer_size = 1024 * 1024;  // 1MB for example
+    setsockopt(this->listenfd, SOL_SOCKET, SO_RCVBUF, &buffer_size, sizeof(buffer_size));
+
+    // Set TCP_NODELAY to disable Nagle's algorithm
+    int flag = 1;
+    if (setsockopt(this->listenfd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int)) < 0) {
+      errstm << "setsockopt(TCP_NODELAY) failed";
+      return(-1);
+    }
+
     // start listening
     //
     if (listen(this->listenfd, LISTENQ)!=0) {
@@ -668,6 +680,11 @@ namespace Network {
         return -1;
       }
 
+      // Increase the socket's receive buffer size
+      int buffer_size = 1024 * 1024;  // 1MB for example
+      setsockopt(this->fd, SOL_SOCKET, SO_RCVBUF, &buffer_size, sizeof(buffer_size));
+      setsockopt(this->fd, SOL_SOCKET, SO_SNDBUF, &buffer_size, sizeof(buffer_size));
+
       // connect to the socket file descriptor
       //
       int retval = connect( this->fd, sa->ai_addr, sa->ai_addrlen );
@@ -716,6 +733,13 @@ namespace Network {
                  << " on fd " << this->fd << ": " << std::strerror(errno);
           logwrite(function, errstm.str());
           return -1;
+        }
+
+        // Set TCP_NODELAY to disable Nagle's algorithm
+        int flag = 1;
+        if (setsockopt(this->fd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int)) < 0) {
+          errstm << "setsockopt(TCP_NODELAY) failed";
+          return(-1);
         }
 
         break;  // by now it's a success
@@ -829,35 +853,64 @@ namespace Network {
    * buffer and the number of bytes to read.
    *
    */
+  // int TcpSocket::Read(void* buf, size_t count) {
+  //   std::string function = "Network::TcpSocket::Read[cbuf]";
+  //   std::stringstream message;
+  //   int nread;
+
+  //   // get the time now for timeout purposes
+  //   //
+  //   std::chrono::steady_clock::time_point tstart = std::chrono::steady_clock::now();
+
+  //   while ( ( nread = read( this->fd, buf, count ) ) < 0 ) {
+  //     if ( errno != EAGAIN ) {
+  //       message << "ERROR reading data on fd " << this->fd << ": " << strerror(errno);
+  //       logwrite( function, message.str() );
+  //       break;
+  //     }
+
+  //     // get time now and check for timeout
+  //     //
+  //     std::chrono::steady_clock::time_point tnow = std::chrono::steady_clock::now();
+
+  //     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tnow - tstart).count();
+
+  //     if ( elapsed > POLLTIMEOUT ) {
+  //       message << "ERROR: timeout waiting for data on fd " << this->fd;
+  //       logwrite( function, message.str() );
+  //       break;
+  //     }
+  //   }
+  //   return( nread );
+  // }
   int TcpSocket::Read(void* buf, size_t count) {
     std::string function = "Network::TcpSocket::Read[cbuf]";
     std::stringstream message;
     int nread;
 
-    // get the time now for timeout purposes
-    //
-    std::chrono::steady_clock::time_point tstart = std::chrono::steady_clock::now();
+    nread = ::read(this->fd, buf, count);
 
-    while ( ( nread = read( this->fd, buf, count ) ) < 0 ) {
-      if ( errno != EAGAIN ) {
-        message << "ERROR reading data on fd " << this->fd << ": " << strerror(errno);
-        logwrite( function, message.str() );
-        break;
-      }
+    // logwrite(function, "to read: " + std::to_string(count) + ", read: " + std::to_string(nread));
 
-      // get time now and check for timeout
-      //
-      std::chrono::steady_clock::time_point tnow = std::chrono::steady_clock::now();
-
-      auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tnow - tstart).count();
-
-      if ( elapsed > POLLTIMEOUT ) {
-        message << "ERROR: timeout waiting for data on fd " << this->fd;
-        logwrite( function, message.str() );
-        break;
-      }
+    if (nread < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // No data ready, return 0
+            return 0;
+        } else {
+            message << "ERROR reading data on fd " << this->fd << ": " << strerror(errno);
+            logwrite(function, message.str());
+            return -1;
+        }
     }
-    return( nread );
+    else if (nread == 0) {
+        // connection closed
+        message << "WARNING: connection closed on fd " << this->fd;
+        logwrite(function, message.str());
+        return 0;
+    }
+
+    // Successfully read nread bytes
+    return nread;
   }
   /**************** Network::TcpSocket::Read **********************************/
 
@@ -1012,6 +1065,20 @@ namespace Network {
   }
   /**************** Network::TcpSocket::Bytes_ready ***************************/
 
+  /**************** Network::TcpSocket::is_readable ***************************/
+  /**
+   * @fn         is_readable
+   * @brief      check if bytes are available on the socket file descriptor this->fd
+   * @param[in]  none
+   * @return     number of bytes read
+   *
+   */
+  bool TcpSocket::is_readable() {
+    struct pollfd pfd = {this->fd, POLLIN, 0};
+    int ret = poll(&pfd, 1, 0);  // non-blocking poll
+    return ret > 0 && (pfd.revents & POLLIN);
+  }
+  /**************** Network::TcpSocket::is_readable ***************************/
 
   /**************** Network::TcpSocket::Flush *********************************/
   /**

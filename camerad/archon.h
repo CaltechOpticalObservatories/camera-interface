@@ -21,10 +21,12 @@
 #include "logentry.h"
 #include "network.h"
 #include "fits.h"
+#include <zmq.hpp>
 
 #define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 #define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
-#define BLOCK_LEN 1024             //!< Archon block size
+// #define BLOCK_LEN 236             //!< Archon block size 36 + 10*10*2
+#define BLOCK_LEN 198             //!< Archon block size 36 + 9*9*2
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
 
 // Archon commands
@@ -80,6 +82,28 @@ namespace Archon {
     const int DEF_TRIGIN_READOUT_DISABLE = 0;
     const int DEF_SHUTENABLE_ENABLE = 1;
     const int DEF_SHUTENABLE_DISABLE = 0;
+
+    class PushSocketClass {  // Ensure the class name is correct
+      public:
+        // Constructor with correct name (matches class name) and no return type
+        PushSocketClass()
+         : context(1),
+           push_socket(context, zmq::socket_type::push)
+        {}
+
+        void send_data(zmq::mutable_buffer message) {
+          push_socket.send(message, zmq::send_flags::none);  // Example usage of push_socket
+        }
+
+        void connect(std::string uri) {
+          push_socket.connect(uri);
+        }
+
+      private:
+        zmq::context_t context;       // zmq context as a class member
+        zmq::socket_t push_socket;    // zmq socket as a class member
+
+    };
 
     class Interface {
     private:
@@ -160,6 +184,8 @@ namespace Archon {
         std::string shutenableparam; //!< param name to enable shutter open on expose
         int shutenable_enable; //!< the value which enables shutter enable
         int shutenable_disable; //!< the value which disables shutter enable
+
+        PushSocketClass push_socket_class;
 
         // Functions
         //

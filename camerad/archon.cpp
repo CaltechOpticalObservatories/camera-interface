@@ -16,6 +16,7 @@
 #include <fstream>
 #include <array>
 #include <utility>
+#include <zmq.hpp>
 
 namespace Archon {
 
@@ -88,6 +89,9 @@ namespace Archon {
     this->frame.buftimestamp.resize( Archon::nbufs );
     this->frame.bufretimestamp.resize( Archon::nbufs );
     this->frame.buffetimestamp.resize( Archon::nbufs );
+
+    // Create a PUSH socket
+    this->push_socket_class.connect("tcp://localhost:5555");
   }
 
   // Archon::Interface deconstructor
@@ -884,7 +888,8 @@ namespace Archon {
     std::stringstream message;
     int     retval;
     char    check[4];
-    char    buffer[4096];                       //!< temporary buffer for holding Archon replies
+    char    buffer[4096];                   //!< temporary buffer for holding Archon replies
+    std::string buffer_str;
     int     error = NO_ERROR;
 
     if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
@@ -976,32 +981,36 @@ namespace Archon {
     if ( (cmd.compare(0,5,"FETCH")==0)
         && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
 
+    if (this->is_autofetch) {
+      if ( (cmd.compare(0,20,"FASTPREPPARAM Expose")==0) || (cmd.compare(0,20,"FASTLOADPARAM Expose")==0) ) {
+        logwrite(function, "Expose in AUTOFETCH MODE");
+        // this->archon_busy = false;
+        // return NO_ERROR;
+      }
+    }
+
     // For all other commands, receive the reply
     //
     reply.clear();                                   // zero reply buffer
     do {
-      if ( (retval=this->archon.Poll()) <= 0) {
-        if (retval==0) {
-            message.str("");
-            message << "Poll timeout waiting for response from Archon command (maybe unrecognized command?)";
-            error = TIMEOUT;
-        }
-        if (retval<0)  {
-            message.str("");
-            message << "Poll error waiting for response from Archon command";
-            error = ERROR;
-        }
-        if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
-        break;
+      memset(buffer, '\0', 2048);  // init temporary buffer
+      retval = this->archon.Read(buffer, 2048);  // non-blocking read
+
+      if (retval > 0) {
+          // Got data, append to reply
+          reply.append(buffer, retval);
       }
-      memset(buffer, '\0', 2048);                    // init temporary buffer
-      retval = this->archon.Read(buffer, 2048);      // read into temp buffer
-      if (retval <= 0) {
-        this->camera.log_error( function, "reading Archon" );
-        break; 
+      else if (retval == 0) {
+          // No data available yet (EAGAIN)
+          usleep(10);
       }
-      reply.append(buffer);                          // append read buffer into the reply string
-    } while(retval>0 && reply.find('\n') == std::string::npos);
+      else {
+          // retval < 0 => real error
+          this->camera.log_error(function, "error reading Archon");
+          error = ERROR;
+          break;
+      }
+    } while (retval >= 0 && reply.find('\n') == std::string::npos);
 
     // If there was an Archon error then clear the busy flag and get out now
     //
@@ -1021,7 +1030,7 @@ namespace Archon {
       message.str(""); message << "Archon controller returned error processing command: " << cmd;
       this->camera.log_error( function, message.str() );
 
-    } else if (reply.compare(0, 3, check)!=0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
+    } else if (reply.compare(0, 3, check) != 0 && reply.compare(0, 3, "<QF") != 0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
         error = ERROR;
         // std::string hdr = reply;
         try {
@@ -1156,7 +1165,7 @@ namespace Archon {
     error = this->archon_cmd(scmd.str());
 
     if (error != NO_ERROR) {
-      message << "ERROR: prepping parameter \"" << paramname << "=" << value;
+      message << "ERROR: prepping parameter \"" << paramname << "=" << value << "\"";
     }
 
     logwrite( function, message.str() );
@@ -2262,14 +2271,9 @@ namespace Archon {
 
     // send FRAME command to get frame buffer status
     //
-
-    if (this->is_autofetch) {
-      logwrite( function, "AUTOFETCH MODE: not sending FRAME command");
-    } else {
-      if ( (error = this->archon_cmd(FRAME, reply)) ) {
-        if ( error == ERROR ) logwrite( function, "ERROR: sending FRAME command" );  // don't log here if BUSY
-        return error;
-      }
+    if ( (error = this->archon_cmd(FRAME, reply)) ) {
+      if ( error == ERROR ) logwrite( function, "ERROR: sending FRAME command" );  // don't log here if BUSY
+      return error;
     }
 
     // First Tokenize breaks the single, continuous reply string into vector of individual strings,
@@ -2750,182 +2754,200 @@ namespace Archon {
    * This is the read_frame function which performs the actual read of the
    * selected frame type.
    *
-   * No write takes place here!
-   *
    */
-    long Interface::hread_frame() {
-        std::string function = "Archon::Interface::hread_frame";
-        std::stringstream message;
-        int retval;
-        int bufready;
-        char check[5], header[5];
-        char *ptr_image;
-        int bytesread, totalbytesread, toread;
-        uint64_t bufaddr;
-        unsigned int block, bufblocks=0;
-        long error = ERROR;
-        int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
+  long Interface::hread_frame() {
+      std::string function = "Archon::Interface::hread_frame";
+      std::stringstream message;
+      int retval;
+      int bufready;
+      char check[5], header[36];
+      char buffer[1000];
+      char *ptr_image;
+      int bytesread, totalbytesread, toread;
+      uint64_t bufaddr;
+      unsigned int block, bufblocks=0;
+      long error = NO_ERROR;
+      int num_detect = this->modemap[this->camera_info.current_observing_mode].geometry.num_detect;
 
-        // Archon buffer number of the last frame read into memory
-        // Archon frame index is 1 biased so add 1 here
-        bufready = this->frame.index + 1;
+      // Archon buffer number of the last frame read into memory
+      // Archon frame index is 1 biased so add 1 here
+      bufready = this->frame.index + 1;
 
-        if (bufready < 1 || bufready > this->camera_info.activebufs) {
-            message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->camera_info.activebufs << "}";
-            this->camera.log_error( function, message.str() );
-            return ERROR;
-        }
+      if (bufready < 1 || bufready > this->camera_info.activebufs) {
+          message.str(""); message << "invalid Archon buffer " << bufready << " requested. Expected {1:" << this->camera_info.activebufs << "}";
+          this->camera.log_error( function, message.str() );
+          return ERROR;
+      }
 
-        message.str(""); message << "will read image data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
-        logwrite(function, message.str());
+      message.str(""); message << "will read image data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
+      logwrite(function, message.str());
 
-        // Lock the frame buffer before reading it
+      // Lock the frame buffer before reading it
+      //
+      // if ( this->lock_buffer(bufready) == ERROR) {
+      //    logwrite( function, "ERROR locking frame buffer" );
+      //    return (ERROR);
+      // }
+
+      // Send the FETCH command to read the memory buffer from the Archon backplane.
+      // Archon replies with one binary response per requested block. Each response
+      // has a message header.
+
+      // Archon buffer base address
+      bufaddr   = this->frame.bufbase[this->frame.index];
+
+      // Calculate the number of blocks expected. image_memory is bytes per detector
+      bufblocks =
+              (unsigned int) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
+
+      // message.str(""); message << "will read " << std::dec << this->camera_info.image_memory << " bytes "
+      //                          << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
+      // logwrite(function, message.str());
+
+      // Read the data from the connected socket into memory, one block at a time
+      //
+      ptr_image = this->image_data;
+      totalbytesread = 0;
+      std::cerr << "reading bytes: ";
+      std::string autofetch_header_str;
+      for (block=0; block<bufblocks; block++) {
+        // logwrite(function, "bufblocks: " + std::to_string(bufblocks) + ", block:" + std::to_string(block));
+
+        // Wait for a block+header Bytes to be available
+        // (but don't wait more than 1 second -- this should be tens of microseconds or less)
         //
-        // if ( this->lock_buffer(bufready) == ERROR) {
-        //    logwrite( function, "ERROR locking frame buffer" );
-        //    return (ERROR);
-        // }
+        auto start = std::chrono::steady_clock::now();               // start a timer now
+        // auto bytes_ready_start = std::chrono::high_resolution_clock::now();
 
-        // Send the FETCH command to read the memory buffer from the Archon backplane.
-        // Archon replies with one binary response per requested block. Each response
-        // has a message header.
-
-        // Archon buffer base address
-        bufaddr   = this->frame.bufbase[this->frame.index];
-
-        // Calculate the number of blocks expected. image_memory is bytes per detector
-        bufblocks =
-                (unsigned int) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
-
-        message.str(""); message << "will read " << std::dec << this->camera_info.image_memory << " bytes "
-                                 << "0x" << std::uppercase << std::hex << bufblocks << " blocks from bufaddr=0x" << bufaddr;
-        logwrite(function, message.str());
-
-        if (!this->is_autofetch) {
-          // send the FETCH command.
-          // This will take the archon_busy semaphore, but not release it -- must release in this function!
-          //
-          error = this->fetch(bufaddr, bufblocks);
-          if (error != NO_ERROR) {
-            logwrite(function, "ERROR: fetching Archon buffer");
-            return error;
+        auto bytes_ready = 0;
+        while ( !this->archon.is_readable() ) {
+          auto now = std::chrono::steady_clock::now();             // check the time again
+          std::chrono::duration<double> diff = now-start;          // calculate the duration
+          if (diff.count() > 1) {                                  // break while loop if duration > 1 second
+            std::cerr << "\n";
+            this->camera.log_error( function, "timeout waiting for data from Archon" );
+            error = ERROR;
+            break;                       // breaks out of while loop
           }
         }
+        if ( error != NO_ERROR ) {
+          logwrite( function, "ERROR: reading Archon frame data" );
+          break;
+        }  // needed to also break out of for loop on error
+      
+        // auto bytes_ready_end = std::chrono::high_resolution_clock::now();
+        // std::chrono::duration<double, std::micro> bytes_ready_duration = bytes_ready_end - bytes_ready_start;
+        // logwrite(function, "\033[1;31mtiming bytes_ready: " + std::to_string(bytes_ready_duration.count()) + " us\033[0m");
+        
+        // logwrite( function, "bytes ready on socket: " + std::to_string(this->archon.Bytes_ready()));
+        // logwrite( function, "block length " + std::to_string(BLOCK_LEN) + " to image pointer");
 
-        // Read the data from the connected socket into memory, one block at a time
+        // auto read_bytes_start = std::chrono::high_resolution_clock::now();
+        // Read the frame contents
         //
-        ptr_image = this->image_data;
-        totalbytesread = 0;
-        std::cerr << "reading bytes: ";
-        for (block=0; block<bufblocks; block++) {
-
-            // Are there data to read?
-            if ( (retval=this->archon.Poll()) <= 0) {
-                if (retval==0) {
-                    message.str("");
-                    message << "Poll timeout waiting for Archon frame data";
-                    error = ERROR;
-                }  // TODO should error=TIMEOUT?
-
-                if (retval<0)  {
-                    message.str("");
-                    message << "Poll error waiting for Archon frame data";
-                    error = ERROR;
-                }
-
-                if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
-                break;                         // breaks out of for loop
+        bytesread = 0;
+        do {
+            toread = BLOCK_LEN - bytesread;
+            // logwrite( function, "bytes to read " + std::to_string(toread));
+            if ( (retval=this->archon.Read(ptr_image, toread)) > 0 ) {
+                bytesread += retval;         // this will get zeroed after each block
+                totalbytesread += retval;    // this won't (used only for info purposes)
+                std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
+                ptr_image += retval;         // advance pointer
+                logwrite( function, "bytes read " + std::to_string(bytesread) + " and copied to image pointer");
             }
+        } while (bytesread < BLOCK_LEN);
 
-            // Wait for a block+header Bytes to be available
-            // (but don't wait more than 1 second -- this should be tens of microseconds or less)
-            //
-            auto start = std::chrono::steady_clock::now();               // start a timer now
+        // auto read_bytes_end = std::chrono::high_resolution_clock::now();
+        // std::chrono::duration<double, std::micro> read_bytes_duration = read_bytes_end - read_bytes_start;
+        // logwrite(function, "\033[1;31mtiming read bytes: " + std::to_string(read_bytes_duration.count()) + " us\033[0m");
 
-            while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) {
-                auto now = std::chrono::steady_clock::now();             // check the time again
-                std::chrono::duration<double> diff = now-start;          // calculate the duration
-                if (diff.count() > 1) {                                  // break while loop if duration > 1 second
-                    std::cerr << "\n";
-                    this->camera.log_error( function, "timeout waiting for data from Archon" );
-                    error = ERROR;
-                    break;                       // breaks out of while loop
-                }
-            }
-            if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
 
-            // Check message header
-            //
-            SNPRINTF(check, "<%02X:", this->msgref)
-            if ( (retval=this->archon.Read(header, 4)) != 4 ) {
-                message.str(""); message << "code " << retval << " reading Archon frame header";
-                this->camera.log_error( function, message.str() );
-                error = ERROR;
-                break;                         // break out of for loop
-            }
-            if (header[0] == '?') {  // Archon retured an error
-                message.str(""); message << "Archon returned \'?\' reading image data";
-                this->camera.log_error( function, message.str() );
-                this->fetchlog();      // check the Archon log for error messages
-                error = ERROR;
-                break;                         // break out of for loop
+        // auto parse_header_start = std::chrono::high_resolution_clock::now();
 
-            } else if (strncmp(header, check, 4) != 0) {
-                message.str(""); message << "Archon command-reply mismatch reading image data. header=" << header << " check=" << check;
-                this->camera.log_error( function, message.str() );
-                error = ERROR;
-                break;                         // break out of for loop
-            }
+        std::string frame_header(this->image_data, 36);
+        // std::cout << "First 36 ASCII chars: " << frame_header << std::endl;
+        // int frame_sample = std::stoi(frame_header.substr(3, 1), nullptr, 16);
+        int frame_number = std::stoi(frame_header.substr(4, 8), nullptr, 16);
+        // int frame_width = std::stoi(frame_header.substr(16, 4), nullptr, 16);
+        // int frame_height = std::stoi(frame_header.substr(12, 4), nullptr, 16);
 
-            // Read the frame contents
-            //
-            bytesread = 0;
-            do {
-                toread = BLOCK_LEN - bytesread;
-                if ( (retval=this->archon.Read(ptr_image, (size_t)toread)) > 0 ) {
-                    bytesread += retval;         // this will get zeroed after each block
-                    totalbytesread += retval;    // this won't (used only for info purposes)
-                    std::cerr << std::setw(10) << totalbytesread << "\b\b\b\b\b\b\b\b\b\b";
-                    ptr_image += retval;         // advance pointer
-                }
-            } while (bytesread < BLOCK_LEN);
+        // logwrite(function, "header: " + frame_header.substr(0,3));
+        // logwrite(function, "buffer sample in hex: " + frame_header.substr(3, 1) + " -- decimal: " + std::to_string(frame_sample));
+        logwrite(function, "frame number in hex: " + frame_header.substr(4, 8) + " -- decimal: " + std::to_string(frame_number));
+        // logwrite(function, "height in hex: " + frame_header.substr(12, 4) + " -- decimal: " + std::to_string(frame_width));
+        // logwrite(function, "width in hex: " + frame_header.substr(16, 4) + " -- decimal: " + std::to_string(frame_height));
+        logwrite(function, "timestamp in hex: " + frame_header.substr(20, 16) + " -- decimal: " + std::to_string(std::stoull(frame_header.substr(20, 16), nullptr, 16)));
 
-        } // end of loop: for (block=0; block<bufblocks; block++)
+        // this->frame.bufsample[this->frame.index] = frame_sample;
+        this->frame.frame = frame_number;
+        this->frame.bufframen[this->frame.index] = frame_number;
+        // this->frame.bufheight[this->frame.index] = frame_height;
+        // this->frame.bufwidth[this->frame.index] = frame_width;
 
-        // give back the archon_busy semaphore to allow other threads to access the Archon now
-        //
-        const std::unique_lock<std::mutex> lock(this->archon_mutex);
-        this->archon_busy = false;
-        this->archon_mutex.unlock();
+        // auto parse_header_end = std::chrono::high_resolution_clock::now();
+        // std::chrono::duration<double, std::micro> parse_header_duration = parse_header_end - parse_header_start;
+        // logwrite(function, "\033[1;31mtiming parse header: " + std::to_string(parse_header_duration.count()) + " us\033[0m");
 
-        std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
+        // Process remaining as int16_t
+        // size_t binary_start = 36;
+        // size_t num_values = 200 / sizeof(int16_t);
 
-        // If we broke out of the for loop for an error then report incomplete read
-        //
-        if ( error==ERROR || block < bufblocks) {
-            message.str(""); message << "incomplete frame read " << std::dec
-                                     << totalbytesread << " bytes: " << block << " of " << bufblocks << " 1024-byte blocks";
-            logwrite( function, message.str() );
-        }
+        // std::vector<int16_t> values;
+        // for (size_t i = 0; i < num_values; ++i) {
+        //     int16_t val;
+        //     std::memcpy(&val, this->image_data + binary_start + i * sizeof(int16_t), sizeof(int16_t));
+        //     // Optionally handle endianness here if needed
+        //     values.push_back(val);
+        // }
 
-        // Unlock the frame buffer
-        //
-        // if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+        // std::cout << "Image data int16_t: ";
+        // for (int16_t v : values) {
+        //     std::cout << v << " ";
+        // }
+        // std::cout << std::endl;
 
-        // On success, write the value to the log and return
-        //
-        if (error == NO_ERROR) {
-            message.str(""); message << "successfully read " << std::dec << totalbytesread
-                    << " image bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
-            logwrite(function, message.str());
+        // auto write_start = std::chrono::high_resolution_clock::now();
+        // // this->write_to_zmq(ss.str());
+        // auto write_end = std::chrono::high_resolution_clock::now();
+        // std::chrono::duration<double, std::micro> write_duration = write_end - write_start;
+        
+      } // end of loop: for (block=0; block<bufblocks; block++)
 
-        } else {
-            // Throw an error for any other errors
-            logwrite( function, "ERROR: reading Archon camera data to memory!" );
-        }
-        return error;
-    }
-    /**************** Archon::Interface::hread_frame *****************************/
+      // give back the archon_busy semaphore to allow other threads to access the Archon now
+      //
+      // const std::unique_lock<std::mutex> lock(this->archon_mutex);
+      // this->archon_busy = false;
+      // this->archon_mutex.unlock();
+
+      std::cerr << std::setw(10) << totalbytesread << " complete\n";   // display progress on same line of std err
+
+      // If we broke out of the for loop for an error then report incomplete read
+      //
+      if ( error==ERROR || block < bufblocks) {
+          message.str(""); message << "incomplete frame read " << std::dec
+                                    << totalbytesread << " bytes: " << block << " of " << bufblocks << " 1024-byte blocks";
+          logwrite( function, message.str() );
+      }
+
+      // Unlock the frame buffer
+      //
+      // if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+
+      // On success, write the value to the log and return
+      //
+      if (error == NO_ERROR) {
+          message.str(""); message << "successfully read " << std::dec << totalbytesread
+                  << " image bytes (0x" << std::uppercase << std::hex << bufblocks << " blocks) from Archon controller";
+          logwrite(function, message.str());
+
+      } else {
+          // Throw an error for any other errors
+          logwrite( function, "ERROR: reading Archon camera data to memory!" );
+      }
+      return error;
+  }
+  /**************** Archon::Interface::hread_frame *****************************/
 
   /**************** Archon::Interface::read_frame *****************************/
   /**
@@ -3104,11 +3126,7 @@ namespace Archon {
       if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
 
       // Check message header
-      if (this->is_autofetch) {
-        sprintf(check, "<XF:");
-      } else {
-        SNPRINTF(check, "<%02X:", this->msgref);
-      }
+      SNPRINTF(check, "<%02X:", this->msgref);
 
       if ( (retval=this->archon.Read(header, 4)) != 4 ) {
         message.str(""); message << "code " << retval << " reading Archon frame header";
@@ -3119,6 +3137,7 @@ namespace Archon {
 
       // Read autofetch header
       if (this->is_autofetch) {
+        logwrite( function, "reading headers in autofetch mode" );
         if (strncmp(header, "<SFA", 4) == 0) {
           logwrite( function, "AUTOFETCH HEADER: FOUND" );
           std::string autofetch_header_str;
@@ -3141,7 +3160,9 @@ namespace Archon {
         error = ERROR;
         break;                         // break out of for loop
 
-      } else if (strncmp(header, check, 4) != 0) {
+      }
+
+      if (strncmp(header, check, 4) && strncmp(header, "<XF:", 4)) {
         message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
         this->camera.log_error( function, message.str() );
@@ -3180,9 +3201,11 @@ namespace Archon {
       logwrite( function, message.str() );
     }
 
-    // Unlock the frame buffer
-    //
-    if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+    if (!this->is_autofetch) {
+      // Unlock the frame buffer
+      //
+      if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
+    }
 
     // On success, write the value to the log and return
     //
@@ -3760,7 +3783,7 @@ namespace Archon {
     std::stringstream message;
     long error = NO_ERROR;
     std::string nseqstr;
-    int nseq;
+    int nseq, nread;
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
@@ -3886,9 +3909,12 @@ namespace Archon {
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
     //
     this->camera_info.start_time = get_timestamp();                 // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-    if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
-      logwrite( function, "ERROR: could not get start time" );
-      return ERROR;
+
+    if (!this->is_autofetch) {
+      if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
+        logwrite( function, "ERROR: could not get start time" );
+        return ERROR;
+      }
     }
     this->camera.set_fitstime(this->camera_info.start_time);        // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
     error=this->camera.get_fitsname(this->camera_info.fits_name);   // assemble the FITS filename
@@ -3950,7 +3976,7 @@ namespace Archon {
     //
     if ( mode != "RAW" ) {                                          // If not raw mode then
       int expcount = 0;                                             // counter used only for tracking pre-exposures
-
+      nread = 0;
       //
       // -- MAIN SEQUENCE LOOP --
       //
@@ -3990,10 +4016,14 @@ namespace Archon {
         #endif
         if ( !this->camera.datacube() || this->camera.cubeamps() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-          if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
-            logwrite( function, "ERROR: could not get start time" );
-            return ERROR;
+
+          if (!this->is_autofetch) {
+            if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
+              logwrite( function, "ERROR: could not get start time" );
+              return ERROR;
+            }
           }
+
           this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->camera.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
           if ( error != NO_ERROR ) {
@@ -4057,9 +4087,20 @@ namespace Archon {
           logwrite( function, message.str() );
         }
 
+        // ASYNC status message on completion of each readout
+        nread++;
+        message.str(""); message << "READOUT COMPLETE (" << nread << " of " << nseq << " read)";
+        this->camera.async.enqueue( message.str() );
+        logwrite( function, message.str() );
+
         if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
 
       }  // end of sequence loop, while (nseq-- > 0)
+
+      // ASYNC status message on completion of each sequence
+      message.str(""); message << "READOUT SEQUENCE " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" ) << " (" << nread << " of " << nseq << " read)";
+      this->camera.async.enqueue( message.str() );
+      error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
 
     } else if ( mode == "RAW") {
       error = this->get_frame_status();                             // Get the current frame buffer status
@@ -4473,7 +4514,7 @@ namespace Archon {
                     // Now send the AUTOFETCHx command
                     //
                     std::stringstream autofetchstr;
-                    autofetchstr << "AUTOFETCH0";
+                    autofetchstr << "FASTAUTOFETCH0";
 
                     if (error == NO_ERROR) error = this->archon_cmd(autofetchstr.str());
 
@@ -4491,7 +4532,7 @@ namespace Archon {
                     // Now send the AUTOFETCHx command
                     //
                     std::stringstream autofetchstr;
-                    autofetchstr << "AUTOFETCH1";
+                    autofetchstr << "FASTAUTOFETCH1";
 
                     if (error == NO_ERROR) error = this->archon_cmd(autofetchstr.str());
 
@@ -4571,44 +4612,44 @@ namespace Archon {
         // This ensures that, if the client doesn't set these values then the server will have the
         // same default values that the ACF has, rather than hope that the ACF programmer picks
         // their defaults to match mine.
-        if ( ! this->camera_info.exposure_time.is_set() ) {
-            logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
-            this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
+        // if ( ! this->camera_info.exposure_time.is_set() ) {
+        //     logwrite( function, "NOTICE:exptime has not been set--will read from Archon" );
+        //     this->camera.async.enqueue( "NOTICE:exptime has not been set--will read from Archon" );
 
-            // read the Archon configuration memory
-            //
-            std::string etime;
-            if ( read_parameter( "exptime", etime ) != NO_ERROR ) {
-              logwrite( function, "ERROR: reading \"exptime\" parameter from Archon" );
-               return ERROR;
-            }
+        //     // read the Archon configuration memory
+        //     //
+        //     std::string etime;
+        //     if ( read_parameter( "exptime", etime ) != NO_ERROR ) {
+        //       logwrite( function, "ERROR: reading \"exptime\" parameter from Archon" );
+        //        return ERROR;
+        //     }
 
-            // Tell the server these values
-            //
-            std::string retval;
-            if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
-        }
+        //     // Tell the server these values
+        //     //
+        //     std::string retval;
+        //     if ( this->exptime( etime, retval ) != NO_ERROR ) { logwrite( function, "ERROR: setting exptime" ); return ERROR; }
+        // }
 
-        if ( ! this->is_longexposure_set && ! this->longexposeparam.empty() ) {
-            logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
-            this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
+        // if ( ! this->is_longexposure_set && ! this->longexposeparam.empty() ) {
+        //     logwrite( function, "NOTICE:longexposure has not been set--will read from Archon" );
+        //     this->camera.async.enqueue( "NOTICE:longexposure has not been set--will read from Archon" );
 
-            // read the Archon configuration memory
-            //
-            std::string lexp;
-            if ( read_parameter( this->longexposeparam, lexp ) != NO_ERROR ) {
-              logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" );
-               return ERROR;
-            }
+        //     // read the Archon configuration memory
+        //     //
+        //     std::string lexp;
+        //     if ( read_parameter( this->longexposeparam, lexp ) != NO_ERROR ) {
+        //       logwrite( function, "ERROR: reading \"longexposure\" parameter from Archon" );
+        //        return ERROR;
+        //     }
 
-            // Tell the server these values
-            //
-            std::string retval;
-            if ( this->longexposure( lexp, retval ) != NO_ERROR ) {
-              logwrite( function, "ERROR setting longexposure" );
-              return ERROR;
-            }
-        }
+        //     // Tell the server these values
+        //     //
+        //     std::string retval;
+        //     if ( this->longexposure( lexp, retval ) != NO_ERROR ) {
+        //       logwrite( function, "ERROR setting longexposure" );
+        //       return ERROR;
+        //     }
+        // }
 
         // If nseq_in is not supplied then set nseq to 1.
         if ( nseq_in.empty() ) {
@@ -4636,9 +4677,13 @@ namespace Archon {
         // set datacube true and then send "expose" without a number.
         this->camera_info.extension = 0;
 
+        // Don't get frame status in autofetch mode
+        // error = this->get_frame_status();
+        
         // initialize frame parameters (index, etc.)
-        error = this->get_frame_status();
         currentindex = this->frame.index;
+
+        logwrite(function, "frame index: " + std::to_string(this->frame.index));
 
         if (error != NO_ERROR) {
             logwrite( function, "ERROR: unable to get frame status" );
@@ -4663,73 +4708,60 @@ namespace Archon {
             return ERROR;
         }
 
-        // initiate the exposure here
-        logwrite(function, "exposure starting");
+        // Start the exposure process
+        logwrite(function, "Starting exposure...");
+
         error = this->prep_parameter(this->exposeparam, nseqstr);
-        if (error == NO_ERROR) error = this->load_parameter(this->exposeparam, nseqstr);
-        if ( error != NO_ERROR ) {
-            logwrite( function, "ERROR: could not initiate exposure" );
+        if (error == NO_ERROR) {
+            error = this->load_parameter(this->exposeparam, nseqstr);
+        }
+        if (error != NO_ERROR) {
+            logwrite(function, "ERROR: Failed to initiate exposure.");
             return error;
         }
-
-        // get system time and Archon's timer after exposure starts
-        // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
-        // this->camera_info.start_time = get_timestamp();                 // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-        // if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
-        //     logwrite( function, "ERROR: could not get start time" );
-        //     return ERROR;
-        // }
-        // this->add_filename_key();                                       // add filename to system keys database
-
-        // Wait for Archon frame buffer to be ready,
-        // then read the latest ready frame buffer to the host. If this
-        // is a sequence, then loop over all expected frames.
 
         //
         // -- MAIN SEQUENCE LOOP --
         nread = 0;          // Keep track of how many we actually read
         int ns = nseq;      // Iterate with ns, to preserve original request
+
         while (ns-- > 0 && this->lastframe < finalframe) {
+          // auto frame_start = std::chrono::steady_clock::now();
 
-            // if ( !this->camera.datacube() || this->camera.cubeamps() ) {
-            //    this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-            //    if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
-            //        logwrite( function, "ERROR: could not get start time" );
-            //        return ERROR;
-            //    }
-                // this->add_filename_key();                                     // add filename to system keys database
-            // }
+          // Wait for exposure message
+          message.str("");
+          message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
+          logwrite(function, message.str());
 
-            // wait for the exposure delay to complete (if there is one)
-            if ( this->camera_info.exposure_time.value() != 0 ) {
-                error = this->wait_for_exposure();
-                if ( error != NO_ERROR ) {
-                    logwrite( function, "ERROR: waiting for exposure" );
-                    return error;
-                }
-            }
+          // Wait for readout message
+          message.str("");
+          message << "received currentframe: " << this->lastframe << " from buffer " << this->frame.index+1;
+          logwrite(function, message.str());
 
-            // Wait for the readout into frame buffer,
-            error = this->hwait_for_readout();
-            if ( error != NO_ERROR ) {
-                logwrite( function, "ERROR: waiting for readout" );
-                return error;
-            }
+          // auto read_start = std::chrono::steady_clock::now();
 
-            // then read the frame buffer to host (and write file) when frame ready.
-            error = hread_frame();
-            if ( error != NO_ERROR ) {
-                logwrite( function, "ERROR: reading frame buffer" );
-                return error;
-            }
+          // then read the frame buffer to host (and write file) when frame ready.
+          error = hread_frame();
+          if ( error != NO_ERROR ) {
+            logwrite( function, "ERROR: reading frame buffer" );
+            return error;
+          }
 
-            // ASYNC status message on completion of each readout
-            nread++;
-            message.str(""); message << "READOUT COMPLETE (" << nread << " of " << nseq << " read)";
-            this->camera.async.enqueue( message.str() );
-            logwrite( function, message.str() );
+          // auto read_end = std::chrono::steady_clock::now();
+          // auto read_duration = std::chrono::duration_cast<std::chrono::microseconds>(read_end - read_start).count();
+          // logwrite(function, "\033[1;31m reading took: " + std::to_string(read_duration) + " us\033[0m");
 
-            if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
+          // ASYNC status message on completion of each readout
+          nread++;
+          message.str(""); message << "READOUT COMPLETE (" << nread << " of " << nseq << " read)";
+          this->camera.async.enqueue( message.str() );
+          logwrite( function, message.str() );
+
+          if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
+
+          // auto frame_end = std::chrono::steady_clock::now();
+          // auto frame_duration = std::chrono::duration_cast<std::chrono::microseconds>(frame_end - frame_start).count();
+          // logwrite(function, "\033[1;31m whole frame took: " + std::to_string(frame_duration) + " us\033[0m");
 
         }  // end of sequence loop, while (ns-- > 0 && this->lastframe < finalframe)
 
@@ -4738,11 +4770,12 @@ namespace Archon {
         this->camera.async.enqueue( message.str() );
         error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
 
-        error = get_frame_status();
-        if ( error != NO_ERROR ) {
-            logwrite( function, "ERROR: getting final frame status" );
-            return error;
-        }
+        // error = get_frame_status();
+        // if ( error != NO_ERROR ) {
+        //   logwrite( function, "ERROR: getting final frame status" );
+        //   return error;
+        // }
+        logwrite(function, "frame index: " + std::to_string(this->frame.index) + ", frame number: " + std::to_string(this->frame.bufframen[this->frame.index]));
 
         message.str(""); message << "Last frame read " << this->frame.frame << " from buffer " << this->frame.index + 1;
         logwrite( function, message.str());
@@ -5324,20 +5357,21 @@ namespace Archon {
         }
       } else {
         error = this->get_frame_status();
-      }
 
-      if (error == ERROR) {
-        done = true;
-        logwrite( function, "ERROR: unable to get frame status" );
-        break;
-      }
+        if (error == ERROR) {
+          done = true;
+          logwrite( function, "ERROR: unable to get frame status" );
+          break;
+        }
 
-      // get current frame number and check the status of its buffer
-      currentframe = this->frame.bufframen[this->frame.index];
-      if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
-        done  = true;
-        error = NO_ERROR;
-        break;
+        // get current frame number and check the status of its buffer
+        currentframe = this->frame.bufframen[this->frame.index];
+
+        if ( (currentframe != this->lastframe) && (this->frame.bufcomplete[this->frame.index]==1) ) {
+          done  = true;
+          error = NO_ERROR;
+          break;
+        }
       }
 
       // If the frame isn't done by the predicted time then
@@ -5436,8 +5470,6 @@ namespace Archon {
         message.str("");
         message << "waiting for new frame: current frame=" << this->lastframe << " current buffer=" << this->frame.index+1;
         logwrite(function, message.str());
-
-        usleep( 700 );  // tune for size of window
 
         this->frame.index += 1;
 
