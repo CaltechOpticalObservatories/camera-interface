@@ -47,15 +47,32 @@ void logger_worker()
             log_queue.pop();
             lock.unlock();
 
+            bool write_failed = false;
+
             if (filestream.is_open())
+            {
                 filestream << msg;
-            if (to_stderr)
+                if (filestream.fail())
+                {
+                    std::cerr << "ERROR: Failed to write to log file (disk full or I/O error)" << std::endl;
+                    write_failed = true;
+                }
+            }
+
+            if (to_stderr || write_failed)
+            {
                 std::cerr << msg;
+            }
 
             lock.lock();
         }
         if (filestream.is_open())
             filestream.flush();
+        if (filestream.fail())
+        {
+            std::cerr << "ERROR: Failed to flush log file (disk full or I/O error)" << std::endl;
+            logger_running = false;
+        }
     }
 }
 /***** logger_worker ***************************************************************/
