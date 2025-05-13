@@ -890,7 +890,7 @@ namespace Network {
 
     nread = ::read(this->fd, buf, count);
 
-    logwrite(function, "to read: " + std::to_string(count) + ", read: " + std::to_string(nread));
+    // logwrite(function, "to read: " + std::to_string(count) + ", read: " + std::to_string(nread));
 
     if (nread < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
