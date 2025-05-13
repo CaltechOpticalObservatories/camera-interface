@@ -66,12 +66,15 @@ void logger_worker()
 
             lock.lock();
         }
+
         if (filestream.is_open())
-            filestream.flush();
-        if (filestream.fail())
         {
-            std::cerr << "ERROR: Failed to flush log file (disk full or I/O error)" << std::endl;
-            logger_running = false;
+            filestream.flush();
+            if (filestream.fail())
+            {
+                std::cerr << "ERROR: Failed to flush log file (disk full or I/O error)" << std::endl;
+                logger_running = false;
+            }
         }
     }
 }
