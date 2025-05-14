@@ -11,52 +11,35 @@
 namespace Camera {
 
   /**
-   * @brief    tags for constructing appropriate deinterlacer object
-   * @details  DeInterlaceMode tags are used to distinguish the type
-   *           of deinterlacer the factory function will make. Empty
-   *           structs take zero space.
-   */
-  struct ModeNone {};
-  struct ModeRXRV {};
-  struct ModeFowler {};
-  struct ModeCCD {};
-  struct ModeUTR {};
-
-  /**
    * @brief    DeInterlace abstract base class
-   * @details  Actual deinterlacing implementations are defined in
-   *           template specifications.
    */
-  class DeInterlaceBase {
+  class DeInterlace {
     public:
-      virtual ~DeInterlaceBase() = default;
-      virtual void test() = 0;
+      virtual ~DeInterlace() = default;
+      virtual void deinterlace(char* in, char* out) {
+        throw std::runtime_error("deinterlace(char*,char*) not supported");
+      }
+      virtual void deinterlace(char* in, uint16_t* out) {
+        throw std::runtime_error("deinterlace(char*,uint16_t*) not supported");
+      }
+      virtual void deinterlace(char* in, uint16_t* out1, uint16_t* out2) {
+        throw std::runtime_error("deinterlace(char*,uint16_t*,uint16_t*) not supported");
+      }
   };
 
-  /**
-   * @brief    template class for mode-specific deinterlacing
-   * @details  Specialize this class for each ModeTag to implement the
-   *           corresponding deinterlacer.
-   */
-  template <typename TIN, typename TOUT, typename ModeTag>
-  class DeInterlaceMode : public DeInterlaceBase {
+  class DeInterlace_None : public DeInterlace {
     public:
-      void test() override;
-      void deinterlace(TIN* bufin, TOUT* bufout) {}
-      void deinterlace(TIN* bufin, TOUT* butout1, TOUT* butout2) {}
+      void deinterlace(char* in, uint16_t* buf) override;
   };
 
-  /**
-   * @brief    default specialization function, unless defined
-   */
-  template <typename TIN, typename TOUT, typename ModeTag>
-  void DeInterlaceMode<TIN, TOUT, ModeTag>::test() {
-    logwrite("Camera::DeInterlaceMode::test", "not implemented for this mode");
-  }
+  class DeInterlace_RXRV : public DeInterlace {
+    public:
+      void deinterlace(char* in, uint16_t* buf1, uint16_t* buf2) override;
+  };
 
   /**
    * @brief    factory function creates appropriate deinterlacer object
    */
-  std::unique_ptr<DeInterlaceBase> make_deinterlacer(const std::string &mode);
+  std::unique_ptr<DeInterlace> make_deinterlacer(const std::string &mode);
 
 }

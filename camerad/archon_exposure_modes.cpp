@@ -49,13 +49,12 @@ namespace Camera {
       logwrite(function, "ERROR: "+std::string(e.what()));
       return ERROR;
     }
-    auto* pd = dynamic_cast<DeInterlaceMode<char, uint16_t, ModeRXRV>*>(deinterlacer.get());
 
     // read first frame pair into my frame buffer
     interface->read_frame();
 
     // process (deinterlace) first frame pair
-    pd->deinterlace(interface->get_framebuf(), sigbuf[0].data(), resbuf[0].data());
+    deinterlacer->deinterlace(interface->get_framebuf(), sigbuf[0].data(), resbuf[0].data());
 
     // show contents
     std::cerr << "(" << function << ") sig:";
@@ -64,9 +63,6 @@ namespace Camera {
     std::cerr << "(" << function << ") res:";
     for (int i=0; i<10; i++) std::cerr << " " << resbuf[0][i];
     std::cerr << std::endl;
-
-    pd->test();
-    deinterlacer->test();
 
     // loop:
     // subsequent frame pairs, read, deinterlace, write
