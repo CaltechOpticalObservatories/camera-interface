@@ -78,8 +78,11 @@ namespace Camera {
       // These functions are specific to the Archon Interface and are not
       // found in the base class.
       //
-      long allocate_framebuf(uint32_t reqsz) { return controller.allocate_framebuf(reqsz); }
+      long allocate_framebuf(uint32_t reqsz);
       long load_timing(std::string cmd, std::string &reply);
+      long read_frame();
+
+      char* get_framebuf() { return controller.framebuf; }
 
     private:
       Controller controller;

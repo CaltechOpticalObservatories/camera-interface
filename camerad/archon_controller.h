@@ -36,6 +36,17 @@ namespace Camera {
       Controller();
       ~Controller();
 
+      typedef enum {
+        FRAME_IMAGE,
+        FRAME_RAW,
+        NUM_FRAME_TYPES
+      } frametype_t;
+
+      const char *const frametype_str[NUM_FRAME_TYPES] = {
+        "IMAGE",
+        "RAW"
+      };
+
     private:
       ArchonInterface* interface;      //!< pointer back to the parent interface
 
@@ -43,6 +54,7 @@ namespace Camera {
 
       char* framebuf;                  //!< local frame buffer read from Archon
       uint32_t framebuf_bytes;         //!< size of framebuf in bytes
+      frametype_t frametype;
 
       bool is_connected;               //!< true if controller connected
       bool is_busy;
@@ -62,6 +74,7 @@ namespace Camera {
       network_details archon_network_details;
 
       long allocate_framebuf(uint32_t reqsz);
+      long read_frame(frametype_t type);
       long write_config_key(const char* key, const char* newvalue, bool &changed);
       long write_config_key(const char* key, int newvalue, bool &changed);
 

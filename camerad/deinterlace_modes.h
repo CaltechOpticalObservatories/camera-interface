@@ -34,7 +34,7 @@ namespace Camera {
   };
 
   /**
-   * @brief    template for mode-specific deinterlacing
+   * @brief    template class for mode-specific deinterlacing
    * @details  Specialize this class for each ModeTag to implement the
    *           corresponding deinterlacer.
    */
@@ -42,9 +42,21 @@ namespace Camera {
   class DeInterlaceMode : public DeInterlaceBase {
     public:
       void test() override;
+      void deinterlace(TIN* bufin, TOUT* bufout) {}
+      void deinterlace(TIN* bufin, TOUT* butout1, TOUT* butout2) {}
   };
 
-  // factory function creates appropriate deinterlacer object
+  /**
+   * @brief    default specialization function, unless defined
+   */
+  template <typename TIN, typename TOUT, typename ModeTag>
+  void DeInterlaceMode<TIN, TOUT, ModeTag>::test() {
+    logwrite("Camera::DeInterlaceMode::test", "not implemented for this mode");
+  }
+
+  /**
+   * @brief    factory function creates appropriate deinterlacer object
+   */
   std::unique_ptr<DeInterlaceBase> make_deinterlacer(const std::string &mode);
 
 }

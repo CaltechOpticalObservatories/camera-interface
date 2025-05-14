@@ -58,6 +58,14 @@ namespace Camera {
   /***** Camera::Controller::allocate_framebuf ********************************/
 
 
+  long Controller::read_frame(frametype_t type) {
+    const std::string function("Camera::Controller::read_frame");
+    logwrite(function, "reading frame from Archon");
+    for (int i=0; i<100; i++) framebuf[i]=i+1;
+    return NO_ERROR;
+  }
+
+
   /***** Camera::Controller::write_config_key *********************************/
   /**
    * @brief      write a configuration KEY=VALUE pair to the Archon controller

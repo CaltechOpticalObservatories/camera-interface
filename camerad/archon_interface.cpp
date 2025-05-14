@@ -1549,4 +1549,24 @@ namespace Camera {
     return NO_ERROR;
   }
   /***** Camera::ArchonInterface::test ****************************************/
+
+
+  /***** Camera::ArchonInterface::allocate_framebuf ***************************/
+  /**
+   * @brief      allocate memory for frame buffer
+   * @details    wraps Camera::Controller::allocate_framebuf
+   * @param[in]  reqsz  requested frame buffer size in bytes
+   * @return     ERROR | NO_ERROR
+   *
+   */
+  long ArchonInterface::allocate_framebuf(uint32_t reqsz) {
+    return controller.allocate_framebuf(reqsz);
+  }
+  /***** Camera::ArchonInterface::allocate_framebuf ***************************/
+
+
+  long ArchonInterface::read_frame() {
+    controller.read_frame(Camera::Controller::FRAME_IMAGE);
+    return NO_ERROR;
+  }
 }
