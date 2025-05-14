@@ -5,6 +5,7 @@
  */
 
 #include "archon_exposure_modes.h"
+#include "archon_interface.h"
 
 namespace Camera {
 
@@ -30,12 +31,27 @@ namespace Camera {
     const std::string function("Camera::Expose_RXRV::expose");
     logwrite(function, "hi");
 
+    this->interface->allocate_framebuf(100);
+
     // read first frame pair
 
     // process (deinterlace) first frame pair
 
     // loop:
     // subsequent frame pairs, read, deinterlace, write
+
+    // create an appropriate deinterlacer object
+    //
+    try { this->deinterlacer = make_deinterlacer("rxrv");
+    }
+    catch(const std::exception &e) {
+      logwrite(function, "ERROR: "+std::string(e.what()));
+      return ERROR;
+    }
+
+    // call a deinterlacer function
+    //
+    this->deinterlacer->test();
 
     return NO_ERROR;
   }
