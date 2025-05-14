@@ -14,6 +14,8 @@
 #include <chrono>
 #include <thread>
 #include <ctime>
+#include <queue>
+#include <condition_variable>
 #include "utilities.h"
 
 extern unsigned int nextday; /// number of seconds until the next day is a global
