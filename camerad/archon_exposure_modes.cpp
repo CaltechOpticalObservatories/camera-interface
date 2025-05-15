@@ -43,7 +43,7 @@ namespace Camera {
     interface->allocate_framebuf(sz);
 
     // create an appropriate deinterlacer object
-    try { deinterlacer = make_deinterlacer("rxrv");
+    try { processor = make_image_processor("rxrv");
     }
     catch(const std::exception &e) {
       logwrite(function, "ERROR: "+std::string(e.what()));
@@ -54,7 +54,13 @@ namespace Camera {
     interface->read_frame();
 
     // process (deinterlace) first frame pair
-    deinterlacer->deinterlace(interface->get_framebuf(), sigbuf[0].data(), resbuf[0].data());
+    processor->deinterlacer()->deinterlace(interface->get_framebuf(), sigbuf[0].data(), resbuf[0].data());
+
+    // sample calls to other processor functions
+    uint16_t a, b;
+    int16_t c;
+    processor->subtractor()->subtract(&a, &b, &c);
+    processor->coadder()->coadd(&a, &b);
 
     // show contents
     std::cerr << "(" << function << ") sig:";

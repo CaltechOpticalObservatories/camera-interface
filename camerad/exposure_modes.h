@@ -11,7 +11,7 @@
 
 #include "common.h"
 #include "camera_information.h"
-#include "deinterlace_modes.h"
+#include "image_process.h"
 
 namespace Camera {
 
@@ -52,7 +52,7 @@ namespace Camera {
       // to the base class -- each exposure mode will have to initialize
       // this to an appropriate deinterlacer using a factory function.
       //
-      std::unique_ptr<DeInterlace> deinterlacer;
+      std::unique_ptr<ImageProcessor> processor;
 
       // Each exposure gets its own copy of the Camera::Information class.
       // There is one each for processed and unprocessed images.

@@ -97,7 +97,7 @@ endif()
 # ----------------------------------------------------------------------------
 list (APPEND INTERFACE_SOURCES
   ${CAMERAD_DIR}/camera_interface.cpp
-  ${CAMERAD_DIR}/deinterlace_modes.cpp
+  ${CAMERAD_DIR}/image_process.cpp
   )
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
 target_link_libraries(${INTERFACE_TARGET}
