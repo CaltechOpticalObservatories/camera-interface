@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 3.12)
 include_directories(${CMAKE_SOURCE_DIR}/utils)
 include_directories(${CMAKE_SOURCE_DIR}/common)
 
+
 # ----------------------------------------------------------------------------
 # Setup for appropriate hardware interface...
 #
@@ -16,6 +17,8 @@ include_directories(${CMAKE_SOURCE_DIR}/common)
 #   INTERFACE_INCLUDES  list of include paths for target interface
 #   interface           target for interfacing to appropriate hardware
 # ----------------------------------------------------------------------------
+
+
 
 # ----------------------------------------------------------------------------
 # AstroCam ARC-64/66 PCI/e interfaces
@@ -55,21 +58,18 @@ if (${INTERFACE_TYPE} STREQUAL "AstroCam")
     find_library(CARC_DEVICE "CArcDevice3.6" NAMES "libCArcDevice3.6.so" PATHS ${ARCAPI_DIR}/Release)
     find_library(CARC_FITS "CArcFitsFile3.6" NAMES "libCArcFitsFile3.6.so" PATHS ${ARCAPI_DIR}/Release)
 
+    add_library(interface STATIC ${INTERFACE_SOURCE})
+
+    
     # ----------------------------------------------------------------------------
     # STA Archon interfaces
     # ----------------------------------------------------------------------------
 
 elseif (${INTERFACE_TYPE} STREQUAL "Archon")
     message(STATUS "compiling for STA Archon")
-    set(INTERFACE_TARGET archon)
     add_definitions(-Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb)
     add_definitions(-DSTA_ARCHON)
-    list(APPEND INTERFACE_SOURCE
-            "archon.cpp"
-    )
-    list(APPEND INTERFACE_INCLUDES
-            "${ARCHON_INCLUDE}"
-    )
+    list(APPEND INTERFACE_SOURCE "archon.cpp")
     add_library(interface STATIC "${INTERFACE_SOURCE}")
     if (${DETECTOR_TYPE} STREQUAL "Hxrg")
         message(STATUS "compiling for HXRG detector")
@@ -112,38 +112,15 @@ endif ()
 
 # Now add the defined interface target:
 #
-add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
-target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
+target_link_libraries(interface PUBLIC cfitsio CCfits)
 
 
+
+#Note from danw: I'm afraid camera.h technically includes CCfits, and so a public
+#dependency on those is needed
 add_library(camera camera.cpp)
+target_link_libraries(camera PUBLIC cfitsio CCfits)
 
-# ----------------------------------------------------------------------------
-# External libraries, such as FITS, etc.
-# ----------------------------------------------------------------------------
-
-#cfitsio has provided a cmake config file for quite a long time
-#on some systems where include files are not in the default place, this will still find them
-#if it fails, we fall back to camerad previous behaviour, manually finding the library file ONLY
-#(and not bothering about includes if they're not in the right place)
-find_package(cfitsio)
-
-#the package file defines a cmake target rather than just the variables
-#that target will also have correct path to include files
-if(NOT TARGET cfitsio)
-  message(STATUS "cfitsio package file not found, maybe an old old system. Try finding library manually")
-  find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
-  add_library(cfitsio UNKNOWN IMPORTED)
-  set_target_properties(cfitsio PROPERTIES IMPORTED_LOCATION ${CFITS_LIB})
-endif()
-
-#for CCfits, we now provide our own find module
-#this allows for systems with non-standard paths to
-#replace that find module without hacking our build system (e.g. fedora, suse, etc)
-
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-find_package(CCfits REQUIRED)
 
 find_package(Threads)
 add_executable(camerad camerad.cpp  ${INTERFACE_INCLUDES})
@@ -158,15 +135,14 @@ target_link_libraries(camerad
         logentry
         common
         utilities
-        ${INTERFACE_TARGET}
+	interface
         ${CMAKE_THREAD_LIBS_INIT}
 	cfitsio
 	CCfits
 )
 
-target_link_libraries(camerad ${CARC_BASE})
-target_link_libraries(camerad ${CARC_DEVICE})
-target_link_libraries(camerad ${CARC_FITS})
+target_link_libraries(camerad ${CARC_BASE} ${CARC_DEVICE} ${CARC_FITS})
+
 
 # ----------------------------------------------------------------------------
 # cURL is not used here, so it's not strictly required, but cfitsio can

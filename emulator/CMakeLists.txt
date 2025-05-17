@@ -5,6 +5,7 @@
 cmake_minimum_required( VERSION 3.12 )
 add_definitions( -Wall -Wno-variadic-macros)
 
+
 include_directories( ${CMAKE_SOURCE_DIR}/utils 
                      ${CMAKE_SOURCE_DIR}/camerad 
                      ${CMAKE_SOURCE_DIR}/common )
@@ -20,8 +21,8 @@ if( ${INTERFACE_TYPE} STREQUAL "Archon" )
                 )
 
 add_library(${EMULATOR_TARGET} ${EMULATOR_SOURCE})
-
-target_include_directories(${EMULATOR_TARGET} PUBLIC ${PROJECT_INCL_DIR})
+target_link_libraries(${EMULATOR_TARGET} PUBLIC cfitsio CCfits)
+target_link_libraries(emulatorInterface PUBLIC cfitsio CCfits)
 
 add_executable(emulator emulator-server.cpp
         )

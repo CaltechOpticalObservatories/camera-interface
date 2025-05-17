@@ -2,7 +2,7 @@
 # CMakeLists.txt
 # top-level CMake input file
 # ----------------------------------------------------------------------------
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
 project(camera C CXX)
 
 
@@ -23,6 +23,7 @@ option(BUILD_SHARED_LIBS "build shared libraries instead of static" OFF)
 # leave this by default for compatibility but allow an option to put the binaries in the usual place
 # (the build folder)
 option(OUTPUT_TO_SRC_DIR "output binaries and libraries to source folder rather than build folder" ON)
+
 
 
 
@@ -64,6 +65,31 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 find_package(Threads)
+
+
+#both emulator and camerad actually depend on cfitsio and CCfits (one only by header)
+#so we need to do those finds here, not in camerad/CMakeLists.
+
+#NOTE (by danw): strictly, the archon interface requires linking to cfitsio because
+#CCfits is included by archon.h. I'm not sure this is intentional.
+#Anyway, to reflect that I moved the public linkage of these packages down to the interface
+#target rather than camerad.
+
+#cfitsio has provided a cmake config file for quite a long time
+#on some systems where include files are not in the default place, this will still find them
+#if it fails, we fall back to camerad previous behaviour, manually finding the library file ONLY
+#(and not bothering about includes if they're not in the right place)
+
+
+#for cfitsio and CCfits  we now provide our own find module
+#this allows for systems with non-standard paths to
+#replace that find module without hacking our build system (e.g. fedora, suse, etc)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+find_package(cfitsio REQUIRED)
+find_package(CCfits REQUIRED)
+
+
 
 #no need for absolute paths here, they are by default relative to ${CMAKE_CURRENT_LIST_DIR}
 add_subdirectory(utils)
