@@ -20,8 +20,8 @@ jobs:
     
     - name: Configure CMake for Archon Interface
       run: |
+        mkdir ${{github.workspace}}/build
         cd ${{github.workspace}}/build
-        rm -rf *
         cmake ..
 
     - name: Build
