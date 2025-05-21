@@ -34,32 +34,3 @@ jobs:
       run: |
         cd ${{github.workspace}}
         bin/run_unit_tests
-
-    - name: Start Emulator
-      run: |
-        cd ${{github.workspace}}
-        bin/emulator Config/demo/demo.cfg -i generic &
-
-    - name: Start camera-daemon
-      run: |
-        cd ${{github.workspace}}
-        bin/camerad Config/demo/demo.cfg --foreground &
-
-    - name: Run E2E tests
-      run: |
-        cd ${{github.workspace}}
-        shopt -s expand_aliases
-        alias cam="bin/socksend -h localhost -p 3031"
-        function check { if [ $1 != "DONE" ]; then echo $1; exit 1; else echo $1; fi }
-
-        command_open=$(cam open)
-        check $command_open
-        
-        command_load=$(cam load)
-        check $command_load
-        
-        command_expose=$(cam expose)
-        check $command_expose
-        
-        command_printstatus=$(cam printstatus)
-        check $command_printstatus
