@@ -879,187 +879,166 @@ namespace Archon {
    * @return ERROR, BUSY or NO_ERROR
    *
    */
-  long Interface::archon_cmd(std::string cmd) { // use this form when the calling
-    std::string reply;                          // function doesn't need to look at the reply
-    return( archon_cmd(cmd, reply) );
-  }
-  long Interface::archon_cmd(std::string cmd, std::string &reply) {
-    std::string function = "Archon::Interface::archon_cmd";
-    std::stringstream message;
-    int     retval;
-    char    check[4];
-    char    buffer[4096];                   //!< temporary buffer for holding Archon replies
-    std::string buffer_str;
-    int     error = NO_ERROR;
+  long Interface::archon_cmd(std::string cmd) {
+    std::string reply;
+    return archon_cmd(cmd, reply);
+}
 
-    if (!this->archon.isconnected()) {          // nothing to do if no connection open to controller
-      this->camera.log_error( function, "connection not open to controller" );
-      return ERROR;
+long Interface::archon_cmd(std::string cmd, std::string &reply) {
+    const std::string function = "Archon::Interface::archon_cmd";
+    const int timeout_ms = 1000;
+    const int sleep_interval_us = 1000;
+    char check[4];
+    char buffer[4096];
+    int retval;
+    int error = NO_ERROR;
+
+    if (!this->archon.isconnected()) {
+        this->camera.log_error(function, "connection not open to controller");
+        return ERROR;
     }
 
-    if (this->archon_busy) {                    // only one command at a time
-      message.str(""); message << "Archon busy: ignored command " << cmd;
-      this->camera.log_error( function, message.str() );
-      return BUSY;
+    if (this->archon_busy) {
+        std::ostringstream message;
+        message << "Archon busy: ignored command " << cmd;
+        this->camera.log_error(function, message.str());
+        return BUSY;
     }
 
-    /**
-     * Hold a scoped lock for the duration of this function, 
-     * to prevent multiple threads from accessing the Archon.
-     */
     const std::lock_guard<std::mutex> lock(this->archon_mutex);
     this->archon_busy = true;
 
-    // build command: ">xxCOMMAND\n" where xx=hex msgref and COMMAND=command
-    //
-    this->msgref = (this->msgref + 1) % 256;       // increment msgref for each new command sent
-    std::stringstream ssprefix;
-    ssprefix << ">"
-             << std::setfill('0')
-             << std::setw(2)
-             << std::hex
-             << this->msgref;
-    std::string prefix=ssprefix.str();
-    try {
-      std::transform( prefix.begin(), prefix.end(), prefix.begin(), ::toupper );    // make uppercase
+    this->msgref = (this->msgref + 1) % 256;
+    std::ostringstream prefix_stream;
+    prefix_stream << ">" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << this->msgref;
+    std::string prefix = prefix_stream.str();
 
-    } catch (...) {
-      message.str(""); message << "converting Archon command: " << prefix << " to uppercase";
-      this->camera.log_error( function, message.str() );
-      return ERROR;
+    bool quiet = false;
+    if (cmd.rfind(QUIET, 0) == 0) {
+        cmd.erase(0, QUIET.length());
+        quiet = true;
     }
 
-    // This allows sending commands that don't get logged,
-    // by prepending QUIET, which gets removed here if present.
-    //
-    bool quiet=false;
-    if ( cmd.find(QUIET)==0 ) {
-      cmd.erase(0, QUIET.length());
-      quiet=true;
+    std::string scmd = prefix + cmd + "\n";
+    SNPRINTF(check, "<%02X", this->msgref);
+
+    auto suppress_log = [](const std::string& c) {
+        return c.rfind("WCONFIG", 0) == 0 ||
+               c.rfind("TIMER", 0)   == 0 ||
+               c.rfind("STATUS", 0)  == 0 ||
+               c.rfind("FRAME", 0)   == 0;
+    };
+
+    auto is_raw_reply_allowed = [](const std::string& c) {
+        return c.rfind("STATUS", 0) == 0 ||
+               c.rfind("TIMER", 0)  == 0 ||
+               c.rfind("FRAME", 0)  == 0;
+    };
+
+    if (!quiet && !suppress_log(cmd)) {
+        std::string fcmd = scmd;
+        if (auto newline_pos = fcmd.find('\n'); newline_pos != std::string::npos) {
+            fcmd.erase(newline_pos, 1);
+        }
+        logwrite(function, "sending command: " + fcmd);
     }
 
-    std::stringstream  sscmd;         // sscmd = stringstream, building command
-    sscmd << prefix << cmd << "\n";
-    std::string scmd = sscmd.str();   // scmd = string, command to send
-
-    // build the command checksum: msgref used to check that reply matches command
-    //
-    SNPRINTF(check, "<%02X", this->msgref)
-
-    // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
-    //
-    if ( !quiet && (cmd.compare(0,7,"WCONFIG") != 0) &&
-                   (cmd.compare(0,5,"TIMER") != 0)   &&
-                   (cmd.compare(0,6,"STATUS") != 0)  &&
-                   (cmd.compare(0,5,"FRAME") != 0) ) {
-      // erase newline for logging purposes
-      std::string fcmd = scmd;
-      try {
-          fcmd.erase(fcmd.find('\n'), 1);
-      } catch(...) { }
-      message.str(""); message << "sending command: " << fcmd;
-      logwrite(function, message.str());
+    if (this->logwconfig && cmd.find("WCONFIG") != std::string::npos) {
+        logwrite(function, strip_newline(cmd));
     }
 
-    // optionally log WCONFIG commands
-    //
-    if ( this->logwconfig && cmd.find("WCONFIG")!=std::string::npos ) logwrite( function, strip_newline(cmd) );
-
-    // send the command
-    //
-    if ( (this->archon.Write(scmd)) == -1) {
-      this->camera.log_error( function, "writing to camera socket");
+    if (this->archon.Write(scmd) == -1) {
+        this->camera.log_error(function, "writing to camera socket");
     }
 
-    // For the FETCH command we don't wait for a reply, but return immediately.
-    // FETCH results in a binary response which is handled elsewhere (in read_frame).
-    // Must also distinguish this from the FETCHLOG command, for which we do wait
-    // for a normal reply.
-    //
-    // The scoped mutex lock will be released automatically upon return.
-    //
-    if ( (cmd.compare(0,5,"FETCH")==0)
-        && (cmd.compare(0,8,"FETCHLOG")!=0) ) return (NO_ERROR);
+    // Early return for binary FETCH commands
+    if (cmd.rfind("FETCH", 0) == 0 && cmd.rfind("FETCHLOG", 0) != 0) {
+        return NO_ERROR;
+    }
 
-    if (this->is_autofetch) {
-      if ( (cmd.compare(0,20,"FASTPREPPARAM Expose")==0) || (cmd.compare(0,20,"FASTLOADPARAM Expose")==0) ) {
+    if (this->is_autofetch &&
+        (cmd.rfind("FASTPREPPARAM Expose", 0) == 0 ||
+         cmd.rfind("FASTLOADPARAM Expose", 0) == 0)) {
         logwrite(function, "Expose in AUTOFETCH MODE");
-        // this->archon_busy = false;
-        // return NO_ERROR;
-      }
     }
 
-    // For all other commands, receive the reply
-    //
-    reply.clear();                                   // zero reply buffer
-    do {
-      memset(buffer, '\0', 2048);  // init temporary buffer
-      retval = this->archon.Read(buffer, 2048);  // non-blocking read
+    reply.clear();
+    bool got_valid_response = false;
+    int waited_ms = 0;
 
-      if (retval > 0) {
-          // Got data, append to reply
-          reply.append(buffer, retval);
-      }
-      else if (retval == 0) {
-          // No data available yet (EAGAIN)
-          usleep(10);
-      }
-      else {
-          // retval < 0 => real error
-          this->camera.log_error(function, "error reading Archon");
-          error = ERROR;
-          break;
-      }
-    } while (retval >= 0 && reply.find('\n') == std::string::npos);
+    while (waited_ms < timeout_ms) {
+        memset(buffer, '\0', sizeof(buffer));
+        retval = this->archon.Read(buffer, sizeof(buffer));
 
-    // If there was an Archon error then clear the busy flag and get out now
-    //
-    if ( error != NO_ERROR ) {
+        if (retval > 0) {
+            std::string chunk(buffer, retval);
+
+            bool is_expected_reply =
+                chunk.rfind(check, 0) == 0 ||
+                chunk.rfind("<QF", 0) == 0 ||
+                is_raw_reply_allowed(cmd);
+
+            if (is_expected_reply) {
+                reply += chunk;
+                got_valid_response = true;
+                if (reply.find('\n') != std::string::npos) break;
+            } else {
+                std::ostringstream msg;
+                msg << (this->is_autofetch ? "Discarding unsolicited AUTOFETCH reply: " :
+                                             "Unexpected reply: ") << chunk;
+                // logwrite(function, msg.str());
+            }
+        } else if (retval == 0) {
+            usleep(sleep_interval_us);
+            waited_ms += sleep_interval_us / 1000;
+        } else {
+            this->camera.log_error(function, "error reading Archon");
+            this->archon_busy = false;
+            return ERROR;
+        }
+    }
+
+    if (!got_valid_response) {
         this->archon_busy = false;
-        return error;
+        this->camera.log_error(function, "timeout waiting for command reply");
+        return ERROR;
     }
 
-    // The first three bytes of the reply should contain the msgref of the
-    // command, which can be used as a check that the received reply belongs
-    // to the command which was sent.
-    //
-    // Error processing command (no other information is provided by Archon)
-    //
-    if (reply.compare(0, 1, "?")==0) {  // "?" means Archon experienced an error processing command
-      error = ERROR;
-      message.str(""); message << "Archon controller returned error processing command: " << cmd;
-      this->camera.log_error( function, message.str() );
-
-    } else if (reply.compare(0, 3, check) != 0 && reply.compare(0, 3, "<QF") != 0) {  // First 3 bytes of reply must equal checksum else reply doesn't belong to command
+    if (reply.compare(0, 1, "?") == 0) {
+        std::ostringstream msg;
+        msg << "Archon controller returned error processing command: " << cmd;
+        this->camera.log_error(function, msg.str());
         error = ERROR;
-        // std::string hdr = reply;
-        try {
-          scmd.erase(scmd.find('\n'), 1);
-        } catch(...) { }
-        message.str(""); message << "command-reply mismatch for command: " + scmd + ": expected " + check + " but received " + reply ;
-        this->camera.log_error( function, message.str() );
-    } else {                                           // command and reply are a matched pair
-      error = NO_ERROR;
+    } else if (reply.rfind(check, 0) != 0 &&
+               reply.rfind("<QF", 0) != 0 &&
+               !is_raw_reply_allowed(cmd)) {
+        std::ostringstream msg;
+        std::string clean_cmd = scmd;
+        if (auto newline_pos = clean_cmd.find('\n'); newline_pos != std::string::npos) {
+            clean_cmd.erase(newline_pos, 1);
+        }
+        msg << "command-reply mismatch for command: " << clean_cmd
+            << ": expected " << check << " but received " << reply;
+        this->camera.log_error(function, msg.str());
+        error = ERROR;
+    } else {
+        error = NO_ERROR;
 
-      // log the command as long as it's not a STATUS, TIMER, WCONFIG or FRAME command
-      if ( !quiet && (cmd.compare(0,7,"WCONFIG") != 0) &&
-                     (cmd.compare(0,5,"TIMER") != 0)   &&
-                     (cmd.compare(0,6,"STATUS") != 0)  &&
-                     (cmd.compare(0,5,"FRAME") != 0) ) {
-        message.str("");
-        message << "command 0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << this->msgref << " success";
-        logwrite(function, message.str());
-      }
+        if (!quiet && !suppress_log(cmd)) {
+            std::ostringstream msg;
+            msg << "command 0x" << std::setw(2) << std::setfill('0') << std::uppercase << std::hex << this->msgref
+                << " success";
+            logwrite(function, msg.str());
+        }
 
-      reply.erase(0, 3);                             // strip off the msgref from the reply
+        if (reply.rfind(check, 0) == 0) {
+            reply.erase(0, 3);  // strip off checksum if present
+        }
     }
 
-    // clear the semaphore (still had the mutex this entire function)
-    //
     this->archon_busy = false;
-
     return error;
-  }
+}
   /**************** Archon::Interface::archon_cmd *****************************/
 
 

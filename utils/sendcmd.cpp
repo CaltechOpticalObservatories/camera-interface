@@ -18,7 +18,7 @@ constexpr std::string_view usage() {
 
 int main(int argc, char *argv[]) {
   int sock;
-  int timeout=10;
+  int timeout=1000;
   struct timeval tvstart, tvend;
   int nread;
   std::string message;
