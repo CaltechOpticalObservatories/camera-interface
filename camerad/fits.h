@@ -189,20 +189,20 @@ public:
             return;
         }
 
-        // Write the user keys on close, if specified
-        //
-        if (writekeys) {
-            logwrite(function, "writing user-defined keys after exposure");
-            Common::FitsKeys::fits_key_t::iterator keyit;
-            for (keyit = info.userkeys.keydb.begin();
-                 keyit != info.userkeys.keydb.end();
-                 keyit++) {
-                this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue,
-                              keyit->second.keycomment);
-            }
-        }
-
         try {
+            // Write the user keys on close, if specified
+            //
+            if (writekeys) {
+                logwrite(function, "writing user-defined keys after exposure");
+                Common::FitsKeys::fits_key_t::iterator keyit;
+                for (keyit = info.userkeys.keydb.begin();
+                     keyit != info.userkeys.keydb.end();
+                     keyit++) {
+                    this->add_key(keyit->second.keyword, keyit->second.keytype, keyit->second.keyvalue,
+                                  keyit->second.keycomment);
+                }
+            }
+
             // Add a header keyword for the time the file was written (right now!)
             //
             this->pFits->pHDU().addKey("DATE", get_timestamp(), "FITS file write time");
@@ -570,18 +570,18 @@ public:
 
     /**************** FITS_file::add_key **************************************/
     /**
-     * @fn         add_key
      * @brief      wrapper to write keywords to the FITS file header
      * @param[in]  std::string keyword
      * @param[in]  std::string type
      * @param[in]  std::string value
      * @param[in]  std::string comment
-     * @return     nothing
      *
+     * This can throw an exception so use try-catch when calling.
      * Uses CCFits
+     *
      */
     void add_key(std::string keyword, std::string type, std::string value, std::string comment) {
-        std::string function = "FITS_file::add_key";
+        const std::string function("FITS_file::add_key");
         std::stringstream message;
 
         // The file must have been opened first
@@ -597,16 +597,27 @@ public:
                 this->pFits->pHDU().addKey(keyword, boolvalue, comment);
             } else if (type.compare("INT") == 0) {
                 this->pFits->pHDU().addKey(keyword, std::stoi(value), comment);
+            } else if (type.compare("LONG") == 0) {
+                this->pFits->pHDU().addKey(keyword, std::stol(value), comment);
             } else if (type.compare("FLOAT") == 0) {
                 this->pFits->pHDU().addKey(keyword, std::stof(value), comment);
+            } else if (type.compare("DOUBLE") == 0) {
+                this->pFits->pHDU().addKey(keyword, std::stod(value), comment);
             } else if (type.compare("STRING") == 0) {
                 this->pFits->pHDU().addKey(keyword, value, comment);
             } else {
                 message.str("");
                 message << "ERROR unknown type: " << type << " for user keyword: " << keyword << "=" << value
-                        << ": expected {INT,FLOAT,STRING,BOOL}";
+                        << ": expected {INT,LONG,FLOAT,DOUBLE,STRING,BOOL}";
                 logwrite(function, message.str());
             }
+        } catch (const std::exception &e) {
+            message.str("");
+            message << "ERROR parsing value " << value << " for keyword " << keyword << ": " << e.what();
+            logwrite( function, message.str() );
+            message.str("");
+            message << function << ": parsing value " << value << " for keyword " << keyword << ": " << e.what();
+            throw std::runtime_error( message.str() );
         } catch (CCfits::FitsError &err) {
             message.str("");
             message << "ERROR adding key " << keyword << "=" << value << " / " << comment << " (" << type << ") : "
@@ -614,6 +625,5 @@ public:
             logwrite(function, message.str());
         }
     }
-
     /**************** FITS_file::add_key **************************************/
 };

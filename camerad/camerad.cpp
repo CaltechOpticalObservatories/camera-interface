@@ -785,7 +785,15 @@ void doit(Network::TcpSocket sock) {
                 sock.Write(retstring);
                 sock.Write(" ");
             }
-        } else if (cmd == "echo") {
+        }
+        else if (cmd == "preampgain") {
+            ret = server.preampgain(args, retstring);
+            if (!retstring.empty()) {
+                sock.Write(retstring);
+                sock.Write(" ");
+            }
+        }
+        else if (cmd == "echo") {
             sock.Write(args);
             sock.Write("\n");
         } else if (cmd == "interface") {

@@ -747,13 +747,9 @@ long md5_file(const std::string &filename, std::string &hash) {
         }
 
         instream.close();
-    } catch (std::ifstream::failure &e) {
-        std::cerr << "md5_file( " << filename << " ): " << e.what() << "\n";
-        hash = "ERROR";
-        return 1;
     }
     catch (std::exception &e) {
-        std::cerr << "md5_file( " << filename << " ): " << e.what() << "\n";
+        std::cerr << "ERROR md5_file( " << filename << " ): " << e.what() << "\n";
         hash = "ERROR";
         return 1;
     }
@@ -772,7 +768,6 @@ long md5_file(const std::string &filename, std::string &hash) {
 
     return 0;
 }
-
 /***** md5_file *************************************************************/
 
 
