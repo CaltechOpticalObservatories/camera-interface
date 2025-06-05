@@ -853,64 +853,29 @@ namespace Network {
    * buffer and the number of bytes to read.
    *
    */
-  // int TcpSocket::Read(void* buf, size_t count) {
-  //   std::string function = "Network::TcpSocket::Read[cbuf]";
-  //   std::stringstream message;
-  //   int nread;
-
-  //   // get the time now for timeout purposes
-  //   //
-  //   std::chrono::steady_clock::time_point tstart = std::chrono::steady_clock::now();
-
-  //   while ( ( nread = read( this->fd, buf, count ) ) < 0 ) {
-  //     if ( errno != EAGAIN ) {
-  //       message << "ERROR reading data on fd " << this->fd << ": " << strerror(errno);
-  //       logwrite( function, message.str() );
-  //       break;
-  //     }
-
-  //     // get time now and check for timeout
-  //     //
-  //     std::chrono::steady_clock::time_point tnow = std::chrono::steady_clock::now();
-
-  //     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tnow - tstart).count();
-
-  //     if ( elapsed > POLLTIMEOUT ) {
-  //       message << "ERROR: timeout waiting for data on fd " << this->fd;
-  //       logwrite( function, message.str() );
-  //       break;
-  //     }
-  //   }
-  //   return( nread );
-  // }
   int TcpSocket::Read(void* buf, size_t count) {
-    std::string function = "Network::TcpSocket::Read[cbuf]";
+    constexpr const char* function = "Network::TcpSocket::Read[cbuf]";
+    int nread = ::read(this->fd, buf, count);
+
+    if (nread > 0) {
+      return nread;
+    }
+
     std::stringstream message;
-    int nread;
-
-    nread = ::read(this->fd, buf, count);
-
-    // logwrite(function, "to read: " + std::to_string(count) + ", read: " + std::to_string(nread));
-
-    if (nread < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // No data ready, return 0
-            return 0;
-        } else {
-            message << "ERROR reading data on fd " << this->fd << ": " << strerror(errno);
-            logwrite(function, message.str());
-            return -1;
-        }
-    }
-    else if (nread == 0) {
-        // connection closed
-        message << "WARNING: connection closed on fd " << this->fd;
-        logwrite(function, message.str());
-        return 0;
+    if (nread == 0) {
+      message << "WARNING: connection closed on fd " << this->fd;
+      logwrite(function, message.str());
+      return 0;
     }
 
-    // Successfully read nread bytes
-    return nread;
+    // nread < 0
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      return 0;  // Non-blocking read, no data available
+    }
+
+    message << "ERROR reading data on fd " << this->fd << ": " << strerror(errno);
+    logwrite(function, message.str());
+    return -1;
   }
   /**************** Network::TcpSocket::Read **********************************/
 

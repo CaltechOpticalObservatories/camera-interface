@@ -16,7 +16,6 @@
 #include <fstream>
 #include <array>
 #include <utility>
-#include <zmq.hpp>
 
 namespace Archon {
 
