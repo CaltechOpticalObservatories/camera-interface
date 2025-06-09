@@ -302,6 +302,7 @@ int main(int argc, char **argv) {
  *
  */
 void new_log_day() {
+    pthread_setname_np(pthread_self(), "camerad:daylog");
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(nextday));
         close_log();
@@ -326,6 +327,7 @@ void new_log_day() {
  *
  */
 void block_main(Network::TcpSocket sock) {
+    pthread_setname_np(pthread_self(), "camerad:block");
     while (true) {
         sock.Accept();
         doit(sock); // call function to do the work
@@ -355,6 +357,7 @@ void block_main(Network::TcpSocket sock) {
  *
  */
 void thread_main(Network::TcpSocket sock) {
+    pthread_setname_np(pthread_self(), "camerad:nblock");
     while (true) {
         server.conn_mutex.lock();
         sock.Accept();
@@ -380,6 +383,7 @@ void thread_main(Network::TcpSocket sock) {
  *
  */
 void async_main(Network::UdpSocket sock) {
+    pthread_setname_np(pthread_self(), "camerad:async");
     std::string function = "Camera::async_main";
     int retval;
 

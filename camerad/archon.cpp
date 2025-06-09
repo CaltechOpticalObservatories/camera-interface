@@ -4528,6 +4528,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                   this->is_zmq = true;
 
                   serverThread_ = std::thread([this]() {
+                      pthread_setname_np(pthread_self(), "camerad:ZMQ");
                       while (this->is_zmq) {
                           try {
                               zmq::message_t message;

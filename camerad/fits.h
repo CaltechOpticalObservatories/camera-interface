@@ -282,6 +282,8 @@ public:
       logwrite(function, message.str());
 #endif
         std::thread([&]() {
+            pthread_setname_np(pthread_self(), "camerad:fits");
+
             // create the detached thread here
             if (info.iscube) {
                 this->write_cube_thread(array, info, this);
