@@ -2889,7 +2889,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
     }
 
     if ( this->image_data_allocated != this->image_data_bytes ) {
-      message.str(""); message << "incorrect image buffer size: " 
+      message.str(""); message << "incorrect image buffer size: "
                                << this->image_data_allocated << " bytes allocated but " << this->image_data_bytes << " needed";
       this->camera.log_error( function, message.str() );
 //    return ERROR;
@@ -2927,14 +2927,11 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                              << " data from Archon controller buffer " << bufready << " frame " << this->frame.frame;
     logwrite(function, message.str());
 
-    // don't lock frame buffer in autofetch mode
-    if (!this->is_autofetch) {
-      // Lock the frame buffer before reading it
-      //
-      if ( this->lock_buffer(bufready) == ERROR) {
-        logwrite( function, "ERROR locking frame buffer" );
-        return (ERROR);
-      }
+    // Lock the frame buffer before reading it
+    //
+    if ( this->lock_buffer(bufready) == ERROR) {
+      logwrite( function, "ERROR locking frame buffer" );
+      return (ERROR);
     }
 
     // Send the FETCH command to read the memory buffer from the Archon backplane.
@@ -2971,15 +2968,13 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
     logwrite(function, message.str());
 
     // Dont't send fetch command in autofetch mode
-    if (!this->is_autofetch) {
-      // send the FETCH command.
-      // This will take the archon_busy semaphore, but not release it -- must release in this function!
-      //
-      error = this->fetch(bufaddr, bufblocks);
-      if ( error != NO_ERROR ) {
-        logwrite( function, "ERROR: fetching Archon buffer" );
-        return error;
-      }
+    // send the FETCH command.
+    // This will take the archon_busy semaphore, but not release it -- must release in this function!
+    //
+    error = this->fetch(bufaddr, bufblocks);
+    if ( error != NO_ERROR ) {
+      logwrite( function, "ERROR: fetching Archon buffer" );
+      return error;
     }
 
     // Read the data from the connected socket into memory, one block at a time
@@ -2988,25 +2983,22 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
     totalbytesread = 0;
     std::cerr << "reading bytes: ";
     for (block=0; block<bufblocks; block++) {
-      // Disable polling in autofetch mode
-      if (!this->is_autofetch) {
-        // Are there data to read?
-        if ( (retval=this->archon.Poll()) <= 0) {
-          if (retval==0) {
-            message.str("");
-            message << "Poll timeout waiting for Archon frame data";
-            error = ERROR;
-          }  // TODO should error=TIMEOUT?
+      // Are there data to read?
+      if ( (retval=this->archon.Poll()) <= 0) {
+        if (retval==0) {
+          message.str("");
+          message << "Poll timeout waiting for Archon frame data";
+          error = ERROR;
+        }  // TODO should error=TIMEOUT?
 
-          if (retval<0)  {
-            message.str("");
-            message << "Poll error waiting for Archon frame data";
-            error = ERROR;
-          }
-
-          if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
-          break;                         // breaks out of for loop
+        if (retval<0)  {
+          message.str("");
+          message << "Poll error waiting for Archon frame data";
+          error = ERROR;
         }
+
+        if ( error != NO_ERROR ) this->camera.log_error( function, message.str() );
+        break;                         // breaks out of for loop
       }
 
       // Wait for a block+header Bytes to be available
@@ -3036,24 +3028,6 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
         break;                         // break out of for loop
       }
 
-      // Read autofetch header
-      if (this->is_autofetch) {
-        logwrite( function, "reading headers in autofetch mode" );
-        if (strncmp(header, "<SFA", 4) == 0) {
-          logwrite( function, "AUTOFETCH HEADER: FOUND" );
-          std::string autofetch_header_str;
-          retval = this->archon.Read(autofetch_header_str, '\n');
-
-          // Read next header
-          if ( (retval=this->archon.Read(header, 4)) != 4 ) {
-            message.str(""); message << "code " << retval << " reading Archon frame header";
-            this->camera.log_error( function, message.str() );
-            error = ERROR;
-            break;                         // break out of for loop
-          }
-        }
-      }
-
       if (header[0] == '?') {  // Archon retured an error
         message.str(""); message << "Archon returned \'?\' reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ") << " data";
         this->camera.log_error( function, message.str() );
@@ -3061,9 +3035,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
         error = ERROR;
         break;                         // break out of for loop
 
-      }
-
-      if (strncmp(header, check, 4) && strncmp(header, "<XF:", 4)) {
+      } else if (strncmp(header, check, 4) != 0) {
         message.str(""); message << "Archon command-reply mismatch reading " << (frame_type==Camera::FRAME_RAW?"raw ":"image ")
                                  << " data. header=" << header << " check=" << check;
         this->camera.log_error( function, message.str() );
@@ -3097,16 +3069,14 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
     // If we broke out of the for loop for an error then report incomplete read
     //
     if ( error==ERROR || block < bufblocks) {
-      message.str(""); message << "incomplete frame read " << std::dec 
+      message.str(""); message << "incomplete frame read " << std::dec
                                << totalbytesread << " bytes: " << block << " of " << bufblocks << " 1024-byte blocks";
       logwrite( function, message.str() );
     }
 
-    if (!this->is_autofetch) {
-      // Unlock the frame buffer
-      //
-      if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
-    }
+    // Unlock the frame buffer
+    //
+    if (error == NO_ERROR) error = this->archon_cmd(UNLOCK);
 
     // On success, write the value to the log and return
     //
@@ -3684,7 +3654,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
     std::stringstream message;
     long error = NO_ERROR;
     std::string nseqstr;
-    int nseq, nread;
+    int nseq;
 
     std::string mode = this->camera_info.current_observing_mode;            // local copy for convenience
 
@@ -3695,7 +3665,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
 
     // When switching from cubeamps=true to cubeamps=false,
     // simply reset the mode to the current mode in order to
-    // reset the image size. 
+    // reset the image size.
     //
     // This will need to be revisited once ROI is implemented. // TODO
     //
@@ -3810,12 +3780,9 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
     // start_timer is used to determine when the exposure has ended, in wait_for_exposure()
     //
     this->camera_info.start_time = get_timestamp();                 // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-
-    if (!this->is_autofetch) {
-      if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
-        logwrite( function, "ERROR: could not get start time" );
-        return ERROR;
-      }
+    if ( this->get_timer(&this->start_timer) != NO_ERROR ) {        // Archon internal timer (one tick=10 nsec)
+      logwrite( function, "ERROR: could not get start time" );
+      return ERROR;
     }
     this->camera.set_fitstime(this->camera_info.start_time);        // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
     error=this->camera.get_fitsname(this->camera_info.fits_name);   // assemble the FITS filename
@@ -3877,7 +3844,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
     //
     if ( mode != "RAW" ) {                                          // If not raw mode then
       int expcount = 0;                                             // counter used only for tracking pre-exposures
-      nread = 0;
+
       //
       // -- MAIN SEQUENCE LOOP --
       //
@@ -3917,14 +3884,10 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
         #endif
         if ( !this->camera.datacube() || this->camera.cubeamps() ) {
           this->camera_info.start_time = get_timestamp();               // current system time formatted as YYYY-MM-DDTHH:MM:SS.sss
-
-          if (!this->is_autofetch) {
-            if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
-              logwrite( function, "ERROR: could not get start time" );
-              return ERROR;
-            }
+          if ( this->get_timer(&this->start_timer) != NO_ERROR ) {      // Archon internal timer (one tick=10 nsec)
+            logwrite( function, "ERROR: could not get start time" );
+            return ERROR;
           }
-
           this->camera.set_fitstime(this->camera_info.start_time);      // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
           error=this->camera.get_fitsname(this->camera_info.fits_name); // Assemble the FITS filename
           if ( error != NO_ERROR ) {
@@ -3988,20 +3951,9 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
           logwrite( function, message.str() );
         }
 
-        // ASYNC status message on completion of each readout
-        nread++;
-        message.str(""); message << "READOUT COMPLETE (" << nread << " of " << nseq << " read)";
-        this->camera.async.enqueue( message.str() );
-        logwrite( function, message.str() );
-
         if (error != NO_ERROR) break;                               // should be impossible but don't try additional sequences if there were errors
 
       }  // end of sequence loop, while (nseq-- > 0)
-
-      // ASYNC status message on completion of each sequence
-      message.str(""); message << "READOUT SEQUENCE " << ( error==NO_ERROR ? "COMPLETE" : "ERROR" ) << " (" << nread << " of " << nseq << " read)";
-      this->camera.async.enqueue( message.str() );
-      error == NO_ERROR ? logwrite( function, message.str() ) : this->camera.log_error( function, message.str() );
 
     } else if ( mode == "RAW") {
       error = this->get_frame_status();                             // Get the current frame buffer status
@@ -4507,8 +4459,6 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
 
                 if (error != NO_ERROR) {
                   message << "shutting down ZMQ server: ";
-                } else {
-                  message << "shutting down ZMQ server: ";
                 }
 
                 logwrite(function, message.str());
@@ -4524,7 +4474,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                   context_ = std::make_unique<zmq::context_t>(1);
                   this->publisher_ = std::make_unique<zmq::socket_t>(*context_, zmq::socket_type::xpub);
                   this->publisher_->bind(endpoint);
-                  std::cout << "ZMQ server started in XPUB mode on " << endpoint << std::endl;
+                  logwrite(function, "ZMQ server started in XPUB mode on " + endpoint);
                   this->is_zmq = true;
 
                   serverThread_ = std::thread([this]() {
@@ -4543,7 +4493,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                                   this->publisher_->recv(message); // now it's safe to block
                                   if (message.size() > 0) {
                                       std::string received_message(static_cast<char*>(message.data()), message.size());
-                                      std::cout << "Received ZMQ message: " << received_message << std::endl;
+                                      logwrite("camerad:ZMQ", "Received ZMQ message: " + received_message);
                                   }
                               }
 
@@ -4568,14 +4518,6 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                     std::cerr << "Error starting ZMQ server: " << e.what() << std::endl;
                     this->is_zmq = false; // Ensure the flag is reset in case of error.
                 }
-
-                if (error != NO_ERROR) {
-                    message << "turning on ZMQ server: ";
-                } else {
-                    message << "turning on ZMQ server: ";
-                }
-
-                logwrite(function, message.str());
               } else {
                   message.str(""); message << "ZMQ server " << state_in << " is invalid. Expecting {true,false,0,1}";
                   this->camera.log_error( function, message.str() );
