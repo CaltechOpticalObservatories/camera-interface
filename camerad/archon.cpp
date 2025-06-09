@@ -4529,28 +4529,36 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
 
                   serverThread_ = std::thread([this]() {
                       pthread_setname_np(pthread_self(), "camerad:ZMQ");
+
+                      zmq::pollitem_t items[] = {
+                          { static_cast<void*>(*this->publisher_), 0, ZMQ_POLLIN, 0 }
+                      };
+
                       while (this->is_zmq) {
                           try {
-                              zmq::message_t message;
-                              publisher_->recv(message, zmq::recv_flags::dontwait); // Non-blocking receive
-                              if (message.size() > 0) {
-                                  std::string received_message(static_cast<char*>(message.data()), message.size());
-                                  // Process subscription messages
-                                  std::cout << "Received ZMQ message: " << received_message << std::endl;
+                              int rc = zmq::poll(items, 1, 100); // wait up to 100 ms
+
+                              if (rc > 0 && (items[0].revents & ZMQ_POLLIN)) {
+                                  zmq::message_t message;
+                                  this->publisher_->recv(message); // now it's safe to block
+                                  if (message.size() > 0) {
+                                      std::string received_message(static_cast<char*>(message.data()), message.size());
+                                      std::cout << "Received ZMQ message: " << received_message << std::endl;
+                                  }
                               }
+
                           } catch (const zmq::error_t& e) {
-                              if (e.num() != EWOULDBLOCK) { // Ignore would block errors.
-                                  std::cerr << "ZMQ receive error: " << e.what() << std::endl;
+                              if (e.num() != ETERM) { // ETERM happens when context is terminated
+                                  std::cerr << "ZMQ poll/recv error: " << e.what() << std::endl;
                               }
                           }
-                          // std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Prevent busy waiting
                       }
 
-                      if(this->publisher_){
+                      if (this->publisher_) {
                           this->publisher_->close();
                       }
 
-                      if(this->context_){
+                      if (this->context_) {
                           this->context_->shutdown();
                       }
 
