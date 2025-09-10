@@ -1,173 +1,161 @@
 # ----------------------------------------------------------------------------
-# camerad/CMakeLists.txt
+# @file    camerad/CMakeLists.txt
+# @brief   input to the CMake build system for building camera daemon
+# @author  David Hale <dhale@caltech.edu>
 # ----------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required( VERSION 3.12 )
 
-set(CAMERA_DIR ${PROJECT_BASE_DIR}/camerad)
+set( CAMERAD_DIR ${PROJECT_BASE_DIR}/camerad )
 
-include_directories(${PROJECT_BASE_DIR}/utils)
-include_directories(${PROJECT_BASE_DIR}/common)
-link_directories(${PROJECT_BASE_DIR}/lib)
+set( CMAKE_CXX_STANDARD 17 )
 
-# ----------------------------------------------------------------------------
-# Setup for appropriate hardware interface...
-#
-# Each interface must define the following:
-#   INTERFACE_TARGET    name to use for the target interface
-#   INTERFACE_SOURCE    list of sources required for target interface
-#   INTERFACE_INCLUDES  list of include paths for target interface
-#   interface           target for interfacing to appropriate hardware
-# ----------------------------------------------------------------------------
+include_directories( ${PROJECT_BASE_DIR}/utils )
+include_directories( ${PROJECT_BASE_DIR}/common )
+link_directories( ${PROJECT_BASE_DIR}/lib )
 
 # ----------------------------------------------------------------------------
-# AstroCam ARC-64/66 PCI/e interfaces
+# controller selection sets interface-specific sources
 # ----------------------------------------------------------------------------
-if (${INTERFACE_TYPE} STREQUAL "AstroCam")
-    message(STATUS "compiling for AstroCam GenIII PCI/PCIe")
-    set(INTERFACE_TARGET astrocam)
-    set(ARCAPI_DIR "/opt/ARC_API/3.6")
-    add_definitions(-Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb)
-    add_definitions(-DASTROCAM)
-    add_definitions(-DARC66_PCIE)
-    find_path(ARCAPI_BASE "CArcBase.h" PATHS ${ARCAPI_DIR}/CArcBase/inc)
-    find_path(ARCAPI_FITS "CArcFitsFile.h" PATHS ${ARCAPI_DIR}/CArcFitsFile/inc)
-    find_path(ARCAPI_CFITS "CArcFitsFile.h" PATHS ${ARCAPI_DIR}/CArcFitsFile/inc)
-    find_path(ARCAPI_DEVICE "CArcDevice.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
-    find_path(ARCAPI_PCI "CArcPCI.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
-    find_path(ARCAPI_EXPIFACE "CExpIFace.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
-    find_path(ARCAPI_CONIFACE "CConIFace.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
-    find_path(ARCAPI_DEFS "ArcDefs.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
-
-    set(INTERFACE_SOURCE
-            "${CAMERA_DIR}/astrocam.cpp"
-    )
-
-    set(INTERFACE_INCLUDES
-            "${ARC_INTERFACE}"
-            "${ARCAPI_BASE}"
-            "${ARCAPI_FITS}"
-            "${ARCAPI_CFITS}"
-            "${ARCAPI_DEVICE}"
-            "${ARCAPI_PCI}"
-            "${ARCAPI_EXPIFACE}"
-            "${ARCAPI_CONIFACE}"
-            "${ARCAPI_DEFS}"
-    )
-    find_library(CARC_BASE "CArcBase3.6" NAMES "libCArcBase3.6" PATHS ${ARCAPI_DIR}/Release)
-    find_library(CARC_DEVICE "CArcDevice3.6" NAMES "libCArcDevice3.6.so" PATHS ${ARCAPI_DIR}/Release)
-    find_library(CARC_FITS "CArcFitsFile3.6" NAMES "libCArcFitsFile3.6.so" PATHS ${ARCAPI_DIR}/Release)
-
-    # ----------------------------------------------------------------------------
-    # STA Archon interfaces
-    # ----------------------------------------------------------------------------
-
-elseif (${INTERFACE_TYPE} STREQUAL "Archon")
-    message(STATUS "compiling for STA Archon")
-    set(INTERFACE_TARGET archon)
-    add_definitions(-Wall -ansi -O1 -Wno-variadic-macros -std=c++17 -ggdb)
-    add_definitions(-DSTA_ARCHON)
-    list(APPEND INTERFACE_SOURCE
-            "${CAMERA_DIR}/archon.cpp"
-    )
-    list(APPEND INTERFACE_INCLUDES
-            "${ARCHON_INCLUDE}"
-    )
-    add_library(interface STATIC "${INTERFACE_SOURCE}")
-    if (${DETECTOR_TYPE} STREQUAL "Hxrg")
-        message(STATUS "compiling for HXRG detector")
-        add_definitions(-DDET_HXRG)
-    else ()
-        message(STATUS "compiling for CCD detector")
-    endif ()
-else ()
-    message(FATAL_ERROR " unknown interface type: " ${INTERFACE_TYPE})
-endif ()
-
+option(CONTROLLER "Choose controller type { bob joe archon astrocam }")
 # ----------------------------------------------------------------------------
-# Add appropriate instrument library here.
-# The user adds a "-DINSTR=<instr>" to the cmake command line.
-# Currently supported <instr> names are: nirc2 generic
+# bob
 # ----------------------------------------------------------------------------
-
-if (NOT DEFINED INSTR)
-    set(INSTR "undefined")
-else ()
-    if (${INSTR} STREQUAL "nirc2")
-        message(STATUS "building for nirc2 instrument")
-        list(APPEND INTERFACE_SOURCE "${CAMERA_DIR}/nirc2.cpp")
-    elseif (${INSTR} STREQUAL "generic")
-        message(STATUS "building for generic instrument")
-        list(APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp")
-    elseif (${INSTR} STREQUAL "undefined")
-        message(STATUS "no INSTR defined. using generic but other options are:")
-        message(STATUS "cmake -DINSTR=nirc2,generic ..")
-        list(APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp")
-    else ()
-        message(STATUS "unknown instrument " ${INSTR} ": using generic")
-        list(APPEND INTERFACE_SOURCE "${CAMERA_DIR}/generic.cpp")
-    endif ()
-endif ()
+if (CONTROLLER STREQUAL "bob")
+  message (STATUS "building for Bob")
+  add_definitions(-DCONTROLLER_BOB)
+  set (INTERFACE_SOURCES
+      ${CAMERAD_DIR}/bob_interface.cpp
+      )
+# ----------------------------------------------------------------------------
+# joe
+# ----------------------------------------------------------------------------
+elseif (CONTROLLER STREQUAL "joe")
+  message (STATUS "building for Joe")
+  add_definitions(-DCONTROLLER_JOE)
+  set (INTERFACE_SOURCES
+      ${CAMERAD_DIR}/joe_interface.cpp
+      )
+# ----------------------------------------------------------------------------
+# Archon
+# ----------------------------------------------------------------------------
+elseif (CONTROLLER STREQUAL "archon")
+  message (STATUS "building for Archon")
+  add_definitions(-DCONTROLLER_ARCHON)
+  set (INTERFACE_TARGET archon)
+  set (INTERFACE_SOURCES
+      ${CAMERAD_DIR}/archon_interface.cpp
+      ${CAMERAD_DIR}/archon_controller.cpp
+      ${CAMERAD_DIR}/archon_exposure_modes.cpp
+      )
+# ----------------------------------------------------------------------------
+# AstroCam ARC-64/66 PCI/e
+# ----------------------------------------------------------------------------
+elseif (CONTROLLER STREQUAL "astrocam")
+  message (STATUS "building for AstroCam GenIII PCI/PCIe")
+  add_definitions (-DCONTROLLER_ASTROCAM)
+  set (INTERFACE_TARGET astrocam)
+  set (ARCAPI_DIR "${PROJECT_BASE_DIR}/ARC")
+  find_path (ARCAPI_BASE "CArcBase.h" PATHS ${ARCAPI_DIR}/CArcBase/inc)
+  find_path (ARCAPI_FITS "CArcFitsFile.h" PATHS ${ARCAPI_DIR}/CArcFitsFile/inc)
+  find_path (ARCAPI_CFITS "CArcFitsFile.h" PATHS ${ARCAPI_DIR}/CArcFitsFile/inc)
+  find_path (ARCAPI_DEVICE "CArcDevice.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+  find_path (ARCAPI_PCI "CArcPCI.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+  find_path (ARCAPI_EXPIFACE "CExpIFace.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+  find_path (ARCAPI_CONIFACE "CConIFace.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+  find_path (ARCAPI_DEFS "ArcDefs.h" PATHS ${ARCAPI_DIR}/CArcDevice/inc)
+  add_subdirectory(${PROJECT_BASE_DIR}/ARC ${CMAKE_BINARY_DIR}/ARC)
+  set (INTERFACE_INCLUDES
+      "${ARCAPI_BASE}"
+      "${ARCAPI_FITS}"
+      "${ARCAPI_CFITS}"
+      "${ARCAPI_DEVICE}"
+      "${ARCAPI_PCI}"
+      "${ARCAPI_EXPIFACE}"
+      "${ARCAPI_CONIFACE}"
+      "${ARCAPI_DEFS}"
+      )
+  set (INTERFACE_SOURCES
+      ${CAMERAD_DIR}/astrocam_interface.cpp
+      ${CAMERAD_DIR}/astrocam_controller.cpp
+      ${CAMERAD_DIR}/astrocam_exposure_modes.cpp
+      )
+  set (INTERFACE_LIBS
+      CArcBase
+      CArcDevice
+      CArcFitsFile
+      )
+# ----------------------------------------------------------------------------
+# controller undefined
+# ----------------------------------------------------------------------------
+else()
+  message(FATAL_ERROR "You must specify -DCONTROLLER={ bob joe archon astrocam }")
+endif()
 
 # ----------------------------------------------------------------------------
-# End interface setup
+# Camera Interface Base
 # ----------------------------------------------------------------------------
-
-# Now add the defined interface target:
-#
-add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCE})
+list (APPEND INTERFACE_SOURCES
+  ${CAMERAD_DIR}/camera_interface.cpp
+  ${CAMERAD_DIR}/image_process.cpp
+  )
+add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
+target_link_libraries(${INTERFACE_TARGET}
+                      common
+                      )
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
-
-
-add_library(camera STATIC
-        ${CAMERA_DIR}/camera.cpp
-)
 
 # ----------------------------------------------------------------------------
 # External libraries, such as FITS, etc.
 # ----------------------------------------------------------------------------
 
+# FITS
+#
 find_library(CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib)
-find_library(CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib)
+find_library(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/local/lib)
+
+# ZeroMQ
+#
+find_library( ZMQPP_LIB zmqpp NAMES libzmqpp PATHS /usr/local/lib )
+find_library( ZMQ_LIB zmq NAMES libzmq PATHS /usr/local/lib )
+
+# OpenCV
+#
+find_package( OpenCV REQUIRED )
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+
+# Boost
+#
+find_package(Boost REQUIRED COMPONENTS thread chrono)
+include_directories(${BOOST_INCLUDES})
 
 find_package(Threads)
 
+# ----------------------------------------------------------------------------
+# build the camera daemon
+# ----------------------------------------------------------------------------
 add_executable(camerad
-        ${CAMERA_DIR}/camerad.cpp
-        ${INTERFACE_INCLUDES}
-)
+  ${CAMERAD_DIR}/camerad.cpp
+  ${CAMERAD_DIR}/camera_server.cpp
+  )
 
 # ----------------------------------------------------------------------------
-# Everyone gets this:
+# link everything
 # ----------------------------------------------------------------------------
-
 target_link_libraries(camerad
-        camera
-        network
-        logentry
-        common
-        utilities
-        ${INTERFACE_TARGET}
-        ${CMAKE_THREAD_LIBS_INIT}
-        ${CCFITS_LIB}
-        ${CFITS_LIB}
-)
-
-target_link_libraries(camerad ${CARC_BASE})
-target_link_libraries(camerad ${CARC_DEVICE})
-target_link_libraries(camerad ${CARC_FITS})
-
-# ----------------------------------------------------------------------------
-# cURL is not used here, so it's not strictly required, but cfitsio can
-# use it. If cfitsio was built with libcurl then it has to be linked here.
-# If it's installed on the system then link it, but don't make it mandatory.
-# ----------------------------------------------------------------------------
-#
-include(FindCURL)
-
-if (CURL_FOUND STREQUAL "FALSE")
-    message(STATUS "cURL was not found but may be needed by some systems if built into cfitsio.\n   If you experience undefined curl references during linking \n   then please your cURL installation.")
-else ()
-    target_link_libraries(camerad ${CURL_LIBRARIES})
-endif ()
+  network
+  utilities
+  logentry
+  ${INTERFACE_TARGET}
+  ${INTERFACE_LIBS}
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${CCFITS_LIB}
+  ${CFITS_LIB}
+  ${OpenCV_LIBS}
+  ${BOOST_INCLUDES}
+  Boost::thread
+  Boost::chrono
+  ${ZMQPP_LIB}
+  ${ZMQ_LIB}
+  )
 

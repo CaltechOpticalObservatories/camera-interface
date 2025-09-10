@@ -5,6 +5,8 @@
  *
  */
 
+#define SNPRINTF(VAR, ...) { snprintf(VAR, sizeof(VAR), __VA_ARGS__); }
+
 #pragma once
 
 #include <sstream>
@@ -13,6 +15,8 @@
 #include <mutex>
 #include <map>
 #include <condition_variable>
+#include <zmqpp/zmqpp.hpp>
+#include <nlohmann/json.hpp>
 
 #include "logentry.h"
 
@@ -22,8 +26,19 @@ constexpr long ERROR = 1;
 constexpr long BUSY = 2;
 constexpr long TIMEOUT = 3;
 constexpr long HELP = 4;
+constexpr long JSON = 5;
+constexpr long ABORT = 6;
+constexpr long EXIT = 999;
+
+const std::string JEOF = "EOF\n";              ///< used to terminate JSON messages
+const std::string TELEMREQUEST = "sendtelem";  ///< common daemon command used to request telemetry
+const std::string SNAPSHOT = "snapshot";       ///< common daemon command forces publish of telemetry
+
+constexpr bool EXT = true;   ///< constant for use_extension arg of Common::Header::add_key()
+constexpr bool PRI = !EXT;   ///< constant for use_extension arg of Common::Header::add_key()
 
 namespace Common {
+
     /**************** Common::FitsKeys ******************************************/
     /*
      * @class  FitsKeys
@@ -120,7 +135,6 @@ namespace Common {
 #endif
             return (NO_ERROR);
         }
-
         /***** Common::FitsKeys::addkey *****************************************/
 
 
@@ -175,7 +189,6 @@ namespace Common {
             return;
         }
     };
-
     /**************** Common::FitsKeys ******************************************/
 
 
@@ -198,10 +211,12 @@ namespace Common {
 
         void service_running(bool state) { this->is_running = state; }; /// set service running
         bool service_running() { return this->is_running; }; /// is the service running?
-
+        void enqueue_and_log(std::string function, std::string message);
+        void enqueue_and_log(std::string tag, std::string function, std::string message);
         void enqueue(std::string message); /// push an element into the queue.
         std::string dequeue(void); /// pop an element from the queue
     };
-
     /**************** Common::Queue *********************************************/
+
 }
+
