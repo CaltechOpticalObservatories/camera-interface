@@ -72,6 +72,7 @@ namespace Camera {
       // and have their own controller-specific implementations which are
       // implemented in archon_interface.cpp.
       //
+      void configure_interface() override;
       long abort( const std::string args, std::string &retstring ) override;
       long autodir( const std::string args, std::string &retstring ) override;
       long basename( const std::string args, std::string &retstring ) override;
@@ -90,6 +91,12 @@ namespace Camera {
       long do_expose(int nexp) override;
       void image_acquisition_thread() override;
       void image_processing_thread() override;
+
+      // Archon controller command dispatcher
+      //
+      long controller_cmd(const std::string &cmd,
+                          const std::string &args,
+                          std::string &retstring) override;
 
       // These functions are specific to the Archon Interface and are not
       // found in the base class.

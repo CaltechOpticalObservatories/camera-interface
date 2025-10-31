@@ -39,6 +39,11 @@ namespace Camera {
     public:
       virtual ~Interface() = default;
 
+      // Every interface will have this factory function to create a pointer
+      // to the appropriate derived interface class.
+      //
+      static std::unique_ptr<Interface> create();
+
       Config configfile;
 
       // These functions are shared by all interfaces with common implementations,
@@ -51,6 +56,8 @@ namespace Camera {
       // These virtual functions have interface-specific implementations
       // and must be implemented by derived classes, implemented in xxxx_interface.cpp
       //
+      virtual void configure_interface() = 0;
+      virtual void configure_instrument() { }
       virtual long abort( std::string args, std::string &retstring ) = 0;
       virtual long autodir( std::string args, std::string &retstring ) = 0;
       virtual long basename( std::string args, std::string &retstring ) = 0;
@@ -71,6 +78,19 @@ namespace Camera {
       virtual void image_acquisition_thread() = 0;
       virtual void image_processing_thread() = 0;
 
+      virtual long instrument_cmd(const std::string &cmd,
+                                  const std::string &args,
+                                  std::string &retstring) {
+	retstring="not_supported";
+	return ERROR;
+      }
+
+      virtual long controller_cmd(const std::string &cmd,
+                                  const std::string &args,
+                                  std::string &retstring) {
+	retstring="not_supported";
+	return ERROR;
+      }
   };
 
 }

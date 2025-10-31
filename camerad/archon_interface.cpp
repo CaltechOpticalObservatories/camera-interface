@@ -27,6 +27,53 @@ namespace Camera {
   /***** Camera::ArchonInterface::ArchonInterface *****************************/
 
 
+  /***** Camera::ArchonInterface::controller_cmd ******************************/
+  /**
+   * @brief      dispatcher for Archon-specific commands
+   * @details    This allows dispatching Archon controller specific commands by
+   *             receiving the commands and args and calling the appropriate
+   *             controller-specific function.
+   * @param[in]  cmd        command
+   * @param[in]  args       argument list
+   * @param[out] retstring  return string
+   * @return     ERROR|NO_ERROR|HELP
+   *
+   */
+  long ArchonInterface::controller_cmd(const std::string &cmd,
+                                       const std::string &args,
+                                       std::string &retstring) {
+    if ( cmd == CAMERAD_LOADTIMING ) {
+      return this->load_timing(args, retstring);
+    }
+    else
+    if ( cmd == CAMERAD_READACF ) {
+      return this->read_acf(args);
+    }
+    else
+    if ( cmd == CAMERAD_MODE ) {
+      return this->set_camera_mode(args, retstring);
+    }
+    else {
+      retstring="unrecognized command";
+      return ERROR;
+    }
+  }
+  /***** Camera::ArchonInterface::controller_cmd ******************************/
+
+
+  /***** Camera::ArchonInterface::configure_interface *************************/
+  /**
+   * @brief      extract+apply interface-specific parameters from config file
+   * @throws     std::runtime_error
+   *
+   */
+  void ArchonInterface::configure_interface() {
+    const std::string function("Camera::ArchonInterface::configure_interface");
+    logwrite(function, "");
+  }
+  /***** Camera::ArchonInterface::configure_interface *************************/
+
+
   /***** Camera::ArchonInterface::abort ***************************************/
   /**
    * @brief
@@ -131,16 +178,17 @@ namespace Camera {
       float volts;
       size_t ntok = tokens.size();
       bool should_write=false;
+
+      if (ntok != 2 && ntok != 3) {
+        throw std::runtime_error("expected <mod> <chan> [ <volts> ]");
+      }
+
+      mod  = std::stoi(tokens.at(0));
+      chan = std::stoi(tokens.at(1));
+
       if (ntok==3) {
         volts = std::stof(tokens.at(2));
         should_write = true;
-      }
-      if (ntok==2 || ntok==3) {
-        mod  = std::stoi(tokens.at(0));
-        chan = std::stoi(tokens.at(1));
-      }
-      if (ntok != 2 && ntok != 3) {
-        throw std::runtime_error("expected <mod> <chan> [ <volts> ]");
       }
 
       this->controller->bias(mod, chan, volts, should_write);
@@ -656,12 +704,21 @@ namespace Camera {
   /***** Camera::ArchonInterface::allocate_framebuf ***************************/
 
 
+  /***** Camera::ArchonInterface::read_frame **********************************/
+  /**
+   *
+   */
   long ArchonInterface::read_frame() {
     controller->read_frame(Camera::ArchonController::FRAME_IMAGE);
     return NO_ERROR;
   }
+  /***** Camera::ArchonInterface::read_frame **********************************/
 
 
+  /***** Camera::ArchonInterface::do_expose ***********************************/
+  /**
+   *
+   */
   long ArchonInterface::do_expose(int nexp) {
     const std::string function("Camera::ArchonInterface::do_expose");
     long error=NO_ERROR;
@@ -687,17 +744,28 @@ namespace Camera {
 
     return NO_ERROR;
   }
+  /***** Camera::ArchonInterface::do_expose ***********************************/
 
 
+  /***** Camera::ArchonInterface::image_acquisition_thread ********************/
+  /**
+   *
+   */
   void ArchonInterface::image_acquisition_thread() {
     const std::string function("Camera::ArchonInterface::image_acquisition_thread");
     logwrite(function, "here");
   }
+  /***** Camera::ArchonInterface::image_acquisition_thread ********************/
 
 
+  /***** Camera::ArchonInterface::image_processing_thread *********************/
+  /**
+   *
+   */
   void ArchonInterface::image_processing_thread() {
     const std::string function("Camera::ArchonInterface::image_processing_thread");
     logwrite(function, "here");
   }
+  /***** Camera::ArchonInterface::image_processing_thread *********************/
 
 }
