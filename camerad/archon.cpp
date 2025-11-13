@@ -4441,19 +4441,23 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
       if ( !set_state.empty() ) {
           try {
               std::transform( set_state.begin(), set_state.end(), set_state.begin(), ::toupper );  // make uppercase 
+              std::string expose_param = "Expose";
+              std::string start_param = "Start";
+              long new_state;
               if (set_state == "TRUE" || set_state == "1") {
                 //set expose and start on the archon or acf to 1
-
-                //reload the acf file
-
+                new_state = 1;
+                error = this->set_parameter( expose_param, new_state);
+                if  ( error == NO_ERROR ) error = this->set_parameter( start_param, new_state);
                 //log
                 this->is_freerun = true;
 
               }
               else {
                 //set expose and start on acf or archon to 0
-
-                //reload acf file
+                new_state = 0;
+                error = this->set_parameter( expose_param, new_state);
+                if  ( error == NO_ERROR ) error = this->set_parameter( start_param, new_state);
 
                 //log
                 this->is_freerun = false;
