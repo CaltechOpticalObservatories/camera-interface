@@ -17,21 +17,44 @@ namespace Camera {
    */
   ArchonController::ArchonController() :
     interface(nullptr),
+    activebufs(3),
     framebuf(nullptr),
     framebuf_bytes(0),
     is_connected(false),
-    is_firmwareloaded(false)
+    is_powered(false),
+    is_firmwareloaded(false),
+    readout_time_msec(0),
+    frameinfo{
+      .index{0},
+      .currentframe{0}
+    }
   {
     // pre-size the modtype and modversion vectors to hold the max number of modules
-    modtype.resize(NMODS);
-    modversion.resize(NMODS);
+    this->modtype.resize(MAXNMODS);
+    this->modversion.resize(MAXNMODS);
+
+    // pre-size frameinfo_t vectors to hold max number of buffers
+    this->frameinfo.bufsample.resize(MAXNBUFS);
+    this->frameinfo.bufcomplete.resize(MAXNBUFS);
+    this->frameinfo.bufmode.resize(MAXNBUFS);
+    this->frameinfo.bufbase.resize(MAXNBUFS);
+    this->frameinfo.bufframen.resize(MAXNBUFS);
+    this->frameinfo.bufwidth.resize(MAXNBUFS);
+    this->frameinfo.bufheight.resize(MAXNBUFS);
+    this->frameinfo.bufpixels.resize(MAXNBUFS);
+    this->frameinfo.buflines.resize(MAXNBUFS);
+    this->frameinfo.bufrawblocks.resize(MAXNBUFS);
+    this->frameinfo.bufrawlines.resize(MAXNBUFS);
+    this->frameinfo.bufrawoffset.resize(MAXNBUFS);
+    this->frameinfo.buftimestamp.resize(MAXNBUFS);
+    this->frameinfo.bufretimestamp.resize(MAXNBUFS);
+    this->frameinfo.buffetimestamp.resize(MAXNBUFS);
 
     {
-    auto ptr=std::make_unique<ArchonExposureTime>();  // create pointer to ArchonExposureTime object
-    this->exposure_time=ptr.get();
+    auto ptr=std::make_unique<ArchonExposureTime>();  // create ArchonExposureTime object
+    this->exposure_time=ptr.get();                    // store non-owning pointer to derived type
     this->info.exposure_time=std::move(ptr);          // transfer ownership to info
     }
-
   }
   /***** Camera::ArchonController::ArchonController ***************************/
 
@@ -69,21 +92,26 @@ namespace Camera {
   void ArchonController::configure_controller() {
     const std::string function("Camera::ArchonController::configure_controller");
     logwrite(function, "");
+    int numapplied=0, lastapplied=0;
 
     if (this->interface->configfile.n_rows < 1) throw std::runtime_error("empty configuration");
 
     // iterate through each row in config file
     for (int row=0; row < this->interface->configfile.n_rows; row++) {
 
+      lastapplied=numapplied;
+
       // ARCHON_IP
       if (this->interface->configfile.param[row]=="ARCHON_IP") {
         this->archon.sethost( this->interface->configfile.arg[row] );
+        numapplied++;
       }
       else
       // ARCHON_PORT
       if (this->interface->configfile.param[row]=="ARCHON_PORT") {
         try {
           this->archon.setport( std::stoi(this->interface->configfile.arg[row]) );
+          numapplied++;
         }
         catch (const std::exception &e) {
           std::ostringstream oss;
@@ -96,10 +124,65 @@ namespace Camera {
       // DEFAULT_FIRMWARE
       if (this->interface->configfile.param[row]=="DEFAULT_FIRMWARE") {
         this->firmware = this->interface->configfile.arg[row];
+        numapplied++;
+      }
+      else
+      // EXPTIME_SEC_PARAM
+      if (this->interface->configfile.param[row]=="EXPTIME_SEC_PARAM") {
+        this->sec_param = this->interface->configfile.arg[row];
+        numapplied++;
+      }
+      else
+      // EXPTIME_MSEC_PARAM
+      if (this->interface->configfile.param[row]=="EXPTIME_MSEC_PARAM") {
+        this->msec_param = this->interface->configfile.arg[row];
+        numapplied++;
+      }
+      else
+      // ABORT_PARAM
+      if (this->interface->configfile.param[row]=="ABORT_PARAM") {
+        this->abort_param = this->interface->configfile.arg[row];
+        numapplied++;
+      }
+      else
+      // EXPOSE_PARAM
+      if (this->interface->configfile.param[row]=="EXPOSE_PARAM") {
+        this->expose_param = this->interface->configfile.arg[row];
+        numapplied++;
+      }
+
+      // publish and/or log applied configuration
+      if (numapplied > lastapplied) {
+        std::ostringstream oss;
+        oss << "config:" << this->interface->configfile.param[row]
+            << "=" << this->interface->configfile.arg[row];
+        logwrite(function, oss.str());  // TODO publish?
       }
     }
   }
   /***** Camera::ArchonController::configure_controller ***********************/
+
+
+  /***** Camera::ArchonController::abort **************************************/
+  /**
+   * @brief      set the abort parameter = 1
+   * @details    This accomodates an ACF file which needs an abort parameter to
+   *             be set in order to abort an operation and return to a previous
+   *             state. This feature is optional. If no abort parameter is defined
+   *             in the config file then no action takes place here, otherwise
+   *             set that parameter to 1.
+   * @return     ERROR | NO_ERROR
+   *
+   */
+  long ArchonController::abort() {
+
+    // if an abort parameter was not configured then nothing to do
+    if (this->abort_param.empty()) return NO_ERROR;
+
+    // otherwise set that parameter=1
+    return this->set_parameter(this->abort_param, 1);
+  }
+  /***** Camera::ArchonController::abort **************************************/
 
 
   /***** Camera::ArchonController::connect ************************************/
@@ -121,6 +204,7 @@ namespace Camera {
     // initialize camera connection
     try {
       this->archon.Connect();
+      this->is_connected = this->archon.isconnected();
     }
     catch (const std::exception &e) {
       throw;
@@ -172,8 +256,8 @@ namespace Camera {
 
       // validate module number
       //
-      if (module<1 || module>NMODS) {
-        message.str(""); message << "module " << module << " outside range {1:" << NMODS << "}";
+      if (module<1 || module>MAXNMODS) {
+        message.str(""); message << "module " << module << " outside range {1:" << MAXNMODS << "}";
         logwrite( function, message.str() );
         throw std::runtime_error("invalid module number");
       }
@@ -189,7 +273,7 @@ namespace Camera {
         this->modversion.at(module-1) = version;   // store the type in a vector indexed by module
       }
       catch (const std::exception &e) {
-        message.str(""); message << "requested module " << module << " out of range {1:" << NMODS << "}";
+        message.str(""); message << "requested module " << module << " out of range {1:" << MAXNMODS << "}";
         logwrite( function, message.str() );
         throw std::runtime_error("invalid module number");
       }
@@ -215,6 +299,32 @@ namespace Camera {
     // empty the Archon log
     //
     this->fetchlog();
+
+    // Make sure the following systemkeys are added.
+    // They can be changed at any time by a command but since they have defaults
+    // they don't require a command so this ensures they get into the systemkeys db.
+    //
+    std::stringstream keystr;
+    keystr << "HDRSHIFT=" << this->n_hdrshift << "// number of HDR right-shift bits";
+    this->interface->camera_info.systemkeys.addkey( keystr.str() );
+
+    // Ensures these values are set on startup
+    //
+    this->get_frame_status();
+
+    if (this->lastframe==0) {
+      for (int i=0; i<MAXNBUFS; ++i) {
+        if (this->frameinfo.bufframen[i] > this->lastframe) {
+          this->lastframe = this->frameinfo.bufframen[i];
+          this->lasttimestamp = this->frameinfo.buftimestamp[i];
+          this->frameinfo.index.store(i);
+        }
+      }
+      if (this->lastframe==0) {
+        this->frameinfo.index.store(0);
+        this->lasttimestamp=0;
+      }
+    }
   }
   /***** Camera::ArchonController::connect ************************************/
 
@@ -232,8 +342,8 @@ namespace Camera {
     std::ostringstream oss;
 
     // Check that the module number is valid
-    if ( (mod < 0) || (mod > NMODS) ) {
-      oss << "module " << mod << ": outside range {0:" << NMODS << "}";
+    if ( (mod < 0) || (mod > MAXNMODS) ) {
+      oss << "module " << mod << ": outside range {0:" << MAXNMODS << "}";
       throw std::runtime_error(oss.str());
     }
 
@@ -360,6 +470,279 @@ namespace Camera {
   /***** Camera::ArchonController::bias ***************************************/
 
 
+  /***** Camera::ArchonController::initiate_exposure **************************/
+  /**
+   * @brief      initiate an exposure by setting the parameter given by expose_param = nexp
+   * @param[in]  nexp
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::initiate_exposure(const int &nexp) {
+    logwrite("Camera::ArchonController::initiate_exposure", std::to_string(nexp));
+    return( this->set_parameter(this->expose_param, nexp) );
+  }
+  /***** Camera::ArchonController::initiate_exposure **************************/
+
+
+  /***** Camera::ArchonController::get_frame_status ***************************/
+  /**
+   * @brief      get Archon frame buffer status from FRAME command
+   * @details    Sends the "FRAME" command to Archon, reads and parses the reply
+   *             into framestatus structure.
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::get_frame_status() {
+    const std::string function("Camera::ArchonController::get_frame_status");
+    std::string reply;
+    char message[512];
+    long  error=NO_ERROR;
+
+    // send FRAME command to get frame buffer status
+    //
+    if ( (error = this->send_cmd(FRAME, reply)) ) {
+      if (error==ERROR) logwrite(function, "ERROR sending FRAME command");  // don't log here if BUSY
+      return error;
+    }
+
+    // use direct pointer indexing for speed
+    //
+    const char* reply_ptr = reply.c_str();
+    const char* reply_end = reply_ptr + reply.length();
+
+    // reply is a continuous string of key=value pairs "TIMER=xxxx RBUF=xxxx " ... etc.
+    // Find the key by reading chars up to the equal sign.
+    //
+    while (reply_ptr < reply_end) {
+
+      // skip whitespace
+      while (reply_ptr < reply_end && *reply_ptr==' ') reply_ptr++;
+      if (reply_ptr > reply_end) break;
+
+      // find key
+      const char* key_start = reply_ptr;
+      while (reply_ptr < reply_end && *reply_ptr != '=' && *reply_ptr != ' ') reply_ptr++;
+      if (reply_ptr >= reply_end || *reply_ptr != '=') break;
+
+      size_t key_len = reply_ptr - key_start;
+      reply_ptr++;  // skip "="
+
+      // find value
+      const char* value_start = reply_ptr;
+      while (reply_ptr < reply_end && *reply_ptr != ' ') reply_ptr++;
+      size_t valuelen = reply_ptr - value_start;
+
+      // TIMER=XXXX pattern
+      if (key_len==5 && key_start[0]=='T' && std::strncmp(key_start, "TIMER", 5)==0) {
+        this->frameinfo.timer.assign(value_start, valuelen);
+      }
+      else
+      if (key_len==4) {
+        // RBUF=XXXX pattern
+        if (key_start[0]=='R' && std::strncmp(key_start, "RBUF", 4)==0) {
+          this->frameinfo.rbuf = std::atoi(value_start);
+        }
+        else
+        // WBUF=XXXX pattern
+        if (key_start[0]=='W' && std::strncmp(key_start, "WBUF", 4)==0) {
+          this->frameinfo.wbuf = std::atoi(value_start);
+        }
+      }
+      else
+      // BUFnXXXX=XXXX pattern...
+      if (key_len>3 && key_start[0]=='B' && key_start[1]=='U' && key_start[2]=='F') {
+        int bufnum = key_start[3]-'1';  // convert to 0-based
+
+        // match suffix
+        const char* suffix = key_start+4;
+        size_t suffix_len = key_len-4;
+
+        switch (suffix_len) {
+          case 4:  // BUFnBASE, MODE
+            if (std::strncmp(suffix, "BASE", 4)==0) this->frameinfo.bufbase[bufnum] = std::strtoul(value_start, nullptr, 10);
+            else
+            if (std::strncmp(suffix, "MODE", 4)==0) this->frameinfo.bufmode[bufnum] = std::atoi(value_start);
+            break;
+          case 5:  // BUFnFRAME, WIDTH, LINES
+            if (std::strncmp(suffix, "FRAME", 5)==0) this->frameinfo.bufframen[bufnum] = std::atoi(value_start);
+            else
+            if (std::strncmp(suffix, "WIDTH", 5)==0) this->frameinfo.bufwidth[bufnum] = std::atoi(value_start);
+            else
+            if (std::strncmp(suffix, "LINES", 5)==0) this->frameinfo.buflines[bufnum] = std::atoi(value_start);
+            break;
+          case 6:  // BUFnSAMPLE, PIXELS, HEIGHT
+            if (std::strncmp(suffix, "SAMPLE", 6)==0) this->frameinfo.bufsample[bufnum] = std::atoi(value_start);
+            else
+            if (std::strncmp(suffix, "PIXELS", 6)==0) this->frameinfo.bufpixels[bufnum] = std::atoi(value_start);
+            else
+            if (std::strncmp(suffix, "HEIGHT", 6)==0) this->frameinfo.bufheight[bufnum] = std::atoi(value_start);
+            break;
+          case 8:  // BUFnCOMPLETE
+            if (std::strncmp(suffix, "COMPLETE", 8)==0) this->frameinfo.bufcomplete[bufnum] = std::atoi(value_start);
+            break;
+          case 9:  // BUFnTIMESTAMP
+            if (std::strncmp(suffix, "TIMESTAMP", 9)==0) this->frameinfo.buftimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
+            break;
+          case 11: // BUFnRETIMESTAMP, FETIMESTAMP
+            if (std::strncmp(suffix, "RETIMESTAMP", 11)==0) this->frameinfo.bufretimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
+            else
+            if (std::strncmp(suffix, "FETIMESTAMP", 11)==0) this->frameinfo.buffetimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
+            break;
+        } // end switch(suffix_len)
+      } // end if BUFnXXXX pattern
+    } // end looping through reply
+
+    int completed_index = -1;
+    int newestframe=0, newestbuf;
+
+    for (int i = 0; i < MAXNBUFS; ++i) {
+      if (this->frameinfo.bufframen[i] > newestframe) {
+        this->frameinfo.currentframe.store(this->frameinfo.bufframen[i]);
+        if (this->frameinfo.bufcomplete[i]) {
+          newestframe = this->frameinfo.bufframen[i];
+          completed_index = i;
+        }
+      }
+    }
+
+    this->lastframe = newestframe;
+
+    if (completed_index != -1) {
+      this->lasttimestamp = this->frameinfo.buftimestamp[completed_index];
+      this->frameinfo.index.store(completed_index);
+      this->frameinfo.next_index = (completed_index + 1) % this->activebufs;
+    }
+
+    return error;
+  }
+  /***** Camera::ArchonController::get_frame_status ***************************/
+
+
+  /***** Camera::ArchonController::get_parameter ******************************/
+  /**
+   * @brief      gets parameter value from Archon configuration memory
+   * @details    This template function sends an RCONFIG command to Archon
+   *             and returns a string. Another template version returns int.
+   * @param[in]  parameter
+   * @return     string value of parameter
+   * @throws     std::runtime_error
+   *
+   */
+  template<> std::string ArchonController::get_parameter<std::string>(const std::string &parameter) {
+    const std::string function("Archon::Interface::read_parameter");
+
+    // requested parameter must be in the parammap
+    //
+    if (this->parammap.find(parameter.c_str()) == this->parammap.end()) {
+      throw std::runtime_error("parameter \""+parameter+"\" not found in ACF");
+    }
+
+    // form the RCONFIG command to send to Archon
+    //
+    std::ostringstream cmd;
+    cmd << "RCONFIG"
+        << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
+        << this->parammap[parameter.c_str()].line;
+
+    std::string reply;
+
+    // send RCONFIG command to Archon
+    //
+    if (this->send_cmd(cmd.str(), reply) != NO_ERROR) {
+      throw std::runtime_error("sending "+cmd.str());
+    }
+    strip_newline(reply);
+
+    // reply should now be of the form PARAMETERn=PARAMNAME=VALUE
+    // check for that format by making sure it starts with PARAMETER
+    // and contains two equal '=' signs
+    //
+    if ( (std::count(reply.begin(), reply.end(), '=') != 2) ||
+         (reply.substr(0,9) != "PARAMETER") ) {
+      throw std::runtime_error("malformed reply \""+reply+"\": expected PARAMETERn=NAME=VALUE");
+    }
+
+    // return just the VALUE here (find from the right)
+    //
+    size_t loc = reply.rfind('=');
+    return reply.substr(++loc);
+  }
+  /***** Camera::ArchonController::get_parameter ******************************/
+  /**
+   * @brief      gets parameter value from Archon configuration memory
+   * @details    This template version uses the string version and returns an integer.
+   * @param[in]  parameter
+   * @return     int value of parameter
+   * @throws     std::runtime_error|std::exception
+   *
+   */
+  template<> int ArchonController::get_parameter<int>(const std::string &parameter) {
+    try {
+      return std::stoi( this->get_parameter<std::string>(parameter) );
+    }
+    catch (const std::exception &e) {
+      throw;
+    }
+  }
+  /***** Camera::ArchonController::get_parameter ******************************/
+
+
+  /***** Camera::ArchonController::get_timer **********************************/
+  /**
+   * @brief      read the 64 bit interal timer from the Archon controller
+   * @details    Sends the "TIMER" command to Archon, reads back the reply, and
+   *             stores the value as (unsigned long int) in the reference param.
+   *             This is an internal 64 bit timer/counter. One tick of the counter
+   *             is 10 ns.
+   * @param[out] timer  reference to timer value
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::get_timer(uint64_t &timer) {
+    const std::string function("Camera::ArchonController::get_timer");
+    std::string reply;
+
+    // send TIMER command
+    //
+    long error = this->send_cmd(TIMER, reply);
+    if (error != NO_ERROR) {
+      logwrite(function, "could not read Archon TIMER");
+      return error;
+    }
+
+    std::vector<std::string> tokens;
+    Tokenize(reply, tokens, "=");                   // Tokenize the reply
+
+    // Response should be "TIMER=xxxx\n" so there needs
+    // to be two tokens
+    //
+    if (tokens.size() != 2) {
+      logwrite(function, "unrecognized response \""+reply+"\": expected TIMER=xxxx");
+      return ERROR;
+    }
+
+    // Second token must be a hexidecimal string
+    //
+    strip_newline(tokens[1]);
+    if (!std::all_of(tokens[1].begin(), tokens[1].end(), ::isxdigit)) {
+      logwrite(function, "value \""+tokens[1]+"\" not a hexadecimal string");
+      return ERROR;
+    }
+
+    // convert from hex string to integer and save return value
+    //
+    try { timer = std::stoul(tokens[1], nullptr, 16);
+    }
+    catch (const std::exception &e) {
+      logwrite(function, std::string(e.what()));
+      return ERROR;
+    }
+
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::get_timer **********************************/
+
+
   /***** Camera::ArchonController::set_exptime ********************************/
   /**
    * @brief      set the exposure time on the controller
@@ -387,16 +770,133 @@ namespace Camera {
 
       // Set the sec and msec parameters on the controller,
       // store the exptime in the class on success.
-//    if ( (set_parameter(sec_param, sec)   == NO_ERROR) &&     //TODO haven't created these functions yet!
-//         (set_parameter(msec_param, msec) == NO_ERROR) ) {
-//      this->exposure_time->set(exptime);
-//    }
+      if ( (set_parameter(sec_param, sec)   == NO_ERROR) &&
+           (set_parameter(msec_param, msec) == NO_ERROR) ) {
+        this->exposure_time->set(exptime);
+      }
     }
     catch (const std::exception &e) {
       throw;
     }
   }
   /***** Camera::ArchonController::set_exptime ********************************/
+
+
+  /***** Camera::ArchonController::set_parameter ******************************/
+  /**
+   * @brief      set a parameter using FASTPREP, FASTLOADPARAM
+   * @param[in]  parameter  reference to string parameter name
+   * @param[in]  value      reference to int value
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::set_parameter(const std::string &parameter, const int &value) {
+    const std::string function("Camera::ArchonController::set_parameter");
+    try {
+      this->prep_parameter(parameter, value);
+      this->load_parameter(parameter, value);
+      std::ostringstream oss;
+      oss << "set " << parameter << "=" << value;
+      logwrite(function, oss.str());
+      return NO_ERROR;
+    }
+    catch (const std::exception &e) {
+      logwrite(function, "ERROR: "+std::string(e.what()));
+      return ERROR;
+    }
+  }
+  /***** Camera::ArchonController::set_parameter ******************************/
+
+
+  /***** Camera::ArchonController::prep_parameter *****************************/
+  /**
+   * @brief      sends Archon command FASTPREPPARAM <parameter> <value>
+   * @param[in]  parameter  reference to string parameter name (64 chars)
+   * @param[in]  value      reference to int value in range {0:1048575}
+   * @throws     std::runtime_error
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::prep_parameter(const std::string &parameter, const int &value) {
+    if (value < 0 || value > 0xFFFFF ) {
+      throw std::runtime_error("prep_parameter \""+std::to_string(value)+"\" outside range {0:1048575}");
+    }
+    char cmd[88];
+    SNPRINTF(cmd, "FASTPREPPARAM %s %d", parameter.c_str(), value);
+    return ( this->send_cmd(cmd) );
+  }
+  /***** Camera::ArchonController::prep_parameter *****************************/
+
+
+  /***** Camera::ArchonController::load_parameter *****************************/
+  /**
+   * @brief      sends Archon command FASTLOADPARAM <parameter> <value>
+   * @param[in]  parameter  reference to string parameter name (64 chars)
+   * @param[in]  value      reference to int value in range {0:1048575}
+   * @throws     std::runtime_error
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::load_parameter(const std::string &parameter, const int &value) {
+    if (value < 0 || value > 0xFFFFF ) {
+      throw std::runtime_error("load_parameter \""+std::to_string(value)+"\" outside range {0:1048575}");
+    }
+    char cmd[88];
+    SNPRINTF(cmd, "FASTLOADPARAM %s %d", parameter.c_str(), value);
+    return ( this->send_cmd(cmd) );
+  }
+  /***** Camera::ArchonController::load_parameter *****************************/
+
+
+  /***** Camera::ArchonController::print_frame_status *************************/
+  /**
+   * @brief      prints Archon frame buffer status to the log
+   * @details    Call get_frame_status() first, then formats and prints.
+   *
+   */
+  void ArchonController::print_frame_status() {
+    const std::string function("Camera::ArchonController::print_frame_status");
+
+    this->get_frame_status();
+
+    std::ostringstream message;
+    int bufn;
+    char statestr[ArchonController::MAXNBUFS][4];
+    auto index = this->frameinfo.index.load();
+
+    // write as log message
+    //
+    message.str(""); message << "    buf base       rawoff     frame ready lines rawlines rblks width height state";
+    logwrite(function, message.str());
+    message.str(""); message << "    --- ---------- ---------- ----- ----- ----- -------- ----- ----- ------ -----";
+    logwrite(function, message.str());
+    message.str("");
+    for (bufn=0; bufn < ArchonController::MAXNBUFS; bufn++) {
+      memset(statestr[bufn], '\0', 4);
+      if ( (this->frameinfo.rbuf-1) == bufn)   strcat(statestr[bufn], "R");
+      if ( (this->frameinfo.wbuf-1) == bufn)   strcat(statestr[bufn], "W");
+      if ( this->frameinfo.bufcomplete[bufn] ) strcat(statestr[bufn], "C");
+    }
+    for (bufn=0; bufn < ArchonController::MAXNBUFS; bufn++) {
+      message << std::setw(3) << (bufn==index ? "-->" : "") << " ";                       // buf
+      message << std::setw(3) << bufn+1 << " ";
+      message << "0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex
+              << this->frameinfo.bufbase[bufn] << " ";                                                    // base
+      message << "0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex
+              << this->frameinfo.bufrawoffset[bufn] << " ";                                               // rawoff
+      message << std::setfill(' ') << std::setw(5) << std::dec << this->frameinfo.bufframen[bufn] << " "; // frame
+      message << std::setw(5) << this->frameinfo.bufcomplete[bufn] << " ";                                // ready
+      message << std::setw(5) << this->frameinfo.buflines[bufn] << " ";                                   // lines
+      message << std::setw(8) << this->frameinfo.bufrawlines[bufn] << " ";                                // rawlines
+      message << std::setw(5) << this->frameinfo.bufrawblocks[bufn] << " ";                               // rblks
+      message << std::setw(5) << this->frameinfo.bufwidth[bufn] << " ";                                   // width
+      message << std::setw(6) << this->frameinfo.bufheight[bufn] << " ";                                  // height
+      message << std::setw(5) << statestr[bufn];                                                          // state
+      logwrite(function, message.str());
+      message.str("");
+    }
+  }
+  /***** Camera::ArchonController::print_frame_status *************************/
 
 
   /***** Camera::ArchonController::send_cmd ***********************************/
@@ -423,10 +923,9 @@ namespace Camera {
    */
   long ArchonController::send_cmd(const std::string &cmd, std::string &reply) {
     std::string function = "Camera::ArchonController::send_cmd";
-    char message[256];
     char check[4];
-    int     retval;
-    int     error = NO_ERROR;
+    int  retval;
+    int  error = NO_ERROR;
 
     // nothing to do if no connection open to controller
     if (!this->archon.isconnected()) {
@@ -442,9 +941,8 @@ namespace Camera {
     // The archon busy atomic flag is also needed because FETCH can keep
     // Archon busy for longer than the duration of this function.
     //
-    if ( archon_busy.test_and_set() ) {
-      SNPRINTF(message, "ERROR Archon busy: ignored command \"%s\"", cmd.c_str());
-      logwrite(function, std::string(message));
+    if ( this->archon_busy.test_and_set() ) {
+      logwrite(function, "ERROR Archon busy: ignored command \""+cmd+"\"");
       return BUSY;
     }
 
@@ -463,6 +961,7 @@ namespace Camera {
     //
     if ( (this->archon.Write(scmd)) == -1) {
       logwrite( function, "ERROR writing to camera socket");
+      this->archon_busy.clear();
       return ERROR;
     }
 
@@ -480,16 +979,16 @@ namespace Camera {
 
     // For all other commands, receive the reply
     //
-    char* buffer = new char[64*1024+1]{};                // temporary buffer for holding Archon replies
+    constexpr size_t BUFSZ = 64*1024;
+    char* buffer = new char[BUFSZ+1]{};                  // temporary buffer for holding Archon replies
     reply.clear();                                       // zero reply buffer
     do {
       if ( (retval=this->archon.Poll()) <= 0) {
-        if (retval==0) { SNPRINTF(message, "Poll timeout waiting for response from Archon command (maybe unrecognized command?)"); error=TIMEOUT; }
-        if (retval<0)  { SNPRINTF(message, "Poll error waiting for response from Archon command"); error=ERROR; }
-        if ( error != NO_ERROR ) logwrite( function, std::string(message) );
+        if (retval==0) { logwrite(function, "Poll timeout waiting for response from Archon command (maybe unrecognized command?)"); error=TIMEOUT; }
+        if (retval<0)  { logwrite(function, "Poll error waiting for response from Archon command"); error=ERROR; }
         break;
       }
-      retval = this->archon.Read(buffer, 64*1024);       // read into temp buffer
+      retval = this->archon.Read(buffer, BUFSZ);         // read into temp buffer
       if (retval <= 0) {
         logwrite( function, "ERROR reading Archon" );
         break;
@@ -504,7 +1003,7 @@ namespace Camera {
     // If there was an Archon error then clear the busy flag and get out now
     //
     if ( error != NO_ERROR ) {
-      archon_busy.clear();
+      this->archon_busy.clear();
       return error;
     }
 
@@ -516,8 +1015,7 @@ namespace Camera {
     //
     if (!reply.empty() && reply[0]=='?') {
       error = ERROR;
-      SNPRINTF(message, "Archon controller returned ERROR processing command: %s", cmd.c_str());
-      logwrite( function, std::string(message) );
+      logwrite(function, "ERROR from Archon processing \""+cmd+"\"");
     }
     else
     // First 3 bytes of reply must equal checksum else reply doesn't belong to command
@@ -525,8 +1023,7 @@ namespace Camera {
       error = ERROR;
       std::string hdr = reply;
       try { scmd.erase(scmd.find("\n"), 1); } catch(...) { }
-      SNPRINTF(message, "ERROR command-reply mismatch for command: %s: expected %s but received %s", scmd.c_str(), check, reply.c_str());
-      logwrite( function, std::string(message) );
+      logwrite(function, "ERROR command-reply mismatch for \""+cmd+"\": expected "+check+" but received "+reply);
     }
     else {
       // command and reply are a matched pair
@@ -535,11 +1032,57 @@ namespace Camera {
     }
 
     // clear the busy flag
-    archon_busy.clear();
+    this->archon_busy.clear();
 
     return error;
   }
   /***** Camera::ArchonController::send_cmd ***********************************/
+
+
+  /***** Camera::ArchonController::fetch **************************************/
+  /**
+   * @brief      fetch an Archon frame buffer
+   * @param[in]  bufferaddress
+   * @param[in]  bufferblocks
+   * @return     NO_ERROR | ERROR
+   *
+   */
+  long ArchonController::fetch(uint64_t bufferaddress, uint32_t bufferblocks) {
+    const std::string function("Camera::ArchonController::fetch");
+    char message[256];
+    auto index = this->frameinfo.index.load();
+    uint32_t maxblocks  = (uint32_t)(1.5E9 / this->activebufs / 1024 );
+    uint64_t maxoffset  = this->frameinfo.bufbase[index];
+    uint64_t maxaddress = maxoffset + maxblocks;
+
+    if (bufferaddress > maxaddress) {
+      SNPRINTF(message, "fetch Archon buffer requested address 0x%0lX exceeds 0x%0lX", bufferaddress, maxaddress);
+      logwrite(function, std::string(message));
+      return ERROR;
+    }
+    if ( bufferblocks > maxblocks ) {
+      SNPRINTF(message, "fetch Archon buffer requested blocks 0x%0X exceeds 0x%0X", bufferblocks, maxblocks);
+      logwrite(function, std::string(message));
+      return ERROR;
+    }
+
+    char buf[32];
+    SNPRINTF(buf, "FETCH%08" PRIX64 "%08" PRIX32, bufferaddress, bufferblocks);
+
+    // Sending send_cmd( FETCH ) will set the archon busy flag and not clear it.
+    // If there's an error then send_cmd() probably cleared it but it's OK to
+    // make sure that it's cleared here.
+    //
+    if ( this->send_cmd( std::string(buf) ) == ERROR ) {
+      logwrite(function, "ERROR: sending FETCH command. Aborting read.");
+      this->archon_busy.clear();
+      this->unlock_buffer();
+      return ERROR;
+    }
+
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::fetch **************************************/
 
 
   /***** Camera::ArchonController::fetchlog ***********************************/
@@ -901,7 +1444,7 @@ namespace Camera {
 
           // Save all the user keyword information in a map for later
           this->modemap[mode].acfkeys.keydb[keyword].keyword    = keyword;
-          this->modemap[mode].acfkeys.keydb[keyword].keytype    = this->info.userkeys.get_keytype(keyvalue);
+          this->modemap[mode].acfkeys.keydb[keyword].keytype    = this->interface->camera_info.userkeys.get_keytype(keyvalue);
           this->modemap[mode].acfkeys.keydb[keyword].keyvalue   = keyvalue;
           this->modemap[mode].acfkeys.keydb[keyword].keycomment = keycomment;
           // end if (line.compare(0,5,"FITS:")==0)
@@ -1013,7 +1556,7 @@ namespace Camera {
       //
       std::stringstream keystr;
       keystr << "FIRMWARE=" << filename << "// controller firmware";
-      this->info.systemkeys.addkey( keystr.str() );
+      this->interface->camera_info.systemkeys.addkey( keystr.str() );
     }
 
     // on success, the class variable is what was just loaded
@@ -1028,6 +1571,75 @@ namespace Camera {
     return error;
   }
   /***** Camera::ArchonController::load_acf ***********************************/
+
+
+  /***** Camera::ArchonController::load_mode_settings *************************/
+  /**
+   * @brief      loads parameters and keywords for a given mode
+   * @details    The ACF may contain optional sections tagged as [MODE_xxxx]
+   *             which may contain parameters, keywords, etc. This function
+   *             applies those configuration parameters to the Archon.
+   * @param[in]  mode  pointer to modeinfo_t struct from modemap
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::load_mode_settings(modeinfo_t* mode) {
+    const std::string function("Camera::ArchonController::load_mode_settings");
+
+    try {
+      this->get_configmap_value("SAMPLEMODE", mode->samplemode);
+      this->get_configmap_value("BIGBUF", mode->bigbuf);
+      this->get_configmap_value("FRAMEMODE", mode->geometry.framemode);
+      this->get_configmap_value("LINECOUNT", mode->geometry.linecount);
+      this->get_configmap_value("PIXELCOUNT", mode->geometry.pixelcount);
+      this->get_configmap_value("RAWENABLE", mode->rawenable);
+      this->get_configmap_value("RAWSEL", this->rawinfo.adchan);
+      this->get_configmap_value("RAWSAMPLES", this->rawinfo.rawsamples);
+      this->get_configmap_value("RAWENDLINE", this->rawinfo.rawlines);
+    }
+    catch (const std::exception &e) {
+      logwrite(function, "ERROR: "+std::string(e.what()));
+      return ERROR;
+    }
+
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::load_mode_settings *************************/
+
+
+  /***** Camera::ArchonController::lock_buffer ********************************/
+  /**
+   * @brief      lock Archon frame buffer
+   * @param[in]  buffernumber
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::lock_buffer(int buffernumber) {
+    char cmd[8];
+    SNPRINTF(cmd, "LOCK%d", buffernumber);
+    if (this->send_cmd(std::string(cmd)) != NO_ERROR) {
+      logwrite("Camera::ArchonController::lock_buffer", "ERROR sending "+std::string(cmd));
+      return ERROR;
+    }
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::lock_buffer ********************************/
+
+
+  /***** Camera::ArchonController::unlock_buffer ******************************/
+  /**
+   * @brief      unlock Archon frame buffer
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::unlock_buffer() {
+    if (this->send_cmd(UNLOCK) != NO_ERROR) {
+      logwrite("Camera::ArchonController::unlock_buffer", "ERROR sending UNLOCK");
+      return ERROR;
+    }
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::unlock_buffer ******************************/
 
 
   /***** Camera::ArchonController::get_configmap_value ************************/
@@ -1099,33 +1711,29 @@ namespace Camera {
   /**
    * @brief      turn on|off controller bias power supplies
    * @param[in]  state  0=off, 1=on
-   * @return     ERROR|NO_ERROR
+   * @return     string power state
+   * @throws     std::runtime_error
    *
    */
-  long ArchonController::set_power(int state) {
-    const std::string function("Camera::ArchonController::power");
-    long error=NO_ERROR;
-
+  std::string ArchonController::set_power(int state) {
     // must be connected
     if (!this->archon.isconnected()) {
-      logwrite(function, "ERROR connection not open to controller");
-      return ERROR;
+      throw std::runtime_error("connection not open to controller");
     }
 
     // set power according to state
     switch( state ) {
       case 0:   // send POWEROFF command to Archon and wait 200ms to ensure off
-                if ( (error=this->send_cmd(POWEROFF)) == NO_ERROR ) {
+                if ( this->send_cmd(POWEROFF) == NO_ERROR ) {
                   std::this_thread::sleep_for(std::chrono::milliseconds(200));
                 }
                 break;
       case 1:   // send POWERON command to Archon and wait 2s to ensure stable
-                if ( (error=this->send_cmd(POWERON)) == NO_ERROR ) {
+                if ( this->send_cmd(POWERON) == NO_ERROR ) {
                   std::this_thread::sleep_for(std::chrono::seconds(2));
                 }
                 break;
-      default:  logwrite(function, "ERROR expected 0|1");
-                return ERROR;
+      default:  throw std::runtime_error("invalid state: expected 0|1");
     }
 
     // get_power on return sets the class power_status variable
@@ -1137,76 +1745,62 @@ namespace Camera {
   /***** Camera::ArchonController::get_power **********************************/
   /**
    * @brief      get Archon power status
-   * @details    This version only sets the class variable power_status.
-   * @return     ERROR|NO_ERROR
-   *
-   */
-  long ArchonController::get_power() {
-    std::string dontcare;
-    return( this->get_power(dontcare) );
-  }
-  /***** Camera::ArchonController::get_power **********************************/
-  /**
-   * @brief      get Archon power status
-   * @details    This version returns the power_status.
    * @param[in]  power  reference to string to return the power_status
-   * @return     ERROR|NO_ERROR
+   * @return     string  Archon power status
+   * @throws     std::runtime_error
    *
    */
-  long ArchonController::get_power(std::string &power) {
-    const std::string function("Camera::ArchonController::get_power");
+  std::string ArchonController::get_power() {
 
     // Read the Archon power state directly from Archon,
     // which will be a string representation of an integer.
     std::string power_status_key;
     if (this->get_status_key("POWER", power_status_key) != NO_ERROR) {
-      logwrite(function, "ERROR getting status key: POWER");
-      return ERROR;
+      throw std::runtime_error("reading status key: POWER");
     }
 
     // convert that string into a real integer
     int status=-1;
     try { status = std::stoi( power_status_key ); }
     catch (const std::exception &e) {
-      logwrite(function, "ERROR parsing status key \""+power_status_key+"\": "+std::string(e.what()));
-      return ERROR;
+      throw std::runtime_error("parsing status key \""+power_status_key+"\": "+std::string(e.what()));
     }
+
+    // power_status has 5 different states. this is only true if state is POWER_ON
+    this->is_powered=false;
 
     // convert that integer into a human readable string
     // set the power status (or not) depending on the value extracted from the STATUS message
     switch( status ) {
       case -1:                                  // no POWER token found in status message
-        logwrite(function, "ERROR finding power in Archon status message" );
-        return ERROR;
+        throw std::runtime_error("no POWER token found in status message");
       case  0:                                  // usually an internal error
-        this->power_status = "UNKNOWN";
+        this->power_status = POWER_UNKNOWN;
         break;
       case  1:                                  // no configuration applied
-        this->power_status = "NOT_CONFIGURED";
+        this->power_status = POWER_NOT_CONFIGURED;
         break;
       case  2:                                  // power is off
-        this->power_status = "OFF";
+        this->power_status = POWER_OFF;
         break;
       case  3:                                  // some modules powered, some not
-        this->power_status = "INTERMEDIATE";
+        this->power_status = POWER_INTERMEDIATE;
         break;
       case  4:                                  // power is on
-        this->power_status = "ON";
+        this->power_status = POWER_ON;
+        this->is_powered=true;
         break;
       case  5:                                  // system is in standby
-        this->power_status = "STANDBY";
+        this->power_status = POWER_STANDBY;
         break;
       default:                                  // should be impossible
-        logwrite(function, "ERROR unknown power status: "+power_status_key);
-        return ERROR;
+        throw std::runtime_error("unknown power status: "+power_status_key);
     }
 
     // return variable is the class power status
-    power = this->power_status;
-
-    return NO_ERROR;
+    return this->power_status;
   }
-  /***** Camera::ArchonController::power **************************************/
+  /***** Camera::ArchonController::get_power **********************************/
 
 
   /***** Camera::ArchonController::allocate_framebuf **************************/
@@ -1235,12 +1829,299 @@ namespace Camera {
   /***** Camera::ArchonController::allocate_framebuf **************************/
 
 
-  long ArchonController::read_frame(frametype_t type) {
+  long ArchonController::read_frame(frametype_t type, char* &imagebufferptr) {
     const std::string function("Camera::ArchonController::read_frame");
-    logwrite(function, "reading frame from Archon");
-    for (int i=0; i<100; i++) framebuf[i]=i+1;
+    char message[256];
+    int retval;
+    int bufready;
+    char check[5], header[5];
+    int bytesread, totalbytesread, toread;
+    uint64_t bufaddr;
+    unsigned int block, bufblocks=0;
+    long error = ERROR;
+    int num_detect = this->modemap[this->selectedmode].geometry.num_detect;
+    auto index = this->frameinfo.index.load();
+
+    logwrite(function, "");
+
+    this->frametype = type;
+
+    // Archon buffer number of the last frame read into memory
+    //
+    bufready = index + 1;
+
+    if (bufready < 1 || bufready > this->activebufs) {
+      SNPRINTF(message, "invalid Archon buffer %d requested. Expected {1:%d}", bufready, this->activebufs);
+      logwrite(function, std::string(message));
+      return ERROR;
+    }
+
+    // Lock the frame buffer before reading it
+    //
+    if ( this->lock_buffer(bufready) == ERROR) { logwrite(function, "ERROR locking frame buffer"); return ERROR; }
+
+    // Send the FETCH command to read the memory buffer from the Archon backplane.
+    // Archon replies with one binary response per requested block. Each response
+    // has a message header.
+    //
+    switch (this->frametype) {
+      case Camera::ArchonController::FRAME_RAW:
+        // Archon buffer base address
+        bufaddr   = this->frameinfo.bufbase[index] + this->frameinfo.bufrawoffset[index];
+
+        // Calculate the number of blocks expected. image_memory is bytes per detector
+        bufblocks = (unsigned int) floor( (this->interface->camera_info.image_memory + BLOCK_LEN - 1 ) / BLOCK_LEN );
+        break;
+
+      case Camera::ArchonController::FRAME_IMAGE:
+        // Archon buffer base address
+        bufaddr   = this->frameinfo.bufbase[index];
+
+        // Calculate the number of blocks expected. image_memory is bytes per detector
+        bufblocks =
+        (unsigned int) floor( ((this->interface->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
+        break;
+
+      default:  // should be impossible
+        SNPRINTF(message, "unknown frame type specified: %d: expected FRAME_RAW | FRAME_IMAGE", this->frametype);
+        logwrite(function, std::string(message));
+        return(ERROR);
+        break;
+    }
+
+    // send the FETCH command.
+    // This will set the archon_busy flag, but not clear it (except on error).
+    //
+    error = this->fetch(bufaddr, bufblocks);
+
+    if ( error != NO_ERROR ) {
+      logwrite(function, "ERROR fetching Archon buffer");
+      return error;
+    }
+
+    // Read the data from the connected socket into memory, one block at a time
+    //
+    totalbytesread = 0;
+    for (block=0; block<bufblocks; block++) {
+
+      // Are there data to read?
+      if ( (retval=this->archon.Poll()) <= 0) {
+        if (retval==0) { SNPRINTF(message, "Poll timeout waiting for Archon frame data"); error = ERROR;   }  // TODO should error=TIMEOUT?
+        if (retval<0)  { SNPRINTF(message, "Poll error waiting for Archon frame data");   error = ERROR;   }
+        if ( error != NO_ERROR ) logwrite(function, std::string(message));
+        break;                         // breaks out of for loop
+      }
+
+      // Wait for a block+header Bytes to be available
+      // (but don't wait more than 1 second -- this should be tens of microseconds or less)
+      //
+      auto start = std::chrono::steady_clock::now();             // start a timer now
+
+      while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) {
+        auto now = std::chrono::steady_clock::now();             // check the time again
+        std::chrono::duration<double> diff = now-start;          // calculate the duration
+        if (diff.count() > 1) {                                  // break while loop if duration > 1 second
+          logwrite(function, "timeout waiting for data from Archon");
+          error = ERROR;
+          break;                       // breaks out of while loop
+        }
+      }
+      if ( error != NO_ERROR ) break;  // needed to also break out of for loop on error
+
+      // Check message header
+      //
+      SNPRINTF(check, "<%02X:", this->msgref);
+      if ( (retval=this->archon.Read(header, 4)) != 4 ) {
+        SNPRINTF(message, "code %d reading Archon frame header", retval);
+        logwrite(function, std::string(message));
+        error = ERROR;
+        break;                         // break out of for loop
+      }
+
+      if (header[0] == '?') {  // Archon retured an error
+        SNPRINTF(message, "Archon returned \'?\' reading %s data", (this->frametype==Camera::ArchonController::FRAME_RAW?"raw ":"image "));
+        logwrite(function, std::string(message));
+        this->fetchlog();      // check the Archon log for error messages
+        error = ERROR;
+        break;                         // break out of for loop
+      }
+      else if (strncmp(header, check, 4) != 0) {
+        SNPRINTF(message, "Archon command-reply mismatch reading %s data. header=%s check=%s",
+                          (this->frametype==Camera::ArchonController::FRAME_RAW?"raw ":"image "), header, check);
+        logwrite(function, std::string(message));
+        error = ERROR;
+        break;                         // break out of for loop
+      }
+
+      // Read the frame contents
+      //
+      bytesread = 0;
+      do {
+        toread = BLOCK_LEN - bytesread;
+        if ( (retval=this->archon.Read(imagebufferptr, (size_t)toread)) > 0 ) {
+          bytesread += retval;         // this will get zeroed after each block
+          totalbytesread += retval;    // this won't (used only for info purposes)
+          imagebufferptr += retval;    // advance pointer
+        }
+      } while (bytesread < BLOCK_LEN);
+
+    } // end of loop: for (block=0; block<bufblocks; block++)
+
+    // Archon has sent its data so clear the archon busy flag to
+    // allow other threads to access the Archon now.
+    //
+    this->archon_busy.clear();
+
+    // If we broke out of the for loop for an error then report incomplete read
+    //
+    if ( error==ERROR || block < bufblocks) {
+      SNPRINTF(message, "incomplete frame read %d bytes: %d of %d 1024-byte blocks",
+                        totalbytesread, block, bufblocks);
+      logwrite(function, std::string(message));
+      this->print_frame_status();
+    }
+
+    // Unlock the frame buffer
+    //
+    if (error == NO_ERROR) error = this->unlock_buffer();
+
+    return error;
+  }
+
+
+  /***** Camera::ArchonController::wait_for_readout ***************************/
+  /**
+   * @brief      creates a wait until the next completed frame buffer is ready
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonController::wait_for_readout() {
+    const std::string function("Camera::ArchonController::wait_for_readout");
+    char message[256];
+    long error = NO_ERROR;
+    bool done = false;
+
+    // fills frameinfo structure
+    get_frame_status();
+
+    // local copies
+    int index                  = this->frameinfo.index.load();
+    int latest_completed_frame = this->lastframe;
+    int newframe               = this->frameinfo.currentframe.load();
+
+    SNPRINTF(message, "waiting for new frame: lastframe=%d frameinfo.index=%d", this->lastframe, index);
+    logwrite(function, std::string(message));
+
+    // waittime is 10% over the specified readout time
+    // and will be used to keep track of timeout errors
+    //
+    double waittime_ms = this->readout_time_msec * 1.1;      // this is in msec
+
+    // if readout_time_msec was not defined or defined=0
+    // then do not use a timeout timer
+    //
+    bool timeout_timer_enabled = (waittime_ms <= 0) ? false : true;
+
+    uint64_t start_ns   = get_clock_time_nsec();             // returns nanoseconds
+    uint64_t timeout_ns = (uint64_t)(waittime_ms * 1e6);     // convert waittime msec to nsec
+    uint32_t pollcount  = 0;
+    uint32_t busycount  = 0;
+    int previous_frame  = this->lastframe;                   // initial frame number set once
+
+    // Poll frame status until current frame is not the last frame and the buffer is ready to read.
+    // The last frame was recorded before the readout was triggered in get_frame().
+    //
+    while ( !done && !this->interface->is_aborted() ) {
+
+      error = this->get_frame_status();
+
+      latest_completed_frame = this->lastframe;
+      newframe               = this->frameinfo.currentframe.load();
+
+      if (error == ERROR) {
+        done = true;
+        logwrite(function, "ERROR unable to get frame status");
+        break;
+      }
+      else
+      // If Archon is busy then ignore it, keep trying for up to ~ 3 second
+      // (300000 attempts, ~10us between attempts)
+      //
+      if (error == BUSY) {
+        if ( ++busycount > 30000 ) {
+          done = true;
+          logwrite(function, "ERROR received BUSY from Archon too many times trying to get frame status");
+          break;
+        }
+        else {
+          usleep(10); // reduces polling frequency
+          continue;
+        }
+      }
+      else busycount=0;
+
+//    SNPRINTF(message, "previous_frame=%d latest_completed_frame=%d newframe=%d bufcomplete[%d]=%s",
+//             previous_frame, latest_completed_frame, newframe, index, frameinfo.bufcomplete[index]?"T":"F");
+//    logwrite(function, std::string(message));
+
+      // latest completed frame number +1 above frame number coming in here,
+      // then a new frame has arrived.
+      //
+      int frame_arrived = latest_completed_frame - (previous_frame+1);
+      if (frame_arrived==0) {
+        done  = true;
+        error = NO_ERROR;
+        break;
+      }
+      else
+      // latest completed frame number more than +1 above frame number coming in here,
+      // then at least one frame has been skipped.
+      //
+      if ( frame_arrived > 0 ) {
+        SNPRINTF(message, "ERROR missed %d frame%s", frame_arrived, (frame_arrived>1?"s":""));
+        logwrite(function, std::string(message));
+        this->abort();
+        done = true;
+        error = ERROR;
+        break;
+      }
+
+      // If the frame isn't done by the predicted time then
+      // enough time has passed to trigger a timeout error.
+      //
+      if (timeout_timer_enabled &&
+          ++pollcount >= 1000   &&
+          (get_clock_time_nsec()-start_ns) > timeout_ns) {
+        pollcount=0;
+        done = true;
+        error = ERROR;
+        SNPRINTF(message, "timeout waiting for new frame exceeded %lf msec. lastframe=%d", waittime_ms, this->lastframe);
+        logwrite(function, std::string(message));
+        break;
+      }
+
+      usleep(10);  // reduces polling frequency
+    } // end while (done == false && not this->camera.is_aborted)
+
+    if ( error != NO_ERROR ) {
+      logwrite(function, "ERROR waiting for readout");
+      return error;
+    }
+
+    if ( this->interface->is_aborted() ) {
+      logwrite(function, "wait for readout stopped by external signal");
+      this->abort();
+    }
+#ifdef LOGLEVEL_DEBUG
+    else {
+      logwrite(function, "received currentframe: "+std::to_string(latest_completed_frame)+
+                         " at TS "+std::to_string(this->lasttimestamp));
+    }
+#endif
+
     return NO_ERROR;
   }
+  /***** Camera::ArchonController::wait_for_readout ***************************/
 
 
   /***** Camera::ArchonController::write_config_key ***************************/
@@ -1326,7 +2207,7 @@ namespace Camera {
    */
   long ArchonController::parse_system_configuration(const std::string &message) {
     const std::string function("Camera::ArchonController::get_system_configuration");
-    if ( !is_connected ) {
+    if ( this->archon.isconnected() ) {
       logwrite(function, "ERROR Archon connection not open");
       return ERROR;
     }
@@ -1371,7 +2252,7 @@ namespace Camera {
 
       // now store it permanently
       //
-      if ( (module > 0) && (module <= NMODS) ) {
+      if ( (module > 0) && (module <= MAXNMODS) ) {
         try {
           this->modtype.at(module-1)    = type;       // store the type in a vector indexed by module
           this->modversion.at(module-1) = version;    // store the type in a vector indexed by module
@@ -1379,13 +2260,13 @@ namespace Camera {
         }
         catch (const std::out_of_range &e) {
           std::stringstream err;
-          err << "ERROR module " << module << " out of range {1:" << NMODS << "}";
+          err << "ERROR module " << module << " out of range {1:" << MAXNMODS << "}";
           logwrite( function, err.str() );
         }
       }
       else {                                          // else should never happen
         std::stringstream err;
-        err << "ERROR module " << module << " outside range {1:" << NMODS << "}";
+        err << "ERROR module " << module << " outside range {1:" << MAXNMODS << "}";
         logwrite( function, err.str() );
         return ERROR;
       }
@@ -1457,6 +2338,7 @@ namespace Camera {
   }
   /***** Camera::ArchonExposureTime::split ************************************/
 
+
   /***** Camera::ArchonExposureTime::set **************************************/
   /**
    * @brief      set the exposure time
@@ -1474,6 +2356,7 @@ namespace Camera {
     catch (const std::exception &e) { throw; }
   }
   /***** Camera::ArchonExposureTime::set **************************************/
+
 
   /***** Camera::ArchonExposureTime::get_pair *********************************/
   /**

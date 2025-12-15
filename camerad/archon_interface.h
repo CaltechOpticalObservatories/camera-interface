@@ -12,55 +12,9 @@
 #include "archon_exposure_modes.h"
 #include "camera_information.h"
 
-constexpr int BLOCK_LEN   = 1024;              //!< Archon block size
-constexpr int REPLY_LEN   =  100 * BLOCK_LEN;  //!< Reply buffer size (over-estimate)
-
-// Archon commands
-//
-const std::string  SYSTEM        = "SYSTEM";
-const std::string  STATUS        = "STATUS";
-const std::string  FRAME         = "FRAME";
-const std::string  CLEARCONFIG   = "CLEARCONFIG";
-const std::string  POLLOFF       = "POLLOFF";
-const std::string  POLLON        = "POLLON";
-const std::string  APPLYALL      = "APPLYALL";
-const std::string  POWERON       = "POWERON";
-const std::string  POWEROFF      = "POWEROFF";
-const std::string  APPLYCDS      = "APPLYCDS";
-const std::string  APPLYSYSTEM   = "APPLYSYSTEM";
-const std::string  RESETTIMING   = "RESETTIMING";
-const std::string  LOADTIMING    = "LOADTIMING";
-const std::string  HOLDTIMING    = "HOLDTIMING";
-const std::string  RELEASETIMING = "RELEASETIMING";
-const std::string  LOADPARAMS    = "LOADPARAMS";
-const std::string  TIMER         = "TIMER";
-const std::string  FETCHLOG      = "FETCHLOG";
-const std::string  UNLOCK        = "LOCK0";
-
-// Minimum required backplane revisions for certain features
-//
-const std::string REV_RAMP           = "1.0.548";
-const std::string REV_SENSORCURRENT  = "1.0.758";
-const std::string REV_HEATERTARGET   = "1.0.1087";
-const std::string REV_FRACTIONALPID  = "1.0.1054";
-const std::string REV_VCPU           = "1.0.784";
-
 namespace Camera {
 
   class Controller;
-
-  /** @brief    holds one or more frames and metadata from the Archon
-   *  @details  A single ImageBuffer object can contain multiple frames,
-   *            or slices, as would be the case for a datacube.
-   */
-  struct ImageBuffer {
-    int ncoadd;
-    int n_slices;                              // number of slices in this image
-    std::vector<int> bufframen_slice;          // Archon frame number(s) for all slices in this image
-    std::vector<uint64_t> buftimestamp_slice;  // Archon timestamp(s) for all slices in this image
-    std::shared_ptr<char[]> rawpixels;         // Archon frame buffer(s)
-  };
-
 
   class ArchonInterface : public Interface {
     friend ArchonController;
@@ -83,14 +37,15 @@ namespace Camera {
       long exptime( const std::string args, std::string &retstring ) override;
       void set_exptime(double exptime) override;
       long expose( const std::string args, std::string &retstring ) override;
+      long exposure_mode( const std::string args, std::string &retstring ) override;
+      std::vector<std::string> get_exposure_modes() override;
+      long set_exposure_mode(const std::string &modein, const std::vector<std::string> &modeargs) override;
       long load_firmware( const std::string &args, std::string &retstring ) override;
       long native( const std::string args, std::string &retstring ) override;
       long power( const std::string args, std::string &retstring ) override;
       long test( const std::string args, std::string &retstring ) override;
 
-      long do_expose(int nexp) override;
-      void image_acquisition_thread() override;
-      void image_processing_thread() override;
+      long do_expose() override;
 
       // Archon controller command dispatcher
       //
@@ -104,15 +59,15 @@ namespace Camera {
       long disconnect_controller();
       long load_firmware(const std::string &acffile);
       long allocate_framebuf(uint32_t reqsz);
+      long get_parameter(const std::string &args, std::string &retstring);
       long load_timing(std::string cmd, std::string &reply);
       long read_acf(const std::string &filename);
-      long read_frame();
+      long set_parameter(const std::string &args, std::string &retstring);
       long set_camera_mode(std::string args, std::string &retstring);
-      long set_camera_mode(const std::string &mode);
+      long set_camera_mode(std::string modeselect);
 
       char* get_framebuf() { return controller->framebuf; }
 
-    private:
       /** @var     controller
        *  @brief   for hardware operations with the Archon controller
        *  @details typed pointer to Archon-specific controller
@@ -120,18 +75,19 @@ namespace Camera {
       ArchonController* controller;
 
       std::string_view QUIET = "quiet";  // allows sending commands without logging
-      const int NMODS = 12;              //!< number of modules per controller
-
-      /** @brief FIFO queue to contain images from Archon */
-      std::queue<std::shared_ptr<ImageBuffer>> imagebuf_queue;  ///< the queue itself
-      std::mutex queue_mutex;                                   ///< mutex protects access to the queue
-      std::condition_variable queue_cv;
 
       // These functions are specific to the Archon Interface and are not
       // found in the base class.
       //
+    private:
+      bool is_mode_defined(const std::string &modename) {
+        return (this->controller &&
+               (this->controller->modemap.find(modename) != this->controller->modemap.end())
+            );
+      }
       long connect_controller(const std::string& devices_in);
       long load_timing(const std::string &filename);
+      long set_image_geometry(ArchonController::modeinfo_t* mode);
 
   };
 

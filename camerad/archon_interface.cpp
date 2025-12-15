@@ -50,6 +50,14 @@ namespace Camera {
       return this->read_acf(args);
     }
     else
+    if ( cmd == "getp" ) {
+      return this->get_parameter(args, retstring);
+    }
+    else
+    if ( cmd == "setp" ) {
+      return this->set_parameter(args, retstring);
+    }
+    else
     if ( cmd == CAMERAD_MODE ) {
       return this->set_camera_mode(args, retstring);
     }
@@ -76,7 +84,7 @@ namespace Camera {
 
   /***** Camera::ArchonInterface::abort ***************************************/
   /**
-   * @brief
+   * @brief      abort an exposure
    * @param[in]  args
    * @param[out] retstring
    * @return     ERROR | NO_ERROR
@@ -84,8 +92,12 @@ namespace Camera {
    */
   long ArchonInterface::abort( const std::string args, std::string &retstring ) {
     const std::string function("Camera::ArchonInterface::abort");
-    logwrite(function, "not yet implemented");
-    return ERROR;
+
+    // set the class abort state
+    this->set_abortstate();
+
+    // set Archon abort parameter where applicable
+    return this->controller->abort();
   }
   /***** Camera::ArchonInterface::abort ***************************************/
 
@@ -366,9 +378,10 @@ namespace Camera {
 
   /***** Camera::ArchonInterface::expose **************************************/
   /**
-   * @brief      
-   * @param      
-   * @param      
+   * @brief      initiates an exposure sequence
+   * @details    
+   * @param[in]  args       optionally contains number of repeats
+   * @param[out] retstring  optional return string
    * @return     ERROR | NO_ERROR | HELP
    *
    */
@@ -379,9 +392,23 @@ namespace Camera {
     //
     if (args=="?" || args=="help") {
       retstring = CAMERAD_EXPOSE;
-      retstring.append( " <tbd>\n" );
-      retstring.append( "  TBD\n" );
+      retstring.append( " [ <nseq> ]\n" );
+      retstring.append( "  where <nseq> is an optional number of sequences (default=1).\n" );
+      retstring.append( "  Setting <nseq> is equivalent to sending \"expose\" <nseq> times.\n" );
       return HELP;
+    }
+
+    if (!this->controller->is_connected) {
+      logwrite(function, "ERROR not connected to controller");
+      return ERROR;
+    }
+    if (!this->controller->is_powered) {
+      logwrite(function, "ERROR power is not on");
+      return ERROR;
+    }
+    if (!this->is_exposuremode_set()) {
+      logwrite(function, "ERROR exposure mode not set!");
+      return ERROR;
     }
 
     int nseq=1;
@@ -399,12 +426,169 @@ namespace Camera {
     int nseq_remaining = nseq;
 
     while (nseq_remaining-- > 0) {
-      do_expose(camera_info.nexp);
+      do_expose();
     }
 
     return NO_ERROR;
   }
   /***** Camera::ArchonInterface::expose **************************************/
+
+
+  /***** Camera::ArchonInterface::exposure_mode *******************************/
+  /**
+   * @brief      interface function to set/get the exposure mode
+   * @param[in]  args       requested mode
+   * @param[out] retstring  contains current mode
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long ArchonInterface::exposure_mode( const std::string args, std::string &retstring ) {
+    const std::string function("Camera::ArchonInterface::exposure_mode");
+
+    // Help
+    if (args=="?" || args=="help") {
+      retstring = CAMERAD_EXPOSUREMODE;
+      retstring.append( " [ <mode> [ <args> ... ]\n" );
+      retstring.append( "  Set or get current exposure mode.\n" );
+      retstring.append( "  Valid modes are: {" );
+
+      auto modes = this->get_exposure_modes();
+      for (const auto &mode : modes) { retstring.append(" "); retstring.append(mode); }
+
+      retstring.append( " }\n" );
+      retstring.append( "  and are not case-sensitive.\n" );
+      retstring.append( "  Additional optional arguments are specific to the mode.\n" );
+      return HELP;
+    }
+
+    // not specified is request to return current exposure mode
+    if (args.empty()) {
+      if ( !this->is_exposuremode_set() ) {
+        logwrite(function, "ERROR exposure mode not set!");
+        retstring="undefined";
+        return ERROR;
+      }
+      retstring=this->exposuremode->get_type();
+      retstring.append(this->exposuremode->get_args_string());
+      return NO_ERROR;
+    }
+
+    // otherwise something was specified so try to set exposure mode.
+    // The first arg is the mode.
+    // If additional (optional) args present then they are mode-specified
+    // and will be passed to the constructor of the ExposureMode object.
+    //
+    std::vector<std::string> tokens;
+    Tokenize(args, tokens, " ");
+    auto mode = tokens[0];
+    tokens.erase(tokens.begin());
+
+    long error=set_exposure_mode(mode, tokens);
+
+    // always return current mode
+    if ( !this->is_exposuremode_set() ) {
+      logwrite(function, "ERROR exposure mode not set!");
+      retstring="undefined";
+      return ERROR;
+    }
+
+    // ExposureMode objects know their own type, you just have to ask politely.
+    retstring=this->exposuremode->get_type();
+
+    // append any optional mode-specific arguments, which you can get as a string
+    retstring.append(this->exposuremode->get_args_string());
+
+    logwrite(function, retstring);
+
+    return error;
+  }
+  /***** Camera::ArchonInterface::exposure_mode *******************************/
+
+
+  /***** Camera::ArchonInterface::get_exposure_modes **************************/
+  /**
+   * @brief      return a vector of strings of recognized exposure modes
+   * @return     vector<string>
+   *
+   */
+  std::vector<std::string> ArchonInterface::get_exposure_modes() {
+    std::vector<std::string> modes;
+    for (const auto &mode : Camera::ArchonExposureMode::ALLMODES) { modes.push_back(mode); }
+    return modes;
+  }
+  /***** Camera::ArchonInterface::get_exposure_modes **************************/
+
+
+  /***** Camera::ArchonInterface::set_exposure_mode ***************************/
+  /**
+   * @brief      sets the exposure mode by creating an ExposureMode object
+   * @details    This creates the appropriate exposure mode object for the
+   *             requested exposure mode, providing access to that mode's functions.
+   *             Once an ExposureMode object is created, it can be queried for
+   *             its type.
+   * @param[in]  modein  string representing the exposure mode
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonInterface::set_exposure_mode(const std::string &modein, const std::vector<std::string> &modeargs) {
+
+    if (caseCompareString(modein, ArchonExposureMode::RAW)) {
+      this->exposuremode = std::make_shared<ExposureModeRaw>(this);
+    }
+    else
+    if (caseCompareString(modein, ArchonExposureMode::SINGLE)) {
+      this->exposuremode = std::make_shared<ExposureModeSingle>(this);
+    }
+    else
+    if (caseCompareString(modein, ArchonExposureMode::RXRV)) {
+      this->exposuremode = std::make_shared<ExposureModeRXRV>(this);
+    }
+    else {
+      logwrite("Camera::ArchonInterface::set_exposure_mode",
+               "ERROR unrecognized exposure mode \""+modein+"\"");
+      return ERROR;
+    }
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonInterface::set_exposure_mode ***************************/
+
+
+  /***** Camera::ArchonInterface::get_parameter *******************************/
+  /**
+   * @brief      get an Archon parameter value from Configuration
+   * @param[in]  args       expected string "<parametername>"
+   * @param[out] retstring  contains help on request, otherwise not used
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonInterface::get_parameter(const std::string &args, std::string &retstring) {
+    const std::string function("Camera::ArchonInterface::get_parameter");
+
+    // Help
+    if (args=="?" || args=="help") {
+      retstring = "getp";
+      retstring.append( " <name>\n" );
+      retstring.append( "  Reads Archon parameter <name> from configuration memory.\n" );
+      return HELP;
+    }
+
+    // args should contain only a single word, the parameter name
+    if (args.find_first_of(" \t\n\r") != std::string::npos) {
+      logwrite(function, "ERROR expected <name>");
+      return ERROR;
+    }
+
+    // get the parameter value from the controller
+    try {
+      retstring = this->controller->get_parameter<std::string>(args);
+      return NO_ERROR;
+    }
+    catch (const std::exception &e) {
+      logwrite(function, std::string(e.what()));
+      return ERROR;
+    }
+  }
+  /***** Camera::ArchonInterface::get_parameter *******************************/
 
 
   /***** Camera::ArchonInterface::read_acf ************************************/
@@ -454,6 +638,9 @@ namespace Camera {
    *
    */
   long ArchonInterface::load_firmware(const std::string &acffile) {
+    const std::string function("Camera::ArchonInterface::load_firmware");
+    logwrite(function, acffile);
+
     // load the ACF file and write to Archon configuration memory
     //
     long error = this->controller->load_acf(acffile);
@@ -564,16 +751,130 @@ namespace Camera {
   /**
    * @brief      set a camera "mode"
    * @details    This version is for internal use.
-   * @param[in]  mode       requested mode name (must be capitalized)
+   * @param[in]  modeselect  requested mode name
    * @return     ERROR|NO_ERROR
    *
    */
-  long ArchonInterface::set_camera_mode(const std::string &mode) {
+  long ArchonInterface::set_camera_mode(std::string modeselect) {
     const std::string function("Camera::ArchonInterface::set_camera_mode");
-    logwrite(function, "not yet implemented");
-    return ERROR;
+    logwrite(function, modeselect);
+
+    // cannot changes while exposure in progress
+
+    // firmware must be loaded first
+    if ( !this->controller->is_firmwareloaded ) {
+      logwrite(function, "ERROR no firmware loaded");
+      return ERROR;
+    }
+
+    // requested mode must have been defined in the ACF
+    if ( !is_mode_defined(to_uppercase(modeselect)) ) {
+      logwrite(function, "ERROR undefined mode "+modeselect+" in ACF "+this->controller->firmware);
+      return ERROR;
+    }
+
+    auto mode = &this->controller->modemap[modeselect];
+
+    // clear selected mode, set only on success
+    this->controller->selectedmode.clear();
+
+    // load mode settings from .acf and apply to Archon
+    if ( this->controller->load_mode_settings(mode) != NO_ERROR ) {
+      return ERROR;
+    }
+
+    if ( this->set_image_geometry(mode) != NO_ERROR ) {
+      return ERROR;
+    }
+
+    // if we made it all the way to the end then this is the selected mode
+    this->controller->selectedmode = modeselect;
+
+    return NO_ERROR;
   }
   /***** Camera::ArchonInterface::set_camera_mode *****************************/
+
+
+  /***** Camera::ArchonInterface::set_image_geometry **************************/
+  /**
+   * @brief      sets image geometry parameters after selecting a mode
+   * @details    This is for internal use.
+   * @param[in]  mode  pointer to modeinfo_t struct from modemap
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonInterface::set_image_geometry(ArchonController::modeinfo_t* mode) {
+    const std::string function("Camera::ArchonInterface::set_image_geometry");
+    auto info = &this->camera_info;
+
+    info->detector_pixels[0] = mode->geometry.pixelcount * mode->geometry.amps[0];
+    info->detector_pixels[1] = mode->geometry.linecount * mode->geometry.amps[1];
+
+    info->region_of_interest[0] = 1;
+    info->region_of_interest[1] = info->detector_pixels[0];
+    info->region_of_interest[2] = 1;
+    info->region_of_interest[3] = info->detector_pixels[1];
+
+    info->binning[0] = 1;
+    info->binning[1] = 1;
+
+    uint8_t bits_per_pixel = (mode->samplemode==1) ? 32 : 16;
+
+    info->set_axes(bits_per_pixel);
+
+    info->image_data_bytes =
+      (uint32_t)floor( ((this->camera_info.image_memory * mode->geometry.num_detect) + BLOCK_LEN - 1)/BLOCK_LEN ) * BLOCK_LEN;
+
+    if (info->image_data_bytes==0) {
+      logwrite(function, "ERROR image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS");
+      return ERROR;
+    }
+
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonInterface::set_image_geometry **************************/
+
+
+  /***** Camera::ArchonInterface::set_parameter *******************************/
+  /**
+   * @brief      write Archon parameter to configuration memory
+   * @param[in]  args       expected string "<parametername> <value>"
+   * @param[out] retstring  contains help on request, otherwise not used
+   * @return     ERROR|NO_ERROR
+   *
+   */
+  long ArchonInterface::set_parameter(const std::string &args, std::string &retstring) {
+    const std::string function("Camera::ArchonInterface::set_parameter");
+
+    // Help
+    if (args=="?" || args=="help") {
+      retstring = "setp";
+      retstring.append( " <name> <value>\n" );
+      retstring.append( "  Sets Archon parameter <name> to <value>.\n" );
+      retstring.append( "  <value> must be in range {0:1048575}.\n" );
+      return HELP;
+    }
+
+    // tokenize args, expect two: <name> <value>
+    std::vector<std::string> tokens;
+    Tokenize(args, tokens, " ");
+
+    if (tokens.size() != 2) {
+      logwrite(function, "ERROR expected <name> <value>");
+      return ERROR;
+    }
+
+    // set the parameter value on the controller
+    try {
+      int value = std::stoi(tokens[1]);
+      return( this->controller->set_parameter(tokens[0], value) );
+    }
+    catch (const std::exception &e) {
+      logwrite(function, std::string(e.what()));
+      return ERROR;
+    }
+  }
+  /***** Camera::ArchonInterface::set_parameter *******************************/
 
 
   /***** Camera::ArchonInterface::native **************************************/
@@ -630,29 +931,39 @@ namespace Camera {
       return HELP;
     }
 
-    // parse the requested state
-    if ( !args.empty() ) {
-      int state=0;
-      if ( caseCompareString(args, "on") )  state=1;
-      else
-      if ( caseCompareString(args, "off") ) state=0;
-      else {
-        logwrite(function, "ERROR expected {ON|OFF}");
-        return ERROR;
+    // no arg returns state
+    if (args.empty()) {
+      try {
+        retstring = this->controller->get_power();
+        return NO_ERROR;
       }
-      // set the requested Archon power state
-      if (this->controller->set_power(state) != NO_ERROR) {
-        logwrite( function, "ERROR setting Archon power "+args);
+      catch (const std::exception &e) {
+        logwrite(function, "ERROR: "+std::string(e.what()));
         return ERROR;
       }
     }
 
-    // read the power status from the controller
-    long error = this->controller->get_power(retstring);
+    // parse the requested state
+    int state=0;
+    if ( caseCompareString(args, "on") )  { state=1; }
+    else
+    if ( caseCompareString(args, "off") ) { state=0; }
+    else {
+      logwrite(function, "ERROR expected {ON|OFF}");
+      return ERROR;
+    }
+    // set the requested Archon power state returns the current state
+    try {
+      retstring = this->controller->set_power(state);
+    }
+    catch (const std::exception &e) {
+      logwrite(function, "ERROR: "+std::string(e.what()));
+      return ERROR;
+    }
 
     logwrite(function, retstring);
 
-    return error;
+    return NO_ERROR;
   }
   /***** Camera::ArchonInterface::power ***************************************/
 
@@ -668,22 +979,98 @@ namespace Camera {
   long ArchonInterface::test( const std::string args, std::string &retstring ) {
     const std::string function("Camera::ArchonInterface::test");
 
-    // initialize the exposure mode to ExposureModeCCD and call that expose
-    //
-    logwrite(function, "----- calling exposure_mode->expose() for exposure mode CCD -----");
-    exposure_mode = std::make_unique<ExposureModeCCD>(this);
-    if (exposure_mode) exposure_mode->expose();
+    std::vector<std::string> tokens;
 
-    // initialize the exposure mode to ExposureModeRXRV and call that expose
-    //
-    logwrite(function, "----- calling exposure_mode->expose() for exposure mode RXRV -----");
-    exposure_mode = std::make_unique<ExposureModeRXRV>(this);
-    if (exposure_mode) exposure_mode->expose();
+    Tokenize(args, tokens, " ");
 
-    if (!exposure_mode) {
+    if (tokens.size() < 1) {
+      logwrite(function, "ERROR no test name provided");
+      return ERROR;
+    }
+
+    std::string testname(tokens[0]);
+
+    if (testname=="?" || testname=="help") {
+      retstring = "test";
+      retstring.append( " <testname> [ <args> ]\n" );
+      retstring.append( "  framestatus   prints Archon frame status to log\n" );
+      retstring.append( "  showinfo      prints camera info and friends\n" );
+      return HELP;
+    }
+    else
+    if (testname=="framestatus") {
+      this->controller->print_frame_status();
+    }
+    else
+    if (testname=="showinfo") {
+      if (!this->controller->is_connected) {
+        logwrite(function, "ERROR not connected to controller");
+        return ERROR;
+      }
+      if (!this->controller->is_firmwareloaded) {
+        logwrite(function, "ERROR no firmware loaded");
+        return ERROR;
+      }
+      retstring = "\n";
+      std::ostringstream oss;
+      oss << "is_powered = " << (this->controller->is_powered ? "true" : "false") << "\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "detector_pixels = " << this->camera_info.detector_pixels[0] << " " << this->camera_info.detector_pixels[1] << "\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "region_of_interest =";
+      for (int i=0; i<4; i++) oss << " " << this->camera_info.region_of_interest[i];
+      oss << "\n"; retstring.append(oss.str()); oss.str("");
+      oss << "binning = " << this->camera_info.binning[0] << " " << this->camera_info.binning[1] << "\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "naxes = " << this->camera_info.naxes[0] << " " << this->camera_info.naxes[1] << "\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "cubedepth = " << this->camera_info.cubedepth << "\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "image_memory = " << this->camera_info.image_memory << " bytes\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "image_data_bytes = " << this->camera_info.image_data_bytes << " bytes\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "section_size = " << this->camera_info.section_size << " pix\n";
+      retstring.append(oss.str()); oss.str("");
+      auto modename = this->controller->selectedmode;
+      auto mode = &this->controller->modemap[modename];
+      oss << "selected camera mode = " << modename << "\n";
+      retstring.append(oss.str()); oss.str("");
+      if (!modename.empty()) {
+        oss << "num_detect = " << mode->geometry.num_detect << "\n";
+        retstring.append(oss.str()); oss.str("");
+        oss << "hori_amps = " << mode->geometry.amps[0] << "\n";
+        retstring.append(oss.str()); oss.str("");
+        oss << "vert_amps = " << mode->geometry.amps[1] << "\n";
+        retstring.append(oss.str()); oss.str("");
+      }
+      oss << "exposure mode = " << (this->exposuremode ? this->exposuremode->get_type() : "not set") << "\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "PIXELCOUNT = " << mode->geometry.pixelcount << "\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "LINECOUNT = " << mode->geometry.linecount << "\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "SAMPLEMODE = " << mode->samplemode << " (" << (mode->samplemode==0 ? 16 : 32) << " bpp)\n";
+      retstring.append(oss.str()); oss.str("");
+      oss << "BIGBUF = " << mode->bigbuf << "\n";
+      retstring.append(oss.str()); oss.str("");
+    }
+    else {
+      logwrite(function, "ERROR unknown test name \""+testname+"\"");
+      return ERROR;
+    }
+
+    return NO_ERROR;
+
+    if (!this->exposuremode) {
       logwrite(function, "ERROR exposure mode undefined!");
       return ERROR;
     }
+
+    logwrite(function, "calling exposuremode->expose() for mode"+this->exposuremode->get_type());
+
+    this->exposuremode->test();
+    this->exposuremode->expose();
 
     return NO_ERROR;
   }
@@ -704,68 +1091,47 @@ namespace Camera {
   /***** Camera::ArchonInterface::allocate_framebuf ***************************/
 
 
-  /***** Camera::ArchonInterface::read_frame **********************************/
-  /**
-   *
-   */
-  long ArchonInterface::read_frame() {
-    controller->read_frame(Camera::ArchonController::FRAME_IMAGE);
-    return NO_ERROR;
-  }
-  /***** Camera::ArchonInterface::read_frame **********************************/
-
-
   /***** Camera::ArchonInterface::do_expose ***********************************/
   /**
    *
    */
-  long ArchonInterface::do_expose(int nexp) {
+  long ArchonInterface::do_expose() {
     const std::string function("Camera::ArchonInterface::do_expose");
-    long error=NO_ERROR;
 
-    logwrite(function, "here");
+    logwrite(function, "");
+
+    this->exposuremode->is_producer_finished=false;  // tells consumer no more images coming
+    this->exposuremode->is_producer_error=false;     // tells this thread is producer had an error
+    this->exposuremode->is_consumer_error=false;     // tells this thread is consumer had an error
 
     // spawn two threads, a producer and a consumer
     //
     // The producer triggers the exposure and collect images into a FIFO queue.
     // The consumer pops images out of the queue for processing.
+    // This spawns the threads identified by the current exposure mode.
     //
-    std::thread producer(&ArchonInterface::image_acquisition_thread, this);
-    std::thread consumer(&ArchonInterface::image_processing_thread, this);
+    std::thread producer(&ExposureMode::image_acquisition_thread, this->exposuremode.get());
+    std::thread consumer(&ExposureMode::image_processing_thread, this->exposuremode.get());
 
-    producer.join();
+    long error=NO_ERROR;
+
+    producer.join();  // block here waiting for producer to finish
     {
-      std::lock_guard<std::mutex> lock(queue_mutex);
-      is_producer_finished=true;
-      error |= (is_producer_error ? ERROR : NO_ERROR);
+    std::lock_guard<std::mutex> lock(this->exposuremode->queue_mutex);
+    this->exposuremode->is_producer_finished=true;
+    error |= (this->exposuremode->is_producer_error ? ERROR : NO_ERROR);  // propagates producer error
     }
 
-    consumer.join();
+    this->exposuremode->queue_cv.notify_all();
 
-    return NO_ERROR;
+    consumer.join();  // block here waiting for consumer to finish
+
+    error |= (this->exposuremode->is_consumer_error ? ERROR : NO_ERROR);  // propagates consumer error
+
+    logwrite(function, "complete");
+
+    return error;
   }
   /***** Camera::ArchonInterface::do_expose ***********************************/
-
-
-  /***** Camera::ArchonInterface::image_acquisition_thread ********************/
-  /**
-   *
-   */
-  void ArchonInterface::image_acquisition_thread() {
-    const std::string function("Camera::ArchonInterface::image_acquisition_thread");
-    logwrite(function, "here");
-  }
-  /***** Camera::ArchonInterface::image_acquisition_thread ********************/
-
-
-  /***** Camera::ArchonInterface::image_processing_thread *********************/
-  /**
-   *
-   */
-  void ArchonInterface::image_processing_thread() {
-    const std::string function("Camera::ArchonInterface::image_processing_thread");
-    logwrite(function, "here");
-  }
-  /***** Camera::ArchonInterface::image_processing_thread *********************/
 
 }

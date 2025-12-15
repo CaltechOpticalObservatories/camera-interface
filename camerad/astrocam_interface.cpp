@@ -338,13 +338,13 @@ namespace Camera {
   long AstroCamInterface::test( const std::string args, std::string &retstring ) {
     const std::string function("Camera::AstroCamInterface::test");
 
-    // initialize the exposure mode to Expose_CCD and call that expose
+    // initialize the exposure mode to Expose_Single and call that expose
     //
-    logwrite(function, "calling exposure_mode->expose() for Expose_CCD");
-    this->exposure_mode = std::make_unique<Expose_CCD>(this);
-    if (this->exposure_mode) this->exposure_mode->expose();
+    logwrite(function, "calling exposuremode->expose() for Expose_Single");
+    this->exposuremode = std::make_shared<Expose_Single>(this);
+    if (this->exposuremode) this->exposuremode->expose();
 
-    if (!this->exposure_mode) {
+    if (!this->exposuremode) {
       logwrite(function, "ERROR exposure mode undefined!");
       return ERROR;
     }

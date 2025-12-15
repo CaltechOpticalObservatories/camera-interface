@@ -17,24 +17,49 @@ namespace Camera {
 
   class Interface;  // forward declaration for ExposureMode class
 
-  /***** Camera::ExposureModeBase *********************************************/
+  /***** Camera::ExposureMode *************************************************/
   /**
    * @brief      non-templated base class for polymorphic exposure mode access
    * @details    Provides a common interface for exposure mode implementations,
    *             used to hold ExposureMode instances via polymorphic pointers.
    *
    */
-  class ExposureModeBase {
+  class ExposureMode {
+    protected:
+      std::string type;               ///< what type of exposure mode is this?
+      std::vector<std::string> args;  ///< optional mode-specific args
+
     public:
-      virtual ~ExposureModeBase() = default;
+      std::mutex queue_mutex;            ///< mutex protects access to the queue
+      std::condition_variable queue_cv;  ///< notify when the queue has new data
+
+      std::atomic<bool> is_producer_finished;
+      std::atomic<bool> is_producer_error;
+      std::atomic<bool> is_consumer_error;
+
+      std::string get_type() { return this->type; }
+      std::vector<std::string> get_args() { return this->args; }
+
+      /** brief  return the args as a space-delimited string */
+      std::string get_args_string() {
+        std::ostringstream oss;
+        for (const auto &arg : this->args) { if (!arg.empty()) { oss << " " << arg; } }
+        return oss.str();
+      }
+
+      virtual ~ExposureMode() = default;
       virtual long expose() = 0;
+      virtual void image_acquisition_thread() { };
+      virtual void image_processing_thread() { };
+
+      virtual void test() { logwrite("Camera::ExposureMode","not implemented"); }
   };
-  /***** Camera::ExposureModeBase *********************************************/
-
-
   /***** Camera::ExposureMode *************************************************/
+
+
+  /***** Camera::ExposureModeTemplate *****************************************/
   /**
-   * @class      Camera::ExposureMode
+   * @class      Camera::ExposureModeTemplate
    * @brief      templated abstract base class for exposure mode implementations
    * @details    Defines Interface and common member functions for all exposure
    *             modes. Each mode inherits from this class and implements the
@@ -44,7 +69,7 @@ namespace Camera {
    *
    */
   template <typename InterfaceType>
-  class ExposureMode : public ExposureModeBase {
+  class ExposureModeTemplate : public ExposureMode {
     protected:
       InterfaceType* interface;   //!< pointer to the specific Camera Interface instance
 
@@ -65,13 +90,10 @@ namespace Camera {
        * @brief      class constructor
        * @param[in]  _interface  Pointer to Camera InterfaceType
        */
-      ExposureMode(InterfaceType* _interface) : interface(_interface) { }
+      ExposureModeTemplate(InterfaceType* _interface) : interface(_interface) { }
 
-      virtual ~ExposureMode() = default;
-
-      virtual long expose() = 0;
-
+      virtual ~ExposureModeTemplate() = default;
   };
-  /***** Camera::ExposureMode *************************************************/
+  /***** Camera::ExposureModeTemplate *****************************************/
 
 }

@@ -9,17 +9,171 @@
 
 namespace Camera {
 
-  /***** Camera::ExposureModeCCD *********************************************/
+  /***** Camera::ExposureModeSingle *******************************************/
   /**
-   * @brief  implementation of Archon-specific expose for CCD
+   * @brief  implementation of Archon-specific expose for Single
    *
    */
-  long ExposureModeCCD::expose() {
-    const std::string function("Camera::ExposureModeCCD::expose");
+  long ExposureModeSingle::expose() {
+    const std::string function("Camera::ExposureModeSingle::expose");
     logwrite(function, "hi");
     return NO_ERROR;
   }
-  /***** Camera::ExposureModeCCD *********************************************/
+  /***** Camera::ExposureModeSingle ******************************************/
+
+
+  /***** Camera::ExposureModeSingle::image_acquisition_thread *****************/
+  /**
+   * @brief      producer thread for ExposureMode Single
+   * @details    Spawned by Camera::ArchonInterface::do_expose()
+   *
+   */
+  void ExposureModeSingle::image_acquisition_thread() {
+    const std::string function("Camera::ExposureModeSingle::image_acquisition_thread");
+    char message[256];
+
+    logwrite(function, "");
+
+    auto camera_info = &this->interface->camera_info;
+
+    // record system time when exposure starts (YYYY-MM-DDTHH:MM:SS.sss)
+    camera_info->start_time = get_timestamp();
+
+/*****
+ *  // sets camera.fitstime (YYYYMMDDHHMMSS) used for filename
+ *  this->interface->set_fitstime(camera_info->start_time);
+ *
+ *  // assemble the FITS filename
+ *  get_fitsname(camera_info->fits_name);
+ *
+ *  // add filename to system keys database
+ *  this->add_filename_key();
+*****/
+
+/** why are there two of these? Can I get by with only this->interface->camera_info?
+ *  // copy systemkeys databases into camera_info
+ *  this->interface->camera_info.systemkeys.keydb = this->interface->systemkeys.keydb;
+ **/
+
+    this->interface->controller->get_frame_status();
+
+    // initiate the exposure here
+    //
+    int nexp=1;
+    if ( this->interface->controller->initiate_exposure(nexp) != NO_ERROR ) {
+      logwrite(function, "could not initiate exposure");
+      return;
+    }
+    logwrite(function, "exposure started");
+
+    long error=NO_ERROR;
+
+    uint64_t bufferbytes = (uint64_t)camera_info->image_data_bytes * camera_info->cubedepth;
+
+    while (error==NO_ERROR && !this->interface->is_aborted() && nexp > 0) {
+      // prepare an ImageBuffer object for the exposure
+      auto imagebuffer = std::make_shared<ArchonImageBuffer>();
+
+      try { imagebuffer->rawpixels = std::shared_ptr<char[]>(new char[bufferbytes]);
+      }
+      catch (const std::exception &e) {
+        SNPRINTF(message, "memory allocation failed: %s", e.what());
+        logwrite(function, "ERROR "+std::string(message));
+        error=ERROR;
+        break;
+      }
+
+      // wait for frame readout into Archon buffer
+      if ( (error=this->interface->controller->wait_for_readout()) == ERROR ) break;
+
+      // read frame from Archon into memory pointed to by p_imagebuffer
+      char* p_imagebuffer = imagebuffer->rawpixels.get();
+      this->interface->controller->read_frame(ArchonController::FRAME_IMAGE, p_imagebuffer);
+
+      // frame metadata
+      auto index = this->interface->controller->frameinfo.index.load();
+      imagebuffer->bufframen_slice.push_back( this->interface->controller->frameinfo.bufframen[index] );
+      imagebuffer->buftimestamp_slice.push_back( this->interface->controller->frameinfo.buftimestamp[index] );
+
+      // push frame into queue
+      {
+      std::lock_guard<std::mutex> lock(this->queue_mutex);
+      this->imagebuf_queue.push(imagebuffer);
+      this->queue_cv.notify_one();
+      }
+      nexp--;
+    }  // end loop over number of frames
+
+    logwrite(function, "complete");
+  }
+  /***** Camera::ExposureModeSingle::image_acquisition_thread *****************/
+
+
+  /***** Camera::ExposureModeSingle::image_processing_thread ******************/
+  /**
+   * @brief  implementation of Archon-specific expose for Single
+   *
+   */
+  void ExposureModeSingle::image_processing_thread() {
+    const std::string function("Camera::ExposureModeSingle::image_processing_thread");
+    logwrite(function, "enter");
+
+//  open FITS file ?
+
+    // pop an image out of the queue,
+    // wait until producer stops producing data, or aborted
+    //
+    while (!this->interface->is_aborted()) {
+      {
+      std::unique_lock<std::mutex> lock(this->queue_mutex);
+      // keep trying to get the queue lock until success or aborted
+      this->queue_cv.wait(lock, [this] {
+          return !this->imagebuf_queue.empty() || this->is_producer_finished || this->interface->is_aborted();
+          });
+      if (this->interface->is_aborted()) break;
+      if (this->imagebuf_queue.empty()) {
+        if (this->is_producer_finished) {
+          logwrite(function, "queue empty and producer finished");
+          break;
+        }
+        else {
+          logwrite(function, "queue empty, producer not finished");
+          continue;
+        }
+      }
+      this->imagebuf_queue.pop();
+      }
+//    process_image
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+//  close FITS file ?
+    logwrite(function, "exit");
+  }
+  /***** Camera::ExposureModeSingle::image_processing_thread ******************/
+
+
+  /***** Camera::ExposureModeSingle::process *********************************/
+  /**
+   * @brief      image process a Single image
+   * @param[in]  imagebuffer  reference to Archon Image Buffer object
+   *
+   */
+  void ExposureModeSingle::process_image(std::shared_ptr<ArchonImageBuffer> &imagebuffer) {
+  }
+  /***** Camera::ExposureModeSingle::process *********************************/
+
+
+  /***** Camera::ExposureModeRaw::expose *************************************/
+  /**
+   * @brief  implementation of Archon-specific expose for Raw
+   *
+   */
+  long ExposureModeRaw::expose() {
+    logwrite("Camera::ExposureModeRaw::expose","");
+    return 0;
+  }
+  /***** Camera::ExposureModeRaw::expose *************************************/
 
 
   /***** Camera::ExposureModeRXRV ********************************************/
@@ -51,7 +205,8 @@ namespace Camera {
     }
 
     // read first frame pair into my frame buffer
-    interface->read_frame();
+    char* buffer=new char[1024]{};  // TODO temporary, for compilation only
+    this->interface->controller->read_frame(ArchonController::FRAME_IMAGE, buffer);
 
     // process (deinterlace) first frame pair
     processor->deinterlacer()->deinterlace(interface->get_framebuf(), sigbuf[0].data(), resbuf[0].data());
@@ -73,6 +228,8 @@ namespace Camera {
 
     // loop:
     // subsequent frame pairs, read, deinterlace, write
+
+    delete [] buffer;
 
     return NO_ERROR;
   }

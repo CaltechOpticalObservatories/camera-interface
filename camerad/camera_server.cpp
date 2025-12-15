@@ -244,6 +244,10 @@ namespace Camera {
         ret = interface->expose(args, retstring);
       }
       else
+      if ( cmd == CAMERAD_EXPOSUREMODE ) {
+        ret = interface->exposure_mode(args, retstring);
+      }
+      else
       if ( cmd == CAMERAD_LOAD ) {
         ret = interface->load_firmware(args, retstring);
       }
@@ -267,7 +271,11 @@ namespace Camera {
        * instrument-specific commands
        */
       else
-      if ( cmd == "hispec_expose" ) {
+      if ( cmd == "hispec_this" ) {
+        ret = interface->instrument_cmd(cmd, args, retstring);
+      }
+      else
+      if ( cmd == "hispec_that" ) {
         ret = interface->instrument_cmd(cmd, args, retstring);
       }
       /**
@@ -279,6 +287,14 @@ namespace Camera {
       }
       else
       if ( cmd == CAMERAD_READACF ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
+      else
+      if ( cmd == "getp" ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
+      else
+      if ( cmd == "setp" ) {
         ret = interface->controller_cmd(cmd, args, retstring);
       }
       else
@@ -304,7 +320,7 @@ namespace Camera {
       // Don't append anything nor log the reply if the command was just requesting help.
       //
       if (ret != NOTHING) {
-        if ( ! retstring.empty() ) retstring.append( " " );
+        if ( ret != HELP && !retstring.empty() ) retstring.append( " " );
         if ( ret != HELP && ret != JSON ) retstring.append( ret == NO_ERROR ? "DONE" : "ERROR" );
 
         if ( ret == JSON ) {
