@@ -83,7 +83,7 @@ namespace Camera {
    * @return     ERROR|NO_ERROR
    *
    */
-  long Hispec::set_exposure_mode(const std::string &modein) {
+  long Hispec::set_exposure_mode(const std::string &modein, const std::vector<std::string> &modeargs) {
 
     if (modein==HispecExposureMode::FASTREADOUT) {
       this->exposuremode = std::make_unique<ExposureModeFastReadout>(this);
@@ -93,7 +93,7 @@ namespace Camera {
       this->exposuremode = std::make_unique<ExposureModeSlowReadout>(this);
     }
     else {
-      return this->ArchonInterface::set_exposure_mode(modein);
+      return this->ArchonInterface::set_exposure_mode(modein, modeargs);
     }
 
     return NO_ERROR;

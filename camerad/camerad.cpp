@@ -34,8 +34,15 @@ int main( int argc, char** argv ) {
 
   // read the config file and configure the various components
   //
+  auto filename = getOptionArg(argc, argv, "--config");
+
+  if (filename.empty()) {
+    logwrite(function, "ERROR --config <filename> is required");
+    exit(1);
+  }
+  camerad.interface->configfile.filename = filename;
+
   try {
-    camerad.interface->configfile.filename = getOptionArg(argc, argv, "--config");
     camerad.interface->configfile.read_config();
     camerad.configure_server();
     camerad.interface->configure_controller();

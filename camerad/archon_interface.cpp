@@ -1,6 +1,7 @@
 /**
  * @file    archon_interface.cpp
  * @brief   implementation of Archon Interface
+ * @details These functions are available to the user.
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
@@ -32,7 +33,8 @@ namespace Camera {
    * @brief      dispatcher for Archon-specific commands
    * @details    This allows dispatching Archon controller specific commands by
    *             receiving the commands and args and calling the appropriate
-   *             controller-specific function.
+   *             controller-specific function. This should be calling
+   *             ArchonInterface functions.
    * @param[in]  cmd        command
    * @param[in]  args       argument list
    * @param[out] retstring  return string
@@ -52,6 +54,10 @@ namespace Camera {
     else
     if ( cmd == "getp" ) {
       return this->get_parameter(args, retstring);
+    }
+    else
+    if ( cmd == "inreg" ) {
+      return this->set_vcpu_inreg(args, retstring);
     }
     else
     if ( cmd == "setp" ) {
@@ -325,7 +331,6 @@ namespace Camera {
    */
   long ArchonInterface::exptime( const std::string args, std::string &retstring ) {
     const std::string function("Camera::ArchonInterface::exptime");
-    std::stringstream message;
     // Help
     if (args=="?" || args=="help") {
       retstring = CAMERAD_EXPTIME;
@@ -742,6 +747,11 @@ namespace Camera {
       retstring = CAMERAD_MODE;
       retstring.append( " <name>\n" );
       retstring.append( "  Applies camera settings associated with MODE_<name> specified in the ACF file.\n");
+      retstring.append( "  Valid modes are: {" );
+      for (const auto &mode : this->controller->modemap) {
+        retstring.append(" "); retstring.append(mode.first);
+      }
+      retstring.append( " }\n" );
       return HELP;
     }
     // call the work function
@@ -849,9 +859,18 @@ namespace Camera {
     // Help
     if (args=="?" || args=="help") {
       retstring = "setp";
-      retstring.append( " <name> <value>\n" );
+      retstring.append( " <name> <value> | list\n" );
       retstring.append( "  Sets Archon parameter <name> to <value>.\n" );
       retstring.append( "  <value> must be in range {0:1048575}.\n" );
+      retstring.append( "  Or optional 'list' will return a list of configured parameters.\n" );
+      return HELP;
+    }
+
+    // return the parammap on request
+    if (args=="list") {
+      for (const auto &p : this->controller->parammap) {
+        retstring.append(p.first); retstring.append("\n");
+      }
       return HELP;
     }
 
@@ -875,6 +894,29 @@ namespace Camera {
     }
   }
   /***** Camera::ArchonInterface::set_parameter *******************************/
+
+
+  /***** Camera::ArchonInterface::set_vcpu_inreg ******************************/
+  /**
+   * @brief      write to a VCPU input register
+   * @param[in]  args  reference to string expects <module> <inreg> <value>
+   * @return     ERROR | NO_ERROR
+   *
+   */
+  long ArchonInterface::set_vcpu_inreg(const std::string &args, std::string &retstring) {
+    const std::string function("Camera::ArchonInterface::set_vcpu_inreg");
+
+    // must have loaded firmware // TODO implement a command to read the configuration 
+    //                           //      memory from Archon, in order to remove this restriction.
+    //
+    if ( ! this->controller->is_firmwareloaded ) {
+      logwrite(function, "ERROR firmware not loaded");
+      return ERROR;
+    }
+
+    return this->controller->set_vcpu_inreg(args);
+  }
+  /***** Camera::ArchonInterface::set_vcpu_inreg ******************************/
 
 
   /***** Camera::ArchonInterface::native **************************************/
@@ -1044,7 +1086,7 @@ namespace Camera {
         oss << "vert_amps = " << mode->geometry.amps[1] << "\n";
         retstring.append(oss.str()); oss.str("");
       }
-      oss << "exposure mode = " << (this->exposuremode ? this->exposuremode->get_type() : "not set") << "\n";
+      oss << "exposure mode = " << (this->exposuremode ? this->exposuremode->get_type() : "not_set") << "\n";
       retstring.append(oss.str()); oss.str("");
       oss << "PIXELCOUNT = " << mode->geometry.pixelcount << "\n";
       retstring.append(oss.str()); oss.str("");

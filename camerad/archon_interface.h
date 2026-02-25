@@ -65,6 +65,7 @@ namespace Camera {
       long set_parameter(const std::string &args, std::string &retstring);
       long set_camera_mode(std::string args, std::string &retstring);
       long set_camera_mode(std::string modeselect);
+      long set_vcpu_inreg(const std::string &args, std::string &retstring);
 
       char* get_framebuf() { return controller->framebuf; }
 

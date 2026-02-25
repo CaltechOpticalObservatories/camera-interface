@@ -325,6 +325,7 @@ namespace Camera {
       long set_parameter(const std::string &parameter, const int &value);
       long prep_parameter(const std::string &parameter, const int &value);
       long load_parameter(const std::string &parameter, const int &value);
+      long set_vcpu_inreg(const std::string &args);
       double get_exptime() const { return( this->exposure_time->get() ); }
       void print_frame_status();
       long send_cmd(const std::string &cmd, std::string &reply);

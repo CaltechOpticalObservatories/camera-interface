@@ -294,6 +294,10 @@ namespace Camera {
         ret = interface->controller_cmd(cmd, args, retstring);
       }
       else
+      if ( cmd == "inreg" ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
+      else
       if ( cmd == "setp" ) {
         ret = interface->controller_cmd(cmd, args, retstring);
       }

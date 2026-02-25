@@ -1,6 +1,8 @@
 /**
  * @file    archon_controller.cpp
  * @brief   implementation for Archon Interface Controller
+ * @details These are hardware specific functions that the interface will use,
+ *          not intended for direct-access by the user.
  * @author  David Hale <dhale@astro.caltech.edu>
  *
  */
@@ -761,7 +763,7 @@ namespace Camera {
 
     // exposure time parameters must be defined
     if (this->sec_param.empty() || this->msec_param.empty()) {
-      throw std::runtime_error("exposure time parameters not defined");
+      throw std::runtime_error("exposure time parameters not in configuration");
     }
 
     try {
@@ -792,18 +794,21 @@ namespace Camera {
    */
   long ArchonController::set_parameter(const std::string &parameter, const int &value) {
     const std::string function("Camera::ArchonController::set_parameter");
+    long error=NO_ERROR;
     try {
-      this->prep_parameter(parameter, value);
-      this->load_parameter(parameter, value);
-      std::ostringstream oss;
-      oss << "set " << parameter << "=" << value;
-      logwrite(function, oss.str());
-      return NO_ERROR;
+      error |= this->prep_parameter(parameter, value);
+      error |= this->load_parameter(parameter, value);
     }
     catch (const std::exception &e) {
       logwrite(function, "ERROR: "+std::string(e.what()));
       return ERROR;
     }
+
+    std::ostringstream oss;
+    oss << (error==ERROR ? "ERROR setting " : "set ") << parameter;
+    logwrite(function, oss.str());
+
+    return error;
   }
   /***** Camera::ArchonController::set_parameter ******************************/
 
@@ -2136,46 +2141,45 @@ namespace Camera {
    */
   long ArchonController::write_config_key( const char* key, const char* newvalue, bool &changed ) {
     const std::string function("Camera::ArchonController::write_config_key");
-    std::stringstream message, sscmd;
     long error=NO_ERROR;
 
     if ( key==nullptr || newvalue==nullptr ) {
       error = ERROR;
-      logwrite( function, "key|value cannot have NULL" );
-
-    } else if ( this->configmap.find(key) == this->configmap.end() ) {
+      logwrite( function, "ERROR key|value cannot have NULL" );
+    }
+    else
+    if ( this->configmap.find(key) == this->configmap.end() ) {
       error = ERROR;
-      message.str(""); message << "requested key " << key << " not found in configmap";
-      logwrite( function, message.str() );
-
-    } else if ( this->configmap[key].value == newvalue ) {
+      logwrite(function, "ERROR key '"+std::string(key)+"' not in configuration");
+    }
+    else
+    if ( this->configmap[key].value == newvalue ) {
       // If no change in value then don't send the command
       error = NO_ERROR;
-      message.str(""); message << "config key " << key << "=" << newvalue << " not written: no change in value";
-      logwrite(function, message.str());
-
-    } else {
-        /**
+      logwrite(function, "key '"+std::string(key)+"' not written. no change in value");
+    }
+    else {
+    /**
      * Format and send the Archon WCONFIG command
      * to write the KEY=VALUE pair to controller memory
      */
+      std::ostringstream sscmd;
       sscmd << "WCONFIG"
             << std::uppercase << std::setfill('0') << std::setw(4) << std::hex
             << this->configmap[key].line
             << key
             << "="
             << newvalue;
-      message.str(""); message << "sending: send_cmd(" << sscmd.str() << ")";
-      logwrite(function, message.str());
+
       error = this->send_cmd((char*)sscmd.str().c_str());             // send the WCONFIG command here
+
+      sscmd.str(""); sscmd << key << "=" << newvalue << (error==ERROR ? "":"not") << " written";
+
       if (error==NO_ERROR) {
         this->configmap[key].value = newvalue;                        // save newvalue in the STL map
         changed = true;
-
-      } else {
-        message.str(""); message << "ERROR: config key=value: " << key << "=" << newvalue << " not written";
-        logwrite( function, message.str() );
       }
+      logwrite(function, sscmd.str());
     }
     return error;
   }
@@ -2294,6 +2298,101 @@ namespace Camera {
     return NO_ERROR;
   }
   /***** Camera::ArchonController::parse_system_configuration *****************/
+
+
+  /***** Camera::ArchonController::set_vcpu_inreg *****************************/
+  /**
+   * @brief      write to a VCPU input register
+   * @param[in]  args  reference to string expects <module> <inreg> <value>
+   * @return     ERROR | NO_ERROR
+   *
+   */
+  long ArchonController::set_vcpu_inreg(const std::string &args) {
+    const std::string function("Camera::ArchonController::set_vcpu_inreg");
+
+    // VCPU requires a minimum backplane version
+    //
+    std::ostringstream message;
+    int ret = compare_versions( this->backplaneversion, REV_VCPU );
+    if ( ret < 0 ) {
+      if ( ret == -999 ) {
+        message << "comparing backplane version " << this->backplaneversion << " to " << REV_VCPU;
+      }
+      else {
+        message << "requires backplane version " << REV_VCPU << " or newer. ("
+                << this->backplaneversion << " detected)";
+      }
+      logwrite(function, message.str());
+      return ERROR;
+    }
+
+    // parse the args
+    //
+    std::istringstream iss(args);
+    int module, reg, value;
+    if (!(iss >> module >> reg >> value)) {
+      logwrite(function, "ERROR expected (integers): <module> <reg> <value>");
+      return ERROR;
+    }
+
+    // check that requested module is valid
+    //
+    if (module < 1 || module > this->modtype.size()) {
+      logwrite(function, "ERROR invalid module '"+std::to_string(module)+"'");
+      return ERROR;
+    }
+
+    switch ( this->modtype[ module-1 ] ) {
+      case 0:
+        message << "ERROR requested module " << module << " not installed";
+        logwrite(function, message.str());
+        return ERROR;
+      case 3:  // LVBias
+      case 5:  // Heater
+      case 7:  // HS
+      case 9:  // LVXBias
+      case 10: // LVDS
+      case 11: // HeaterX
+        break;
+      default:
+        message << "ERROR requested module " << module << " does not contain a VCPU";
+        logwrite(function, message.str());
+        return ERROR;
+    }
+
+    // check that register number is valid
+    //
+    if ( reg < 0 || reg > 15 ) {
+      message << "ERROR requested register " << reg << " outside range {0:15}";
+      logwrite(function, message.str());
+      return ERROR;
+    }
+
+    // check that value is within range
+    //
+    if ( value < 0 || value > 65535 ) {
+      message << "ERROR requested value " << value << " outside range {0:65535}";
+      logwrite(function, message.str());
+      return ERROR;
+    }
+
+    std::ostringstream inreg_key;
+    bool changed = false;
+    inreg_key << "MOD" << module << "/VCPU_INREG" << reg;
+    long error = this->write_config_key( inreg_key.str().c_str(), value, changed );
+
+    if (error==NO_ERROR) {
+      std::ostringstream applystr;
+      applystr << "APPLYDIO"
+               << std::setfill('0')
+               << std::setw(2)
+               << std::hex
+               << (module-1);
+      error = this->send_cmd(applystr.str());
+    }
+    return error;
+  }
+  /***** Camera::ArchonController::set_vcpu_inreg *****************************/
 
 
   /***** Camera::ArchonExposureTime::split ************************************/
