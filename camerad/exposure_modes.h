@@ -12,6 +12,7 @@
 #include "common.h"
 #include "camera_information.h"
 #include "image_process.h"
+#include "image_queue.h"
 
 namespace Camera {
 
@@ -68,10 +69,12 @@ namespace Camera {
    *             Camera Interface.
    *
    */
-  template <typename InterfaceType>
+  template <typename InterfaceType, typename BufferType>
   class ExposureModeTemplate : public ExposureMode {
     protected:
       InterfaceType* interface;   //!< pointer to the specific Camera Interface instance
+
+      ImageQueue<BufferType> image_queue;
 
       // Pointer to the deinterlacer for this mode. This is a pointer
       // to the base class -- each exposure mode will have to initialize

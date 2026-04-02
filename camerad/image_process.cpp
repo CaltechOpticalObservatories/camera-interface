@@ -24,17 +24,17 @@ namespace Camera {
   /***** Camera::DeInterlace_None *********************************************/
 
 
-  /***** Camera::DeInterlace_RXRV *********************************************/
+  /***** Camera::DeInterlace_VIDEORXR *****************************************/
   /**
-   * @brief      specialization for deinterlacing RXRV
+   * @brief      specialization for deinterlacing VIDEORXR
    * @param[in]  imgbuf  pointer to input buffer
    * @param[out] sigbuf  pointer to deinterlaced signal frame from imgbuf
    * @param[out] resbuf  pointer to deinterlaced reset frame from imgbuf
    */
-  class DeInterlace_RXRV : public DeInterlacer {
+  class DeInterlace_VIDEORXR : public DeInterlacer {
     public:
       void deinterlace(char* imgbuf, uint16_t* sigbuf, uint16_t* resbuf) {
-        const std::string function("Camera::DeInterlace_RXRV::deinterlace");
+        const std::string function("Camera::DeInterlace_VIDEORXR::deinterlace");
         logwrite(function, "here");
         std::stringstream message;
         message << "contents:";
@@ -47,7 +47,7 @@ namespace Camera {
         logwrite(function, message.str());
       }
   };
-  /***** Camera::DeInterlace_RXRV *********************************************/
+  /***** Camera::DeInterlace_VIDEORXR *****************************************/
 
 
   class SubtractSimple : public Subtractor {
@@ -96,7 +96,7 @@ namespace Camera {
     else
     if (mode=="rxrv") {
       return std::make_unique<ImageProcessor>(
-          std::make_unique<DeInterlace_RXRV>(),
+          std::make_unique<DeInterlace_VIDEORXR>(),
           std::make_unique<SubtractSimple>(),
           std::make_unique<CoaddAdd>()
           );

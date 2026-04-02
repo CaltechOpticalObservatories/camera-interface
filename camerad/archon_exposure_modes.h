@@ -20,8 +20,8 @@ namespace Camera {
   namespace ArchonExposureMode {
     constexpr const char* RAW = "RAW";
     constexpr const char* SINGLE = "SINGLE";
-    constexpr const char* RXRV = "RXRV";
-    constexpr const char* ALLMODES[] = {RAW, SINGLE, RXRV};
+    constexpr const char* VIDEORXR = "VIDEORXR";
+    constexpr const char* ALLMODES[] = {RAW, SINGLE, VIDEORXR};
   };
 
   /** @struct   ArchonImageBuffer
@@ -39,19 +39,25 @@ namespace Camera {
 
   class ArchonInterface;     // forward declaration
 
+  /***** Camera::ExposureModeRaw **********************************************/
   /**
    * @brief      class constructor
    * @param[in]  _interface  Pointer to Camera InterfaceType
    */
-  class ExposureModeRaw : public ArchonImageBuffer, public ExposureModeTemplate<Camera::ArchonInterface> {
+  class ExposureModeRaw : public ArchonImageBuffer,
+                          public ExposureModeTemplate<Camera::ArchonInterface,
+                                                      Camera::ArchonImageBuffer> {
     public:
       ExposureModeRaw(Camera::ArchonInterface* iface)
-        : ExposureModeTemplate<Camera::ArchonInterface>(iface) {
+        : ExposureModeTemplate<Camera::ArchonInterface,
+                               Camera::ArchonImageBuffer>(iface) {
           this->type=ArchonExposureMode::RAW;
         }
 
     long expose() override;
   };
+  /***** Camera::ExposureModeRaw **********************************************/
+
 
   /***** Camera::ExposureModeSingle *******************************************/
   /**
@@ -59,10 +65,13 @@ namespace Camera {
    * @brief      derived class for Exposure Mode Single
    *
    */
-  class ExposureModeSingle : public ArchonImageBuffer, public ExposureModeTemplate<Camera::ArchonInterface> {
+  class ExposureModeSingle : public ArchonImageBuffer,
+                             public ExposureModeTemplate<Camera::ArchonInterface,
+                                                         Camera::ArchonImageBuffer> {
     public:
       ExposureModeSingle(Camera::ArchonInterface* iface)
-        : ExposureModeTemplate<Camera::ArchonInterface>(iface) {
+        : ExposureModeTemplate<Camera::ArchonInterface,
+                               Camera::ArchonImageBuffer>(iface) {
           type=ArchonExposureMode::SINGLE;
         }
 
@@ -79,13 +88,28 @@ namespace Camera {
   /***** Camera::ExposureModeSingle *******************************************/
 
 
-  class ExposureModeRXRV : public ArchonImageBuffer, public ExposureModeTemplate<Camera::ArchonInterface> {
+  /***** Camera::ExposureMode_VIDEORXR ****************************************/
+  class ExposureMode_VIDEORXR : public ArchonImageBuffer,
+                                public ExposureModeTemplate<Camera::ArchonInterface,
+                                                            Camera::ArchonImageBuffer> {
     public:
-      ExposureModeRXRV(Camera::ArchonInterface* iface)
-        : ExposureModeTemplate<Camera::ArchonInterface>(iface) {
-          type=ArchonExposureMode::RXRV;
+      ExposureMode_VIDEORXR(Camera::ArchonInterface* iface, std::vector<std::string> argsin)
+        : ExposureModeTemplate<Camera::ArchonInterface,
+                               Camera::ArchonImageBuffer>(iface) {
+          type=ArchonExposureMode::VIDEORXR;
+          args=argsin;
+          processor = Camera::make_image_processor("rxrv");
         }
 
-    long expose() override;
+      /** @var imagebuf_queue
+       *  @brief the FIFO queue to contain images from Archon
+       */
+      std::queue<std::shared_ptr<ArchonImageBuffer>> imagebuf_queue;
+
+      void image_acquisition_thread() override;
+      void image_processing_thread() override;
+      long expose() override;
   };
+  /***** Camera::ExposureMode_VIDEORXR ****************************************/
+
 }
