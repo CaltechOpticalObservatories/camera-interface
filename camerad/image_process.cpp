@@ -16,7 +16,11 @@ namespace Camera {
    */
   class DeInterlace_None : public DeInterlacer {
     public:
-      void deinterlace(char* bufin, uint16_t* bufout) {
+      void deinterlace(uint32_t* in,
+                       uint32_t* sig,
+                       uint32_t* res,
+                       long cols,
+                       long rows) {
         const std::string function("Camera::DeInterlace_None::deinterlace");
         logwrite(function, "here");
       }
@@ -33,18 +37,32 @@ namespace Camera {
    */
   class DeInterlace_VIDEORXR : public DeInterlacer {
     public:
-      void deinterlace(char* imgbuf, uint16_t* sigbuf, uint16_t* resbuf) {
-        const std::string function("Camera::DeInterlace_VIDEORXR::deinterlace");
-        logwrite(function, "here");
-        std::stringstream message;
-        message << "contents:";
-        for (int i=0; i<10; i++) {
-          message << " " << i;
-          // modify contents of output buffers
-          sigbuf[i]=i;
-          resbuf[i]=100-i;
+      void deinterlace(uint32_t* in,
+                       uint32_t* sig,
+                       uint32_t* res,
+                       long cols,
+                       long rows) {
+
+        const long bufw = cols * 2;  // interleaved reset/read
+
+        for (long r = 0; r < rows; ++r) {
+          uint32_t* row_in  = in  + r * bufw;
+          uint32_t* row_sig = sig + r * cols;
+          uint32_t* row_res = res + r * cols;
+
+          for (long c = 0; c < cols; c += 64) {
+
+            // read (sig) frame
+            std::memcpy(row_sig + c,
+                        row_in + (c*2),
+                        64 * sizeof(uint32_t));
+
+            // reset (res) frame
+            std::memcpy(row_res + c,
+                        row_in + (c*2)+64,
+                        64 * sizeof(uint32_t));
+          }
         }
-        logwrite(function, message.str());
       }
   };
   /***** Camera::DeInterlace_VIDEORXR *****************************************/

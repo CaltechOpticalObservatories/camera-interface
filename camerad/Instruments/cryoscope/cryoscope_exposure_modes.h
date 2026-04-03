@@ -34,8 +34,8 @@ namespace Camera {
       ExposureModeXXX(Camera::ArchonInterface* iface, std::vector<std::string> modeargs)
         : ExposureModeTemplate<Camera::ArchonInterface,
                                Camera::ArchonImageBuffer>(iface) {
-          this->type=CryoScopeExposureMode::XXX;
-          this->args=std::move(modeargs);
+          this->modetype = CryoScopeExposureMode::XXX;
+          this->modeargs = std::move(modeargs);
         }
 
     long expose() override;

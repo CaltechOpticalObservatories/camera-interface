@@ -35,7 +35,7 @@ namespace Camera {
 
     logwrite(function, "mode args:");
 
-    for (const auto &arg : this->args) {
+    for (const auto &arg : this->modeargs) {
       logwrite(function, arg);
     }
   }

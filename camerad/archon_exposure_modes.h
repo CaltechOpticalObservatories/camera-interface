@@ -37,6 +37,16 @@ namespace Camera {
     std::vector<uint64_t> buftimestamp_slice;  ///< Archon timestamp(s) for all slices in this image
   };
 
+  struct PairIndex {
+    int curr;
+    int prev;
+  };
+
+  inline PairIndex get_indices(int count) {
+    int c = count & 1;
+    return {c, 1 - c};
+  }
+
   class ArchonInterface;     // forward declaration
 
   /***** Camera::ExposureModeRaw **********************************************/
@@ -51,7 +61,7 @@ namespace Camera {
       ExposureModeRaw(Camera::ArchonInterface* iface)
         : ExposureModeTemplate<Camera::ArchonInterface,
                                Camera::ArchonImageBuffer>(iface) {
-          this->type=ArchonExposureMode::RAW;
+          this->modetype=ArchonExposureMode::RAW;
         }
 
     long expose() override;
@@ -61,7 +71,6 @@ namespace Camera {
 
   /***** Camera::ExposureModeSingle *******************************************/
   /**
-   * @class      Camera::ExposureModeSingle
    * @brief      derived class for Exposure Mode Single
    *
    */
@@ -72,7 +81,7 @@ namespace Camera {
       ExposureModeSingle(Camera::ArchonInterface* iface)
         : ExposureModeTemplate<Camera::ArchonInterface,
                                Camera::ArchonImageBuffer>(iface) {
-          type=ArchonExposureMode::SINGLE;
+          this->modetype=ArchonExposureMode::SINGLE;
         }
 
       /** @var imagebuf_queue
@@ -89,6 +98,10 @@ namespace Camera {
 
 
   /***** Camera::ExposureMode_VIDEORXR ****************************************/
+  /**
+   * @brief      derived class for Exposure Mode VIDEORXR
+   *
+   */
   class ExposureMode_VIDEORXR : public ArchonImageBuffer,
                                 public ExposureModeTemplate<Camera::ArchonInterface,
                                                             Camera::ArchonImageBuffer> {
@@ -96,19 +109,18 @@ namespace Camera {
       ExposureMode_VIDEORXR(Camera::ArchonInterface* iface, std::vector<std::string> argsin)
         : ExposureModeTemplate<Camera::ArchonInterface,
                                Camera::ArchonImageBuffer>(iface) {
-          type=ArchonExposureMode::VIDEORXR;
-          args=argsin;
-          processor = Camera::make_image_processor("rxrv");
+          this->modetype  = ArchonExposureMode::VIDEORXR;
+          this->modeargs  = argsin;
+          this->processor = Camera::make_image_processor("rxrv");  // TODO don't use this string
         }
 
-      /** @var imagebuf_queue
-       *  @brief the FIFO queue to contain images from Archon
+      /** @brief FIFO queue to contain images from Archon
        */
       std::queue<std::shared_ptr<ArchonImageBuffer>> imagebuf_queue;
 
       void image_acquisition_thread() override;
       void image_processing_thread() override;
-      long expose() override;
+      long expose() override;  // TODO obsolete?
   };
   /***** Camera::ExposureMode_VIDEORXR ****************************************/
 

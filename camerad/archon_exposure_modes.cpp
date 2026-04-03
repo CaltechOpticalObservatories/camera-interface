@@ -15,7 +15,7 @@ namespace Camera {
    *
    */
   long ExposureModeSingle::expose() {
-    const std::string function("Camera::ExposureModeSingle::expose");
+    std::string_view function("Camera::ExposureModeSingle::expose");
     logwrite(function, "hi");
     return NO_ERROR;
   }
@@ -29,7 +29,7 @@ namespace Camera {
    *
    */
   void ExposureModeSingle::image_acquisition_thread() {
-    const std::string function("Camera::ExposureModeSingle::image_acquisition_thread");
+    std::string_view function("Camera::ExposureModeSingle::image_acquisition_thread");
     char message[256];
 
     logwrite(function, "");
@@ -115,7 +115,7 @@ namespace Camera {
    *
    */
   void ExposureModeSingle::image_processing_thread() {
-    const std::string function("Camera::ExposureModeSingle::image_processing_thread");
+    std::string_view function("Camera::ExposureModeSingle::image_processing_thread");
     logwrite(function, "enter");
 
 //  open FITS file ?

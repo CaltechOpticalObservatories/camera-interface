@@ -15,7 +15,7 @@ namespace Camera {
    *
    */
   long ExposureMode_VIDEORXR::expose() {
-    const std::string function("Camera::ExposureMode_VIDEORXR::expose");
+    std::string_view function("Camera::ExposureMode_VIDEORXR::expose");
 
     size_t sz=100;
 
@@ -42,7 +42,7 @@ namespace Camera {
     this->interface->controller->read_frame(ArchonController::FRAME_IMAGE, buffer);
 
     // process (deinterlace) first frame pair
-    processor->deinterlacer()->deinterlace(interface->get_framebuf(), sigbuf[0].data(), resbuf[0].data());
+//  processor->deinterlacer()->deinterlace(interface->get_framebuf(), sigbuf[0].data(), resbuf[0].data());
 
     // sample calls to other processor functions
     uint16_t a, b;
@@ -76,15 +76,16 @@ namespace Camera {
    *
    */
   void ExposureMode_VIDEORXR::image_acquisition_thread() {
-    const std::string function("Camera::ExposureMode_VIDEORXR::image_acquisition_thread");
+    std::string_view function("Camera::ExposureMode_VIDEORXR::image_acquisition_thread");
     char message[256];
 
-    logwrite(function, "");
+    logwrite(function, "started");
 
     // get value for 'Expose = <nexp>' from the class args for the exposure mode
+    // default = 1
     int nexp=1;
-    if (this->args.size() > 0) {
-      try { nexp = std::stoi(args.at(0));
+    if (this->modeargs.size() > 0) {
+      try { nexp = std::stoi(modeargs.at(0));
       }
       catch (const std::exception &e) {
         logwrite(function, "ERROR getting nexp from mode args: "+std::string(e.what()));
@@ -103,7 +104,7 @@ namespace Camera {
       logwrite(function, "could not initiate exposure");
       return;
     }
-    logwrite(function, "exposure started");
+    logwrite(function, "exposure initiated with "+std::to_string(nexp)+" frames");
 
     long error=NO_ERROR;
 
@@ -130,7 +131,8 @@ namespace Camera {
       // wait for frame readout into Archon buffer
       if ( (error=this->interface->controller->wait_for_readout()) == ERROR ) break;
 
-      // read frame from Archon into memory pointed to by p_imagebuffer
+      // ---------- read frame from Archon -----------------
+      //
       char* base = imagebuffer->rawpixels.get();
       char* ptr  = base;
       error = this->interface->controller->read_frame( ArchonController::FRAME_IMAGE, ptr );
@@ -140,13 +142,17 @@ namespace Camera {
       imagebuffer->bufframen_slice.push_back( this->interface->controller->frameinfo.bufframen[index] );
       imagebuffer->buftimestamp_slice.push_back( this->interface->controller->frameinfo.buftimestamp[index] );
 
-      // push frame into queue
+      // ---------- push frame into queue ------------------
+      //
       this->image_queue.enqueue( std::move(imagebuffer) );
+      logwrite("Camera::ExposureMode_VIDEORXR::image_acquisition_thread", "pushed frame");
 
       nexp--;
 
     }  // end loop over number of frames
 
+    // ---------- end-of-queue marker ----------------------
+    //
     this->image_queue.enqueue( nullptr );
 
     logwrite(function, "complete");
@@ -161,11 +167,74 @@ namespace Camera {
    *
    */
   void ExposureMode_VIDEORXR::image_processing_thread() {
-    const std::string function("Camera::ExposureMode_VIDEORXR::image_processing_thread");
+    std::string_view function("Camera::ExposureMode_VIDEORXR::image_processing_thread");
     logwrite(function, "started");
 
-//  auto postproc = std::make_unique<PostProcess<uint16_t>>( DeInterfaceMode::VIDEORXR,
-//                                                           this->interface->camera_info.naxes );
+//  output->open();                                        PLACEHOLDER
+
+    const long bufcols = this->interface->camera_info.naxes[0] / 2;
+    const long bufrows = this->interface->camera_info.naxes[1];
+    const long imgcols = bufcols - 64;
+    const long imgrows = bufrows;
+
+    // two sig frames, curr and prev
+    std::vector<uint32_t> sig[2] = { std::vector<uint32_t>(bufcols*bufrows),
+                                     std::vector<uint32_t>(bufcols*bufrows) };
+
+    // two res frames, curr and prev
+    std::vector<uint32_t> res[2] = { std::vector<uint32_t>(bufcols*bufrows),
+                                     std::vector<uint32_t>(bufcols*bufrows) };
+
+    // one cds frame, sig[curr] - res[prev]
+    std::vector<uint32_t> cds(imgcols*imgrows);
+
+    int count=0;
+
+    // ---------- pop image out of queue -------------------
+    //
+    while (!this->interface->is_aborted()) {
+
+      auto image = this->image_queue.dequeue();  // what comes out of queue is curr frame
+
+      if (!image) break;                         // end of queue is marked with a nullptr
+
+      uint32_t* raw = reinterpret_cast<uint32_t*>(image->rawpixels.get());
+
+      auto [curr, prev] = get_indices(count);    // indices of curr and prev frames based on count
+
+      // ---------- deinterlace current image --------------
+      //
+      processor->deinterlacer()->deinterlace( raw,
+                                              sig[curr].data(),
+                                              res[curr].data(),
+                                              bufcols,
+                                              bufrows );
+
+//    // ---------- write unprocessed frames ---------------
+//    //
+//    if (unp) {                                           PLACEHOLDER
+//      output->write( sig[curr].data(), info_unp );
+//      output->write( res[curr].data(), info_unp );
+//    }
+//
+//    // ---------- write processed (CDS) frame ------------
+//    //
+//    if (count > 0 && processor->has_subtractor()) {      PLACEHOLDER
+//
+//      processor->subtractor()->subtract( sig[curr].data(),
+//                                         res[prev].data(),
+//                                         cds.data(),
+//                                         bufcols, bufrows,
+//                                         imgcols, imgrows );
+//
+//      output->write( cds.data(), info_cds );             PLACEHOLDER
+//    }
+
+      count++;
+    }
+
+//  output->close();                                       PLACEHOLDER
+
     logwrite(function, "complete");
   }
   /***** Camera::ExposureMode_VIDEORXR::image_processing_thread ***************/
