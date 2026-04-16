@@ -552,6 +552,10 @@ namespace Camera {
     if (caseCompareString(modein, ArchonExposureMode::RXRV)) {
       this->exposuremode = std::make_shared<ExposureModeRXRV>(this);
     }
+    else
+    if (caseCompareString(modein, ArchonExposureMode::UTR_RR)) {
+      this->exposuremode = std::make_shared<ExposureModeUtrRR>(this);
+    }
     else {
       logwrite("Camera::ArchonInterface::set_exposure_mode",
                "ERROR unrecognized exposure mode \""+modein+"\"");
@@ -804,6 +808,12 @@ namespace Camera {
     // if we made it all the way to the end then this is the selected mode
     this->controller->selectedmode = modeselect;
 
+    // Set the exposure mode to match the camera mode name if recognized
+    if (this->set_exposure_mode(modeselect, {}) != NO_ERROR) {
+      // Fall back to SINGLE if the camera mode name doesn't match an exposure mode
+      this->set_exposure_mode(std::string(ArchonExposureMode::SINGLE), {});
+    }
+
     return NO_ERROR;
   }
   /***** Camera::ArchonInterface::set_camera_mode *****************************/
@@ -843,6 +853,17 @@ namespace Camera {
       logwrite(function, "ERROR image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS");
       return ERROR;
     }
+
+    std::stringstream msg;
+    msg << "detector=" << info->detector_pixels[0] << "x" << info->detector_pixels[1]
+        << " image_memory=" << info->image_memory
+        << " image_data_bytes=" << info->image_data_bytes
+        << " num_detect=" << mode->geometry.num_detect
+        << " amps=" << mode->geometry.amps[0] << "x" << mode->geometry.amps[1]
+        << " pixelcount=" << mode->geometry.pixelcount
+        << " linecount=" << mode->geometry.linecount
+        << " samplemode=" << mode->samplemode;
+    logwrite(function, msg.str());
 
     return NO_ERROR;
   }
