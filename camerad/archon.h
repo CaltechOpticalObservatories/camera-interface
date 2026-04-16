@@ -26,8 +26,9 @@
 
 #define MAXADCCHANS 16             //!< max number of ADC channels per controller (4 mod * 4 ch/mod)
 #define MAXADMCHANS 72             //!< max number of ADM channels per controller (4 mod * 18 ch/mod)
-#define BLOCK_LEN 236             //!< Archon block size 36 + 10*10*2
+//#define BLOCK_LEN 236             //!< Archon block size 36 + 10*10*2
 // #define BLOCK_LEN 198             //!< Archon block size 36 + 9*9*2
+#define BLOCK_LEN 1024            //!< Archon block size rounded up to 1024 bytes
 #define REPLY_LEN 100 * BLOCK_LEN  //!< Reply buffer size (over-estimate)
 
 // Archon commands
@@ -83,6 +84,7 @@ namespace Archon {
     const int DEF_TRIGIN_READOUT_DISABLE = 0;
     const int DEF_SHUTENABLE_ENABLE = 1;
     const int DEF_SHUTENABLE_DISABLE = 0;
+    const int CONTINUOUS_EXPOSURE = -1; //!< special value to indicate continuous exposure mode
 
     class PushSocketClass {  // Ensure the class name is correct
       public:
@@ -141,6 +143,8 @@ namespace Archon {
 
         int msgref; //!< Archon message reference identifier, matches reply to command
         bool abort;
+        bool abort_fexpose;
+        bool pause_log;
         int taplines;
         int configlines;  //!< number of configuration lines
         bool logwconfig;  //!< optionally log WCONFIG commands
@@ -157,8 +161,13 @@ namespace Archon {
         int win_hstop;
         int win_vstart;
         int win_vstop;
+        int fread; //!< number of frames read in a continuous exposure sequence
         int taplines_store; //!< int number of original taplines
         std::string tapline0_store; //!< store tapline0 for window mode so can restore later
+        std::string tapline1_store; //!< store tapline1 for window mode so can restore later
+        std::string tapline2_store; //!< store tapline2 for window mode so can restore later
+        std::string tapline3_store; //!< store tapline3 for window mode so can restore later
+        std::string tapline4_store; //!< store tapline4 for window mode so can restore later
 
         bool lastcubeamps;
 
@@ -244,6 +253,7 @@ namespace Archon {
 
         long read_frame(); //!< read Archon frame buffer into host memory
         long hread_frame();
+        long fread_frame();
 
         long read_frame(Camera::frame_type_t frame_type); /// read Archon frame buffer into host memory
         long write_frame(); //!< write (a previously read) Archon frame buffer to disk
@@ -274,7 +284,17 @@ namespace Archon {
 
         long hexpose(std::string nseq_in);
 
+        long fexpose(int nseq_in);
+
+        long fabort(std::string &retstring);
+
+        long fabort_print();
+
         long hsetup();
+
+        long reset_roi();
+
+        long roi(std::string geom_in, std::string &retstring);
 
         long hroi(std::string geom_in, std::string &retstring);
 
@@ -328,6 +348,8 @@ namespace Archon {
         long region_of_interest(std::string args, std::string &retstring);
 
         long test(std::string args, std::string &retstring);
+
+        void writeSignalCSV(double array[][3], const std::string& filename, int Nrows); 
 
         /**
          * @var     struct geometry_t geometry[]

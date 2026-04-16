@@ -393,6 +393,8 @@ public:
         //
         try {
             long fpixel(1); // start with the first pixel always
+            self->pFits->pHDU().addKey("BZERO", 32768, "offset for signed short int");
+            self->pFits->pHDU().addKey("BSCALE", 1, "scaling factor");
             self->pFits->pHDU().write(fpixel, info.section_size, data);
             self->pFits->flush(); // make sure the image is written to disk
         } catch (CCfits::FitsError &error) {

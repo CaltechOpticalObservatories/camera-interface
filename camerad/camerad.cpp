@@ -59,6 +59,7 @@ void block_main(Network::TcpSocket sock); // this thread handles requests on blo
 void thread_main(Network::TcpSocket sock); // this thread handles requests on non-blocking port
 void async_main(Network::UdpSocket sock); // this thread handles the asyncrhonous UDP message port
 void doit(Network::TcpSocket sock); // the worker thread
+std::thread fexpose_thread; // thread for continuous exposure mode
 
 
 /** main *********************************************************************/
@@ -628,13 +629,40 @@ void doit(Network::TcpSocket sock) {
         } else if (cmd == "abort") {
             server.camera.abort();
             ret = 0;
-        } //else if (cmd == "freerun") {
+        } else if (cmd == "freerun") {
           //  server.
           // TODO:: Add manipulating start = 1, expose = 1 and possibly mode_VideoRX to autofetch and non stop running
           //        Make start to 0 will stop the autofetch
           //        GOAL: Be able to turn auto fetch on and off dynamically.
-          //              Must fetch very fast for tracking camera to grab  
-        //}
+          //              Must fetch very fast for tracking camera to grab
+          logwrite(function, "freerun command sent to archon");
+          ret = server.set_freerun(args);
+        } else if (cmd == "fexpose") {
+            //TODO: Add freedom expose command
+            logwrite(function, "fexpose command sent to camerad");
+            //ret = server.fexpose(-1); // Continuous exposure mode
+            // Launch fexpose in a new thread
+            fexpose_thread = std::thread([&](){
+                long ret = server.fexpose(-1);
+                printf("fexpose thread ended with ret = %ld\n", ret);
+            });
+            //fexpose_thread.detach(); // or keep it joinable
+        } else if (cmd == "fabort") {
+            logwrite(function, "fabort command sent to camerad");
+            ret = server.fabort(retstring);
+            if (fexpose_thread.joinable()) {
+                logwrite(function, "waiting for fexpose thread to finish...");
+                fexpose_thread.join();   // Safe, controlled shutdown
+                logwrite(function, "fexpose thread joined, fabort complete");
+                server.fabort_print();
+            } else {
+                logwrite(function, "fexpose thread not joinable (already done or never started)");
+            }
+            if (!retstring.empty()) {
+                sock.Write(retstring);
+                sock.Write(" ");
+            }
+        }
 
         #ifdef ASTROCAM
     else
@@ -682,6 +710,15 @@ void doit(Network::TcpSocket sock) {
     if (cmd=="hroi") {
         ret = server.hroi( args, retstring );
         if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+    }
+    else
+    if (cmd=="roi") {
+        ret = server.roi( args, retstring );
+        if (!retstring.empty()) { sock.Write(retstring); sock.Write(" "); }
+    }
+    else
+    if (cmd=="reset_roi") {
+        ret = server.reset_roi();
     }
     else
     if (cmd=="hwindow") {

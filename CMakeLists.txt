@@ -21,7 +21,7 @@ endif ()
 
 # Detector type can be set via command line ( Hxrg | Ccd )
 if (NOT DEFINED DETECTOR_TYPE)
-    set(DETECTOR_TYPE "Ccd")
+    set(DETECTOR_TYPE "Hxrg")
 endif ()
 # ----------------------------------------------------------------------------
 
