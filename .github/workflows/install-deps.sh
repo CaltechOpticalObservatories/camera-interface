@@ -1,12 +1,21 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
-sudo apt-get update &&
-sudo apt-get install libccfits-dev &&
-sudo apt-get install libcfitsio-dev &&
-sudo apt-get install libcurl4-openssl-dev &&
-sudo apt-get install libgtest-dev &&
-sudo build-essential &&
-sudo cmake &&
-sudo ninja-build &&
-sudo nlohmann-json3-dev &&
-sudo libzmq3-dev
+sudo apt-get update
+
+packages=(
+  build-essential
+  cmake
+  ninja-build
+  libccfits-dev
+  libcfitsio-dev
+  libcurl4-openssl-dev
+  libgtest-dev
+  nlohmann-json3-dev
+  libzmq3-dev
+  libopencv-dev
+  libboost-thread-dev
+  libboost-chrono-dev
+)
+
+sudo apt-get install -y "${packages[@]}"
