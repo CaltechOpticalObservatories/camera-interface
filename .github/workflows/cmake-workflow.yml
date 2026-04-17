@@ -90,10 +90,11 @@ jobs:
           CMAKE_ARGS=(
             -G Ninja
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+            -DCONTROLLER=archon
           )
 
           if [[ -n "$TARGET_NAME" && "$TARGET_NAME" != "emulator" ]]; then
-            CMAKE_ARGS+=("-DINSTR=${TARGET_NAME}")
+            CMAKE_ARGS+=("-DINSTRUMENT=${TARGET_NAME}")
           fi
 
           cmake "${CMAKE_ARGS[@]}" ..
