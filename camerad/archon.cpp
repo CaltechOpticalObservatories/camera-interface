@@ -4427,91 +4427,70 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
         this->win_hstart = hstart; // set x lo lim
         this->win_hstop = hstop; // set roi x hi lim
         int rows = (this->win_vstop - this->win_vstart) + 1;
-        int cols = (this->win_hstop - this->win_hstart) + 1;
+        int cols = std::round(((this->win_hstop - this->win_hstart) + 1)/2);
         cmd.str("");
         if (error == NO_ERROR) {
             cmd << "H2RG_columns " << cols;
             error = this->set_parameter(cmd.str());
+            //printf("Setting H2RG_columns to %d\n", cols);
         }
         cmd.str("");
         if (error == NO_ERROR) {
             cmd << "H2RG_rows " << rows;
             error = this->set_parameter(cmd.str());
+            //printf("Setting H2RG_rows to %d\n", rows);
         }
         if (error == NO_ERROR) {
             cmd.str("");
             cmd << "H2RG_rows_skip " << this->win_vstart;
             error = this->set_parameter(cmd.str());
+            //printf("Setting H2RG_rows_skip to %d\n", this->win_vstart);
         }
 
         // set cds values
-          //pixelpertap/pixelcount, linespertap/linecount
-          //Pixelcount changes based on mode, rx, rxr, utr
-          //TODO:: set pixelcount based on mode
-        int pixelcount = 618;//cols / 2;
-        cmd.str("");
-        cmd << "PIXELCOUNT " << pixelcount;
-        error = this->cds(cmd.str(), dontcare);
-        cmd.str("");
-        cmd << "LINECOUNT " << rows;
-        error = this->cds(cmd.str(), dontcare);
-
-        //configure taplines (cds)
-          //2 taplines, booth taplines currounding the center of the detector
-          //Store old tapline values for later reference
-        std::string taplines_str;
-        this->cds("TAPLINES", taplines_str);
-        this->taplines_store = std::stoi(taplines_str);
-
-        std::string tapline0;
-        this->cds("TAPLINE0", tapline0);
-        this->tapline0_store = tapline0;
-        std::string tapline1;
-        this->cds("TAPLINE1", tapline1);
-        this->tapline1_store = tapline1;
-        std::string tapline2;
-        this->cds("TAPLINE2", tapline2);
-        this->tapline2_store = tapline2;
-        std::string tapline3;
-        this->cds("TAPLINE3", tapline3);
-        this->tapline3_store = tapline3;
-        std::string tapline4;
-        this->cds("TAPLINE4", tapline4);
-        this->tapline4_store = tapline4;
-
-        if (error == NO_ERROR) {
-            error = this->cds("TAPLINES 3", dontcare);
-        }
-        this->taplines = 3;
-        if (error == NO_ERROR) {
-            error = this->cds("TAPLINE0 AM25R,1,0", dontcare);
-        }
-        if (error == NO_ERROR) {
-            error = this->cds("TAPLINE1 AM29L,1,0", dontcare);
-        }
-        if (error == NO_ERROR) {
-            error = this->cds("TAPLINE2 AM52L,1,0", dontcare);
-        }
-
-        // update modemap, in case someone asks again
         std::string mode = this->camera_info.current_observing_mode;
+        
+        int pixelcount = cols;
+        if (mode == "RXR") {
+          pixelcount = cols * 2;
+        }
+        //printf("ROWS: %d, COLS: %d, PIXELCOUNT: %d\n", rows, cols, pixelcount);
+        if (error == NO_ERROR)
+        {
+          cmd.str("");
+          cmd << "PIXELCOUNT " << pixelcount;
+          error = this->cds(cmd.str(), dontcare);
+          //printf("Setting PIXELCOUNT to %d\n", pixelcount);
+        }
+        if (error == NO_ERROR) 
+        {
+          cmd.str("");
+          cmd << "LINECOUNT " << rows;
+          error = this->cds(cmd.str(), dontcare);
+          //printf("Setting LINECOUNT to %d\n", rows);
+        }
 
         this->modemap[mode].geometry.linecount = rows;
         this->modemap[mode].geometry.pixelcount = cols;
-        this->camera_info.region_of_interest[0] = this->win_hstart;
-        this->camera_info.region_of_interest[1] = this->win_hstop;
-        this->camera_info.region_of_interest[2] = this->win_vstart;
-        this->camera_info.region_of_interest[3] = this->win_vstop;
-        this->camera_info.detector_pixels[0] = cols;
-        this->camera_info.detector_pixels[1] = rows;
-
+        this->camera_info.detector_pixels[0] = pixelcount * this->modemap[mode].geometry.amps[0];
+        this->camera_info.detector_pixels[1] = rows * this->modemap[mode].geometry.amps[1];
+        // ROI is the full detector
+        this->camera_info.region_of_interest[0] = 1;
+        this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
+        this->camera_info.region_of_interest[2] = 1;
+        this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
+        
+        
+        //TODO:: APPLY changes to roi dynamically. The region of interest in
+          //camera_info tells camerad how to deinterlace and save to the fits file
+  
         this->camera_info.set_axes();
-
+        
         //Resize Image data size based on new geometry
         int num_detect = this->modemap[mode].geometry.num_detect;
         this->image_data_bytes = (uint32_t) floor( ((this->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN ) * BLOCK_LEN;
 
-        if (this->image_data_bytes == 0) {
+       if (this->image_data_bytes == 0) {
           this->camera.log_error( function, "image data size is zero! check NUM_DETECT, HORI_AMPS, VERT_AMPS in .acf file" );
           error = ERROR;
         }
