@@ -4792,6 +4792,8 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                     std::string mode = this->camera_info.current_observing_mode;
 
                     // Adjust geometry parameters and camera_info
+                    //TODO:: revisit implemented version to also acomodate for rxr and utr mode.
+                    //IMPORTANT SECTION FOR GUIDING MODE!!!!
                     this->modemap[mode].geometry.linecount = rows;
                     this->modemap[mode].geometry.pixelcount = cols *2;//*2 = reference amp columns
                     this->camera_info.region_of_interest[0] = this->win_hstart;
