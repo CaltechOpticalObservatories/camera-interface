@@ -4704,7 +4704,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                     error = this->inreg("10 1 28684"); // 0111 000000001100
                     if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
                     if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-
+                    
                     // reset taplines
                     cmd.str("");
                     cmd << "TAPLINES " << this->taplines_store;
@@ -4742,7 +4742,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                     //error = this->inreg("10 1 24604"); // 0110 000010000000
                     //if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
                     //if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-
+                    /*
                     // Adjust taplines
                     std::string taplines_str;
                     this->cds("TAPLINES", taplines_str);
@@ -4766,7 +4766,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                         //optional to include reference amplifier
                         //error = this->cds("TAPLINE1 AM52L,1,0", dontcare);
                     }
-
+                    */
                     // Now set params
                     int rows = (this->win_vstop - this->win_vstart) + 1;
                     int cols = (this->win_hstop - this->win_hstart) + 1;
@@ -4793,12 +4793,12 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
 
                     // Adjust geometry parameters and camera_info
                     this->modemap[mode].geometry.linecount = rows;
-                    this->modemap[mode].geometry.pixelcount = cols;
+                    this->modemap[mode].geometry.pixelcount = cols *2;//*2 = reference amp columns
                     this->camera_info.region_of_interest[0] = this->win_hstart;
-                    this->camera_info.region_of_interest[1] = this->win_hstop;
+                    this->camera_info.region_of_interest[1] = (this->win_hstop) + cols;
                     this->camera_info.region_of_interest[2] = this->win_vstart;
                     this->camera_info.region_of_interest[3] = this->win_vstop;
-                    this->camera_info.detector_pixels[0] = cols;
+                    this->camera_info.detector_pixels[0] = cols *2;// *2 = reference amp columns
                     this->camera_info.detector_pixels[1] = rows;
 
                     this->camera_info.set_axes();
