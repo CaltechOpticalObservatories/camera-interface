@@ -810,8 +810,7 @@ namespace Camera {
 
     // Set the exposure mode to match the camera mode name if recognized
     if (this->set_exposure_mode(modeselect, {}) != NO_ERROR) {
-      // Fall back to SINGLE if the camera mode name doesn't match an exposure mode
-      this->set_exposure_mode(std::string(ArchonExposureMode::SINGLE), {});
+      this->set_exposure_mode(this->default_exposure_mode_name(), {});
     }
 
     return NO_ERROR;
