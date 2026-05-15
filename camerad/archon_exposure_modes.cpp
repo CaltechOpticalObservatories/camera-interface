@@ -7,6 +7,8 @@
 #include "archon_exposure_modes.h"
 #include "archon_interface.h"
 
+#include <cstdlib>
+
 namespace Camera {
 
   /***** Camera::ExposureModeSingle *******************************************/
@@ -111,43 +113,49 @@ namespace Camera {
 
   /***** Camera::ExposureModeSingle::image_processing_thread ******************/
   /**
-   * @brief  implementation of Archon-specific expose for Single
-   *
+   * @brief  Consumer thread: pop each frame off the queue and fan out to
+   *         every configured FrameOutput on the interface
    */
   void ExposureModeSingle::image_processing_thread() {
     const std::string function("Camera::ExposureModeSingle::image_processing_thread");
     logwrite(function, "enter");
 
-//  open FITS file ?
+    auto* camera_info = &this->interface->camera_info;
+    auto* controller  = this->interface->controller;
+    auto* mode        = &controller->modemap[controller->selectedmode];
+    const size_t   bufferbytes = static_cast<size_t>(camera_info->image_data_bytes) * camera_info->cubedepth;
+    const uint32_t bpp         = (mode->samplemode == 1) ? 4 : 2;
+    const uint32_t width       = static_cast<uint32_t>(mode->geometry.pixelcount);
+    const uint32_t height      = static_cast<uint32_t>(mode->geometry.linecount);
 
-    // pop an image out of the queue,
-    // wait until producer stops producing data, or aborted
-    //
     while (!this->interface->is_aborted()) {
+      std::shared_ptr<ArchonImageBuffer> buf;
       {
-      std::unique_lock<std::mutex> lock(this->queue_mutex);
-      // keep trying to get the queue lock until success or aborted
-      this->queue_cv.wait(lock, [this] {
-          return !this->imagebuf_queue.empty() || this->is_producer_finished || this->interface->is_aborted();
-          });
-      if (this->interface->is_aborted()) break;
-      if (this->imagebuf_queue.empty()) {
-        if (this->is_producer_finished) {
-          logwrite(function, "queue empty and producer finished");
-          break;
-        }
-        else {
-          logwrite(function, "queue empty, producer not finished");
+        std::unique_lock<std::mutex> lock(this->queue_mutex);
+        this->queue_cv.wait(lock, [this] {
+            return !this->imagebuf_queue.empty() || this->is_producer_finished || this->interface->is_aborted();
+            });
+        if (this->interface->is_aborted()) break;
+        if (this->imagebuf_queue.empty()) {
+          if (this->is_producer_finished) {
+            logwrite(function, "queue empty and producer finished");
+            break;
+          }
           continue;
         }
+        buf = this->imagebuf_queue.front();
+        this->imagebuf_queue.pop();
       }
-      this->imagebuf_queue.pop();
-      }
-//    process_image
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+      Camera::FrameMetadata meta;
+      meta.frame_number    = buf->bufframen_slice.empty()    ? 0 : static_cast<uint64_t>(buf->bufframen_slice[0]);
+      meta.timestamp       = buf->buftimestamp_slice.empty() ? 0 : buf->buftimestamp_slice[0];
+      meta.width           = width;
+      meta.height          = height;
+      meta.bytes_per_pixel = bpp;
+      this->interface->dispatch_frame(buf->rawpixels.get(), bufferbytes, meta);
     }
 
-//  close FITS file ?
     logwrite(function, "exit");
   }
   /***** Camera::ExposureModeSingle::image_processing_thread ******************/
