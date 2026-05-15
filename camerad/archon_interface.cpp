@@ -808,10 +808,11 @@ namespace Camera {
     // if we made it all the way to the end then this is the selected mode
     this->controller->selectedmode = modeselect;
 
-    // Set the exposure mode to match the camera mode name if recognized
-    if (this->set_exposure_mode(modeselect, {}) != NO_ERROR) {
-      this->set_exposure_mode(this->default_exposure_mode_name(), {});
+    std::string target = this->default_exposure_mode_name();
+    for (const auto &m : this->get_exposure_modes()) {
+      if (m == modeselect) { target = modeselect; break; }
     }
+    this->set_exposure_mode(target, {});
 
     return NO_ERROR;
   }

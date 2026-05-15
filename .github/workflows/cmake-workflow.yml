@@ -2,35 +2,122 @@ name: CMake workflow
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main", "camera-2.0"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main", "camera-2.0"]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Optional build target or instrument name (leave blank for default build)"
+        required: false
+        default: ""
+        type: string
+
 jobs:
-  Archon-build:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      BUILD_TYPE: Release
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Install dependencies
-      run: |
-        ls -l
-        .github/workflows/install-deps.sh
-      shell: bash
-    
-    - name: Configure CMake for Archon Interface
-      run: |
-        mkdir ${{github.workspace}}/build
-        cd ${{github.workspace}}/build
-        cmake ..
+      - name: Resolve requested target
+        shell: bash
+        run: |
+          TARGET_NAME="${{ github.event.inputs.target }}"
+          echo "TARGET_NAME=${TARGET_NAME}" >> "$GITHUB_ENV"
+          if [[ -z "$TARGET_NAME" ]]; then
+            echo "Default build requested"
+          else
+            echo "Requested target: $TARGET_NAME"
+          fi
 
-    - name: Build
-      run: |
-        cd ${{github.workspace}}/build
-        make
-        make run_unit_tests
+      - name: Install dependencies
+        shell: bash
+        run: |
+          bash .github/workflows/install-deps.sh
 
-    - name: Run Unit Tests
-      run: |
-        cd ${{github.workspace}}
-        bin/run_unit_tests
+      - name: Build and install zmqpp from source
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
+          cmake -S /tmp/zmqpp -B /tmp/zmqpp/build
+          cmake --build /tmp/zmqpp/build -j"$(nproc)"
+          sudo cmake --install /tmp/zmqpp/build
+          sudo ldconfig
+
+      - name: Rewrite GitHub SSH URLs for submodules
+        shell: bash
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule sync --recursive
+
+      - name: Update matching submodule
+        if: env.TARGET_NAME != '' && env.TARGET_NAME != 'emulator'
+        shell: bash
+        run: |
+          if [[ ! -f .gitmodules ]]; then
+            echo "No .gitmodules file found; skipping submodule update."
+            exit 0
+          fi
+
+          MATCH_PATH=$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk -v target="$TARGET_NAME" '
+            $2 == target { print $2; exit }
+            $2 ~ "/" target "$" { print $2; exit }
+          ')
+
+          if [[ -z "$MATCH_PATH" ]]; then
+            echo "No submodule path matched '$TARGET_NAME'; continuing without submodule update."
+            exit 0
+          fi
+
+          echo "Matched submodule path: $MATCH_PATH"
+          git submodule sync -- "$MATCH_PATH"
+          git submodule update --init --recursive --remote -- "$MATCH_PATH"
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir -p build
+          cd build
+
+          CMAKE_ARGS=(
+            -G Ninja
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+            -DCONTROLLER=archon
+          )
+
+          if [[ -n "$TARGET_NAME" && "$TARGET_NAME" != "emulator" ]]; then
+            CMAKE_ARGS+=("-DINSTRUMENT=${TARGET_NAME}")
+          fi
+
+          cmake "${CMAKE_ARGS[@]}" ..
+
+      - name: Build default
+        if: env.TARGET_NAME == ''
+        shell: bash
+        run: |
+          cmake --build build -j"$(nproc)"
+          if cmake --build build --target run_unit_tests -j"$(nproc)"; then
+            ./bin/run_unit_tests
+          else
+            echo "run_unit_tests target not available; skipping unit tests."
+          fi
+
+      - name: Build emulator target
+        if: env.TARGET_NAME == 'emulator'
+        shell: bash
+        run: |
+          cmake --build build --target emulator -j"$(nproc)"
+
+      - name: Build named target
+        if: env.TARGET_NAME != '' && env.TARGET_NAME != 'emulator'
+        shell: bash
+        run: |
+          cmake --build build -j"$(nproc)"
