@@ -29,6 +29,18 @@ add_library(shared_memory_writer STATIC
 target_include_directories(shared_memory_writer PRIVATE ${PROJECT_BASE_DIR}/common ${PROJECT_BASE_DIR}/utils)
 target_link_libraries(shared_memory_writer nlohmann_json::nlohmann_json $<IF:$<PLATFORM_ID:Linux>,rt,>)
 
+add_library(fits_writer STATIC
+        ${PROJECT_UTILS_DIR}/fits_writer.cpp
+)
+target_include_directories(fits_writer PRIVATE ${PROJECT_BASE_DIR}/common ${PROJECT_BASE_DIR}/utils)
+find_library(FITSWRITER_CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib /opt/homebrew/lib)
+find_library(FITSWRITER_CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib /opt/homebrew/lib)
+target_link_libraries(fits_writer
+        nlohmann_json::nlohmann_json
+        ${FITSWRITER_CCFITS_LIB}
+        ${FITSWRITER_CFITS_LIB}
+)
+
 add_library(md5 STATIC
         ${PROJECT_UTILS_DIR}/md5.cpp
 )
