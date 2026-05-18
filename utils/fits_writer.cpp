@@ -36,6 +36,12 @@ namespace Camera {
       return ERROR;
     }
 
+    if (cfg_.queue_size == 0) {
+      logwrite(function, "ERROR queue_size must be > 0");
+      started_.store(false);
+      return ERROR;
+    }
+
     std::error_code ec;
     if (!std::filesystem::is_directory(cfg_.output_dir, ec)) {
       logwrite(function, "ERROR output_dir does not exist: " + cfg_.output_dir);
@@ -43,6 +49,7 @@ namespace Camera {
       return ERROR;
     }
 
+    stop_.store(false);
     worker_ = std::thread(&FitsWriter::worker_loop, this);
 
     logwrite(function, "started: dir=" + cfg_.output_dir +
