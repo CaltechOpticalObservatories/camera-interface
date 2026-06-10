@@ -46,6 +46,8 @@ namespace Camera {
     const std::string function("Camera::make_frame_outputs");
     std::vector<std::unique_ptr<FrameOutput>> outputs;
 
+    logwrite(function, "Creating frame outputs!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
     if (cfg.shm_enabled) {
       if (cfg.shm_max_frame_bytes == 0) {
         logwrite(function, "WARNING shm_enabled but shm_max_frame_bytes==0; SHM skipped");

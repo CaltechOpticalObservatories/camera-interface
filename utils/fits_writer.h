@@ -24,7 +24,7 @@
 namespace Camera {
 
   struct FitsWriterConfig {
-    std::string output_dir{"/tmp"};
+    std::string output_dir{"/tmp/images"};
     std::string basename{"tracking"};
     uint32_t    write_interval_ms{0};       // 0 = write every accepted frame
     size_t      queue_size{32};
