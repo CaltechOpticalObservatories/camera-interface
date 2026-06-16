@@ -54,23 +54,30 @@ namespace Camera {
 
     logwrite(function, "started: dir=" + cfg_.output_dir +
              " basename=" + cfg_.basename +
-             " queue_size=" + std::to_string(cfg_.queue_size) +
-             " write_interval_ms=" + std::to_string(cfg_.write_interval_ms));
+             " queue_size=" + std::to_string(cfg_.queue_size));
     return NO_ERROR;
   }
 
   long FitsWriter::write(const char* data, size_t size, const FrameMetadata& meta) {
+    const std::string function("Camera::FitsWriter::write");
+
     if (!started_.load()) return ERROR;
 
-    // Cadence gate — skipped frames never enter the queue
-    if (cfg_.write_interval_ms > 0) {
-      const auto now = std::chrono::steady_clock::now();
-      const auto interval = std::chrono::milliseconds(cfg_.write_interval_ms);
-      if (now - last_accepted_ < interval) {
-        n_skipped_cadence_.fetch_add(1, std::memory_order_relaxed);
-        return NO_ERROR;
-      }
-      last_accepted_ = now;
+    if (meta.width == 0 || meta.height == 0) {
+      logwrite(function, "ERROR invalid frame geometry");
+      return ERROR;
+    }
+    if (meta.bytes_per_pixel != 2 && meta.bytes_per_pixel != 4) {
+      logwrite(function, "ERROR unsupported bytes_per_pixel=" +
+               std::to_string(meta.bytes_per_pixel));
+      return ERROR;
+    }
+    const size_t expected_bytes =
+      static_cast<size_t>(meta.width) * meta.height * meta.bytes_per_pixel;
+    if (size < expected_bytes) {
+      logwrite(function, "ERROR frame data " + std::to_string(size) +
+               " < expected " + std::to_string(expected_bytes));
+      return ERROR;
     }
 
     QueuedFrame frame;
@@ -104,7 +111,6 @@ namespace Camera {
     logwrite(function, "stopped: received=" + std::to_string(n_received_.load()) +
              " written=" + std::to_string(n_written_.load()) +
              " dropped_queue=" + std::to_string(n_dropped_queue_.load()) +
-             " skipped_cadence=" + std::to_string(n_skipped_cadence_.load()) +
              " failed=" + std::to_string(n_failed_.load()) +
              " dropped_shutdown=" + std::to_string(n_dropped_shutdown_.load()));
   }
@@ -114,7 +120,6 @@ namespace Camera {
     s.frames_received        = n_received_.load();
     s.frames_written         = n_written_.load();
     s.frames_dropped_queue   = n_dropped_queue_.load();
-    s.frames_skipped_cadence = n_skipped_cadence_.load();
     s.frames_failed          = n_failed_.load();
     s.frames_dropped_shutdown= n_dropped_shutdown_.load();
     return s;
@@ -155,24 +160,7 @@ namespace Camera {
   long FitsWriter::write_fits_file(const QueuedFrame &frame) {
     const std::string function("Camera::FitsWriter::write_fits_file");
     const auto &meta = frame.meta;
-
-    if (meta.width == 0 || meta.height == 0 || meta.bytes_per_pixel == 0) {
-      logwrite(function, "ERROR invalid frame metadata");
-      return ERROR;
-    }
-    if (meta.bytes_per_pixel != 2 && meta.bytes_per_pixel != 4) {
-      logwrite(function, "ERROR unsupported bytes_per_pixel=" +
-               std::to_string(meta.bytes_per_pixel));
-      return ERROR;
-    }
-
     const size_t npixels = static_cast<size_t>(meta.width) * meta.height;
-    const size_t expected_bytes = npixels * meta.bytes_per_pixel;
-    if (frame.data.size() < expected_bytes) {
-      logwrite(function, "ERROR frame data " + std::to_string(frame.data.size()) +
-               " < expected " + std::to_string(expected_bytes));
-      return ERROR;
-    }
 
     const std::string filename = make_filename(meta.frame_number);
     // CCfits requires a non-existing path; "!" prefix would overwrite,

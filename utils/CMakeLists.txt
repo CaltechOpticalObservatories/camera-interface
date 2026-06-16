@@ -41,6 +41,12 @@ target_link_libraries(fits_writer
         ${FITSWRITER_CFITS_LIB}
 )
 
+add_library(cadence_gate STATIC
+        ${PROJECT_UTILS_DIR}/cadence_gate.cpp
+)
+target_include_directories(cadence_gate PRIVATE ${PROJECT_BASE_DIR}/common ${PROJECT_BASE_DIR}/utils)
+target_link_libraries(cadence_gate nlohmann_json::nlohmann_json)
+
 add_library(frame_output_factory STATIC
         ${PROJECT_UTILS_DIR}/frame_output_factory.cpp
 )
@@ -49,6 +55,7 @@ target_link_libraries(frame_output_factory
         nlohmann_json::nlohmann_json
         shared_memory_writer
         fits_writer
+        cadence_gate
 )
 
 add_library(md5 STATIC

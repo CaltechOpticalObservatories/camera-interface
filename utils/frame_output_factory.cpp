@@ -5,6 +5,7 @@
 
 #include "frame_output_factory.h"
 #include "fits_writer.h"
+#include "cadence_gate.h"
 #include "shared_memory_writer.h"
 #include "common.h"
 
@@ -31,7 +32,7 @@ namespace Camera {
         else if (key == "FITS_ENABLED")           out.fits_enabled           = parse_bool(val);
         else if (key == "FITS_OUTPUT_DIR")        out.fits.output_dir        = val;
         else if (key == "FITS_BASENAME")          out.fits.basename          = val;
-        else if (key == "FITS_WRITE_INTERVAL_MS") out.fits.write_interval_ms = static_cast<uint32_t>(std::stoul(val));
+        else if (key == "FITS_WRITE_INTERVAL_MS") out.fits_write_interval_ms = static_cast<uint32_t>(std::stoul(val));
         else if (key == "FITS_QUEUE_SIZE")        out.fits.queue_size        = static_cast<size_t>(std::stoul(val));
         else if (key == "FITS_DRAIN_TIMEOUT_MS")  out.fits.drain_timeout_ms  = static_cast<uint32_t>(std::stoul(val));
       }
@@ -45,8 +46,6 @@ namespace Camera {
   make_frame_outputs(const FrameOutputsConfig &cfg) {
     const std::string function("Camera::make_frame_outputs");
     std::vector<std::unique_ptr<FrameOutput>> outputs;
-
-    logwrite(function, "Creating frame outputs!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
     if (cfg.shm_enabled) {
       if (cfg.shm_max_frame_bytes == 0) {
@@ -72,9 +71,13 @@ namespace Camera {
       if (fits->open() == NO_ERROR) {
         logwrite(function, "FITS output enabled: dir=" + cfg.fits.output_dir +
                  " basename=" + cfg.fits.basename +
-                 " interval_ms=" + std::to_string(cfg.fits.write_interval_ms) +
+                 " interval_ms=" + std::to_string(cfg.fits_write_interval_ms) +
                  " queue=" + std::to_string(cfg.fits.queue_size));
-        outputs.push_back(std::move(fits));
+        std::unique_ptr<FrameOutput> output = std::move(fits);
+        if (cfg.fits_write_interval_ms > 0) {
+          output = std::make_unique<CadenceGate>(std::move(output), cfg.fits_write_interval_ms);
+        }
+        outputs.push_back(std::move(output));
       }
       else {
         logwrite(function, "WARNING FITS output failed to open; skipped");

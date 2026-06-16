@@ -27,6 +27,7 @@ namespace Camera {
     uint32_t    shm_num_frames{4};
 
     bool             fits_enabled{false};
+    uint32_t         fits_write_interval_ms{0};
     FitsWriterConfig fits;
   };
 
