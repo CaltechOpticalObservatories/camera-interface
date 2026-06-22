@@ -761,20 +761,25 @@ namespace Camera {
       throw std::runtime_error("connection not open to controller");
     }
 
-    // exposure time parameters must be defined
-    if (this->sec_param.empty() || this->msec_param.empty()) {
+    if (this->msec_param.empty()) {
       throw std::runtime_error("exposure time parameters not in configuration");
     }
 
     try {
-      // split the requested exposure time into seconds and milliseconds
-      auto [sec, msec] = this->exposure_time->split(exptime);
-
-      // Set the sec and msec parameters on the controller,
-      // store the exptime in the class on success.
-      if ( (set_parameter(sec_param, sec)   == NO_ERROR) &&
-           (set_parameter(msec_param, msec) == NO_ERROR) ) {
-        this->exposure_time->set(exptime);
+      if (!this->sec_param.empty()) {
+        // Split into seconds and milliseconds when both parameters are configured
+        auto [sec, msec] = this->exposure_time->split(exptime);
+        if ( (set_parameter(sec_param, sec)   == NO_ERROR) &&
+             (set_parameter(msec_param, msec) == NO_ERROR) ) {
+          this->exposure_time->set(exptime);
+        }
+      }
+      else {
+        // Single parameter mode: write as milliseconds
+        int msec = static_cast<int>(exptime * 1000.0);
+        if (set_parameter(msec_param, msec) == NO_ERROR) {
+          this->exposure_time->set(exptime);
+        }
       }
     }
     catch (const std::exception &e) {
@@ -1579,8 +1584,6 @@ namespace Camera {
     }
     else error=this->fetchlog();
 
-    this->is_camera_mode = false;         // require that a mode be selected after loading new firmware
-
     return error;
   }
   /***** Camera::ArchonController::load_acf ***********************************/
@@ -1603,16 +1606,45 @@ namespace Camera {
       this->get_configmap_value("SAMPLEMODE", mode->samplemode);
       this->get_configmap_value("BIGBUF", mode->bigbuf);
       this->get_configmap_value("FRAMEMODE", mode->geometry.framemode);
-      this->get_configmap_value("LINECOUNT", mode->geometry.linecount);
-      this->get_configmap_value("PIXELCOUNT", mode->geometry.pixelcount);
       this->get_configmap_value("RAWENABLE", mode->rawenable);
       this->get_configmap_value("RAWSEL", this->rawinfo.adchan);
       this->get_configmap_value("RAWSAMPLES", this->rawinfo.rawsamples);
       this->get_configmap_value("RAWENDLINE", this->rawinfo.rawlines);
+
+      // Read geometry from the mode's configmap (not the global one) since each
+      // mode section can override LINECOUNT/PIXELCOUNT
+      auto get_mode_value = [&](const std::string &key, int &out) {
+        auto it = mode->configmap.find(key);
+        if (it != mode->configmap.end()) {
+          out = std::stoi(it->second.value);
+        } else {
+          this->get_configmap_value(key, out);
+        }
+      };
+      get_mode_value("LINECOUNT",  mode->geometry.linecount);
+      get_mode_value("PIXELCOUNT", mode->geometry.pixelcount);
     }
     catch (const std::exception &e) {
       logwrite(function, "ERROR: "+std::string(e.what()));
       return ERROR;
+    }
+
+    // Write geometry to the Archon so the controller matches the selected mode
+    bool changed = false;
+    write_config_key("LINECOUNT",  std::to_string(mode->geometry.linecount).c_str(),  changed);
+    write_config_key("PIXELCOUNT", std::to_string(mode->geometry.pixelcount).c_str(), changed);
+
+    if (changed) {
+      logwrite(function, "applied mode geometry to controller");
+    }
+
+    for (const auto &[name, info] : mode->parammap) {
+      try {
+        this->set_parameter(name, std::stoi(info.value));
+      } catch (const std::exception &e) {
+        logwrite(function, "ERROR applying mode param "+name+"="+info.value+": "+e.what());
+        return ERROR;
+      }
     }
 
     return NO_ERROR;
@@ -1933,7 +1965,7 @@ namespace Camera {
       while ( this->archon.Bytes_ready() < (BLOCK_LEN+4) ) {
         auto now = std::chrono::steady_clock::now();             // check the time again
         std::chrono::duration<double> diff = now-start;          // calculate the duration
-        if (diff.count() > 1) {                                  // break while loop if duration > 1 second
+        if (diff.count() > 5) {                                   // break while loop if duration > 5 seconds
           logwrite(function, "timeout waiting for data from Archon");
           error = ERROR;
           break;                       // breaks out of while loop

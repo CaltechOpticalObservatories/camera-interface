@@ -7,3 +7,6 @@
 [submodule "camerad/Instruments/cryoscope"]
 	path = camerad/Instruments/cryoscope
 	url = https://github.com/CaltechOpticalObservatories/cryoscope-instrument.git
+[submodule "camerad/Instruments/hispec"]
+	path = camerad/Instruments/hispec
+	url = https://github.com/CaltechOpticalObservatories/hispec-instrument.git

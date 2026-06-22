@@ -44,14 +44,15 @@ namespace Camera {
    */
   void Server::configure_server() {
     const std::string function("Camera::Server::configure_server");
-    logwrite(function, "");
 
     if (interface->configfile.n_rows < 1) throw std::runtime_error("empty configuration");
 
-    // iterate through each row in config file
+    std::string logpath;
+    std::string log_tmzone;
+    std::string log_stderr = "true";
+
     for (int row=0; row < interface->configfile.n_rows; row++) {
 
-      // BLKPORT
       if (interface->configfile.param[row]=="BLKPORT") {
         try {
           this->blkport = std::stoi( interface->configfile.arg[row] );
@@ -63,7 +64,23 @@ namespace Camera {
           throw std::runtime_error(oss.str());
         }
       }
+
+      if (interface->configfile.param[row]=="LOGPATH")
+        logpath = interface->configfile.arg[row];
+
+      if (interface->configfile.param[row]=="TM_ZONE_LOG")
+        log_tmzone = interface->configfile.arg[row];
+
+      if (interface->configfile.param[row]=="LONGERROR")
+        log_stderr = interface->configfile.arg[row];
     }
+
+    if (logpath.empty()) throw std::runtime_error("LOGPATH not specified in configuration file");
+
+    if (init_log("camerad", logpath, log_stderr, log_tmzone) != 0)
+      throw std::runtime_error("unable to initialize logging to " + logpath);
+
+    logwrite(function, "logging initialized");
   }
   /***** Camera::Server::configure_server *************************************/
 
@@ -109,7 +126,7 @@ namespace Camera {
    * @param[in]  sock  Network::TcpSocket socket object
    *
    */
-  void Server::doit( Network::TcpSocket sock ) {
+  void Server::doit( Network::TcpSocket &sock ) {
     const std::string function("Camera::Server::doit");
     std::stringstream message;
     std::string cmd, args;
@@ -206,6 +223,14 @@ namespace Camera {
         }
         ret = HELP;
       }
+      /**
+       * instrument-specific commands
+       */
+      else
+      if (interface->is_instrument_command(cmd))
+      {
+        ret = interface->instrument_cmd(cmd, args, retstring);
+      }
       else
       if ( cmd == CAMERAD_ABORT ) {
         ret = interface->abort(args, retstring);
@@ -267,17 +292,7 @@ namespace Camera {
       if ( cmd == CAMERAD_TEST ) {
         ret = interface->test(args, retstring);
       }
-      /**
-       * instrument-specific commands
-       */
-      else
-      if ( cmd == "hispec_this" ) {
-        ret = interface->instrument_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == "hispec_that" ) {
-        ret = interface->instrument_cmd(cmd, args, retstring);
-      }
+
       /**
        * controller-specific commands
        */
@@ -307,6 +322,10 @@ namespace Camera {
       }
       else
       if ( cmd == "bob" ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
+      else
+      if ( cmd == "autofetch_mode" ) {
         ret = interface->controller_cmd(cmd, args, retstring);
       }
 

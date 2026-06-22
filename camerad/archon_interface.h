@@ -68,6 +68,9 @@ namespace Camera {
       long set_vcpu_inreg(const std::string &args, std::string &retstring);
       long autofetch_mode(const std::string &args, std::string &retstring);
 
+      // Fallback for set_camera_mode when the camera-mode name is unknown
+      virtual std::string default_exposure_mode_name() const { return "SINGLE"; }
+
       char* get_framebuf() { return controller->framebuf; }
 
       bool is_autofetch_mode{false};
