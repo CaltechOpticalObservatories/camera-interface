@@ -12,6 +12,10 @@
 #include "camera_information.h"
 #include "camerad_commands.h"
 #include "exposure_modes.h"
+#include "frame_output.h"
+
+#include <memory>
+#include <vector>
 
 namespace Camera {
 
@@ -54,6 +58,16 @@ namespace Camera {
 
       Config configfile;
       Camera::Information camera_info;
+
+      // Frame output destinations populated by Camera::make_frame_outputs()
+      std::vector<std::unique_ptr<FrameOutput>> frame_outputs;
+
+      // Fan a frame out to every configured FrameOutput
+      void dispatch_frame(const char* data, size_t size, const FrameMetadata &meta) {
+        for (auto &output : this->frame_outputs) {
+          output->write(data, size, meta);
+        }
+      }
 //    Common::FitsKeys systemkeys;  move to Camera::Information?
 
       // These functions are shared by all interfaces with common implementations,

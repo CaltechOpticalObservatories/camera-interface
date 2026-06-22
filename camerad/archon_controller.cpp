@@ -1584,8 +1584,6 @@ namespace Camera {
     }
     else error=this->fetchlog();
 
-    this->is_camera_mode = false;         // require that a mode be selected after loading new firmware
-
     return error;
   }
   /***** Camera::ArchonController::load_acf ***********************************/

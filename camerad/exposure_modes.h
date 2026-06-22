@@ -48,7 +48,7 @@ namespace Camera {
       }
 
       virtual ~ExposureMode() = default;
-      virtual long expose() = 0;
+      virtual long expose() { return NO_ERROR; }
       virtual void image_acquisition_thread() { };
       virtual void image_processing_thread() { };
 

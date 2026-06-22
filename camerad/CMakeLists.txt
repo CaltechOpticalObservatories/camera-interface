@@ -128,7 +128,7 @@ list (APPEND INTERFACE_SOURCES
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
 target_link_libraries(${INTERFACE_TARGET}
                       common
-                      shared_memory_writer
+                      frame_output_factory
                       )
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
@@ -173,7 +173,6 @@ target_link_libraries(camerad
   network
   utilities
   logentry
-  shared_memory_writer
   ${INTERFACE_TARGET}
   ${INTERFACE_LIBS}
   ${CMAKE_THREAD_LIBS_INIT}
