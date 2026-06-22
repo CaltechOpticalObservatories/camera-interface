@@ -11,6 +11,7 @@
 #include <vector>
 #include <mutex>
 #include <map>
+#include <optional>
 #include <sstream>
 #include "common.h"
 #include "network.h"
@@ -296,6 +297,8 @@ namespace Camera {
       std::string firmware;
       int msgref;
       std::string backplaneversion;
+      std::optional<float> heater_target_min_cfg;
+      std::optional<float> heater_target_max_cfg;
       std::vector<int> modtype;             //!< type of each module from SYSTEM command
       std::vector<std::string> modversion;  //!< version of each module from SYSTEM command
       std::string offset;
@@ -325,6 +328,8 @@ namespace Camera {
       long prep_parameter(const std::string &parameter, const int &value);
       long load_parameter(const std::string &parameter, const int &value);
       long set_vcpu_inreg(const std::string &args);
+      long heater(std::string args, std::string &retstring);
+      long sensor(std::string args, std::string &retstring);
       double get_exptime() const { return( this->exposure_time->get() ); }
       void print_frame_status();
       long send_cmd(const std::string &cmd, std::string &reply);

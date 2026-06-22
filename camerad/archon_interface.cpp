@@ -71,6 +71,14 @@ namespace Camera {
     if ( cmd == "autofetch_mode" ) {
       return this->autofetch_mode(args, retstring);
     }
+    else
+    if ( cmd == CAMERAD_HEATER ) {
+      return this->heater(args, retstring);
+    }
+    else
+    if ( cmd == CAMERAD_SENSOR ) {
+      return this->sensor(args, retstring);
+    }
     else {
       retstring="unrecognized command";
       return ERROR;
@@ -942,6 +950,80 @@ namespace Camera {
     return this->controller->set_vcpu_inreg(args);
   }
   /***** Camera::ArchonInterface::set_vcpu_inreg ******************************/
+
+
+  /***** Camera::ArchonInterface::heater **************************************/
+  /**
+   * @brief      heater control: set/get enable, target, PID, ramp, ilim, input
+   * @param[in]  args       see help text below
+   * @param[out] retstring  value(s) read back
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long ArchonInterface::heater(const std::string &args, std::string &retstring) {
+    const std::string function("Camera::ArchonInterface::heater");
+
+    // Help
+    if (args=="?" || args=="help") {
+      retstring = CAMERAD_HEATER;
+      retstring.append( " <module> <A|B> [ <on|off> [target] | <target> | PID [<p> <i> <d>]\n" );
+      retstring.append( "                              | RAMP [<on|off> [rate]] | ILIM [val] | INPUT [A|B|C] ]\n" );
+      retstring.append( "  control heater A or B on the given module:\n" );
+      retstring.append( "    no option       get enable state and target\n" );
+      retstring.append( "    on|off [target] set enable state, optionally the target\n" );
+      retstring.append( "    <target>        set the target\n" );
+      retstring.append( "    PID             get/set the P, I, D parameters\n" );
+      retstring.append( "    RAMP            get/set ramp enable and ramprate (1-32767)\n" );
+      retstring.append( "    ILIM            get/set the current limit (0-10000)\n" );
+      retstring.append( "    INPUT           get/set the input sensor (C requires HeaterX)\n" );
+      return HELP;
+    }
+
+    // must have loaded firmware // TODO implement a command to read the configuration
+    //                           //      memory from Archon, in order to remove this restriction.
+    //
+    if ( ! this->controller->is_firmwareloaded ) {
+      logwrite(function, "ERROR firmware not loaded");
+      return ERROR;
+    }
+
+    return this->controller->heater(args, retstring);
+  }
+  /***** Camera::ArchonInterface::heater **************************************/
+
+
+  /***** Camera::ArchonInterface::sensor **************************************/
+  /**
+   * @brief      set or get temperature sensor excitation current and averaging
+   * @param[in]  args       <module> <A|B|C> [ <current> | AVG [ <N> ] ]
+   * @param[out] retstring  current value (or averaging count) read back
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long ArchonInterface::sensor(const std::string &args, std::string &retstring) {
+    const std::string function("Camera::ArchonInterface::sensor");
+
+    // Help
+    if (args=="?" || args=="help") {
+      retstring = CAMERAD_SENSOR;
+      retstring.append( " <module> <A|B|C> [ <current> | AVG [ <N> ] ]\n" );
+      retstring.append( "  set or get RTD excitation current (nano-amps) for the given sensor,\n" );
+      retstring.append( "  or with AVG set/get the digital averaging count N (1,2,4,...,256).\n" );
+      retstring.append( "  sensor C requires a HeaterX module.\n" );
+      return HELP;
+    }
+
+    // must have loaded firmware // TODO implement a command to read the configuration
+    //                           //      memory from Archon, in order to remove this restriction.
+    //
+    if ( ! this->controller->is_firmwareloaded ) {
+      logwrite(function, "ERROR firmware not loaded");
+      return ERROR;
+    }
+
+    return this->controller->sensor(args, retstring);
+  }
+  /***** Camera::ArchonInterface::sensor **************************************/
 
 
   /***** Camera::ArchonInterface::native **************************************/

@@ -328,6 +328,14 @@ namespace Camera {
       if ( cmd == "autofetch_mode" ) {
         ret = interface->controller_cmd(cmd, args, retstring);
       }
+      else
+      if ( cmd == CAMERAD_HEATER ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
+      else
+      if ( cmd == CAMERAD_SENSOR ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
 
       // unknown commands generate an error
       //
