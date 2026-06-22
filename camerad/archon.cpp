@@ -1153,6 +1153,20 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
     std::stringstream scmd;
     long error = NO_ERROR;
 
+    // 1. Update the value inside internal parammap memory
+    this->param_it = this->parammap.find(paramname);
+    if (this->param_it != this->parammap.end()) {
+        
+        // Using .value based on your initialization code!
+        this->param_it->second.value = value; 
+        
+        // Track that memory state has changed
+        this->paramchanged = true; 
+        
+    } else {
+        message << "WARNING: \"" << paramname << "\" not found in master parammap. ";
+    }
+
     // Prepare to apply it to the system -- will be loaded on next EXTLOAD signal
     //
     scmd << "FASTPREPPARAM " << paramname << " " << value;
@@ -4450,9 +4464,12 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
         // set cds values
         std::string mode = this->camera_info.current_observing_mode;
         
+        std::string rxr_val = this->parammap["mode_RXR"].value;
+        printf("RXR value: %s\n", rxr_val.c_str());
         int pixelcount = cols;
-        if (mode == "RXR") {
-          pixelcount = cols * 2;
+        if (rxr_val == "1") 
+        {
+            pixelcount = cols * 2;//Account for second pixel readout
         }
         //printf("ROWS: %d, COLS: %d, PIXELCOUNT: %d\n", rows, cols, pixelcount);
         if (error == NO_ERROR)
@@ -4630,25 +4647,39 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                     error = this->set_parameter(cmd.str());
                 }
 
+                std::string mode = this->camera_info.current_observing_mode;
+        
+                std::string rxr_val = this->parammap["mode_RXR"].value;
+                printf("RXR value: %s\n", rxr_val.c_str());
+                int pixelcount = cols;
+                if (rxr_val == "1") 
+                {
+                    pixelcount = cols * 2;//Account for second pixel readout
+                }
+
                 // Now set CDS
                 cmd.str("");
-                cmd << "PIXELCOUNT " << cols;
+                cmd << "PIXELCOUNT " << pixelcount;
                 error = this->cds(cmd.str(), dontcare);
                 cmd.str("");
                 cmd << "LINECOUNT " << rows;
                 error = this->cds(cmd.str(), dontcare);
 
                 // update modemap, in case someone asks again
-                std::string mode = this->camera_info.current_observing_mode;
+                //std::string mode = this->camera_info.current_observing_mode;
 
                 this->modemap[mode].geometry.linecount = rows;
                 this->modemap[mode].geometry.pixelcount = cols;
-                this->camera_info.region_of_interest[0] = this->win_hstart;
-                this->camera_info.region_of_interest[1] = this->win_hstop;
-                this->camera_info.region_of_interest[2] = this->win_vstart;
-                this->camera_info.region_of_interest[3] = this->win_vstop;
-                this->camera_info.detector_pixels[0] = cols;
-                this->camera_info.detector_pixels[1] = rows;
+                this->camera_info.detector_pixels[0] = pixelcount * this->modemap[mode].geometry.amps[0];
+                this->camera_info.detector_pixels[1] = rows * this->modemap[mode].geometry.amps[1];
+                //this->camera_info.region_of_interest[0] = this->win_hstart;
+                //this->camera_info.region_of_interest[1] = this->win_hstop;
+                //this->camera_info.region_of_interest[2] = this->win_vstart;
+                //this->camera_info.region_of_interest[3] = this->win_vstop;
+                this->camera_info.region_of_interest[0] = 1;
+                this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
+                this->camera_info.region_of_interest[2] = 1;
+                this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
 
                 this->camera_info.set_axes();
             }
@@ -4742,31 +4773,7 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                     //error = this->inreg("10 1 24604"); // 0110 000010000000
                     //if (error == NO_ERROR) error = this->inreg("10 0 1"); // send to detector
                     //if (error == NO_ERROR) error = this->inreg("10 0 0"); // reset to 0
-                    /*
-                    // Adjust taplines
-                    std::string taplines_str;
-                    this->cds("TAPLINES", taplines_str);
-                    this->taplines_store = std::stoi(taplines_str);
-                    
 
-                    std::string tapline0;
-                    this->cds("TAPLINE0", tapline0);
-                    this->tapline0_store = tapline0;
-                    
-
-                    // Set camera mode to win_mode
-                    error = this->set_camera_mode(win_mode);
-
-                    if (error == NO_ERROR) {
-                        error = this->cds("TAPLINES 1", dontcare);
-                    }
-                    this->taplines = 1;
-                    if (error == NO_ERROR) {
-                        error = this->cds("TAPLINE0 AM54L,1,0", dontcare);
-                        //optional to include reference amplifier
-                        //error = this->cds("TAPLINE1 AM52L,1,0", dontcare);
-                    }
-                    */
                     // Now set params
                     int rows = (this->win_vstop - this->win_vstart) + 1;
                     int cols = (this->win_hstop - this->win_hstart) + 1;
@@ -4779,29 +4786,39 @@ long Interface::archon_cmd(std::string cmd, std::string &reply) {
                         cmd << "H2RG_rows " << rows;
                         error = this->set_parameter( cmd.str() );
                     }
+                    
+                    //IMPORTANT SECTION FOR GUIDING MODE!!!!
+                    // update modemap, in case someone asks again
+                    std::string mode = this->camera_info.current_observing_mode;
+                    std::string rxr_val = this->parammap["mode_RXR"].value;
+                      printf("RXR value: %s\n", rxr_val.c_str());
+                      int pixelcount = cols;
+                      if (rxr_val == "1") 
+                      {
+                          pixelcount = cols * 2;//Account for second pixel readout
+                      }
 
                     // Now set CDS
                     cmd.str("");
-                    cmd << "PIXELCOUNT " << cols;
+                    cmd << "PIXELCOUNT " << pixelcount;
                     error = this->cds( cmd.str(), dontcare );
                     cmd.str("");
                     cmd << "LINECOUNT " << rows;
                     error = this->cds( cmd.str(), dontcare );
 
-                    // update modemap, in case someone asks again
-                    std::string mode = this->camera_info.current_observing_mode;
-
                     // Adjust geometry parameters and camera_info
-                    //TODO:: revisit implemented version to also acomodate for rxr and utr mode.
-                    //IMPORTANT SECTION FOR GUIDING MODE!!!!
                     this->modemap[mode].geometry.linecount = rows;
-                    this->modemap[mode].geometry.pixelcount = cols *2;//*2 = reference amp columns
-                    this->camera_info.region_of_interest[0] = this->win_hstart;
-                    this->camera_info.region_of_interest[1] = (this->win_hstop) + cols;
-                    this->camera_info.region_of_interest[2] = this->win_vstart;
-                    this->camera_info.region_of_interest[3] = this->win_vstop;
-                    this->camera_info.detector_pixels[0] = cols *2;// *2 = reference amp columns
-                    this->camera_info.detector_pixels[1] = rows;
+                    this->modemap[mode].geometry.pixelcount = cols;
+                    this->camera_info.detector_pixels[0] = pixelcount * this->modemap[mode].geometry.amps[0];
+                    this->camera_info.detector_pixels[1] = rows * this->modemap[mode].geometry.amps[1];
+                    //this->camera_info.region_of_interest[0] = this->win_hstart;
+                    //this->camera_info.region_of_interest[1] = this->win_hstart + (pixelcount - 1);
+                    //this->camera_info.region_of_interest[2] = this->win_vstart;
+                    //this->camera_info.region_of_interest[3] = this->win_vstop;
+                    this->camera_info.region_of_interest[0] = 1;
+                    this->camera_info.region_of_interest[1] = this->camera_info.detector_pixels[0];
+                    this->camera_info.region_of_interest[2] = 1;
+                    this->camera_info.region_of_interest[3] = this->camera_info.detector_pixels[1];
 
                     this->camera_info.set_axes();
                     int num_detect = this->modemap[mode].geometry.num_detect;

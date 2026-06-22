@@ -456,6 +456,8 @@ namespace Archon {
 
         cfg_map_t configmap;
         param_map_t parammap;
+        param_map_t::iterator param_it; //!< Reuseable iterator for parammap lookups
+        bool paramchanged;
 
         /**
          * \var     modeinfo_t modeinfo
