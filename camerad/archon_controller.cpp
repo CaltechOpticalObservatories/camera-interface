@@ -10,6 +10,10 @@
 #include "archon_controller.h"
 #include "archon_interface.h"
 
+#include <array>
+#include <cfenv>
+#include <cmath>
+
 namespace Camera {
 
 
@@ -151,6 +155,34 @@ namespace Camera {
       if (this->interface->configfile.param[row]=="EXPOSE_PARAM") {
         this->expose_param = this->interface->configfile.arg[row];
         numapplied++;
+      }
+      else
+      // HEATER_TARGET_MIN
+      if (this->interface->configfile.param[row]=="HEATER_TARGET_MIN") {
+        try {
+          this->heater_target_min_cfg = std::stof(this->interface->configfile.arg[row]);
+          numapplied++;
+        }
+        catch (const std::exception &e) {
+          std::ostringstream oss;
+          oss << "parsing " << this->interface->configfile.param[row]
+                            << "=" << this->interface->configfile.arg[row] << ": " << e.what();
+          throw std::runtime_error(oss.str());
+        }
+      }
+      else
+      // HEATER_TARGET_MAX
+      if (this->interface->configfile.param[row]=="HEATER_TARGET_MAX") {
+        try {
+          this->heater_target_max_cfg = std::stof(this->interface->configfile.arg[row]);
+          numapplied++;
+        }
+        catch (const std::exception &e) {
+          std::ostringstream oss;
+          oss << "parsing " << this->interface->configfile.param[row]
+                            << "=" << this->interface->configfile.arg[row] << ": " << e.what();
+          throw std::runtime_error(oss.str());
+        }
       }
 
       // publish and/or log applied configuration
@@ -2433,6 +2465,674 @@ namespace Camera {
     return error;
   }
   /***** Camera::ArchonController::set_vcpu_inreg *****************************/
+
+
+  /***** Camera::ArchonController::heater *************************************/
+  /**
+   * @brief      heater control: set/get enable, target, PID, ramp, ilim, input
+   * @param[in]  args       see forms below
+   * @param[out] retstring  space-delimited value(s) read back
+   * @return     ERROR | NO_ERROR
+   *
+   * Valid forms (heater A or B on the given module):
+   *   <module> <A|B>                      get enable + target
+   *   <module> <A|B> <on|off> [target]    set enable (and optionally target)
+   *   <module> <A|B> <target>             set target
+   *   <module> <A|B> PID [<p> <i> <d>]    get/set PID parameters
+   *   <module> <A|B> RAMP [<on|off> [rate]] get/set ramp and ramprate
+   *   <module> <A|B> ILIM [value]         get/set current limit
+   *   <module> <A|B> INPUT [A|B|C]        get/set input sensor (C: HeaterX only)
+   *
+   * A single command can touch several configuration keys, so the keys to read
+   * or write are collected into heaterconfig (and, for writes, the matching
+   * values into heatervalue) before being applied and read back together.
+   *
+   */
+  long ArchonController::heater(std::string args, std::string &retstring) {
+    const std::string function("Camera::ArchonController::heater");
+    std::ostringstream message;
+
+    // RAMP (and therefore heater) requires a minimum backplane version
+    //
+    int ret = compare_versions( this->backplaneversion, REV_RAMP );
+    if ( ret < 0 ) {
+      if ( ret == -999 ) {
+        message << "ERROR comparing backplane version " << this->backplaneversion << " to " << REV_RAMP;
+      }
+      else {
+        message << "ERROR requires backplane version " << REV_RAMP << " or newer. ("
+                << this->backplaneversion << " detected)";
+      }
+      logwrite(function, message.str());
+      return ERROR;
+    }
+
+    std::transform( args.begin(), args.end(), args.begin(), ::toupper );  // make uppercase
+
+    std::vector<std::string> tokens;
+    Tokenize(args, tokens, " ");
+
+    // At minimum there must be two tokens, <module> <A|B>
+    //
+    if ( tokens.size() < 2 ) {
+      logwrite(function, "ERROR expected at least two arguments: <module> <A|B>");
+      return ERROR;
+    }
+
+    // module and heaterid are common to every form
+    //
+    int module;
+    std::string heaterid;  //!< A | B
+    try {
+      module   = std::stoi( tokens.at(0) );
+      heaterid = tokens.at(1);
+      if ( heaterid != "A" && heaterid != "B" ) {
+        logwrite(function, "ERROR invalid heater "+heaterid+": expected <module> <A|B>");
+        return ERROR;
+      }
+    }
+    catch ( std::invalid_argument & ) {
+      logwrite(function, "ERROR converting heater <module> "+tokens.at(0)+" to integer");
+      return ERROR;
+    }
+    catch ( std::out_of_range & ) {
+      logwrite(function, "ERROR heater <module> "+tokens.at(0)+" outside integer range");
+      return ERROR;
+    }
+
+    // check that the requested module is valid
+    //
+    if ( module < 1 || module > static_cast<int>(this->modtype.size()) ) {
+      logwrite(function, "ERROR invalid module '"+std::to_string(module)+"'");
+      return ERROR;
+    }
+    switch ( this->modtype[ module-1 ] ) {
+      case MODTYPE_NONE:
+        logwrite(function, "ERROR module "+std::to_string(module)+" not installed");
+        return ERROR;
+      case MODTYPE_HEATER:
+      case MODTYPE_HEATERX:
+        break;
+      default:
+        logwrite(function, "ERROR module "+std::to_string(module)+" not a heater board");
+        return ERROR;
+    }
+
+    // heater target min/max depends on backplane version
+    //
+    float heater_target_min, heater_target_max;
+    ret = compare_versions( this->backplaneversion, REV_HEATERTARGET );
+    if ( ret == -999 ) {
+      message << "ERROR comparing backplane version " << this->backplaneversion << " to " << REV_HEATERTARGET;
+      logwrite(function, message.str());
+      return ERROR;
+    }
+    else if ( ret == -1 ) {
+      heater_target_min = -150.0;
+      heater_target_max =   50.0;
+    }
+    else {
+      heater_target_min = -250.0;
+      heater_target_max =   50.0;
+    }
+
+    // .cfg overrides take precedence over the version-based defaults
+    //
+    if ( this->heater_target_min_cfg ) heater_target_min = *this->heater_target_min_cfg;
+    if ( this->heater_target_max_cfg ) heater_target_max = *this->heater_target_max_cfg;
+
+    std::vector<std::string> heaterconfig;  //!< configuration keys to read or write
+    std::vector<std::string> heatervalue;   //!< values for the keys being written
+    bool readonly=false;
+    std::ostringstream ss;
+    const std::string base = "MOD"+std::to_string(module)+"/HEATER"+heaterid;
+
+    // 2 tokens: <module> <A|B>  -> read ENABLE, TARGET
+    //
+    if ( tokens.size() == 2 ) {
+      readonly = true;
+      heaterconfig.push_back( base+"ENABLE" );
+      heaterconfig.push_back( base+"TARGET" );
+    }
+    // 3 tokens: <module> <A|B> < ON | OFF | PID | RAMP | ILIM | INPUT | target >
+    //
+    else if ( tokens.size() == 3 ) {
+      if ( tokens[2] == "ON" ) {
+        heaterconfig.push_back( base+"ENABLE" ); heatervalue.emplace_back("1");
+      }
+      else if ( tokens[2] == "OFF" ) {
+        heaterconfig.push_back( base+"ENABLE" ); heatervalue.emplace_back("0");
+      }
+      else if ( tokens[2] == "RAMP" ) {
+        readonly = true;
+        heaterconfig.push_back( base+"RAMP" );
+        heaterconfig.push_back( base+"RAMPRATE" );
+      }
+      else if ( tokens[2] == "PID" ) {
+        readonly = true;
+        heaterconfig.push_back( base+"P" );
+        heaterconfig.push_back( base+"I" );
+        heaterconfig.push_back( base+"D" );
+      }
+      else if ( tokens[2] == "ILIM" ) {
+        readonly = true;
+        heaterconfig.push_back( base+"IL" );
+      }
+      else if ( tokens[2] == "INPUT" ) {
+        readonly = true;
+        heaterconfig.push_back( base+"SENSOR" );
+      }
+      else {  // bare <target>
+        float target;
+        try {
+          target = std::stof( tokens[2] );
+          if ( target < heater_target_min || target > heater_target_max ) {
+            message << "ERROR requested heater target " << target << " outside range {"
+                    << heater_target_min << ":" << heater_target_max << "}";
+            logwrite(function, message.str());
+            return ERROR;
+          }
+        }
+        catch ( std::invalid_argument & ) {
+          logwrite(function, "ERROR converting heater <target> "+tokens[2]+" to float");
+          return ERROR;
+        }
+        catch ( std::out_of_range & ) {
+          logwrite(function, "ERROR heater <target> "+tokens[2]+" outside range of float");
+          return ERROR;
+        }
+        heaterconfig.push_back( base+"TARGET" ); heatervalue.push_back( tokens[2] );
+      }
+    }
+    // 4 tokens: ON <target> | RAMP <on|off|rate> | ILIM <value> | INPUT <A|B|C>
+    //
+    else if ( tokens.size() == 4 ) {
+      if ( tokens[2] == "ON" ) {       // ON <target>
+        float target;
+        try {
+          target = std::stof( tokens[3] );
+          if ( target < heater_target_min || target > heater_target_max ) {
+            message << "ERROR requested heater target " << target << " outside range {"
+                    << heater_target_min << ":" << heater_target_max << "}";
+            logwrite(function, message.str());
+            return ERROR;
+          }
+        }
+        catch ( std::invalid_argument & ) {
+          logwrite(function, "ERROR converting heater <target> "+tokens[3]+" to float");
+          return ERROR;
+        }
+        catch ( std::out_of_range & ) {
+          logwrite(function, "ERROR heater <target> "+tokens[3]+" outside range of float");
+          return ERROR;
+        }
+        heaterconfig.push_back( base+"ENABLE" ); heatervalue.emplace_back("1");
+        heaterconfig.push_back( base+"TARGET" ); heatervalue.push_back( tokens[3] );
+      }
+      else if ( tokens[2] == "RAMP" ) {     // RAMP <on|off|rate>
+        if ( tokens[3] == "ON" || tokens[3] == "OFF" ) {
+          heaterconfig.push_back( base+"RAMP" );
+          heatervalue.emplace_back( tokens[3] == "ON" ? "1" : "0" );
+        }
+        else {                              // RAMP <ramprate>
+          int ramprate;
+          try {
+            ramprate = std::stoi( tokens[3] );
+            if ( ramprate < 1 || ramprate > 32767 ) {
+              logwrite(function, "ERROR heater ramprate "+std::to_string(ramprate)+" outside range {1:32767}");
+              return ERROR;
+            }
+          }
+          catch ( std::invalid_argument & ) {
+            logwrite(function, "ERROR converting RAMP <ramprate> "+tokens[3]+" to integer");
+            return ERROR;
+          }
+          catch ( std::out_of_range & ) {
+            logwrite(function, "ERROR RAMP <ramprate> "+tokens[3]+" outside range of integer");
+            return ERROR;
+          }
+          heaterconfig.push_back( base+"RAMPRATE" ); heatervalue.push_back( tokens[3] );
+        }
+      }
+      else if ( tokens[2] == "ILIM" ) {     // ILIM <value>
+        int il_value;
+        try {
+          il_value = std::stoi( tokens[3] );
+          if ( il_value < 0 || il_value > 10000 ) {
+            logwrite(function, "ERROR heater ilim "+std::to_string(il_value)+" outside range {0:10000}");
+            return ERROR;
+          }
+        }
+        catch ( std::invalid_argument & ) {
+          logwrite(function, "ERROR converting ILIM <value> "+tokens[3]+" to integer");
+          return ERROR;
+        }
+        catch ( std::out_of_range & ) {
+          logwrite(function, "ERROR ILIM <value> "+tokens[3]+" outside range of integer");
+          return ERROR;
+        }
+        heaterconfig.push_back( base+"IL" ); heatervalue.push_back( tokens[3] );
+      }
+      else if ( tokens[2] == "INPUT" ) {    // INPUT <A|B|C>
+        std::string sensorid;
+        if ( tokens[3] == "A" )      sensorid = "0";
+        else if ( tokens[3] == "B" ) sensorid = "1";
+        else if ( tokens[3] == "C" ) {
+          sensorid = "2";
+          if ( this->modtype[ module-1 ] != MODTYPE_HEATERX ) {
+            logwrite(function, "ERROR sensor C not supported on module "+std::to_string(module)+": HeaterX module required");
+            return ERROR;
+          }
+        }
+        else {
+          logwrite(function, "ERROR invalid sensor "+tokens[3]+": expected <module> <A|B> INPUT <A|B|C>");
+          return ERROR;
+        }
+        heaterconfig.push_back( base+"SENSOR" ); heatervalue.push_back( sensorid );
+      }
+      else {
+        logwrite(function, "ERROR expected ON | RAMP | ILIM | INPUT for 3rd argument but got "+tokens[2]);
+        return ERROR;
+      }
+    }
+    // 5 tokens: <module> <A|B> RAMP ON <ramprate>
+    //
+    else if ( tokens.size() == 5 ) {
+      if ( tokens[2] != "RAMP" || tokens[3] != "ON" ) {
+        logwrite(function, "ERROR expected RAMP ON <ramprate> but got "+tokens[2]+" "+tokens[3]+" "+tokens[4]);
+        return ERROR;
+      }
+      int ramprate;
+      try {
+        ramprate = std::stoi( tokens[4] );
+        if ( ramprate < 1 || ramprate > 32767 ) {
+          logwrite(function, "ERROR heater ramprate "+std::to_string(ramprate)+" outside range {1:32767}");
+          return ERROR;
+        }
+      }
+      catch ( std::invalid_argument & ) {
+        logwrite(function, "ERROR expected RAMP ON <ramprate> but unable to convert <ramprate> "+tokens[4]+" to integer");
+        return ERROR;
+      }
+      catch ( std::out_of_range & ) {
+        logwrite(function, "ERROR expected RAMP ON <ramprate> but <ramprate> "+tokens[4]+" outside range of integer");
+        return ERROR;
+      }
+      heaterconfig.push_back( base+"RAMP" );     heatervalue.emplace_back("1");
+      heaterconfig.push_back( base+"RAMPRATE" ); heatervalue.push_back( tokens[4] );
+    }
+    // 6 tokens: <module> <A|B> PID <p> <i> <d>
+    //
+    else if ( tokens.size() == 6 ) {
+      if ( tokens[2] != "PID" ) {
+        logwrite(function, "ERROR expected PID <p> <i> <d> but got "+tokens[2]+" "+tokens[3]+" "+tokens[4]+" "+tokens[5]);
+        return ERROR;
+      }
+
+      // fractional PID requires a minimum backplane version; older backplanes
+      // need the values rounded to integers
+      //
+      bool fractionalpid_ok;
+      ret = compare_versions( this->backplaneversion, REV_FRACTIONALPID );
+      if ( ret == -999 ) {
+        message << "ERROR comparing backplane version " << this->backplaneversion << " to " << REV_FRACTIONALPID;
+        logwrite(function, message.str());
+        return ERROR;
+      }
+      fractionalpid_ok = ( ret != -1 );
+
+      try {
+        if ( !fractionalpid_ok &&
+             ( tokens[3].find('.') != std::string::npos ||
+               tokens[4].find('.') != std::string::npos ||
+               tokens[5].find('.') != std::string::npos ) ) {
+          fesetround(FE_TONEAREST);  // round halfway cases away from zero
+          tokens[3] = std::to_string( std::lrint( std::stof( tokens[3] ) ) );
+          tokens[4] = std::to_string( std::lrint( std::stof( tokens[4] ) ) );
+          tokens[5] = std::to_string( std::lrint( std::stof( tokens[5] ) ) );
+          logwrite(function, "NOTICE fractional heater PID requires backplane version "+REV_FRACTIONALPID+
+                             " or newer ("+this->backplaneversion+" detected); PIDs rounded to "+
+                             tokens[3]+" "+tokens[4]+" "+tokens[5]);
+        }
+        float pid_p = std::stof( tokens[3] );
+        float pid_i = std::stof( tokens[4] );
+        float pid_d = std::stof( tokens[5] );
+        if ( pid_p < 0 || pid_p > 10000 || pid_i < 0 || pid_i > 10000 || pid_d < 0 || pid_d > 10000 ) {
+          logwrite(function, "ERROR one or more heater PID values outside range {0:10000}");
+          return ERROR;
+        }
+      }
+      catch ( std::invalid_argument & ) {
+        logwrite(function, "ERROR converting one or more heater PID values to numbers: "+tokens[3]+" "+tokens[4]+" "+tokens[5]);
+        return ERROR;
+      }
+      catch ( std::out_of_range & ) {
+        logwrite(function, "ERROR one or more heater PID values outside range: "+tokens[3]+" "+tokens[4]+" "+tokens[5]);
+        return ERROR;
+      }
+      heaterconfig.push_back( base+"P" ); heatervalue.push_back( tokens[3] );
+      heaterconfig.push_back( base+"I" ); heatervalue.push_back( tokens[4] );
+      heaterconfig.push_back( base+"D" ); heatervalue.push_back( tokens[5] );
+    }
+    else {
+      logwrite(function, "ERROR received "+std::to_string(tokens.size())+" arguments but expected 2, 3, 4, 5, or 6");
+      return ERROR;
+    }
+
+    long error = NO_ERROR;
+
+    if ( ! readonly ) {
+      // heaterconfig and heatervalue must stay in lock-step
+      //
+      if ( heaterconfig.size() != heatervalue.size() ) {
+        logwrite(function, "ERROR BUG DETECTED: heaterconfig/heatervalue size mismatch");
+        return ERROR;
+      }
+
+      // write each configuration line, counting failures
+      //
+      size_t error_count = 0;
+      for ( size_t i=0; i < heaterconfig.size(); ++i ) {
+        bool changed = false;
+        error = this->write_config_key( heaterconfig[i].c_str(), heatervalue[i].c_str(), changed );
+        if ( error != NO_ERROR ) {
+          logwrite(function, "ERROR writing configuration "+heaterconfig[i]+"="+heatervalue[i]);
+          ++error_count;
+        }
+        else if ( !changed ) {
+          logwrite(function, "heater configuration "+heaterconfig[i]+"="+heatervalue[i]+" unchanged");
+        }
+        else {
+          logwrite(function, "updated heater configuration "+heaterconfig[i]+"="+heatervalue[i]);
+        }
+      }
+
+      // apply the module unless every write failed
+      //
+      if ( error_count == heaterconfig.size() ) {
+        return ERROR;
+      }
+      if ( this->send_cmd( make_applymod_command(module) ) != NO_ERROR ) {
+        logwrite(function, "ERROR applying heater configuration");
+      }
+    }
+
+    // read back each key, concatenating the values into one space-delimited string
+    //
+    std::ostringstream retss;
+    for ( const auto &key : heaterconfig ) {
+      std::string value;
+      try {
+        this->get_configmap_value( key, value );
+      }
+      catch ( const std::exception &e ) {
+        logwrite(function, "ERROR reading heater configuration "+key+": "+e.what());
+        return ERROR;
+      }
+
+      // ENABLE/RAMP store 0|1 -> present as OFF|ON; SENSOR stores 0|1|2 -> A|B|C
+      //
+      if ( (key.size() >= 6 && key.substr( key.size()-6 ) == "ENABLE") ||
+           (key.size() >= 4 && key.substr( key.size()-4 ) == "RAMP") ) {
+        if ( value == "0" )      value = "OFF";
+        else if ( value == "1" ) value = "ON";
+        else {
+          logwrite(function, "ERROR bad value "+value+" from configuration, expected 0 or 1");
+          return ERROR;
+        }
+      }
+      else if ( key.size() >= 6 && key.substr( key.size()-6 ) == "SENSOR" ) {
+        if ( value == "0" )      value = "A";
+        else if ( value == "1" ) value = "B";
+        else if ( value == "2" ) value = "C";
+        else {
+          logwrite(function, "ERROR bad value "+value+" from configuration, expected 0, 1, or 2");
+          return ERROR;
+        }
+      }
+      retss << value << " ";
+      logwrite(function, key+"="+value);
+    }
+    retstring = retss.str();
+
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::heater *************************************/
+
+
+  /***** Camera::ArchonController::sensor *************************************/
+  /**
+   * @brief      set or get temperature sensor excitation current and averaging
+   * @param[in]  args       <module> <A|B|C> [ <current> | AVG [ <N> ] ]
+   * @param[out] retstring  current value (or averaging count) read back
+   * @return     ERROR | NO_ERROR
+   *
+   * <current> is the RTD excitation current in nano-amps. The AVG form sets or
+   * gets the digital averaging count N (a power of two, 1..256). Sensor C is
+   * supported only on HeaterX (modtype 11) boards.
+   *
+   */
+  long ArchonController::sensor(std::string args, std::string &retstring) {
+    const std::string function("Camera::ArchonController::sensor");
+    std::ostringstream message;
+
+    // requires a minimum backplane version
+    //
+    int ret = compare_versions( this->backplaneversion, REV_SENSORCURRENT );
+    if ( ret < 0 ) {
+      if ( ret == -999 ) {
+        message << "ERROR comparing backplane version " << this->backplaneversion << " to " << REV_SENSORCURRENT;
+      }
+      else {
+        message << "ERROR requires backplane version " << REV_SENSORCURRENT << " or newer. ("
+                << this->backplaneversion << " detected)";
+      }
+      logwrite(function, message.str());
+      return ERROR;
+    }
+
+    std::transform( args.begin(), args.end(), args.begin(), ::toupper );  // make uppercase
+
+    std::vector<std::string> tokens;
+    Tokenize( args, tokens, " " );
+
+    // At minimum there must be two tokens, <module> <sensorid>
+    //
+    if ( tokens.size() < 2 ) {
+      logwrite(function, "ERROR expected at least two arguments: <module> <A|B|C>");
+      return ERROR;
+    }
+
+    // Get the module and sensorid
+    //
+    int module;
+    std::string sensorid;  //!< A | B | C
+    try {
+      module   = std::stoi( tokens.at(0) );
+      sensorid = tokens.at(1);
+
+      if ( sensorid != "A" && sensorid != "B" && sensorid != "C" ) {
+        message << "ERROR invalid sensor " << sensorid << ": expected <module> <A|B|C> [ <current> | AVG [ <N> ] ]";
+        logwrite(function, message.str());
+        return ERROR;
+      }
+    }
+    catch ( std::invalid_argument & ) {
+      message << "ERROR parsing \"" << args << "\": expected <module> <A|B|C> [ <current> | AVG [ <N> ] ]";
+      logwrite(function, message.str());
+      return ERROR;
+    }
+    catch ( std::out_of_range & ) {
+      message << "ERROR argument outside range in \"" << args << "\"";
+      logwrite(function, message.str());
+      return ERROR;
+    }
+
+    // check that the requested module is valid
+    //
+    if ( module < 1 || module > static_cast<int>(this->modtype.size()) ) {
+      logwrite(function, "ERROR invalid module '"+std::to_string(module)+"'");
+      return ERROR;
+    }
+    switch ( this->modtype[ module-1 ] ) {
+      case MODTYPE_NONE:
+        logwrite(function, "ERROR module "+std::to_string(module)+" not installed");
+        return ERROR;
+      case MODTYPE_HEATER:
+      case MODTYPE_HEATERX:
+        break;
+      default:
+        logwrite(function, "ERROR module "+std::to_string(module)+" is not a heater board");
+        return ERROR;
+    }
+
+    // sensor C is supported only on HeaterX cards
+    //
+    if ( sensorid == "C" && this->modtype[ module-1 ] != MODTYPE_HEATERX ) {
+      logwrite(function, "ERROR sensor C not supported on module "+std::to_string(module)+": HeaterX module required");
+      return ERROR;
+    }
+
+    bool readonly=true;              //!< true reads, false writes
+    std::ostringstream sensorconfig; //!< configuration key to read or write
+    std::string sensorvalue;         //!< value to write
+
+    // 2 tokens reads the current,
+    //   <module> <A|B|C>
+    //
+    if ( tokens.size() == 2 ) {
+      sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "CURRENT";
+    }
+    // 3 tokens either writes the current or reads the average,
+    //   <module> <A|B|C> <current> | AVG
+    //
+    else if ( tokens.size() == 3 ) {
+      if ( tokens[2] == "AVG" ) {
+        sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "FILTER";
+      }
+      else {
+        int current_val=-1;
+        try {
+          current_val = std::stoi( tokens[2] );
+        }
+        catch ( std::invalid_argument & ) {
+          logwrite(function, "ERROR parsing \""+args+"\": expected \"AVG\" or integer for arg 3");
+          return ERROR;
+        }
+        catch ( std::out_of_range & ) {
+          logwrite(function, "ERROR parsing \""+args+"\": arg 3 outside integer range");
+          return ERROR;
+        }
+        if ( current_val < 0 || current_val > 1600000 ) {
+          logwrite(function, "ERROR requested current "+std::to_string(current_val)+" outside range {0:1600000}");
+          return ERROR;
+        }
+        readonly = false;
+        sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "CURRENT";
+        sensorvalue = tokens[2];
+      }
+    }
+    // 4 tokens writes the average,
+    //   <module> <A|B|C> AVG <N>
+    //
+    else if ( tokens.size() == 4 ) {
+      if ( tokens[2] != "AVG" ) {
+        logwrite(function, "ERROR invalid syntax \""+tokens[2]+"\": expected <module> <A|B|C> AVG <N>");
+        return ERROR;
+      }
+      int filter_val=-1;
+      try {
+        filter_val = std::stoi( tokens[3] );
+      }
+      catch ( std::invalid_argument & ) {
+        logwrite(function, "ERROR parsing \""+args+"\": expected integer for arg 4");
+        return ERROR;
+      }
+      catch ( std::out_of_range & ) {
+        logwrite(function, "ERROR parsing \""+args+"\": arg 4 outside integer range");
+        return ERROR;
+      }
+      readonly = false;
+      sensorconfig << "MOD" << module << "/SENSOR" << sensorid << "FILTER";
+
+      // the configuration stores an index into the power-of-two averaging counts
+      //
+      switch ( filter_val ) {
+        case   1: sensorvalue = "0"; break;
+        case   2: sensorvalue = "1"; break;
+        case   4: sensorvalue = "2"; break;
+        case   8: sensorvalue = "3"; break;
+        case  16: sensorvalue = "4"; break;
+        case  32: sensorvalue = "5"; break;
+        case  64: sensorvalue = "6"; break;
+        case 128: sensorvalue = "7"; break;
+        case 256: sensorvalue = "8"; break;
+        default:
+          logwrite(function, "ERROR requested average "+std::to_string(filter_val)+" outside range {1,2,4,8,16,32,64,128,256}");
+          return ERROR;
+      }
+    }
+    else {
+      logwrite(function, "ERROR received "+std::to_string(tokens.size())+" arguments but expected 2, 3, or 4");
+      return ERROR;
+    }
+
+    const std::string sensorkey = sensorconfig.str();
+    long error = NO_ERROR;
+
+    if ( ! readonly ) {
+      // write the config line, then apply it to the module
+      //
+      bool changed = false;
+      error = this->write_config_key( sensorkey.c_str(), sensorvalue.c_str(), changed );
+      if ( error == NO_ERROR ) error = this->send_cmd( make_applymod_command(module) );
+
+      if ( error != NO_ERROR ) {
+        message << "ERROR writing sensor configuration: " << sensorkey << "=" << sensorvalue;
+      }
+      else if ( !changed ) {
+        message << "sensor configuration: " << sensorkey << "=" << sensorvalue << " unchanged";
+      }
+      else {
+        message << "updated sensor configuration: " << sensorkey << "=" << sensorvalue;
+      }
+      logwrite(function, message.str());
+      if ( error != NO_ERROR ) return error;
+    }
+
+    // read back the configuration line
+    //
+    std::string value;
+    try {
+      this->get_configmap_value( sensorkey, value );
+    }
+    catch ( const std::exception &e ) {
+      logwrite(function, "ERROR reading sensor configuration "+sensorkey+": "+e.what());
+      return ERROR;
+    }
+    retstring = value;
+
+    // a FILTER key holds an index, so map it back to the human averaging count
+    //
+    if ( sensorkey.size() >= 6 && sensorkey.substr( sensorkey.size()-6 ) == "FILTER" ) {
+      const std::array<std::string,9> filter = { "1", "2", "4", "8", "16", "32", "64", "128", "256" };
+      int findex=0;
+      try {
+        findex = std::stoi( value );
+        retstring = filter.at( findex );
+      }
+      catch ( const std::exception & ) {
+        logwrite(function, "ERROR bad filter index \""+value+"\" read back from configuration");
+        return ERROR;
+      }
+    }
+
+    message.str(""); message << sensorkey << "=" << value << " (" << retstring << ")";
+    logwrite(function, message.str());
+
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::sensor *************************************/
 
 
   /***** Camera::ArchonExposureTime::split ************************************/
