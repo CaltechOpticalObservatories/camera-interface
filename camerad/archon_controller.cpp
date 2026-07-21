@@ -579,13 +579,17 @@ namespace Camera {
             else
             if (std::strncmp(suffix, "HEIGHT", 6)==0) this->frameinfo.bufheight[bufnum] = std::atoi(value_start);
             break;
-          case 8:  // BUFnCOMPLETE
+          case 8:  // BUFnCOMPLETE, RAWLINES
             if (std::strncmp(suffix, "COMPLETE", 8)==0) this->frameinfo.bufcomplete[bufnum] = std::atoi(value_start);
+            else
+            if (std::strncmp(suffix, "RAWLINES", 8)==0) this->frameinfo.bufrawlines[bufnum] = std::atoi(value_start);
             break;
-          case 9:  // BUFnTIMESTAMP, RAWOFFSET
+          case 9:  // BUFnTIMESTAMP, RAWOFFSET, RAWBLOCKS
             if (std::strncmp(suffix, "TIMESTAMP", 9)==0) this->frameinfo.buftimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
             else
             if (std::strncmp(suffix, "RAWOFFSET", 9)==0) this->frameinfo.bufrawoffset[bufnum] = std::strtoul(value_start, nullptr, 10);
+            else
+            if (std::strncmp(suffix, "RAWBLOCKS", 9)==0) this->frameinfo.bufrawblocks[bufnum] = std::atoi(value_start);
             break;
           case 11: // BUFnRETIMESTAMP, FETIMESTAMP
             if (std::strncmp(suffix, "RETIMESTAMP", 11)==0) this->frameinfo.bufretimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
@@ -2051,17 +2055,44 @@ namespace Camera {
   /***** Camera::ArchonController::is_raw_config_key *************************/
 
 
+  /***** Camera::ArchonController::raw_geometry ****************************/
+  /**
+   * @brief      resolve RAW capture geometry for the newest buffer
+   * @details    Prefers the controller-reported BUFnRAWBLOCKS/BUFnRAWLINES,
+   *             which already account for the per-line rounding to whole
+   *             1024-byte blocks. Falls back to the config keys when the
+   *             controller has not reported them (e.g. emulator). The line
+   *             range is inclusive: RAWSTARTLINE=0,RAWENDLINE=1 is two lines.
+   */
+  ArchonController::raw_geometry_t ArchonController::raw_geometry() const {
+    const auto index = this->frameinfo.index.load();
+    raw_geometry_t geom;
+    geom.samples         = static_cast<uint32_t>(this->rawinfo.samples);
+    geom.blocks_per_line = static_cast<uint32_t>(this->frameinfo.bufrawblocks[index]);
+    geom.lines           = static_cast<uint32_t>(this->frameinfo.bufrawlines[index]);
+
+    if (geom.blocks_per_line == 0 || geom.lines == 0) {
+      geom.blocks_per_line =
+        (static_cast<size_t>(geom.samples) * sizeof(uint16_t) + BLOCK_LEN - 1) / BLOCK_LEN;
+      const int span = this->rawinfo.endline - this->rawinfo.startline + 1;
+      geom.lines = span > 0 ? static_cast<uint32_t>(span) : 0u;
+    }
+    return geom;
+  }
+  /***** Camera::ArchonController::raw_geometry ****************************/
+
+
   /***** Camera::ArchonController::raw_frame_bytes **************************/
   /**
-   * @brief      size-aware byte count for one RAW capture
-   * @details    RAW samples are always 16-bit. Count = rawlines x RAWSAMPLES,
-   *             rawlines = RAWENDLINE - RAWSTARTLINE. RAWSTARTPIXEL only sets
-   *             the reshape origin, so it does not change the sample count.
+   * @brief      padded, size-aware byte count for one RAW fetch
+   * @details    Each line occupies whole 1024-byte blocks, so the fetch reads
+   *             blocks_per_line x lines blocks. RAW samples are always 16-bit;
+   *             RAWSTARTPIXEL only sets where sampling begins in a line and so
+   *             does not change the count.
    */
   uint32_t ArchonController::raw_frame_bytes() const {
-    const int lines = this->rawinfo.endline - this->rawinfo.startline;
-    const uint32_t rawlines = lines > 0 ? static_cast<uint32_t>(lines) : 1u;
-    return rawlines * static_cast<uint32_t>(this->rawinfo.samples) * sizeof(uint16_t);
+    const raw_geometry_t geom = this->raw_geometry();
+    return geom.blocks_per_line * geom.lines * BLOCK_LEN;
   }
   /***** Camera::ArchonController::raw_frame_bytes **************************/
 
@@ -2116,7 +2147,7 @@ namespace Camera {
       }
     }
 
-    if (changed && this->send_cmd(APPLYALL) != NO_ERROR) {
+    if (changed && this->send_cmd(APPLYCDS) != NO_ERROR) {
       logwrite(function, "ERROR applying RAW configuration");
       retstring = "failed to apply";
       return ERROR;
@@ -2147,16 +2178,16 @@ namespace Camera {
 
     this->get_frame_status();
 
-    const uint32_t bytes = this->raw_frame_bytes();
-    if (bytes == 0) {
-      logwrite(function, "ERROR RAW geometry yields zero bytes; check RAW config");
+    const raw_geometry_t geom = this->raw_geometry();
+    if (geom.samples == 0 || geom.lines == 0) {
+      logwrite(function, "ERROR RAW geometry is empty; check RAW config");
       retstring = "invalid RAW geometry";
       return ERROR;
     }
 
-    const size_t nblocks = (bytes + BLOCK_LEN - 1) / BLOCK_LEN;
-    std::shared_ptr<char[]> buffer(new char[nblocks * BLOCK_LEN]);
-    char* bufptr = buffer.get();
+    const size_t fetch_bytes = static_cast<size_t>(geom.blocks_per_line) * geom.lines * BLOCK_LEN;
+    std::shared_ptr<char[]> raw_buffer(new char[fetch_bytes]);
+    char* bufptr = raw_buffer.get();
 
     if (this->read_frame(FRAME_RAW, bufptr) != NO_ERROR) {
       logwrite(function, "ERROR reading RAW frame");
@@ -2164,20 +2195,31 @@ namespace Camera {
       return ERROR;
     }
 
-    const int lines = this->rawinfo.endline - this->rawinfo.startline;
-    const uint32_t rawlines = lines > 0 ? static_cast<uint32_t>(lines) : 1u;
+    // The Archon pads each raw line out to whole 1024-byte blocks, so copy only
+    // the valid RAWSAMPLES from each line into a contiguous lines x samples array
+    const size_t line_stride = static_cast<size_t>(geom.blocks_per_line) * BLOCK_LEN;
+    const size_t payload_samples = static_cast<size_t>(geom.lines) * geom.samples;
+    std::vector<uint16_t> samples(payload_samples);
+    for (uint32_t line = 0; line < geom.lines; ++line) {
+      std::memcpy(samples.data() + static_cast<size_t>(line) * geom.samples,
+                  raw_buffer.get() + line * line_stride,
+                  static_cast<size_t>(geom.samples) * sizeof(uint16_t));
+    }
+
     const auto index = this->frameinfo.index.load();
+    const size_t payload_bytes = payload_samples * sizeof(uint16_t);
 
     Camera::FrameMetadata meta;
     meta.frame_number    = this->frameinfo.bufframen[index];
     meta.timestamp       = this->frameinfo.buftimestamp[index];
-    meta.width           = this->rawinfo.samples;
-    meta.height          = rawlines;
+    meta.width           = geom.samples;
+    meta.height          = geom.lines;
     meta.bytes_per_pixel = sizeof(uint16_t);
-    this->interface->dispatch_frame(buffer.get(), bytes, meta);
+    this->interface->dispatch_frame(reinterpret_cast<const char*>(samples.data()),
+                                    payload_bytes, meta);
 
     std::ostringstream oss;
-    oss << "samples=" << this->rawinfo.samples << " lines=" << rawlines << " bytes=" << bytes;
+    oss << "samples=" << geom.samples << " lines=" << geom.lines << " bytes=" << payload_bytes;
     retstring = oss.str();
     logwrite(function, retstring);
     return NO_ERROR;

@@ -349,8 +349,16 @@ namespace Camera {
       long write_config_key(const char* key, int newvalue, bool &changed);
 
       // RAW (pre-CDS) capture: configuration and retrieval
+      /** @brief resolved RAW capture geometry for the newest buffer */
+      struct raw_geometry_t {
+        uint32_t samples;          // valid 16-bit samples per line (RAWSAMPLES)
+        uint32_t blocks_per_line;  // 1024-byte blocks per line, padded per Archon
+        uint32_t lines;            // number of raw lines (RAWENDLINE-RAWSTARTLINE+1)
+      };
+
       static bool is_raw_config_key(const std::string &key);
-      uint32_t raw_frame_bytes() const;   // size-aware byte count for a RAW fetch
+      raw_geometry_t raw_geometry() const;
+      uint32_t raw_frame_bytes() const;   // padded, size-aware byte count for a RAW fetch
       long set_raw_config(const std::string &args, std::string &retstring);
       long get_raw_config(std::string &retstring);
       long read_raw(std::string &retstring);
