@@ -44,6 +44,7 @@ const std::string CAMERAD_OPEN("open");  const int CAMERAD_OPEN_TIMEOUT(10000);
 const std::string CAMERAD_PAUSE("pause");
 const std::string CAMERAD_POWER("power");
 const std::string CAMERAD_PREEXPOSURES("preexposures");
+const std::string CAMERAD_RAW("raw");
 const std::string CAMERAD_READACF("readacf");
 const std::string CAMERAD_READOUT("readout");
 const std::string CAMERAD_RESUME("resume");
@@ -88,6 +89,7 @@ const std::vector<std::string> CAMERAD_SYNTAX = {
                                                   CAMERAD_OPEN+" [ ? | <devlist> ]",
                                                   CAMERAD_PAUSE,
                                                   CAMERAD_PREEXPOSURES,
+                                                  CAMERAD_RAW+" [ ? | config | set <KEY> <VAL> [...] | read ]",
                                                   CAMERAD_READACF+" [ ? | <acffile> ]",
                                                   CAMERAD_READOUT+" [ ? ] | [ <dev#> | <chan> [ <amp> ] ]",
                                                   CAMERAD_RESUME,

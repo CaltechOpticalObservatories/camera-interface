@@ -43,6 +43,7 @@ namespace Camera {
       long load_firmware( const std::string &args, std::string &retstring ) override;
       long native( const std::string args, std::string &retstring ) override;
       long power( const std::string args, std::string &retstring ) override;
+      long raw( const std::string args, std::string &retstring );
       long test( const std::string args, std::string &retstring ) override;
 
       long do_expose() override;

@@ -321,6 +321,10 @@ namespace Camera {
         ret = interface->controller_cmd(cmd, args, retstring);
       }
       else
+      if ( cmd == CAMERAD_RAW ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
+      else
       if ( cmd == "bob" ) {
         ret = interface->controller_cmd(cmd, args, retstring);
       }
