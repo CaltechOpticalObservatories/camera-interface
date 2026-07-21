@@ -294,7 +294,7 @@ namespace Camera {
       std::atomic_flag archon_busy = ATOMIC_FLAG_INIT;  //!< indicates a thread is accessing Archon
       bool is_firmwareloaded;
       std::string firmware;
-      int msgref;
+      int msgref{0};       //!< message reference id, incremented per command; MUST start initialized
       std::string backplaneversion;
       std::vector<int> modtype;             //!< type of each module from SYSTEM command
       std::vector<std::string> modversion;  //!< version of each module from SYSTEM command
