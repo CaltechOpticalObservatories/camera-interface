@@ -75,6 +75,7 @@ namespace Camera {
       //
       void set_server(Camera::Server* s);
       void func_shared();
+      void configure_frame_outputs();
       void disconnect_controller();
       bool is_exposuremode_set() { return ( this->exposuremode && !this->exposuremode->get_type().empty() ); }
 
