@@ -47,7 +47,7 @@ namespace Camera {
                          uint32_t num_frames = 4);
       ~SharedMemoryWriter();
 
-      long open();
+      long open() override;
       long write(const char* data, size_t size, const FrameMetadata& meta) override;
       void close() override;
 

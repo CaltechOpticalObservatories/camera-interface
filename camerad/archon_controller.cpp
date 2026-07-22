@@ -1035,7 +1035,6 @@ namespace Camera {
       error = ERROR;
       logwrite(function, "ERROR from Archon processing \""+cmd+"\"");
     }
-    else
     // First 3 bytes of reply must equal checksum else reply doesn't belong to command
     if (reply.size()<3 || std::memcmp(reply.data(), check, 3) != 0) {
       error = ERROR;
@@ -1635,6 +1634,13 @@ namespace Camera {
     write_config_key("PIXELCOUNT", std::to_string(mode->geometry.pixelcount).c_str(), changed);
 
     if (changed) {
+      // WCONFIG only stages LINECOUNT/PIXELCOUNT into config memory; APPLYCDS
+      // activates the new readout geometry in the timing/CDS core without
+      // power-cycling the detector (unlike APPLYALL).
+      if (this->send_cmd(APPLYCDS) != NO_ERROR) {
+        logwrite(function, "ERROR applying mode geometry (APPLYCDS) to controller");
+        return ERROR;
+      }
       logwrite(function, "applied mode geometry to controller");
     }
 
@@ -2062,10 +2068,20 @@ namespace Camera {
     //
     double waittime_ms = this->readout_time_msec * 1.1;      // this is in msec
 
-    // if readout_time_msec was not defined or defined=0
-    // then do not use a timeout timer
+    // readout_time_msec defaults to 0 and is currently never populated, which
+    // would leave the loop below with no timeout and able to hang forever if a
+    // frame never arrives. Fall back to a timeout derived from the exposure
+    // time plus a generous fixed margin so acquisition can never freeze
+    // silently; a late/missing frame becomes a logged timeout error instead.
     //
-    bool timeout_timer_enabled = (waittime_ms <= 0) ? false : true;
+    if ( waittime_ms <= 0 ) {
+      const double fallback_margin_ms = 10000.0;            // 10 s over exposure time
+      waittime_ms = this->get_exptime()*1000.0 + fallback_margin_ms;
+    }
+
+    // the timeout timer is always enabled now that waittime_ms is guaranteed > 0
+    //
+    bool timeout_timer_enabled = true;
 
     uint64_t start_ns   = get_clock_time_nsec();             // returns nanoseconds
     uint64_t timeout_ns = (uint64_t)(waittime_ms * 1e6);     // convert waittime msec to nsec
@@ -2210,10 +2226,10 @@ namespace Camera {
             << key
             << "="
             << newvalue;
-
+      
       error = this->send_cmd((char*)sscmd.str().c_str());             // send the WCONFIG command here
 
-      sscmd.str(""); sscmd << key << "=" << newvalue << (error==ERROR ? "":"not") << " written";
+      sscmd.str(""); sscmd << key << "=" << newvalue << (error==ERROR ? " not written":" written");
 
       if (error==NO_ERROR) {
         this->configmap[key].value = newvalue;                        // save newvalue in the STL map
