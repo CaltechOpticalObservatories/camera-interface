@@ -190,10 +190,10 @@ namespace Camera {
       struct tapinfo_t {
         int num_taps;
         int tap[16];
-        std::string ampname[16];   //!< amplifier name for each tap, e.g. "AM54" (from TAPLINEn in the ACF)
+        std::string ampname[64];   //!< amplifier name for each tap, e.g. "AM54" (from TAPLINEn in the ACF)
         float gain[16];
         float offset[16];
-        std::string readoutdir[16];
+        std::string readoutdir[64];
       };
 
       /**
