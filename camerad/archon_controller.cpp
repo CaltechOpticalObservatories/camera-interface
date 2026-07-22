@@ -9,6 +9,7 @@
 
 #include "archon_controller.h"
 #include "archon_interface.h"
+#include <algorithm>
 
 namespace Camera {
 
@@ -1569,6 +1570,12 @@ namespace Camera {
       logwrite(function, "loaded Archon Config File OK");
       this->is_firmwareloaded = true;
 
+      // now that every [MODE_*] configmap is fully populated, parse each mode's
+      // tapline layout into its tapinfo_t (amp name, direction, gain, offset)
+      for (auto &[modename, modeinfo] : this->modemap) {
+        this->parse_tapinfo(modeinfo);
+      }
+
       // add to systemkeys keyword database
       //
       std::stringstream keystr;
@@ -1656,6 +1663,75 @@ namespace Camera {
     return NO_ERROR;
   }
   /***** Camera::ArchonController::load_mode_settings *************************/
+
+
+  /***** Camera::ArchonController::parse_tapinfo *****************************/
+  /**
+   * @brief      populate a mode's tapinfo_t from its TAPLINEn configmap entries
+   * @details    Called once per mode after the ACF is parsed, so that each
+   *             modemap entry carries its tapline layout alongside the other
+   *             per-mode parameters (geometry, params, etc.). Each TAPLINEn is a
+   *             string "<amp><dir>,<gain>,<offset>", e.g. "AM54L,1,0", where the
+   *             amp name is "AM54" and the trailing L/R is the readout direction.
+   *             An empty value ("") means that slot is not read out: it is
+   *             skipped and does not count toward num_taps.
+   * @param[in,out]  mode  reference to the modeinfo_t to populate
+   *
+   */
+  void ArchonController::parse_tapinfo(modeinfo_t &mode) {
+    const std::string function("Camera::ArchonController::parse_tapinfo");
+
+    mode.tapinfo.num_taps = 0;
+
+    for (int i = 0; i < 16; ++i) {
+      auto it = mode.configmap.find("TAPLINE" + std::to_string(i));
+      if (it == mode.configmap.end()) continue;
+
+      std::string val = it->second.value;
+      val.erase(std::remove(val.begin(), val.end(), '"'), val.end());  // drop quotes
+      if (val.empty()) continue;                                       // unused tap slot
+
+      std::stringstream ss(val);
+      std::string name, gain, offset;
+      std::getline(ss, name,   ',');
+      std::getline(ss, gain,   ',');
+      std::getline(ss, offset, ',');
+
+      const int t = mode.tapinfo.num_taps;
+
+      // split "AM54L" into amp name "AM54" and readout direction "L"/"R"
+      if (!name.empty() && (name.back()=='L' || name.back()=='R')) {
+        mode.tapinfo.readoutdir[t] = std::string(1, name.back());
+        mode.tapinfo.ampname[t]    = name.substr(0, name.size()-1);
+      } else {
+        mode.tapinfo.readoutdir[t].clear();
+        mode.tapinfo.ampname[t] = name;
+      }
+
+      try { mode.tapinfo.gain[t]   = gain.empty()   ? 1.0f : std::stof(gain);   }
+      catch (const std::exception &) { mode.tapinfo.gain[t]   = 1.0f; }
+      try { mode.tapinfo.offset[t] = offset.empty() ? 0.0f : std::stof(offset); }
+      catch (const std::exception &) { mode.tapinfo.offset[t] = 0.0f; }
+
+      ++mode.tapinfo.num_taps;
+    }
+
+    // sanity-check against the ACF TAPLINES key, which drives controller readout
+    auto it = mode.configmap.find("TAPLINES");
+    if (it != mode.configmap.end()) {
+      try {
+        int declared = std::stoi(it->second.value);
+        if (declared != mode.tapinfo.num_taps) {
+          logwrite(function, "WARNING TAPLINES="+std::to_string(declared)+" but "
+                             +std::to_string(mode.tapinfo.num_taps)+" non-empty taplines parsed");
+        }
+      }
+      catch (const std::exception &e) {
+        logwrite(function, "ERROR parsing TAPLINES: "+std::string(e.what()));
+      }
+    }
+  }
+  /***** Camera::ArchonController::parse_tapinfo *****************************/
 
 
   /***** Camera::ArchonController::lock_buffer ********************************/

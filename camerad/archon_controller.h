@@ -190,6 +190,7 @@ namespace Camera {
       struct tapinfo_t {
         int num_taps;
         int tap[16];
+        std::string ampname[16];   //!< amplifier name for each tap, e.g. "AM54" (from TAPLINEn in the ACF)
         float gain[16];
         float offset[16];
         std::string readoutdir[16];
@@ -333,6 +334,7 @@ namespace Camera {
       long fetchlog();
       long load_acf(const std::string &filename, bool write_to_archon=true);
       long load_mode_settings(modeinfo_t* mode);
+      void parse_tapinfo(modeinfo_t &mode);   //!< populate mode.tapinfo from its TAPLINEn configmap entries
       long lock_buffer(int buffernumber);
       long unlock_buffer();
       template <class T> void get_configmap_value(const std::string &key_in, T &value_out);
