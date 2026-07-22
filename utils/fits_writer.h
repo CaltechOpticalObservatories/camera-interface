@@ -26,7 +26,6 @@ namespace Camera {
   struct FitsWriterConfig {
     std::string output_dir{"/tmp/images"};
     std::string basename{"tracking"};
-    uint32_t    write_interval_ms{0};       // 0 = write every accepted frame
     size_t      queue_size{32};
     uint32_t    drain_timeout_ms{5000};
   };
@@ -47,7 +46,6 @@ namespace Camera {
         uint64_t frames_received{0};
         uint64_t frames_written{0};
         uint64_t frames_dropped_queue{0};
-        uint64_t frames_skipped_cadence{0};
         uint64_t frames_failed{0};
         uint64_t frames_dropped_shutdown{0};
       };
@@ -75,14 +73,9 @@ namespace Camera {
       // Set in close() before stop_, so worker can read race-free
       std::chrono::steady_clock::time_point stop_time_;
 
-      // Cadence-gate state — only touched on producer thread
-      std::chrono::steady_clock::time_point last_accepted_{
-          std::chrono::steady_clock::time_point::min()};
-
       std::atomic<uint64_t> n_received_{0};
       std::atomic<uint64_t> n_written_{0};
       std::atomic<uint64_t> n_dropped_queue_{0};
-      std::atomic<uint64_t> n_skipped_cadence_{0};
       std::atomic<uint64_t> n_failed_{0};
       std::atomic<uint64_t> n_dropped_shutdown_{0};
   };
