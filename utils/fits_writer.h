@@ -28,6 +28,7 @@ namespace Camera {
     std::string basename{"tracking"};
     size_t      queue_size{32};
     uint32_t    drain_timeout_ms{5000};
+    bool        autodir{false};             // write into a YYYYMMDD subdir of output_dir
   };
 
   class FitsWriter : public FrameOutput {
@@ -59,9 +60,15 @@ namespace Camera {
 
       void worker_loop();
       long write_fits_file(const QueuedFrame &frame);
-      std::string make_filename(uint64_t frame_number) const;
+      std::string make_filename(uint64_t frame_number);
+      // Resolve the target directory, creating today's autodir subdir on demand.
+      // Worker-thread only (uses cur_date_dir_ without locking).
+      std::string resolve_output_dir();
 
       FitsWriterConfig cfg_;
+
+      // Cache of the last autodir path created; touched only on the worker thread
+      std::string cur_date_dir_;
 
       std::deque<QueuedFrame> queue_;
       mutable std::mutex mtx_;

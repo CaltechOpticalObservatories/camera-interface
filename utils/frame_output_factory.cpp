@@ -31,6 +31,7 @@ namespace Camera {
         else if (key == "SHM_NUM_FRAMES")         out.shm_num_frames         = static_cast<uint32_t>(std::stoul(val));
         else if (key == "FITS_ENABLED")           out.fits_enabled           = parse_bool(val);
         else if (key == "FITS_OUTPUT_DIR")        out.fits.output_dir        = val;
+        else if (key == "FITS_AUTODIR")           out.fits.autodir           = parse_bool(val);
         else if (key == "FITS_BASENAME")          out.fits.basename          = val;
         else if (key == "FITS_WRITE_INTERVAL_MS") out.fits_write_interval_ms = static_cast<uint32_t>(std::stoul(val));
         else if (key == "FITS_QUEUE_SIZE")        out.fits.queue_size        = static_cast<size_t>(std::stoul(val));

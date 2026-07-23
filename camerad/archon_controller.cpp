@@ -9,6 +9,7 @@
 
 #include "archon_controller.h"
 #include "archon_interface.h"
+#include <algorithm>
 
 namespace Camera {
 
@@ -1035,7 +1036,6 @@ namespace Camera {
       error = ERROR;
       logwrite(function, "ERROR from Archon processing \""+cmd+"\"");
     }
-    else
     // First 3 bytes of reply must equal checksum else reply doesn't belong to command
     if (reply.size()<3 || std::memcmp(reply.data(), check, 3) != 0) {
       error = ERROR;
@@ -1570,6 +1570,12 @@ namespace Camera {
       logwrite(function, "loaded Archon Config File OK");
       this->is_firmwareloaded = true;
 
+      // now that every [MODE_*] configmap is fully populated, parse each mode's
+      // tapline layout into its tapinfo_t (amp name, direction, gain, offset)
+      for (auto &[modename, modeinfo] : this->modemap) {
+        this->parse_tapinfo(modeinfo);
+      }
+
       // add to systemkeys keyword database
       //
       std::stringstream keystr;
@@ -1635,6 +1641,13 @@ namespace Camera {
     write_config_key("PIXELCOUNT", std::to_string(mode->geometry.pixelcount).c_str(), changed);
 
     if (changed) {
+      // WCONFIG only stages LINECOUNT/PIXELCOUNT into config memory; APPLYCDS
+      // activates the new readout geometry in the timing/CDS core without
+      // power-cycling the detector (unlike APPLYALL).
+      if (this->send_cmd(APPLYCDS) != NO_ERROR) {
+        logwrite(function, "ERROR applying mode geometry (APPLYCDS) to controller");
+        return ERROR;
+      }
       logwrite(function, "applied mode geometry to controller");
     }
 
@@ -1650,6 +1663,75 @@ namespace Camera {
     return NO_ERROR;
   }
   /***** Camera::ArchonController::load_mode_settings *************************/
+
+
+  /***** Camera::ArchonController::parse_tapinfo *****************************/
+  /**
+   * @brief      populate a mode's tapinfo_t from its TAPLINEn configmap entries
+   * @details    Called once per mode after the ACF is parsed, so that each
+   *             modemap entry carries its tapline layout alongside the other
+   *             per-mode parameters (geometry, params, etc.). Each TAPLINEn is a
+   *             string "<amp><dir>,<gain>,<offset>", e.g. "AM54L,1,0", where the
+   *             amp name is "AM54" and the trailing L/R is the readout direction.
+   *             An empty value ("") means that slot is not read out: it is
+   *             skipped and does not count toward num_taps.
+   * @param[in,out]  mode  reference to the modeinfo_t to populate
+   *
+   */
+  void ArchonController::parse_tapinfo(modeinfo_t &mode) {
+    const std::string function("Camera::ArchonController::parse_tapinfo");
+
+    mode.tapinfo.num_taps = 0;
+
+    for (int i = 0; i < 16; ++i) {
+      auto it = mode.configmap.find("TAPLINE" + std::to_string(i));
+      if (it == mode.configmap.end()) continue;
+
+      std::string val = it->second.value;
+      val.erase(std::remove(val.begin(), val.end(), '"'), val.end());  // drop quotes
+      if (val.empty()) continue;                                       // unused tap slot
+
+      std::stringstream ss(val);
+      std::string name, gain, offset;
+      std::getline(ss, name,   ',');
+      std::getline(ss, gain,   ',');
+      std::getline(ss, offset, ',');
+
+      const int t = mode.tapinfo.num_taps;
+
+      // split "AM54L" into amp name "AM54" and readout direction "L"/"R"
+      if (!name.empty() && (name.back()=='L' || name.back()=='R')) {
+        mode.tapinfo.readoutdir[t] = std::string(1, name.back());
+        mode.tapinfo.ampname[t]    = name.substr(0, name.size()-1);
+      } else {
+        mode.tapinfo.readoutdir[t].clear();
+        mode.tapinfo.ampname[t] = name;
+      }
+
+      try { mode.tapinfo.gain[t]   = gain.empty()   ? 1.0f : std::stof(gain);   }
+      catch (const std::exception &) { mode.tapinfo.gain[t]   = 1.0f; }
+      try { mode.tapinfo.offset[t] = offset.empty() ? 0.0f : std::stof(offset); }
+      catch (const std::exception &) { mode.tapinfo.offset[t] = 0.0f; }
+
+      ++mode.tapinfo.num_taps;
+    }
+
+    // sanity-check against the ACF TAPLINES key, which drives controller readout
+    auto it = mode.configmap.find("TAPLINES");
+    if (it != mode.configmap.end()) {
+      try {
+        int declared = std::stoi(it->second.value);
+        if (declared != mode.tapinfo.num_taps) {
+          logwrite(function, "WARNING TAPLINES="+std::to_string(declared)+" but "
+                             +std::to_string(mode.tapinfo.num_taps)+" non-empty taplines parsed");
+        }
+      }
+      catch (const std::exception &e) {
+        logwrite(function, "ERROR parsing TAPLINES: "+std::string(e.what()));
+      }
+    }
+  }
+  /***** Camera::ArchonController::parse_tapinfo *****************************/
 
 
   /***** Camera::ArchonController::lock_buffer ********************************/
@@ -2062,10 +2144,20 @@ namespace Camera {
     //
     double waittime_ms = this->readout_time_msec * 1.1;      // this is in msec
 
-    // if readout_time_msec was not defined or defined=0
-    // then do not use a timeout timer
+    // readout_time_msec defaults to 0 and is currently never populated, which
+    // would leave the loop below with no timeout and able to hang forever if a
+    // frame never arrives. Fall back to a timeout derived from the exposure
+    // time plus a generous fixed margin so acquisition can never freeze
+    // silently; a late/missing frame becomes a logged timeout error instead.
     //
-    bool timeout_timer_enabled = (waittime_ms <= 0) ? false : true;
+    if ( waittime_ms <= 0 ) {
+      const double fallback_margin_ms = 10000.0;            // 10 s over exposure time
+      waittime_ms = this->get_exptime()*1000.0 + fallback_margin_ms;
+    }
+
+    // the timeout timer is always enabled now that waittime_ms is guaranteed > 0
+    //
+    bool timeout_timer_enabled = true;
 
     uint64_t start_ns   = get_clock_time_nsec();             // returns nanoseconds
     uint64_t timeout_ns = (uint64_t)(waittime_ms * 1e6);     // convert waittime msec to nsec
@@ -2210,10 +2302,10 @@ namespace Camera {
             << key
             << "="
             << newvalue;
-
+      
       error = this->send_cmd((char*)sscmd.str().c_str());             // send the WCONFIG command here
 
-      sscmd.str(""); sscmd << key << "=" << newvalue << (error==ERROR ? "":"not") << " written";
+      sscmd.str(""); sscmd << key << "=" << newvalue << (error==ERROR ? " not written":" written");
 
       if (error==NO_ERROR) {
         this->configmap[key].value = newvalue;                        // save newvalue in the STL map

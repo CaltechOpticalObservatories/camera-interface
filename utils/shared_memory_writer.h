@@ -45,7 +45,7 @@ namespace Camera {
       SharedMemoryWriter(const std::string &segment_name,
                          size_t max_frame_bytes,
                          uint32_t num_frames = 4);
-      ~SharedMemoryWriter() override;
+      ~SharedMemoryWriter();
 
       long open() override;
       long write(const char* data, size_t size, const FrameMetadata& meta) override;

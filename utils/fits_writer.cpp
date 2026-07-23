@@ -202,12 +202,31 @@ namespace Camera {
     return NO_ERROR;
   }
 
-  std::string FitsWriter::make_filename(uint64_t frame_number) const {
+  std::string FitsWriter::resolve_output_dir() {
+    if (!cfg_.autodir) return cfg_.output_dir;
+
+    // Date subdir (YYYYMMDD, configured time zone), matching the imdir convention
+    const std::string dir = cfg_.output_dir + "/" + get_system_date();
+    if (dir != cur_date_dir_) {
+      std::error_code ec;
+      std::filesystem::create_directories(dir, ec);
+      if (ec) {
+        logwrite("Camera::FitsWriter::resolve_output_dir",
+                 "ERROR creating " + dir + ": " + ec.message() +
+                 " -- falling back to " + cfg_.output_dir);
+        return cfg_.output_dir;
+      }
+      cur_date_dir_ = dir;   // cache so we only create/log on date rollover
+    }
+    return dir;
+  }
+
+  std::string FitsWriter::make_filename(uint64_t frame_number) {
     char num[32];
     std::snprintf(num, sizeof(num), "%08llu",
                   static_cast<unsigned long long>(frame_number));
 
-    const std::string prefix = cfg_.output_dir + "/" + cfg_.basename + "_" + num;
+    const std::string prefix = resolve_output_dir() + "/" + cfg_.basename + "_" + num;
     std::string filename = prefix + ".fits";
 
     int suffix = 1;
