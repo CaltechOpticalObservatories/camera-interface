@@ -2000,14 +2000,34 @@ namespace Camera {
         bufblocks = (unsigned int) floor( (this->interface->camera_info.image_memory + BLOCK_LEN - 1 ) / BLOCK_LEN );
         break;
 
-      case Camera::ArchonController::FRAME_IMAGE:
+      case Camera::ArchonController::FRAME_IMAGE: {
         // Archon buffer base address
         bufaddr   = this->frameinfo.bufbase[index];
 
-        // Calculate the number of blocks expected. image_memory is bytes per detector
-        bufblocks =
-        (unsigned int) floor( ((this->interface->camera_info.image_memory * num_detect) + BLOCK_LEN - 1 ) / BLOCK_LEN );
+        // Size the fetch from the Archon-reported buffer dimensions (BUFnWIDTH/
+        // HEIGHT from the FRAME command).
+        const int    fw  = this->frameinfo.bufwidth[index];
+        const int    fh  = this->frameinfo.bufheight[index];
+        const int    fbpp = (this->frameinfo.bufsample[index]==1) ? 4 : 2;
+        size_t frame_bytes = static_cast<size_t>(fw) * fh * fbpp * num_detect;
+        if (fw <= 0 || fh <= 0) {  // Archon reported nothing usable; fall back
+          logwrite(function, "WARNING Archon buffer dims unavailable; using camera_info.image_memory");
+          frame_bytes = static_cast<size_t>(this->interface->camera_info.image_memory) * num_detect;
+        }
+        bufblocks = (unsigned int) floor( (frame_bytes + BLOCK_LEN - 1) / BLOCK_LEN );
+
+        // read_frame writes bufblocks*BLOCK_LEN bytes into framebuf with no bounds
+        // check, so grow it here if the reported frame is larger than allocated.
+        const uint32_t needed = bufblocks * BLOCK_LEN;
+        if (imagebufferptr == this->framebuf && needed > this->framebuf_bytes) {
+          if (this->allocate_framebuf(needed) != NO_ERROR) {
+            logwrite(function, "ERROR growing framebuf to hold Archon frame");
+            return ERROR;
+          }
+          imagebufferptr = this->framebuf;  // realloc moved the buffer
+        }
         break;
+      }
 
       default:  // should be impossible
         SNPRINTF(message, "unknown frame type specified: %d: expected FRAME_RAW | FRAME_IMAGE", this->frametype);
