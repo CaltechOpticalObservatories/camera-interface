@@ -36,6 +36,9 @@ namespace Camera {
   struct ArchonImageBuffer : public ImageBuffer<char> {
     std::vector<int> bufframen_slice;          ///< Archon frame number(s) for all slices in this image
     std::vector<uint64_t> buftimestamp_slice;  ///< Archon timestamp(s) for all slices in this image
+    uint32_t width{0};                         ///< Archon-reported buffer width (BUFnWIDTH)
+    uint32_t height{0};                        ///< Archon-reported buffer height (BUFnHEIGHT)
+    uint32_t bytes_per_pixel{0};               ///< 2 (16-bit) or 4 (32-bit)
   };
 
   class ArchonInterface;     // forward declaration
