@@ -2576,10 +2576,27 @@ namespace Camera {
       heater_target_max =   50.0;
     }
 
-    // .cfg overrides take precedence over the version-based defaults
+    // .cfg overrides take precedence over the version-based defaults,
+    // but must still fall within the range the module actually supports
     //
-    if ( this->heater_target_min_cfg ) heater_target_min = *this->heater_target_min_cfg;
-    if ( this->heater_target_max_cfg ) heater_target_max = *this->heater_target_max_cfg;
+    if ( this->heater_target_min_cfg ) {
+      if ( *this->heater_target_min_cfg < heater_target_min || *this->heater_target_min_cfg > heater_target_max ) {
+        message << "ERROR configured heater_target_min " << *this->heater_target_min_cfg
+                << " outside module range {" << heater_target_min << ":" << heater_target_max << "}";
+        logwrite(function, message.str());
+        return ERROR;
+      }
+      heater_target_min = *this->heater_target_min_cfg;
+    }
+    if ( this->heater_target_max_cfg ) {
+      if ( *this->heater_target_max_cfg < heater_target_min || *this->heater_target_max_cfg > heater_target_max ) {
+        message << "ERROR configured heater_target_max " << *this->heater_target_max_cfg
+                << " outside module range {" << heater_target_min << ":" << heater_target_max << "}";
+        logwrite(function, message.str());
+        return ERROR;
+      }
+      heater_target_max = *this->heater_target_max_cfg;
+    }
 
     std::vector<std::string> heaterconfig;  //!< configuration keys to read or write
     std::vector<std::string> heatervalue;   //!< values for the keys being written
@@ -2854,6 +2871,7 @@ namespace Camera {
       }
       if ( this->send_cmd( make_applymod_command(module) ) != NO_ERROR ) {
         logwrite(function, "ERROR applying heater configuration");
+        return ERROR;
       }
     }
 
