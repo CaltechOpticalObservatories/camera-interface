@@ -66,6 +66,8 @@ namespace Camera {
       long set_camera_mode(std::string args, std::string &retstring);
       long set_camera_mode(std::string modeselect);
       long set_vcpu_inreg(const std::string &args, std::string &retstring);
+      long heater(const std::string &args, std::string &retstring);
+      long sensor(const std::string &args, std::string &retstring);
       long autofetch_mode(const std::string &args, std::string &retstring);
 
       // Fallback for set_camera_mode when the camera-mode name is unknown
