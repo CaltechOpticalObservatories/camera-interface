@@ -8,7 +8,6 @@
 
 #include "fits_writer.h"
 #include "common.h"
-#include "fits_header_dictionary.h"
 #include "utilities.h"
 
 #include <CCfits/CCfits>
@@ -37,6 +36,11 @@ namespace Camera {
       catch (const std::exception &e) {
         logwrite(function, "ERROR formatting key " + entry.keyword + ": " + e.what());
       }
+    }
+
+    void add_keys_from(CCfits::PHDU &phdu, const Common::FitsKeys *keys) {
+      if (!keys) return;
+      for (const auto &entry : keys->keydb) add_key_from_fits_keys(phdu, entry.second);
     }
   }
 
@@ -200,24 +204,8 @@ namespace Camera {
                   "Archon timestamp (0.01 us units)");
       phdu.addKey("DATE", get_timestamp(), "FITS file write time");
 
-      if (const auto *entry = find_header_entry("mjd_start")) {
-        phdu.addKey(entry->keyword, meta.mjd_start, entry->comment);
-      }
-      if (const auto *entry = find_header_entry("acq_time")) {
-        if (!meta.acq_time.empty()) phdu.addKey(entry->keyword, meta.acq_time, entry->comment);
-      }
-      if (const auto *entry = find_header_entry("exposure_time")) {
-        phdu.addKey(entry->keyword, meta.exposure_time_sec, entry->comment);
-      }
-      if (const auto *entry = find_header_entry("n_reads")) {
-        phdu.addKey(entry->keyword, static_cast<long>(meta.n_reads), entry->comment);
-      }
-
-      if (meta.header_set) {
-        for (const auto &key_entry : meta.header_set->keydb) {
-          add_key_from_fits_keys(phdu, key_entry.second);
-        }
-      }
+      add_keys_from(phdu, meta.header_set.get());
+      add_keys_from(phdu, meta.frame_keys.get());
 
       const long first_pixel = 1;
       if (meta.bytes_per_pixel == 2) {

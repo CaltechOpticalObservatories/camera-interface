@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <string>
 
 namespace Common { class FitsKeys; }
 
@@ -22,13 +21,10 @@ namespace Camera {
     uint32_t bytes_per_pixel{0};
     uint64_t sequence_number{0};   // monotonic per-stream counter
 
-    // Values that vary per frame, not per exposure
-    double      mjd_start{0.0};         // EXPMJDST
-    std::string acq_time;               // ACQTIME, UTC
-    double      exposure_time_sec{0.0}; // EXPTIME
-    uint64_t    n_reads{0};              // NREADS
+    // FITS keys that vary per frame (e.g. per read within one exposure); rebuilt each frame
+    std::shared_ptr<const Common::FitsKeys> frame_keys;
 
-    // Resolved static keys, built once per exposure and shared across its frames
+    // FITS keys resolved once per exposure and shared across its frames
     std::shared_ptr<const Common::FitsKeys> header_set;
   };
 
