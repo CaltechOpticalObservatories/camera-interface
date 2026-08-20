@@ -26,6 +26,7 @@ const std::string CAMERAD_FITSNAME("fitsname");
 const std::string CAMERAD_FITSNAMING("fitsnaming");
 const std::string CAMERAD_FRAMETRANSFER("frametransfer");
 const std::string CAMERAD_GEOMETRY("geometry");
+const std::string CAMERAD_HEATER("heater");
 const std::string CAMERAD_IMDIR("imdir");
 const std::string CAMERAD_IMNUM("imnum");
 const std::string CAMERAD_IMSIZE("imsize");
@@ -47,6 +48,7 @@ const std::string CAMERAD_PREEXPOSURES("preexposures");
 const std::string CAMERAD_READACF("readacf");
 const std::string CAMERAD_READOUT("readout");
 const std::string CAMERAD_RESUME("resume");
+const std::string CAMERAD_SENSOR("sensor");
 const std::string CAMERAD_SHUTTER("shutter");
 const std::string CAMERAD_STOP("stop");
 const std::string CAMERAD_TEST("test");
@@ -71,6 +73,7 @@ const std::vector<std::string> CAMERAD_SYNTAX = {
                                                   CAMERAD_FITSNAMING+" [ time | number ]",
                                                   CAMERAD_FRAMETRANSFER+" ? | <dev#> | <chan> [ yes | no ]",
                                                   CAMERAD_GEOMETRY+" ? | <dev#> | <chan> [ <bytes> | <cols> <rows> ]",
+                                                  CAMERAD_HEATER+" <module> <A|B> [ <on|off> [target] | <target> | PID [<p> <i> <d>] | RAMP [<on|off> [rate]] | ILIM [val] | INPUT [A|B|C] ]",
                                                   CAMERAD_IMDIR+" [ <directory> ]",
                                                   CAMERAD_IMNUM,
                                                   CAMERAD_IMSIZE+" ? | <dev#>|<chan> [ <cols> <rows> <oscols> <osrows> ]",
@@ -91,6 +94,7 @@ const std::vector<std::string> CAMERAD_SYNTAX = {
                                                   CAMERAD_READACF+" [ ? | <acffile> ]",
                                                   CAMERAD_READOUT+" [ ? ] | [ <dev#> | <chan> [ <amp> ] ]",
                                                   CAMERAD_RESUME,
+                                                  CAMERAD_SENSOR+" <module> <A|B|C> [ <current> | AVG [ <N> ] ]",
                                                   CAMERAD_SHUTTER+" [ ? | enable | 1 | disable | 0 ]",
                                                   CAMERAD_STOP,
                                                   CAMERAD_TEST+" ? | <testname> ...",
