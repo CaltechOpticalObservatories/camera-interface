@@ -8,6 +8,7 @@
 
 #include "fits_writer.h"
 #include "common.h"
+#include "fits_header_dictionary.h"
 #include "utilities.h"
 
 #include <CCfits/CCfits>
@@ -18,6 +19,26 @@
 #include <valarray>
 
 namespace Camera {
+
+  namespace {
+    void add_key_from_fits_keys(CCfits::PHDU &phdu, const Common::FitsKeys::user_key_t &entry) {
+      const std::string function("Camera::FitsWriter::add_key_from_fits_keys");
+      try {
+        if (entry.keytype == "DOUBLE" || entry.keytype == "FLOAT") {
+          phdu.addKey(entry.keyword, std::stod(entry.keyvalue), entry.keycomment);
+        } else if (entry.keytype == "INT" || entry.keytype == "LONG") {
+          phdu.addKey(entry.keyword, std::stol(entry.keyvalue), entry.keycomment);
+        } else if (entry.keytype == "BOOL") {
+          phdu.addKey(entry.keyword, entry.keyvalue == "T", entry.keycomment);
+        } else {
+          phdu.addKey(entry.keyword, entry.keyvalue, entry.keycomment);
+        }
+      }
+      catch (const std::exception &e) {
+        logwrite(function, "ERROR formatting key " + entry.keyword + ": " + e.what());
+      }
+    }
+  }
 
   FitsWriter::FitsWriter(FitsWriterConfig cfg)
     : cfg_(std::move(cfg)) {
@@ -178,6 +199,25 @@ namespace Camera {
       phdu.addKey("TIMESTMP", static_cast<long>(meta.timestamp),
                   "Archon timestamp (0.01 us units)");
       phdu.addKey("DATE", get_timestamp(), "FITS file write time");
+
+      if (const auto *entry = find_header_entry("mjd_start")) {
+        phdu.addKey(entry->keyword, meta.mjd_start, entry->comment);
+      }
+      if (const auto *entry = find_header_entry("acq_time")) {
+        if (!meta.acq_time.empty()) phdu.addKey(entry->keyword, meta.acq_time, entry->comment);
+      }
+      if (const auto *entry = find_header_entry("exposure_time")) {
+        phdu.addKey(entry->keyword, meta.exposure_time_sec, entry->comment);
+      }
+      if (const auto *entry = find_header_entry("n_reads")) {
+        phdu.addKey(entry->keyword, static_cast<long>(meta.n_reads), entry->comment);
+      }
+
+      if (meta.header_set) {
+        for (const auto &key_entry : meta.header_set->keydb) {
+          add_key_from_fits_keys(phdu, key_entry.second);
+        }
+      }
 
       const long first_pixel = 1;
       if (meta.bytes_per_pixel == 2) {
