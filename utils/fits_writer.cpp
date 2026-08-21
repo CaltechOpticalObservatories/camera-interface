@@ -11,6 +11,8 @@
 #include "utilities.h"
 
 #include <CCfits/CCfits>
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <filesystem>
 #include <stdexcept>
@@ -138,6 +140,20 @@ namespace Camera {
              " dropped_queue=" + std::to_string(n_dropped_queue_.load()) +
              " failed=" + std::to_string(n_failed_.load()) +
              " dropped_shutdown=" + std::to_string(n_dropped_shutdown_.load()));
+  }
+
+  bool FitsWriter::set_option(const std::string &key, const std::string &value) {
+    if (key != "datacube") return false;
+
+    std::string lower = value;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                    [](unsigned char c) { return std::tolower(c); });
+    if (lower == "true")       cube_enabled_.store(true);
+    else if (lower == "false") cube_enabled_.store(false);
+    else return false;
+
+    logwrite("Camera::FitsWriter::set_option", "datacube=" + lower);
+    return true;
   }
 
   FitsWriter::Stats FitsWriter::stats() const {

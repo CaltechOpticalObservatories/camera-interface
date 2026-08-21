@@ -76,6 +76,7 @@ namespace Camera {
       void func_shared();
       void disconnect_controller();
       long key(std::string args, std::string &retstring);
+      long datacube(std::string args, std::string &retstring);
       bool is_exposuremode_set() { return ( this->exposuremode && !this->exposuremode->get_type().empty() ); }
 
       void set_abortstate()   { this->abortstate.store(true, std::memory_order_seq_cst); }

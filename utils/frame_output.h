@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 namespace Common { class FitsKeys; }
 
@@ -34,6 +35,9 @@ namespace Camera {
       virtual long open() = 0;
       virtual long write(const char* data, size_t size, const FrameMetadata& meta) = 0;
       virtual void close() = 0;
+
+      // Runtime option toggle (e.g. "datacube"/"true"); false if key is unrecognized
+      virtual bool set_option(const std::string &key, const std::string &value) { return false; }
   };
 
 }

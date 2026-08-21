@@ -42,6 +42,7 @@ namespace Camera {
       long open() override;
       long write(const char* data, size_t size, const FrameMetadata& meta) override;
       void close() override;
+      bool set_option(const std::string &key, const std::string &value) override;
 
       struct Stats {
         uint64_t frames_received{0};
@@ -76,6 +77,8 @@ namespace Camera {
 
       std::atomic<bool> stop_{false};
       std::atomic<bool> started_{false};
+      // Set via set_option("datacube", "true"/"false"); read by write_fits_file()
+      std::atomic<bool> cube_enabled_{false};
       std::thread worker_;
       // Set in close() before stop_, so worker can read race-free
       std::chrono::steady_clock::time_point stop_time_;

@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 namespace Camera {
 
@@ -29,6 +30,7 @@ namespace Camera {
       long open() override;
       long write(const char* data, size_t size, const FrameMetadata& meta) override;
       void close() override;
+      bool set_option(const std::string &key, const std::string &value) override;
 
       uint64_t frames_skipped() const { return n_skipped_.load(); }
 

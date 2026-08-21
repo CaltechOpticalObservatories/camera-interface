@@ -33,4 +33,8 @@ namespace Camera {
     inner_->close();
   }
 
+  bool CadenceGate::set_option(const std::string &key, const std::string &value) {
+    return inner_->set_option(key, value);
+  }
+
 }
