@@ -38,6 +38,9 @@ namespace Camera {
 
       // Runtime option toggle (e.g. "datacube"/"true"); false if key is unrecognized
       virtual bool set_option(const std::string &key, const std::string &value) { return false; }
+
+      // Called when a whole exposure command finishes, so a multi-frame output (e.g. a datacube) can finalize its file
+      virtual void end_exposure() {}
   };
 
 }

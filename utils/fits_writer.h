@@ -32,7 +32,6 @@ namespace Camera {
     size_t      queue_size{32};
     uint32_t    drain_timeout_ms{5000};
     bool        autodir{false};             // write into a YYYYMMDD subdir of output_dir
-    uint32_t    max_extensions{100};        // datacube mode: reads per file before rollover
   };
 
   class FitsWriter : public FrameOutput {
@@ -47,6 +46,7 @@ namespace Camera {
       long write(const char* data, size_t size, const FrameMetadata& meta) override;
       void close() override;
       bool set_option(const std::string &key, const std::string &value) override;
+      void end_exposure() override;
 
       struct Stats {
         uint64_t frames_received{0};
@@ -61,6 +61,7 @@ namespace Camera {
       struct QueuedFrame {
         FrameMetadata meta;
         std::vector<char> data;
+        bool end_of_exposure{false};   // sentinel: finalize any open cube, no frame data
       };
 
       void worker_loop();

@@ -144,6 +144,18 @@ namespace Camera {
              " dropped_shutdown=" + std::to_string(n_dropped_shutdown_.load()));
   }
 
+  void FitsWriter::end_exposure() {
+    if (!started_.load()) return;
+    // Same queue as real frames, so it's processed after this exposure's frames are written
+    QueuedFrame end_marker;
+    end_marker.end_of_exposure = true;
+    {
+      std::lock_guard lock(mtx_);
+      queue_.push_back(std::move(end_marker));
+    }
+    cv_.notify_one();
+  }
+
   bool FitsWriter::set_option(const std::string &key, const std::string &value) {
     if (key != "datacube") return false;
 
@@ -190,6 +202,11 @@ namespace Camera {
 
         frame = std::move(queue_.front());
         queue_.pop_front();
+      }
+
+      if (frame.end_of_exposure) {
+        close_cube();
+        continue;
       }
 
       if (write_fits_file(frame) == NO_ERROR) {
@@ -293,8 +310,7 @@ namespace Camera {
         ext->write(first_pixel, npixels, data);
       }
       cube_fits_->flush();
-
-      if (++cube_extension_count_ >= cfg_.max_extensions) close_cube();
+      ++cube_extension_count_;
     }
     catch (const CCfits::FitsException &e) {
       logwrite(function, "ERROR FITS exception writing cube extension: " + e.message());

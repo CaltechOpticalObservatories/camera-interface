@@ -69,6 +69,13 @@ namespace Camera {
         }
       }
 
+      // Tell every FrameOutput the current exposure command has finished
+      void end_exposure() {
+        for (auto &output : this->frame_outputs) {
+          output->end_exposure();
+        }
+      }
+
       // These functions are shared by all interfaces with common implementations,
       // and are implemented in camera_interface.cpp
       //
