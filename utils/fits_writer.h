@@ -16,10 +16,13 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
+
+namespace CCfits { class FITS; }
 
 namespace Camera {
 
@@ -29,6 +32,7 @@ namespace Camera {
     size_t      queue_size{32};
     uint32_t    drain_timeout_ms{5000};
     bool        autodir{false};             // write into a YYYYMMDD subdir of output_dir
+    uint32_t    max_extensions{100};        // datacube mode: reads per file before rollover
   };
 
   class FitsWriter : public FrameOutput {
@@ -61,6 +65,8 @@ namespace Camera {
 
       void worker_loop();
       long write_fits_file(const QueuedFrame &frame);
+      long write_cube_frame(const QueuedFrame &frame);
+      void close_cube();
       std::string make_filename(uint64_t frame_number);
       // Resolve the target directory, creating today's autodir subdir on demand.
       // Worker-thread only (uses cur_date_dir_ without locking).
@@ -70,6 +76,10 @@ namespace Camera {
 
       // Cache of the last autodir path created; touched only on the worker thread
       std::string cur_date_dir_;
+
+      // Datacube state — worker-thread only, no locking needed
+      std::unique_ptr<CCfits::FITS> cube_fits_;
+      uint32_t cube_extension_count_{0};
 
       std::deque<QueuedFrame> queue_;
       mutable std::mutex mtx_;

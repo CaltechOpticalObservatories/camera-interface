@@ -22,17 +22,18 @@
 namespace Camera {
 
   namespace {
-    void add_key_from_fits_keys(CCfits::PHDU &phdu, const Common::FitsKeys::user_key_t &entry) {
+    // HDU: common base of PHDU and ExtHDU, so this works for both
+    void add_key_from_fits_keys(CCfits::HDU &hdu, const Common::FitsKeys::user_key_t &entry) {
       const std::string function("Camera::FitsWriter::add_key_from_fits_keys");
       try {
         if (entry.keytype == "DOUBLE" || entry.keytype == "FLOAT") {
-          phdu.addKey(entry.keyword, std::stod(entry.keyvalue), entry.keycomment);
+          hdu.addKey(entry.keyword, std::stod(entry.keyvalue), entry.keycomment);
         } else if (entry.keytype == "INT" || entry.keytype == "LONG") {
-          phdu.addKey(entry.keyword, std::stol(entry.keyvalue), entry.keycomment);
+          hdu.addKey(entry.keyword, std::stol(entry.keyvalue), entry.keycomment);
         } else if (entry.keytype == "BOOL") {
-          phdu.addKey(entry.keyword, entry.keyvalue == "T", entry.keycomment);
+          hdu.addKey(entry.keyword, entry.keyvalue == "T", entry.keycomment);
         } else {
-          phdu.addKey(entry.keyword, entry.keyvalue, entry.keycomment);
+          hdu.addKey(entry.keyword, entry.keyvalue, entry.keycomment);
         }
       }
       catch (const std::exception &e) {
@@ -40,9 +41,9 @@ namespace Camera {
       }
     }
 
-    void add_keys_from(CCfits::PHDU &phdu, const Common::FitsKeys *keys) {
+    void add_keys_from(CCfits::HDU &hdu, const Common::FitsKeys *keys) {
       if (!keys) return;
-      for (const auto &entry : keys->keydb) add_key_from_fits_keys(phdu, entry.second);
+      for (const auto &entry : keys->keydb) add_key_from_fits_keys(hdu, entry.second);
     }
   }
 
@@ -132,6 +133,7 @@ namespace Camera {
     cv_.notify_all();
 
     if (worker_.joinable()) worker_.join();
+    close_cube();   // worker has exited, safe to touch its state here
     started_.store(false);
 
     const std::string function("Camera::FitsWriter::close");
@@ -199,6 +201,9 @@ namespace Camera {
   }
 
   long FitsWriter::write_fits_file(const QueuedFrame &frame) {
+    if (cube_enabled_.load()) return write_cube_frame(frame);
+    if (cube_fits_) close_cube();   // datacube was just turned off mid-cube; finalize it
+
     const std::string function("Camera::FitsWriter::write_fits_file");
     const auto &meta = frame.meta;
     const size_t npixels = static_cast<size_t>(meta.width) * meta.height;
@@ -244,6 +249,71 @@ namespace Camera {
     }
 
     return NO_ERROR;
+  }
+
+  long FitsWriter::write_cube_frame(const QueuedFrame &frame) {
+    const std::string function("Camera::FitsWriter::write_cube_frame");
+    const auto &meta = frame.meta;
+    const size_t npixels = static_cast<size_t>(meta.width) * meta.height;
+    const int bitpix = (meta.bytes_per_pixel == 2) ? USHORT_IMG : ULONG_IMG;
+
+    try {
+      if (!cube_fits_) {
+        const std::string filename = make_filename(meta.frame_number);
+        long axes[2] = {0, 0};   // NAXIS=0: header-only primary, matches v1's cube primary
+        cube_fits_ = std::make_unique<CCfits::FITS>(filename, bitpix, 0, axes);
+        add_keys_from(cube_fits_->pHDU(), meta.header_set.get());
+        cube_extension_count_ = 0;
+        logwrite(function, "opened cube " + filename);
+      }
+
+      std::vector<long> ext_axes = { static_cast<long>(meta.width),
+                                      static_cast<long>(meta.height) };
+      const std::string extname = std::to_string(cube_extension_count_ + 1);
+      auto *ext = cube_fits_->addImage(extname, bitpix, ext_axes);
+
+      if (bitpix == USHORT_IMG) {
+        ext->addKey("BZERO", 32768, "offset for signed short int");
+        ext->addKey("BSCALE", 1, "scaling factor");
+      }
+      ext->addKey("FRAMENO", static_cast<long>(meta.frame_number), "Frame number");
+      ext->addKey("TIMESTMP", static_cast<long>(meta.timestamp),
+                  "Archon timestamp (0.01 us units)");
+      add_keys_from(*ext, meta.frame_keys.get());
+      ext->addKey("WRTTIME", get_timestamp(), "FITS extension write time");
+
+      const long first_pixel = 1;
+      if (meta.bytes_per_pixel == 2) {
+        const auto *src = reinterpret_cast<const uint16_t*>(frame.data.data());
+        std::valarray<uint16_t> data(src, npixels);
+        ext->write(first_pixel, npixels, data);
+      } else {
+        const auto *src = reinterpret_cast<const uint32_t*>(frame.data.data());
+        std::valarray<uint32_t> data(src, npixels);
+        ext->write(first_pixel, npixels, data);
+      }
+      cube_fits_->flush();
+
+      if (++cube_extension_count_ >= cfg_.max_extensions) close_cube();
+    }
+    catch (const CCfits::FitsException &e) {
+      logwrite(function, "ERROR FITS exception writing cube extension: " + e.message());
+      return ERROR;
+    }
+    catch (const std::exception &e) {
+      logwrite(function, "ERROR exception writing cube extension: " + std::string(e.what()));
+      return ERROR;
+    }
+
+    return NO_ERROR;
+  }
+
+  void FitsWriter::close_cube() {
+    if (!cube_fits_) return;
+    logwrite("Camera::FitsWriter::close_cube",
+             "closed cube with " + std::to_string(cube_extension_count_) + " extensions");
+    cube_fits_.reset();
+    cube_extension_count_ = 0;
   }
 
   std::string FitsWriter::resolve_output_dir() {
