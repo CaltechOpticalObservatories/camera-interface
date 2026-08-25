@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 
@@ -59,9 +60,14 @@ namespace {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    std::cerr << "usage: " << argv[0] << " <segment_name>\n";
+  if (argc != 2 && argc != 3) {
+    std::cerr << "usage: " << argv[0] << " <segment_name> [dir]\n";
     return 1;
+  }
+
+  if (argc == 3) {
+    // ImageStreamIO's only override for its base directory is this env var
+    ::setenv("MILK_SHM_DIR", argv[2], 1);
   }
 
   IMAGE image{};
