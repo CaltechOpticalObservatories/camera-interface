@@ -5,8 +5,11 @@
 
 #include "frame_output_factory.h"
 #include "fits_writer.h"
-#include "shared_memory_writer.h"
 #include "common.h"
+
+#ifdef CAMERAD_HAVE_SHM
+#include "shared_memory_writer.h"
+#endif
 
 #include <stdexcept>
 #include <utility>
@@ -27,7 +30,7 @@ namespace Camera {
       try {
         if      (key == "SHM_ENABLED")            out.shm_enabled            = parse_bool(val);
         else if (key == "SHM_SEGMENT_NAME")       out.shm_segment_name       = val;
-        else if (key == "SHM_RING_BUFFER_SIZE")    out.shm_ring_buffer_size   = static_cast<uint32_t>(std::stoul(val));
+        else if (key == "SHM_RING_BUFFER_SIZE")   out.shm_ring_buffer_size   = static_cast<uint32_t>(std::stoul(val));
         else if (key == "SHM_DIR")                out.shm_dir                = val;
         else if (key == "FITS_ENABLED")           out.fits_enabled           = parse_bool(val);
         else if (key == "FITS_OUTPUT_DIR")        out.fits.output_dir        = val;
@@ -48,6 +51,7 @@ namespace Camera {
     std::vector<std::unique_ptr<FrameOutput>> outputs;
 
     if (cfg.shm_enabled) {
+#ifdef CAMERAD_HAVE_SHM
       if (cfg.shm_max_frame_bytes == 0) {
         logwrite(function, "WARNING shm_enabled but shm_max_frame_bytes==0; SHM skipped");
       }
@@ -65,6 +69,9 @@ namespace Camera {
           logwrite(function, "WARNING SHM output failed to open; skipped");
         }
       }
+#else
+      logwrite(function, "WARNING shm_enabled but this build was compiled without SHM support (ENABLE_SHM_OUTPUT=OFF)");
+#endif
     }
 
     if (cfg.fits_enabled) {

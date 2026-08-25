@@ -23,13 +23,20 @@ add_library(network STATIC
 )
 target_link_libraries(network nlohmann_json::nlohmann_json)
 
-find_package(ImageStreamIO CONFIG REQUIRED)
+if(ENABLE_SHM_OUTPUT)
+  find_package(ImageStreamIO CONFIG REQUIRED)
 
-add_library(shared_memory_writer STATIC
-        ${PROJECT_UTILS_DIR}/shared_memory_writer.cpp
-)
-target_include_directories(shared_memory_writer PRIVATE ${PROJECT_BASE_DIR}/common ${PROJECT_BASE_DIR}/utils)
-target_link_libraries(shared_memory_writer nlohmann_json::nlohmann_json ImageStreamIO::ImageStreamIO)
+  add_library(shared_memory_writer STATIC
+          ${PROJECT_UTILS_DIR}/shared_memory_writer.cpp
+  )
+  target_include_directories(shared_memory_writer PRIVATE ${PROJECT_BASE_DIR}/common ${PROJECT_BASE_DIR}/utils)
+  target_link_libraries(shared_memory_writer nlohmann_json::nlohmann_json ImageStreamIO::ImageStreamIO)
+
+  add_executable(shm_reader
+          ${PROJECT_UTILS_DIR}/shm_reader.cpp
+  )
+  target_link_libraries(shm_reader ImageStreamIO::ImageStreamIO)
+endif()
 
 add_library(fits_writer STATIC
         ${PROJECT_UTILS_DIR}/fits_writer.cpp
@@ -49,9 +56,12 @@ add_library(frame_output_factory STATIC
 target_include_directories(frame_output_factory PRIVATE ${PROJECT_BASE_DIR}/common ${PROJECT_BASE_DIR}/utils)
 target_link_libraries(frame_output_factory
         nlohmann_json::nlohmann_json
-        shared_memory_writer
         fits_writer
 )
+if(ENABLE_SHM_OUTPUT)
+  target_link_libraries(frame_output_factory shared_memory_writer)
+  target_compile_definitions(frame_output_factory PRIVATE CAMERAD_HAVE_SHM)
+endif()
 
 add_library(md5 STATIC
         ${PROJECT_UTILS_DIR}/md5.cpp
@@ -64,8 +74,3 @@ add_executable(listener
 add_executable(socksend
         ${PROJECT_UTILS_DIR}/sendcmd.cpp
 )
-
-add_executable(shm_reader
-        ${PROJECT_UTILS_DIR}/shm_reader.cpp
-)
-target_link_libraries(shm_reader ImageStreamIO::ImageStreamIO)
