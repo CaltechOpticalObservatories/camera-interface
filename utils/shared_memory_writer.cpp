@@ -9,10 +9,12 @@
 
 #include <cstdio>
 #include <cstring>
+#include <sys/stat.h>
 
 namespace {
 
-  constexpr int NUM_KEYWORDS = 3;   // FRAMENO, TIMESTMP, SEQNUM
+  constexpr int NUM_KEYWORDS = 3;         // FRAMENO, TIMESTMP, SEQNUM
+  constexpr mode_t SEGMENT_MODE = 0664;   // group-writable so a co-user can clean up a leftover
 
   void set_long_keyword(IMAGE_KEYWORD &keyword, const char *name, int64_t value,
                         const char *comment) {
@@ -21,6 +23,15 @@ namespace {
     keyword.value.numl = value;
     std::snprintf(keyword.comment, sizeof(keyword.comment), "%s", comment);
     keyword.cnt++;
+  }
+
+  // Returns "path (uid=.. gid=.. mode=..)" if something exists at path, else ""
+  std::string describe_path(const std::string &path) {
+    struct stat st{};
+    if (::stat(path.c_str(), &st) != 0) return "";
+    return path + " (uid=" + std::to_string(st.st_uid) +
+           " gid=" + std::to_string(st.st_gid) +
+           " mode=" + std::to_string(st.st_mode & 07777) + ")";
   }
 
 }
@@ -134,6 +145,16 @@ namespace Camera {
     ImageStreamIO_destroyIm(&image_);
     allocated_width_ = allocated_height_ = allocated_bytes_per_pixel_ = 0;
 
+    char path[STRINGMAXLEN_FILE_NAME];
+    ImageStreamIO_filename(path, sizeof(path), segment_name_.c_str());
+
+    // Diagnostic even when the library's internal unlink-and-retry self-heals a
+    // same-owner crash leftover, so an operator can see it happened
+    const std::string preexisting = describe_path(path);
+    if (!preexisting.empty()) {
+      logwrite(function, "found existing segment at " + preexisting);
+    }
+
     const uint8_t datatype = (bytes_per_pixel == 2) ? _DATATYPE_UINT16 : _DATATYPE_UINT32;
     uint32_t size[2] = {width, height};
 
@@ -142,9 +163,15 @@ namespace Camera {
         1 /* shared */, NUM_KEYWORDS, static_cast<int>(num_frames_));
 
     if (status != IMAGESTREAMIO_SUCCESS) {
+      const std::string blocker = describe_path(path);
       logwrite(function, "ERROR ImageStreamIO_createIm failed for \"" + segment_name_ +
-               "\" (" + std::to_string(width) + "x" + std::to_string(height) + ")");
+               "\" (" + std::to_string(width) + "x" + std::to_string(height) + ")" +
+               (blocker.empty() ? "" : "; blocked by " + blocker));
       return ERROR;
+    }
+
+    if (::chmod(path, SEGMENT_MODE) != 0) {
+      logwrite(function, "WARNING chmod failed for \"" + std::string(path) + "\"");
     }
 
     allocated_width_ = width;
