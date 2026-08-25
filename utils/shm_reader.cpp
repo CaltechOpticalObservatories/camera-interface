@@ -33,19 +33,11 @@ namespace {
     }
   }
 
-  void print_pixel_stats(const IMAGE &image) {
-    if (image.md->datatype != _DATATYPE_UINT16) {
-      std::cout << "pixel stats not printed: unsupported datatype "
-                << static_cast<int>(image.md->datatype) << "\n";
-      return;
-    }
-
-    const long pixel_count = static_cast<long>(image.md->size[0]) * image.md->size[1];
-    const uint16_t *pixels = image.array.UI16;
-
-    uint16_t min_value = pixels[0];
-    uint16_t max_value = pixels[0];
-    long sum = 0;
+  template <typename PixelType>
+  void print_pixel_stats_as(const PixelType *pixels, long pixel_count) {
+    PixelType min_value = pixels[0];
+    PixelType max_value = pixels[0];
+    unsigned long long sum = 0;
     for (long i = 0; i < pixel_count; ++i) {
       min_value = std::min(min_value, pixels[i]);
       max_value = std::max(max_value, pixels[i]);
@@ -55,6 +47,17 @@ namespace {
     std::cout << "pixels: count=" << pixel_count << " min=" << min_value
               << " max=" << max_value
               << " mean=" << (static_cast<double>(sum) / pixel_count) << "\n";
+  }
+
+  void print_pixel_stats(const IMAGE &image) {
+    const long pixel_count = static_cast<long>(image.md->size[0]) * image.md->size[1];
+    switch (image.md->datatype) {
+      case _DATATYPE_UINT16: print_pixel_stats_as(image.array.UI16, pixel_count); break;
+      case _DATATYPE_UINT32: print_pixel_stats_as(image.array.UI32, pixel_count); break;
+      default:
+        std::cout << "pixel stats not printed: unsupported datatype "
+                  << static_cast<int>(image.md->datatype) << "\n";
+    }
   }
 
 }
