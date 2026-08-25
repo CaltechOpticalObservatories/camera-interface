@@ -27,7 +27,8 @@ namespace Camera {
       try {
         if      (key == "SHM_ENABLED")            out.shm_enabled            = parse_bool(val);
         else if (key == "SHM_SEGMENT_NAME")       out.shm_segment_name       = val;
-        else if (key == "SHM_NUM_FRAMES")         out.shm_num_frames         = static_cast<uint32_t>(std::stoul(val));
+        else if (key == "SHM_RING_BUFFER_SIZE")    out.shm_ring_buffer_size   = static_cast<uint32_t>(std::stoul(val));
+        else if (key == "SHM_DIR")                out.shm_dir                = val;
         else if (key == "FITS_ENABLED")           out.fits_enabled           = parse_bool(val);
         else if (key == "FITS_OUTPUT_DIR")        out.fits.output_dir        = val;
         else if (key == "FITS_AUTODIR")           out.fits.autodir           = parse_bool(val);
@@ -52,11 +53,12 @@ namespace Camera {
       }
       else {
         auto shm = std::make_unique<SharedMemoryWriter>(
-            cfg.shm_segment_name, cfg.shm_max_frame_bytes, cfg.shm_num_frames);
+            cfg.shm_segment_name, cfg.shm_max_frame_bytes, cfg.shm_ring_buffer_size, cfg.shm_dir);
         if (shm->open() == NO_ERROR) {
           logwrite(function, "SHM output enabled: segment=" + cfg.shm_segment_name +
                    " max_bytes=" + std::to_string(cfg.shm_max_frame_bytes) +
-                   " frames=" + std::to_string(cfg.shm_num_frames));
+                   " ring_buffer_size=" + std::to_string(cfg.shm_ring_buffer_size) +
+                   " dir=" + (cfg.shm_dir.empty() ? "(default)" : cfg.shm_dir));
           outputs.push_back(std::move(shm));
         }
         else {

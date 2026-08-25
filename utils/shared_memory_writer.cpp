@@ -8,7 +8,9 @@
 #include "common.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <sys/stat.h>
 
 namespace {
@@ -40,10 +42,12 @@ namespace Camera {
 
   SharedMemoryWriter::SharedMemoryWriter(const std::string &segment_name,
                                          size_t max_frame_bytes,
-                                         uint32_t num_frames)
+                                         uint32_t ring_buffer_size,
+                                         const std::string &shm_dir)
     : segment_name_(segment_name),
       max_frame_bytes_(max_frame_bytes),
-      num_frames_(num_frames) {
+      ring_buffer_size_(ring_buffer_size),
+      shm_dir_(shm_dir) {
   }
 
   SharedMemoryWriter::~SharedMemoryWriter() {
@@ -61,9 +65,19 @@ namespace Camera {
       logwrite(function, "ERROR max_frame_bytes must be > 0");
       return ERROR;
     }
-    if (num_frames_ == 0) {
-      logwrite(function, "ERROR num_frames must be > 0");
+    if (ring_buffer_size_ == 0) {
+      logwrite(function, "ERROR ring_buffer_size must be > 0");
       return ERROR;
+    }
+
+    if (!shm_dir_.empty()) {
+      std::error_code ec;
+      if (!std::filesystem::is_directory(shm_dir_, ec)) {
+        logwrite(function, "ERROR shm_dir does not exist: " + shm_dir_);
+        return ERROR;
+      }
+      // ImageStreamIO's only override for its base directory is this env var
+      ::setenv("MILK_SHM_DIR", shm_dir_.c_str(), 1);
     }
 
     opened_ = true;
@@ -71,7 +85,8 @@ namespace Camera {
     // Geometry is fixed for a stream's whole life, so create happens in write(), not here
     logwrite(function, "ready to publish \"" + segment_name_ + "\" (max " +
              std::to_string(max_frame_bytes_) + " bytes/frame, " +
-             std::to_string(num_frames_) + " frames)");
+             std::to_string(ring_buffer_size_) + " frames, dir=" +
+             (shm_dir_.empty() ? "(default)" : shm_dir_) + ")");
     return NO_ERROR;
   }
 
@@ -160,7 +175,7 @@ namespace Camera {
 
     const errno_t status = ImageStreamIO_createIm(
         &image_, segment_name_.c_str(), 2, size, datatype,
-        1 /* shared */, NUM_KEYWORDS, static_cast<int>(num_frames_));
+        1 /* shared */, NUM_KEYWORDS, static_cast<int>(ring_buffer_size_));
 
     if (status != IMAGESTREAMIO_SUCCESS) {
       const std::string blocker = describe_path(path);
@@ -181,7 +196,7 @@ namespace Camera {
     logwrite(function, "created \"" + segment_name_ + "\" (" +
              std::to_string(width) + "x" + std::to_string(height) + ", " +
              std::to_string(bytes_per_pixel) + " bytes/px, " +
-             std::to_string(num_frames_) + " frames)");
+             std::to_string(ring_buffer_size_) + " frames)");
     return NO_ERROR;
   }
 

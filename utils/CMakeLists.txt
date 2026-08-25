@@ -64,3 +64,8 @@ add_executable(listener
 add_executable(socksend
         ${PROJECT_UTILS_DIR}/sendcmd.cpp
 )
+
+add_executable(shm_reader
+        ${PROJECT_UTILS_DIR}/shm_reader.cpp
+)
+target_link_libraries(shm_reader ImageStreamIO::ImageStreamIO)

@@ -20,7 +20,8 @@ namespace Camera {
     public:
       SharedMemoryWriter(const std::string &segment_name,
                          size_t max_frame_bytes,
-                         uint32_t num_frames = 4);
+                         uint32_t ring_buffer_size = 4,
+                         const std::string &shm_dir = "");
       ~SharedMemoryWriter();
 
       long open() override;
@@ -30,7 +31,8 @@ namespace Camera {
     private:
       std::string segment_name_;
       size_t max_frame_bytes_;
-      uint32_t num_frames_;
+      uint32_t ring_buffer_size_;
+      std::string shm_dir_;
       bool opened_{false};
 
       IMAGE image_{};
