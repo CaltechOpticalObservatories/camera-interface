@@ -1,5 +1,8 @@
 #include "camera_interface.h"
 
+#include <algorithm>
+#include <cctype>
+
 namespace Camera {
 
   // this is the code for shared functions common to all implementations
@@ -25,4 +28,75 @@ namespace Camera {
     this->disconnect_controller("", retstring);
   }
   /***** Camera::Interface::disconnect_controller *****************************/
+
+
+  /***** Camera::Interface::key *************************************************/
+  /**
+   * @brief      add/list a custom FITS keyword written into every exposure
+   * @param[in]  args       "list", or "KEYWORD=VALUE//COMMENT" (comment optional)
+   * @param[out] retstring  usage string on help/error
+   * @return     NO_ERROR | ERROR | HELP
+   *
+   * KEYWORD=. deletes that keyword (see Common::FitsKeys::addkey).
+   *
+   */
+  long Interface::key(std::string args, std::string &retstring) {
+    const std::string function("Camera::Interface::key");
+
+    if (args.empty() || args == "?" || args == "help") {
+      retstring = "key KEYWORD=VALUE//COMMENT | key list";
+      return HELP;
+    }
+
+    if (args == "list") {
+      logwrite(function, "systemkeys:");
+      this->camera_info.systemkeys.listkeys();
+      logwrite(function, "userkeys:");
+      this->camera_info.userkeys.listkeys();
+      return NO_ERROR;
+    }
+
+    long error = this->camera_info.userkeys.addkey(args);
+    if (error != NO_ERROR) {
+      logwrite(function, "ERROR bad syntax: expected KEYWORD=VALUE//COMMENT");
+    }
+    return error;
+  }
+  /***** Camera::Interface::key *************************************************/
+
+
+  /***** Camera::Interface::datacube *********************************************/
+  /**
+   * @brief      set/report whether reads are written as one multi-extension FITS file
+   * @param[in]  args       "true", "false" (case-insensitive), or empty to report state
+   * @param[out] retstring  current state ("true"/"false"), or usage on error
+   * @return     NO_ERROR | ERROR | HELP
+   *
+   */
+  long Interface::datacube(std::string args, std::string &retstring) {
+    const std::string function("Camera::Interface::datacube");
+
+    if (args == "?" || args == "help") {
+      retstring = "datacube [ true | false ]";
+      return HELP;
+    }
+
+    if (!args.empty()) {
+      std::transform(args.begin(), args.end(), args.begin(),
+                      [](unsigned char c) { return std::tolower(c); });
+      if (args != "true" && args != "false") {
+        retstring = "datacube [ true | false ]";
+        logwrite(function, "ERROR expected true or false, got " + args);
+        return ERROR;
+      }
+      this->camera_info.is_datacube = (args == "true");
+      for (auto &output : this->frame_outputs) {
+        output->set_option("datacube", args);
+      }
+    }
+
+    retstring = (this->camera_info.is_datacube ? "true" : "false");
+    return NO_ERROR;
+  }
+  /***** Camera::Interface::datacube *********************************************/
 }

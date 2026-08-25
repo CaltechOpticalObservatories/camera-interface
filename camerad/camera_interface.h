@@ -68,7 +68,13 @@ namespace Camera {
           output->write(data, size, meta);
         }
       }
-//    Common::FitsKeys systemkeys;  move to Camera::Information?
+
+      // Tell every FrameOutput the current exposure command has finished
+      void end_exposure() {
+        for (auto &output : this->frame_outputs) {
+          output->end_exposure();
+        }
+      }
 
       // These functions are shared by all interfaces with common implementations,
       // and are implemented in camera_interface.cpp
@@ -76,6 +82,8 @@ namespace Camera {
       void set_server(Camera::Server* s);
       void func_shared();
       void disconnect_controller();
+      long key(std::string args, std::string &retstring);
+      long datacube(std::string args, std::string &retstring);
       bool is_exposuremode_set() { return ( this->exposuremode && !this->exposuremode->get_type().empty() ); }
 
       void set_abortstate()   { this->abortstate.store(true, std::memory_order_seq_cst); }

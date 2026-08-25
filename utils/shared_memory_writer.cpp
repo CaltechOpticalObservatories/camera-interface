@@ -57,9 +57,7 @@ namespace Camera {
 
     opened_ = true;
 
-    // Frame geometry (naxis/size/atype) is fixed for an ImageStreamIO
-    // stream's whole life, so the actual create happens on the first
-    // write(), once we know it -- not here.
+    // Geometry is fixed for a stream's whole life, so create happens in write(), not here
     logwrite(function, "ready to publish \"" + segment_name_ + "\" (max " +
              std::to_string(max_frame_bytes_) + " bytes/frame, " +
              std::to_string(num_frames_) + " frames)");

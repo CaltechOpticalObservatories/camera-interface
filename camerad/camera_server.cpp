@@ -292,6 +292,14 @@ namespace Camera {
       if ( cmd == CAMERAD_TEST ) {
         ret = interface->test(args, retstring);
       }
+      else
+      if ( cmd == CAMERAD_KEY ) {
+        ret = interface->key(args, retstring);
+      }
+      else
+      if ( cmd == CAMERAD_DATACUBE ) {
+        ret = interface->datacube(args, retstring);
+      }
 
       /**
        * controller-specific commands

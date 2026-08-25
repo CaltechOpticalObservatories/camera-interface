@@ -7,6 +7,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <string>
+
+namespace Common { class FitsKeys; }
 
 namespace Camera {
 
@@ -16,7 +20,13 @@ namespace Camera {
     uint32_t width{0};
     uint32_t height{0};
     uint32_t bytes_per_pixel{0};
-    uint64_t sequence_number{0};
+    uint64_t sequence_number{0};   // monotonic per-stream counter
+
+    // FITS keys that vary per frame (e.g. per read within one exposure); rebuilt each frame
+    std::shared_ptr<const Common::FitsKeys> frame_keys;
+
+    // FITS keys resolved once per exposure and shared across its frames
+    std::shared_ptr<const Common::FitsKeys> header_set;
   };
 
   class FrameOutput {
@@ -25,6 +35,12 @@ namespace Camera {
       virtual long open() = 0;
       virtual long write(const char* data, size_t size, const FrameMetadata& meta) = 0;
       virtual void close() = 0;
+
+      // Runtime option toggle (e.g. "datacube"/"true"); false if key is unrecognized
+      virtual bool set_option(const std::string &key, const std::string &value) { return false; }
+
+      // Called when a whole exposure command finishes, so a multi-frame output (e.g. a datacube) can finalize its file
+      virtual void end_exposure() {}
   };
 
 }

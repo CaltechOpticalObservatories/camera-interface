@@ -446,6 +446,8 @@ namespace Camera {
       do_expose();
     }
 
+    this->end_exposure();
+
     return NO_ERROR;
   }
   /***** Camera::ArchonInterface::expose **************************************/
