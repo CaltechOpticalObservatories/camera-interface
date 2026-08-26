@@ -39,6 +39,24 @@ If you encounter any problems or have questions about this project, please open 
    |------------------------|----------------------------------|
    | `$ cmake ..`           | `$ cmake -DINTERFACE_TYPE=AstroCam ..` |
 
+   To enable the shared-memory output (`SHM_ENABLED` in a `.cfg` file, see [Frame Outputs](#frame-outputs) below), add `-DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=<prefix>/lib/cmake`:
+
+    ```bash
+    $ cmake -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake ..
+    ```
+
+   This requires [ImageStreamIO](https://github.com/milk-org/ImageStreamIO) to already be built and installed, since it isn't packaged for common distros:
+
+    ```bash
+    $ git clone https://github.com/milk-org/ImageStreamIO.git
+    $ cd ImageStreamIO && mkdir build && cd build
+    $ cmake ..
+    $ make
+    $ sudo make install
+    ```
+
+   ImageStreamIO's own `Config.cmake` files install directly under `<prefix>/lib/cmake/` rather than the CMake-conventional `<prefix>/lib/cmake/ImageStreamIO/`, so `-DImageStreamIO_DIR=...` must always be given explicitly, even for a standard system-wide install.
+
 4. **Compile the sources:**
 
     ```bash
@@ -74,6 +92,36 @@ If you encounter any problems or have questions about this project, please open 
     ```bash
     $ ../bin/run_unit_tests
     ```
+
+## Frame Outputs
+
+Instruments that opt in publish each acquired frame to one or more outputs, configured via `.cfg` file keys read by `Camera::apply_config_overrides()`. Both outputs are independent; either or both can be enabled.
+
+### FITS
+
+Writes one FITS file per frame asynchronously (a queue plus a dedicated writer thread, so the readout thread never blocks on disk I/O).
+
+| Key                      | Default        | Meaning                                                              |
+|--------------------------|----------------|-----------------------------------------------------------------------|
+| `FITS_ENABLED`           | `no`           | Enable the FITS writer                                                |
+| `FITS_OUTPUT_DIR`        | `/tmp/images`  | Base directory for FITS files; must already exist                     |
+| `FITS_AUTODIR`           | `no`           | Write into a `YYYYMMDD` subdirectory of `FITS_OUTPUT_DIR`              |
+| `FITS_BASENAME`          | `tracking`     | Base filename for FITS files                                          |
+| `FITS_QUEUE_SIZE`        | `32`           | Max frames buffered for the writer thread; oldest is dropped if full  |
+| `FITS_DRAIN_TIMEOUT_MS`  | `5000`         | On shutdown, how long to keep draining the queue before giving up     |
+
+### Shared Memory (ImageStreamIO)
+
+Publishes each frame as an [ImageStreamIO](https://github.com/milk-org/ImageStreamIO) shared-memory stream, readable by AO frameworks like [cacao](https://github.com/cacao-org/cacao). Requires building with `-DENABLE_SHM_OUTPUT=ON` (see Build Instructions above); if a `.cfg` file sets `SHM_ENABLED=yes` on a build compiled without that flag, `camerad` logs a warning and skips it rather than failing.
+
+| Key                     | Default    | Meaning                                                                                   |
+|-------------------------|------------|--------------------------------------------------------------------------------------------|
+| `SHM_ENABLED`           | `no`       | Enable the shared-memory writer                                                            |
+| `SHM_SEGMENT_NAME`      | `camera`   | ImageStreamIO stream name                                                                  |
+| `SHM_RING_BUFFER_SIZE`  | `4`        | Depth of ImageStreamIO's internal history ring buffer (`CBsize`); the live frame a real-time reader sees is separate from this |
+| `SHM_DIR`               | (unset)    | Base directory ImageStreamIO writes into. If unset, ImageStreamIO falls back to its own default resolution (`MILK_SHM_DIR` env var, then `/milk/shm`). If set, it must already exist and be writable. |
+
+Frame geometry (width/height/pixel depth) isn't a config key: it's fixed for an ImageStreamIO stream's whole life, so the writer (re)creates the stream automatically whenever it sees the geometry change from what's currently allocated.
 
 ## Heater & Sensor Control
 

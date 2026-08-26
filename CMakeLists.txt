@@ -24,6 +24,11 @@ endif ()
 if (NOT DEFINED DETECTOR_TYPE)
     set(DETECTOR_TYPE "Ccd")
 endif ()
+
+# Shared-memory (ImageStreamIO) output: opt-in, since ImageStreamIO
+# (https://github.com/milk-org/ImageStreamIO) isn't packaged for common
+# distros and must be built from source
+option(ENABLE_SHM_OUTPUT "Build shared-memory output support (requires ImageStreamIO)" OFF)
 # ----------------------------------------------------------------------------
 
 # un-comment the following to log verbose debug messages

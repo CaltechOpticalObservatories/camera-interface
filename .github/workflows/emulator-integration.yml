@@ -7,6 +7,77 @@ on:
     branches: [ "main" ]
 
 jobs:
+  hispec-shm-emulator-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libccfits-dev libcfitsio-dev libcurl4-openssl-dev \
+          nlohmann-json3-dev libzmq3-dev \
+          libopencv-dev libboost-thread-dev libboost-chrono-dev
+
+    - name: Build and install zmqpp from source
+      run: |
+        git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
+        cd /tmp/zmqpp
+        mkdir build && cd build
+        cmake ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+
+    - name: Build and install ImageStreamIO from source
+      run: |
+        git clone --depth 1 https://github.com/milk-org/ImageStreamIO.git /tmp/ImageStreamIO
+        cd /tmp/ImageStreamIO
+        mkdir build && cd build
+        cmake ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+
+    - name: Build camerad, emulator, socksend, shm_reader
+      run: |
+        mkdir -p ${{github.workspace}}/build
+        cd ${{github.workspace}}/build
+        cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
+              -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake ..
+        make camerad emulator socksend shm_reader -j$(nproc)
+
+    - name: HISPEC tracking camera SHM test
+      run: |
+        mkdir -p /tmp/ci_milk_shm
+
+        bin/emulator Config/hispec_shm_test/hispec_shm_test.cfg -i generic &
+        sleep 2
+        bin/camerad --foreground --config Config/hispec_shm_test/hispec_shm_test.cfg &
+        sleep 3
+
+        send() { bin/socksend -p 3131 -t 60 "$1"; }
+
+        send "open"
+        send "load"
+        send "power on"
+        resp=$(send "expose 1")
+        echo "expose -> $resp"
+        echo "$resp" | grep -q "DONE" || exit 1
+
+        # DONE only means camerad accepted the command, not that SharedMemoryWriter
+        # succeeded -- shm_reader's exit code is the real pass/fail signal
+        sleep 1
+        bin/shm_reader ci_hispec_shm /tmp/ci_milk_shm
+
+        pkill -f 'bin/camerad' || true
+        pkill -f 'bin/emulator' || true
+
   cryoscope-emulator-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
