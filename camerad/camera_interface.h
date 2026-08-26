@@ -13,6 +13,7 @@
 #include "camerad_commands.h"
 #include "exposure_modes.h"
 #include "frame_output.h"
+#include "frame_output_factory.h"
 
 #include <memory>
 #include <vector>
@@ -84,6 +85,7 @@ namespace Camera {
       void disconnect_controller();
       long key(std::string args, std::string &retstring);
       long datacube(std::string args, std::string &retstring);
+      void configure_frame_outputs();
       bool is_exposuremode_set() { return ( this->exposuremode && !this->exposuremode->get_type().empty() ); }
 
       void set_abortstate()   { this->abortstate.store(true, std::memory_order_seq_cst); }
@@ -95,6 +97,11 @@ namespace Camera {
       //
       virtual void configure_interface() = 0;
       virtual void configure_instrument() { }
+
+      // Instrument-specific defaults (e.g. shm_segment_name, shm_max_frame_bytes)
+      // applied before configure_frame_outputs() reads the config file, so a
+      // .cfg entry still overrides these. No-op unless an instrument overrides it.
+      virtual void frame_output_defaults(FrameOutputsConfig&) { }
       virtual long abort( std::string args, std::string &retstring ) = 0;
       virtual long autodir( std::string args, std::string &retstring ) = 0;
       virtual long basename( std::string args, std::string &retstring ) = 0;

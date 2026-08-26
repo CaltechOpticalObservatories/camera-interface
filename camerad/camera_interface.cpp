@@ -99,4 +99,20 @@ namespace Camera {
     return NO_ERROR;
   }
   /***** Camera::Interface::datacube *********************************************/
+
+
+  /***** Camera::Interface::configure_frame_outputs *******************************/
+  /**
+   * @brief      build frame_outputs (SHM/FITS) from instrument defaults + config file
+   * @details    Called unconditionally from camerad.cpp after configure_instrument(),
+   *             so no derived override can silently skip wiring frame_outputs.
+   *
+   */
+  void Interface::configure_frame_outputs() {
+    Camera::FrameOutputsConfig fo_cfg;
+    this->frame_output_defaults(fo_cfg);
+    Camera::apply_config_overrides(fo_cfg, this->configfile);
+    this->frame_outputs = Camera::make_frame_outputs(fo_cfg);
+  }
+  /***** Camera::Interface::configure_frame_outputs *******************************/
 }
