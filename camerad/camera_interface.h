@@ -13,6 +13,7 @@
 #include "camerad_commands.h"
 #include "exposure_modes.h"
 #include "frame_output.h"
+#include "frame_output_factory.h"
 
 #include <memory>
 #include <vector>
@@ -84,6 +85,7 @@ namespace Camera {
       void disconnect_controller();
       long key(std::string args, std::string &retstring);
       long datacube(std::string args, std::string &retstring);
+      void configure_frame_outputs();
       bool is_exposuremode_set() { return ( this->exposuremode && !this->exposuremode->get_type().empty() ); }
 
       void set_abortstate()   { this->abortstate.store(true, std::memory_order_seq_cst); }

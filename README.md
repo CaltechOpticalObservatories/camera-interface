@@ -77,7 +77,7 @@ If you encounter any problems or have questions about this project, please open 
         $ ../bin/camerad -d <file.cfg>
         ```
 
-   *Replace `<file.cfg>` with an appropriate configuration file. See the example `.cfg` files in the `Config` and `Config/demo` directories.*
+   *Replace `<file.cfg>` with an appropriate configuration file. See the example `.cfg` files in the `config` directory (per-instrument deployment configs live in each instrument's own repo under its `config/` directory; `config/demo` here is a generic example).*
 
 6. **(Optional) Run the Archon Emulator:**
 
@@ -95,7 +95,7 @@ If you encounter any problems or have questions about this project, please open 
 
 ## Frame Outputs
 
-Instruments that opt in publish each acquired frame to one or more outputs, configured via `.cfg` file keys read by `Camera::apply_config_overrides()`. Both outputs are independent; either or both can be enabled.
+Every instrument publishes each acquired frame to one or more outputs, configured entirely via `.cfg` file keys (`Camera::Interface::configure_frame_outputs()` builds them from `Camera::apply_config_overrides()`, called once at startup for every instrument, not just HISPEC). Both outputs are independent; either, both, or neither can be enabled per instrument.
 
 ### FITS
 

@@ -23,7 +23,6 @@ namespace Camera {
   struct FrameOutputsConfig {
     bool        shm_enabled{false};
     std::string shm_segment_name{"camera"};
-    size_t      shm_max_frame_bytes{0};   // required > 0 when shm_enabled
     uint32_t    shm_ring_buffer_size{4};   // depth of ImageStreamIO's internal history ring buffer
     std::string shm_dir{};                 // ImageStreamIO base directory; empty uses its own default resolution
 

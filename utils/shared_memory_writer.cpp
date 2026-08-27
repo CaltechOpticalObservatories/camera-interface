@@ -41,11 +41,9 @@ namespace {
 namespace Camera {
 
   SharedMemoryWriter::SharedMemoryWriter(const std::string &segment_name,
-                                         size_t max_frame_bytes,
                                          uint32_t ring_buffer_size,
                                          const std::string &shm_dir)
     : segment_name_(segment_name),
-      max_frame_bytes_(max_frame_bytes),
       ring_buffer_size_(ring_buffer_size),
       shm_dir_(shm_dir) {
   }
@@ -59,10 +57,6 @@ namespace Camera {
 
     if (segment_name_.empty()) {
       logwrite(function, "ERROR segment name is empty");
-      return ERROR;
-    }
-    if (max_frame_bytes_ == 0) {
-      logwrite(function, "ERROR max_frame_bytes must be > 0");
       return ERROR;
     }
     if (ring_buffer_size_ == 0) {
@@ -83,8 +77,7 @@ namespace Camera {
     opened_ = true;
 
     // Geometry is fixed for a stream's whole life, so create happens in write(), not here
-    logwrite(function, "ready to publish \"" + segment_name_ + "\" (max " +
-             std::to_string(max_frame_bytes_) + " bytes/frame, " +
+    logwrite(function, "ready to publish \"" + segment_name_ + "\" (" +
              std::to_string(ring_buffer_size_) + " frames, dir=" +
              (shm_dir_.empty() ? "(default)" : shm_dir_) + ")");
     return NO_ERROR;
@@ -109,11 +102,6 @@ namespace Camera {
 
     const size_t frame_bytes =
       static_cast<size_t>(meta.width) * meta.height * meta.bytes_per_pixel;
-    if (frame_bytes > max_frame_bytes_) {
-      logwrite(function, "ERROR frame size " + std::to_string(frame_bytes) +
-               " exceeds max " + std::to_string(max_frame_bytes_));
-      return ERROR;
-    }
     if (size < frame_bytes) {
       logwrite(function, "ERROR frame data " + std::to_string(size) +
                " < expected " + std::to_string(frame_bytes));

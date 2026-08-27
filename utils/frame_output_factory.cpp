@@ -52,22 +52,16 @@ namespace Camera {
 
     if (cfg.shm_enabled) {
 #ifdef CAMERAD_HAVE_SHM
-      if (cfg.shm_max_frame_bytes == 0) {
-        logwrite(function, "WARNING shm_enabled but shm_max_frame_bytes==0; SHM skipped");
+      auto shm = std::make_unique<SharedMemoryWriter>(
+          cfg.shm_segment_name, cfg.shm_ring_buffer_size, cfg.shm_dir);
+      if (shm->open() == NO_ERROR) {
+        logwrite(function, "SHM output enabled: segment=" + cfg.shm_segment_name +
+                 " ring_buffer_size=" + std::to_string(cfg.shm_ring_buffer_size) +
+                 " dir=" + (cfg.shm_dir.empty() ? "(default)" : cfg.shm_dir));
+        outputs.push_back(std::move(shm));
       }
       else {
-        auto shm = std::make_unique<SharedMemoryWriter>(
-            cfg.shm_segment_name, cfg.shm_max_frame_bytes, cfg.shm_ring_buffer_size, cfg.shm_dir);
-        if (shm->open() == NO_ERROR) {
-          logwrite(function, "SHM output enabled: segment=" + cfg.shm_segment_name +
-                   " max_bytes=" + std::to_string(cfg.shm_max_frame_bytes) +
-                   " ring_buffer_size=" + std::to_string(cfg.shm_ring_buffer_size) +
-                   " dir=" + (cfg.shm_dir.empty() ? "(default)" : cfg.shm_dir));
-          outputs.push_back(std::move(shm));
-        }
-        else {
-          logwrite(function, "WARNING SHM output failed to open; skipped");
-        }
+        logwrite(function, "WARNING SHM output failed to open; skipped");
       }
 #else
       logwrite(function, "WARNING shm_enabled but this build was compiled without SHM support (ENABLE_SHM_OUTPUT=OFF)");
