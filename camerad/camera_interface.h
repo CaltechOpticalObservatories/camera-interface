@@ -97,11 +97,6 @@ namespace Camera {
       //
       virtual void configure_interface() = 0;
       virtual void configure_instrument() { }
-
-      // Instrument-specific defaults (e.g. shm_segment_name, shm_max_frame_bytes)
-      // applied before configure_frame_outputs() reads the config file, so a
-      // .cfg entry still overrides these. No-op unless an instrument overrides it.
-      virtual void frame_output_defaults(FrameOutputsConfig&) { }
       virtual long abort( std::string args, std::string &retstring ) = 0;
       virtual long autodir( std::string args, std::string &retstring ) = 0;
       virtual long basename( std::string args, std::string &retstring ) = 0;

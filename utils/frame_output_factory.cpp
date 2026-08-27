@@ -30,6 +30,7 @@ namespace Camera {
       try {
         if      (key == "SHM_ENABLED")            out.shm_enabled            = parse_bool(val);
         else if (key == "SHM_SEGMENT_NAME")       out.shm_segment_name       = val;
+        else if (key == "SHM_MAX_FRAME_BYTES")    out.shm_max_frame_bytes    = static_cast<size_t>(std::stoull(val));
         else if (key == "SHM_RING_BUFFER_SIZE")   out.shm_ring_buffer_size   = static_cast<uint32_t>(std::stoul(val));
         else if (key == "SHM_DIR")                out.shm_dir                = val;
         else if (key == "FITS_ENABLED")           out.fits_enabled           = parse_bool(val);
