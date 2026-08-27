@@ -20,16 +20,9 @@
 
 namespace Camera {
 
-  // Safe fallback SHM frame-size ceiling when neither a .cfg file nor an
-  // instrument specifies one: comfortably covers any detector geometry
-  // realistic for this codebase (e.g. HISPEC's 2048x2048x4B ~16 MiB) without
-  // being an arbitrarily large "accept anything" bound.
-  constexpr size_t DEFAULT_SHM_MAX_FRAME_BYTES = 4096ULL * 4096ULL * 4ULL;  // 64 MiB
-
   struct FrameOutputsConfig {
     bool        shm_enabled{false};
     std::string shm_segment_name{"camera"};
-    size_t      shm_max_frame_bytes{DEFAULT_SHM_MAX_FRAME_BYTES};
     uint32_t    shm_ring_buffer_size{4};   // depth of ImageStreamIO's internal history ring buffer
     std::string shm_dir{};                 // ImageStreamIO base directory; empty uses its own default resolution
 

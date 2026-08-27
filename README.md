@@ -118,7 +118,6 @@ Publishes each frame as an [ImageStreamIO](https://github.com/milk-org/ImageStre
 |-------------------------|------------|--------------------------------------------------------------------------------------------|
 | `SHM_ENABLED`           | `no`       | Enable the shared-memory writer                                                            |
 | `SHM_SEGMENT_NAME`      | `camera`   | ImageStreamIO stream name                                                                  |
-| `SHM_MAX_FRAME_BYTES`   | `67108864` (64 MiB) | Validation ceiling for a frame's byte size; a frame larger than this is rejected rather than written. The default comfortably covers any detector geometry realistic for this codebase; set explicitly for a tighter bound. |
 | `SHM_RING_BUFFER_SIZE`  | `4`        | Depth of ImageStreamIO's internal history ring buffer (`CBsize`); the live frame a real-time reader sees is separate from this |
 | `SHM_DIR`               | (unset)    | Base directory ImageStreamIO writes into. If unset, ImageStreamIO falls back to its own default resolution (`MILK_SHM_DIR` env var, then `/milk/shm`). If set, it must already exist and be writable. |
 
