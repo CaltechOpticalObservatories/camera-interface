@@ -77,7 +77,7 @@ If you encounter any problems or have questions about this project, please open 
         $ ../bin/camerad -d <file.cfg>
         ```
 
-   *Replace `<file.cfg>` with an appropriate configuration file. See the example `.cfg` files in the `Config` and `Config/demo` directories.*
+   *Replace `<file.cfg>` with an appropriate configuration file. See the example `.cfg` files in the `config` directory (per-instrument deployment configs live in each instrument's own repo under its `config/` directory; `config/demo` here is a generic example).*
 
 6. **(Optional) Run the Archon Emulator:**
 
@@ -95,7 +95,7 @@ If you encounter any problems or have questions about this project, please open 
 
 ## Frame Outputs
 
-Instruments that opt in publish each acquired frame to one or more outputs, configured via `.cfg` file keys read by `Camera::apply_config_overrides()`. Both outputs are independent; either or both can be enabled.
+Every instrument publishes each acquired frame to one or more outputs, configured entirely via `.cfg` file keys (`Camera::Interface::configure_frame_outputs()` builds them from `Camera::apply_config_overrides()`, called once at startup for every instrument, not just HISPEC). Both outputs are independent; either, both, or neither can be enabled per instrument.
 
 ### FITS
 
@@ -118,6 +118,7 @@ Publishes each frame as an [ImageStreamIO](https://github.com/milk-org/ImageStre
 |-------------------------|------------|--------------------------------------------------------------------------------------------|
 | `SHM_ENABLED`           | `no`       | Enable the shared-memory writer                                                            |
 | `SHM_SEGMENT_NAME`      | `camera`   | ImageStreamIO stream name                                                                  |
+| `SHM_MAX_FRAME_BYTES`   | `67108864` (64 MiB) | Validation ceiling for a frame's byte size; a frame larger than this is rejected rather than written. The default comfortably covers any detector geometry realistic for this codebase; set explicitly for a tighter bound. |
 | `SHM_RING_BUFFER_SIZE`  | `4`        | Depth of ImageStreamIO's internal history ring buffer (`CBsize`); the live frame a real-time reader sees is separate from this |
 | `SHM_DIR`               | (unset)    | Base directory ImageStreamIO writes into. If unset, ImageStreamIO falls back to its own default resolution (`MILK_SHM_DIR` env var, then `/milk/shm`). If set, it must already exist and be writable. |
 
