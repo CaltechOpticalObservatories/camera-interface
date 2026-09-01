@@ -278,6 +278,14 @@ namespace Camera {
       Camera::Information info;        //!< information for this controller
       Network::TcpSocket archon;       //!< this is how we talk to the Archon
 
+      // Dedicated connection for commands that must succeed even while
+      // autofetch/freerun is actively streaming <QF frame data on the
+      // primary connection (e.g. disabling it). Never receives frame pushes,
+      // so its replies never need <QF-aware parsing.
+      Network::TcpSocket archon_control;
+      std::mutex control_mutex;
+      int control_msgref{0};
+
       /** @var      exposure_time
        *  @details  non-owning pointer to ExposureTime object owned by Information.
        *            Valid as long as Information exists.
@@ -290,6 +298,10 @@ namespace Camera {
       char* framebuf;                  //!< local frame buffer read from Archon
       uint32_t framebuf_bytes;         //!< size of framebuf in bytes
       frametype_t frametype;           //!< Archon frame type (IMAGE|RAW)
+
+      // <QF frame bytes captured by send_cmd() while a reply shares a socket
+      // read with autofetch streaming; drained by read_autofetch_frame()
+      std::string autofetch_carryover;
 
       bool is_connected;               //!< true if controller connected
       bool is_powered;                 //!< power_status has 5 states. This is only true is power_status==ON
@@ -335,6 +347,9 @@ namespace Camera {
       void print_frame_status();
       long send_cmd(const std::string &cmd, std::string &reply);
       long send_cmd(const std::string &cmd);
+      long send_control_cmd(const std::string &cmd, std::string &reply);
+      long send_control_cmd(const std::string &cmd);
+      long stop_autofetch();
       long wait_for_readout();
       long fetchlog();
       long load_acf(const std::string &filename, bool write_to_archon=true);

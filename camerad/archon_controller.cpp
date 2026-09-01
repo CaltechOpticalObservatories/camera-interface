@@ -111,6 +111,7 @@ namespace Camera {
       // ARCHON_IP
       if (this->interface->configfile.param[row]=="ARCHON_IP") {
         this->archon.sethost( this->interface->configfile.arg[row] );
+        this->archon_control.sethost( this->interface->configfile.arg[row] );
         numapplied++;
       }
       else
@@ -118,6 +119,7 @@ namespace Camera {
       if (this->interface->configfile.param[row]=="ARCHON_PORT") {
         try {
           this->archon.setport( std::stoi(this->interface->configfile.arg[row]) );
+          this->archon_control.setport( std::stoi(this->interface->configfile.arg[row]) );
           numapplied++;
         }
         catch (const std::exception &e) {
@@ -250,6 +252,16 @@ namespace Camera {
             << " port " << this->archon.getport()
             << " established on fd " << this->archon.getfd();
     logwrite(function, message.str());
+
+    // Dedicated control connection, used by stop_autofetch() so disabling
+    // autofetch/freerun never depends on the primary connection's state.
+    try {
+      this->archon_control.Connect();
+    }
+    catch (const std::exception &e) {
+      logwrite(function, "ERROR opening control connection: " + std::string(e.what()));
+      throw;
+    }
 
     // get the Archon system information for installed modules
     std::string reply;
@@ -1022,8 +1034,10 @@ namespace Camera {
 
     // For all other commands, receive the reply.
     // In autofetch mode, the Archon may interleave unsolicited <QF frame data
-    // on the socket. Discard any such data and keep reading until the expected
-    // command response (<XX) arrives.
+    // on the socket, possibly in the same read as this command's own reply
+    // (e.g. the Expose trigger, whose reply can race a fast readout). Route
+    // any such bytes to autofetch_carryover instead of discarding them, since
+    // read_autofetch_frame() needs every byte of the frame stream.
     //
     constexpr size_t BUFSZ = 64*1024;
     auto buffer = std::make_unique<char[]>(BUFSZ+1);
@@ -1041,14 +1055,24 @@ namespace Camera {
       }
       buffer[retval] = '\0';
 
-      // In autofetch mode, discard unsolicited autofetch frame data
       if (this->interface->is_autofetch_mode &&
           retval >= 3 && std::memcmp(buffer.get(), "<QF", 3) == 0) {
+        this->autofetch_carryover.append(buffer.get(), static_cast<size_t>(retval));
         continue;
       }
 
+      char* newline = static_cast<char*>(std::memchr(buffer.get(), '\n', retval));
+      if (this->interface->is_autofetch_mode && newline != nullptr) {
+        const size_t reply_len = static_cast<size_t>(newline - buffer.get()) + 1;
+        reply.append(buffer.get(), reply_len);
+        if (reply_len < static_cast<size_t>(retval)) {
+          this->autofetch_carryover.append(buffer.get() + reply_len, static_cast<size_t>(retval) - reply_len);
+        }
+        break;
+      }
+
       reply.append(buffer.get(), retval);
-      if (std::memchr(buffer.get(), '\n', retval) != nullptr) break;
+      if (newline != nullptr) break;
     } while(retval>0);
 
     // If there was an Archon error then clear the busy flag and get out now
@@ -1087,6 +1111,130 @@ namespace Camera {
     return error;
   }
   /***** Camera::ArchonController::send_cmd ***********************************/
+
+
+  /***** Camera::ArchonController::send_control_cmd ****************************/
+  /**
+   * @brief      send a command on the dedicated control connection
+   * @details    For commands that must succeed even while the primary
+   *             connection is flooded with unsolicited autofetch/freerun
+   *             <QF frame data (e.g. disabling it). archon_control never
+   *             receives frame pushes, so no frame-aware parsing is needed.
+   * @param[in]  cmd    command to send
+   * @param[out] reply  string contains reply
+   * @return     ERROR | NO_ERROR
+   *
+   */
+  long ArchonController::send_control_cmd(const std::string &cmd, std::string &reply) {
+    const std::string function("Camera::ArchonController::send_control_cmd");
+    char check[4];
+    int retval;
+    long error = NO_ERROR;
+
+    if (!this->archon_control.isconnected()) {
+      logwrite(function, "ERROR control connection not open to controller");
+      return ERROR;
+    }
+
+    std::lock_guard<std::mutex> lock(this->control_mutex);
+
+    char buf[256];
+    this->control_msgref = (this->control_msgref + 1) % 256;
+    int len = std::snprintf(buf, sizeof(buf), ">%02X%s\n", this->control_msgref, cmd.c_str());
+    std::string scmd(buf, len);
+
+    SNPRINTF(check, "<%02X", this->control_msgref);
+
+    if (this->archon_control.Write(scmd) == -1) {
+      logwrite(function, "ERROR writing to control socket");
+      return ERROR;
+    }
+
+    constexpr size_t BUFSZ = 4096;
+    auto buffer = std::make_unique<char[]>(BUFSZ);
+    reply.clear();
+    do {
+      if ((retval = this->archon_control.Poll()) <= 0) {
+        logwrite(function, retval==0 ? "Poll timeout waiting for control response"
+                                      : "Poll error waiting for control response");
+        return ERROR;
+      }
+      retval = this->archon_control.Read(buffer.get(), BUFSZ);
+      if (retval <= 0) {
+        logwrite(function, "ERROR reading control socket");
+        return ERROR;
+      }
+      reply.append(buffer.get(), static_cast<size_t>(retval));
+    } while (std::memchr(reply.data(), '\n', reply.size()) == nullptr);
+
+    if (!reply.empty() && reply[0] == '?') {
+      error = ERROR;
+      logwrite(function, "ERROR from Archon processing \""+cmd+"\" on control connection");
+    }
+    if (reply.size() < 3 || std::memcmp(reply.data(), check, 3) != 0) {
+      error = ERROR;
+      logwrite(function, "ERROR control command-reply mismatch for \""+cmd+"\": expected "+check+" but received "+reply);
+    }
+    else {
+      reply.erase(0, 3);
+    }
+
+    return error;
+  }
+  /***** Camera::ArchonController::send_control_cmd ****************************/
+
+
+  /***** Camera::ArchonController::send_control_cmd ****************************/
+  long ArchonController::send_control_cmd(const std::string &cmd) {
+    std::string reply;
+    return this->send_control_cmd(cmd, reply);
+  }
+  /***** Camera::ArchonController::send_control_cmd ****************************/
+
+
+  /***** Camera::ArchonController::stop_autofetch ******************************/
+  /**
+   * @brief      disable autofetch/freerun and reset the data connection
+   * @details    The primary connection (archon) may be flooded with
+   *             unsolicited <QF frame data at the time this is called,
+   *             which makes send_cmd()'s normal reply matching unreliable —
+   *             a real reply can be delayed indefinitely behind a
+   *             continuous stream, or a Read() can land mid-frame and be
+   *             misread as reply text. Disable from the control connection
+   *             instead (never sees frame pushes), then discard the data
+   *             connection outright rather than draining an unknown-size
+   *             backlog of already-buffered frames.
+   * @return     ERROR | NO_ERROR
+   *
+   */
+  long ArchonController::stop_autofetch() {
+    const std::string function("Camera::ArchonController::stop_autofetch");
+    long error = NO_ERROR;
+
+    if (this->send_control_cmd("FASTPREPPARAM freerun 0") != NO_ERROR) error = ERROR;
+    if (this->send_control_cmd("FASTLOADPARAM freerun 0") != NO_ERROR) error = ERROR;
+    if (this->send_control_cmd("FASTPREPPARAM Expose 0")  != NO_ERROR) error = ERROR;
+    if (this->send_control_cmd("FASTLOADPARAM Expose 0")  != NO_ERROR) error = ERROR;
+    if (this->send_control_cmd("FASTAUTOFETCH0")          != NO_ERROR) error = ERROR;
+
+    if (error != NO_ERROR) {
+      logwrite(function, "ERROR one or more disable commands failed");
+    }
+
+    this->archon.Close();
+    this->autofetch_carryover.clear();
+    try {
+      this->archon.Connect();
+    }
+    catch (const std::exception &e) {
+      logwrite(function, "ERROR reconnecting data connection: " + std::string(e.what()));
+      return ERROR;
+    }
+
+    logwrite(function, "autofetch/freerun stopped, data connection reset");
+    return error;
+  }
+  /***** Camera::ArchonController::stop_autofetch ******************************/
 
 
   /***** Camera::ArchonController::fetch **************************************/

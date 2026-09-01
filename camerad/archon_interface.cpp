@@ -319,6 +319,7 @@ namespace Camera {
    */
   long ArchonInterface::disconnect_controller() {
     const std::string function("Camera::ArchonInterface::disconnect_controller");
+    controller->archon_control.Close();
     long error = controller->archon.Close();
     if (error == NO_ERROR) {
       logwrite(function, "Archon connection terminated");
@@ -1310,7 +1311,11 @@ namespace Camera {
         logwrite(function, "enabled");
       }
       else if (state == "FALSE" || state == "0") {
-        if (this->controller->send_cmd("FASTAUTOFETCH0") != NO_ERROR) {
+        // Use the control connection, not send_cmd() on the data connection:
+        // autofetch/freerun may be actively flooding the data connection
+        // with unsolicited <QF frames, which makes send_cmd()'s reply
+        // matching unreliable right when we most need to disable it.
+        if (this->controller->stop_autofetch() != NO_ERROR) {
           logwrite(function, "ERROR disabling autofetch mode");
           return ERROR;
         }
