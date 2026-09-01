@@ -1022,8 +1022,10 @@ namespace Camera {
 
     // For all other commands, receive the reply.
     // In autofetch mode, the Archon may interleave unsolicited <QF frame data
-    // on the socket. Discard any such data and keep reading until the expected
-    // command response (<XX) arrives.
+    // on the socket, possibly in the same read as this command's own reply
+    // (e.g. the Expose trigger, whose reply can race a fast readout). Route
+    // any such bytes to autofetch_carryover instead of discarding them, since
+    // read_autofetch_frame() needs every byte of the frame stream.
     //
     constexpr size_t BUFSZ = 64*1024;
     auto buffer = std::make_unique<char[]>(BUFSZ+1);
@@ -1041,14 +1043,24 @@ namespace Camera {
       }
       buffer[retval] = '\0';
 
-      // In autofetch mode, discard unsolicited autofetch frame data
       if (this->interface->is_autofetch_mode &&
           retval >= 3 && std::memcmp(buffer.get(), "<QF", 3) == 0) {
+        this->autofetch_carryover.append(buffer.get(), static_cast<size_t>(retval));
         continue;
       }
 
+      char* newline = static_cast<char*>(std::memchr(buffer.get(), '\n', retval));
+      if (this->interface->is_autofetch_mode && newline != nullptr) {
+        const size_t reply_len = static_cast<size_t>(newline - buffer.get()) + 1;
+        reply.append(buffer.get(), reply_len);
+        if (reply_len < static_cast<size_t>(retval)) {
+          this->autofetch_carryover.append(buffer.get() + reply_len, static_cast<size_t>(retval) - reply_len);
+        }
+        break;
+      }
+
       reply.append(buffer.get(), retval);
-      if (std::memchr(buffer.get(), '\n', retval) != nullptr) break;
+      if (newline != nullptr) break;
     } while(retval>0);
 
     // If there was an Archon error then clear the busy flag and get out now

@@ -291,6 +291,10 @@ namespace Camera {
       uint32_t framebuf_bytes;         //!< size of framebuf in bytes
       frametype_t frametype;           //!< Archon frame type (IMAGE|RAW)
 
+      // <QF frame bytes captured by send_cmd() while a reply shares a socket
+      // read with autofetch streaming; drained by read_autofetch_frame()
+      std::string autofetch_carryover;
+
       bool is_connected;               //!< true if controller connected
       bool is_powered;                 //!< power_status has 5 states. This is only true is power_status==ON
       std::atomic_flag archon_busy = ATOMIC_FLAG_INIT;  //!< indicates a thread is accessing Archon
