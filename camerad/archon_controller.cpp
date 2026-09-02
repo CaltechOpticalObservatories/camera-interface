@@ -7,6 +7,8 @@
  *
  */
 
+#include <string_view>
+
 #include "archon_controller.h"
 #include "archon_interface.h"
 
@@ -526,7 +528,7 @@ namespace Camera {
       while (reply_ptr < reply_end && *reply_ptr != '=' && *reply_ptr != ' ') reply_ptr++;
       if (reply_ptr >= reply_end || *reply_ptr != '=') break;
 
-      size_t key_len = reply_ptr - key_start;
+      const std::string_view key(key_start, reply_ptr - key_start);
       reply_ptr++;  // skip "="
 
       // find value
@@ -535,68 +537,43 @@ namespace Camera {
       size_t valuelen = reply_ptr - value_start;
 
       // TIMER=XXXX pattern
-      if (key_len==5 && key_start[0]=='T' && std::strncmp(key_start, "TIMER", 5)==0) {
+      if (key == "TIMER") {
         this->frameinfo.timer.assign(value_start, valuelen);
       }
       else
-      if (key_len==4) {
-        // RBUF=XXXX pattern
-        if (key_start[0]=='R' && std::strncmp(key_start, "RBUF", 4)==0) {
-          this->frameinfo.rbuf = std::atoi(value_start);
-        }
-        else
-        // WBUF=XXXX pattern
-        if (key_start[0]=='W' && std::strncmp(key_start, "WBUF", 4)==0) {
-          this->frameinfo.wbuf = std::atoi(value_start);
-        }
+      // RBUF=XXXX pattern
+      if (key == "RBUF") {
+        this->frameinfo.rbuf = std::atoi(value_start);
+      }
+      else
+      // WBUF=XXXX pattern
+      if (key == "WBUF") {
+        this->frameinfo.wbuf = std::atoi(value_start);
       }
       else
       // BUFnXXXX=XXXX pattern...
-      if (key_len>3 && key_start[0]=='B' && key_start[1]=='U' && key_start[2]=='F') {
-        int bufnum = key_start[3]-'1';  // convert to 0-based
+      if (key.size()>3 && key[0]=='B' && key[1]=='U' && key[2]=='F') {
+        int bufnum = key[3]-'1';  // convert to 0-based
 
-        // match suffix
-        const char* suffix = key_start+4;
-        size_t suffix_len = key_len-4;
+        // match suffix; string_view compares length before bytes, so this
+        // stays as cheap as the switch-on-length it replaces
+        const std::string_view suffix = key.substr(4);
 
-        switch (suffix_len) {
-          case 4:  // BUFnBASE, MODE
-            if (std::strncmp(suffix, "BASE", 4)==0) this->frameinfo.bufbase[bufnum] = std::strtoul(value_start, nullptr, 10);
-            else
-            if (std::strncmp(suffix, "MODE", 4)==0) this->frameinfo.bufmode[bufnum] = std::atoi(value_start);
-            break;
-          case 5:  // BUFnFRAME, WIDTH, LINES
-            if (std::strncmp(suffix, "FRAME", 5)==0) this->frameinfo.bufframen[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "WIDTH", 5)==0) this->frameinfo.bufwidth[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "LINES", 5)==0) this->frameinfo.buflines[bufnum] = std::atoi(value_start);
-            break;
-          case 6:  // BUFnSAMPLE, PIXELS, HEIGHT
-            if (std::strncmp(suffix, "SAMPLE", 6)==0) this->frameinfo.bufsample[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "PIXELS", 6)==0) this->frameinfo.bufpixels[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "HEIGHT", 6)==0) this->frameinfo.bufheight[bufnum] = std::atoi(value_start);
-            break;
-          case 8:  // BUFnCOMPLETE, RAWLINES
-            if (std::strncmp(suffix, "COMPLETE", 8)==0) this->frameinfo.bufcomplete[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "RAWLINES", 8)==0) this->frameinfo.bufrawlines[bufnum] = std::atoi(value_start);
-            break;
-          case 9:  // BUFnTIMESTAMP, RAWOFFSET, RAWBLOCKS
-            if (std::strncmp(suffix, "TIMESTAMP", 9)==0) this->frameinfo.buftimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
-            else
-            if (std::strncmp(suffix, "RAWOFFSET", 9)==0) this->frameinfo.bufrawoffset[bufnum] = std::strtoul(value_start, nullptr, 10);
-            else
-            if (std::strncmp(suffix, "RAWBLOCKS", 9)==0) this->frameinfo.bufrawblocks[bufnum] = std::atoi(value_start);
-            break;
-          case 11: // BUFnRETIMESTAMP, FETIMESTAMP
-            if (std::strncmp(suffix, "RETIMESTAMP", 11)==0) this->frameinfo.bufretimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
-            else
-            if (std::strncmp(suffix, "FETIMESTAMP", 11)==0) this->frameinfo.buffetimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
-            break;
-        } // end switch(suffix_len)
+        if (suffix == "BASE") this->frameinfo.bufbase[bufnum] = std::strtoul(value_start, nullptr, 10);
+        else if (suffix == "MODE") this->frameinfo.bufmode[bufnum] = std::atoi(value_start);
+        else if (suffix == "FRAME") this->frameinfo.bufframen[bufnum] = std::atoi(value_start);
+        else if (suffix == "WIDTH") this->frameinfo.bufwidth[bufnum] = std::atoi(value_start);
+        else if (suffix == "LINES") this->frameinfo.buflines[bufnum] = std::atoi(value_start);
+        else if (suffix == "SAMPLE") this->frameinfo.bufsample[bufnum] = std::atoi(value_start);
+        else if (suffix == "PIXELS") this->frameinfo.bufpixels[bufnum] = std::atoi(value_start);
+        else if (suffix == "HEIGHT") this->frameinfo.bufheight[bufnum] = std::atoi(value_start);
+        else if (suffix == "COMPLETE") this->frameinfo.bufcomplete[bufnum] = std::atoi(value_start);
+        else if (suffix == "RAWLINES") this->frameinfo.bufrawlines[bufnum] = std::atoi(value_start);
+        else if (suffix == "TIMESTAMP") this->frameinfo.buftimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
+        else if (suffix == "RAWOFFSET") this->frameinfo.bufrawoffset[bufnum] = std::strtoul(value_start, nullptr, 10);
+        else if (suffix == "RAWBLOCKS") this->frameinfo.bufrawblocks[bufnum] = std::atoi(value_start);
+        else if (suffix == "RETIMESTAMP") this->frameinfo.bufretimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
+        else if (suffix == "FETIMESTAMP") this->frameinfo.buffetimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
       } // end if BUFnXXXX pattern
     } // end looping through reply
 
@@ -2132,6 +2109,8 @@ namespace Camera {
       return ERROR;
     }
 
+    // accumulates across all keys: write_config_key only ever sets this to true,
+    // so APPLYCDS below fires if ANY key in the batch actually changed
     bool changed = false;
     for (size_t i = 0; i < tokens.size(); i += 2) {
       std::string key = tokens[i];
@@ -2176,7 +2155,12 @@ namespace Camera {
   long ArchonController::read_raw(std::string &retstring) {
     const std::string function("Camera::ArchonController::read_raw");
 
-    this->get_frame_status();
+    long error = this->get_frame_status();
+    if (error != NO_ERROR) {
+      logwrite(function, "ERROR getting frame status");
+      retstring = "frame status query failed";
+      return error;
+    }
 
     const raw_geometry_t geom = this->raw_geometry();
     if (geom.samples == 0 || geom.lines == 0) {
