@@ -16,10 +16,13 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
+
+namespace CCfits { class FITS; }
 
 namespace Camera {
 
@@ -28,6 +31,7 @@ namespace Camera {
     std::string basename{"tracking"};
     size_t      queue_size{32};
     uint32_t    drain_timeout_ms{5000};
+    bool        autodir{false};             // write into a YYYYMMDD subdir of output_dir
   };
 
   class FitsWriter : public FrameOutput {
@@ -41,6 +45,8 @@ namespace Camera {
       long open() override;
       long write(const char* data, size_t size, const FrameMetadata& meta) override;
       void close() override;
+      bool set_option(const std::string &key, const std::string &value) override;
+      void end_exposure() override;
 
       struct Stats {
         uint64_t frames_received{0};
@@ -55,13 +61,26 @@ namespace Camera {
       struct QueuedFrame {
         FrameMetadata meta;
         std::vector<char> data;
+        bool end_of_exposure{false};   // sentinel: finalize any open cube, no frame data
       };
 
       void worker_loop();
       long write_fits_file(const QueuedFrame &frame);
-      std::string make_filename(uint64_t frame_number) const;
+      long write_cube_frame(const QueuedFrame &frame);
+      void close_cube();
+      std::string make_filename(uint64_t frame_number);
+      // Resolve the target directory, creating today's autodir subdir on demand.
+      // Worker-thread only (uses cur_date_dir_ without locking).
+      std::string resolve_output_dir();
 
       FitsWriterConfig cfg_;
+
+      // Cache of the last autodir path created; touched only on the worker thread
+      std::string cur_date_dir_;
+
+      // Datacube state — worker-thread only, no locking needed
+      std::unique_ptr<CCfits::FITS> cube_fits_;
+      uint32_t cube_extension_count_{0};
 
       std::deque<QueuedFrame> queue_;
       mutable std::mutex mtx_;
@@ -69,6 +88,8 @@ namespace Camera {
 
       std::atomic<bool> stop_{false};
       std::atomic<bool> started_{false};
+      // Set via set_option("datacube", "true"/"false"); read by write_fits_file()
+      std::atomic<bool> cube_enabled_{false};
       std::thread worker_;
       // Set in close() before stop_, so worker can read race-free
       std::chrono::steady_clock::time_point stop_time_;

@@ -53,6 +53,8 @@ namespace Camera {
       Common::FitsKeys userkeys;            //!< FITS keys for command line use
       Common::FitsKeys systemkeys;          //!< FITS keys for system use
 
+      bool is_datacube{false};              //!< true: reads written as extensions of one multi-extension FITS file
+
       std::vector<uint32_t> naxes;          //!< axis lengths element 0=cols, 1=rows, 2=cubedepth
       std::array<uint32_t,2> binning;
       std::array<uint32_t,4> region_of_interest;

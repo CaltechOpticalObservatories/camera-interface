@@ -7,6 +7,79 @@ on:
     branches: [ "main" ]
 
 jobs:
+  frame-outputs-emulator-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libccfits-dev libcfitsio-dev libcurl4-openssl-dev \
+          nlohmann-json3-dev libzmq3-dev \
+          libopencv-dev libboost-thread-dev libboost-chrono-dev
+
+    - name: Build and install zmqpp from source
+      run: |
+        git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
+        cd /tmp/zmqpp
+        mkdir build && cd build
+        cmake ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+
+    - name: Build and install ImageStreamIO from source
+      run: |
+        git clone --depth 1 https://github.com/milk-org/ImageStreamIO.git /tmp/ImageStreamIO
+        cd /tmp/ImageStreamIO
+        mkdir build && cd build
+        cmake ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+
+    - name: Build camerad, emulator, socksend, shm_reader
+      run: |
+        mkdir -p ${{github.workspace}}/build
+        cd ${{github.workspace}}/build
+        cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
+              -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake ..
+        make camerad emulator socksend shm_reader -j$(nproc)
+
+    - name: SHM + FITS frame outputs test
+      run: |
+        mkdir -p /tmp/ci_milk_shm /tmp/ci_fits_test
+
+        bin/emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic &
+        sleep 2
+        bin/camerad --foreground --config config/frame_outputs_test/frame_outputs_test.cfg &
+        sleep 3
+
+        send() { bin/socksend -p 3131 -t 60 "$1"; }
+
+        send "open"
+        send "load"
+        send "power on"
+        resp=$(send "expose 1")
+        echo "expose -> $resp"
+        echo "$resp" | grep -q "DONE" || exit 1
+
+        # DONE only means camerad accepted the command, not that the writers
+        # succeeded -- shm_reader's exit code and the FITS file's existence
+        # are the real pass/fail signal
+        sleep 1
+        bin/shm_reader ci_frame_outputs_shm /tmp/ci_milk_shm
+        ls /tmp/ci_fits_test/ci_frame_outputs_*.fits
+
+        pkill -f 'bin/camerad' || true
+        pkill -f 'bin/emulator' || true
+
   cryoscope-emulator-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -43,9 +116,9 @@ jobs:
 
     - name: CryoScope synthetic test
       run: |
-        bin/emulator Config/cryoscope/cryoscope.cfg -i generic &
+        bin/emulator config/cryoscope/cryoscope.cfg -i generic &
         sleep 2
-        bin/camerad --foreground --config Config/cryoscope/cryoscope.cfg &
+        bin/camerad --foreground --config config/cryoscope/cryoscope.cfg &
         sleep 3
 
         send() { bin/socksend -p 3031 -t 60 "$1"; }
@@ -64,8 +137,8 @@ jobs:
 
     - name: CryoScope FITS playback test
       run: |
-        cp Config/cryoscope/cryoscope.cfg /tmp/cryoscope_fits_test.cfg
-        echo "EMULATOR_DATADIR=Config/cryoscope" >> /tmp/cryoscope_fits_test.cfg
+        cp config/cryoscope/cryoscope.cfg /tmp/cryoscope_fits_test.cfg
+        echo "EMULATOR_DATADIR=config/cryoscope" >> /tmp/cryoscope_fits_test.cfg
 
         bin/emulator /tmp/cryoscope_fits_test.cfg -i generic &
         sleep 2

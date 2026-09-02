@@ -5,9 +5,11 @@
 
 #include "frame_output_factory.h"
 #include "fits_writer.h"
-#include "cadence_gate.h"
-#include "shared_memory_writer.h"
 #include "common.h"
+
+#ifdef CAMERAD_HAVE_SHM
+#include "shared_memory_writer.h"
+#endif
 
 #include <stdexcept>
 #include <utility>
@@ -28,11 +30,12 @@ namespace Camera {
       try {
         if      (key == "SHM_ENABLED")            out.shm_enabled            = parse_bool(val);
         else if (key == "SHM_SEGMENT_NAME")       out.shm_segment_name       = val;
-        else if (key == "SHM_NUM_FRAMES")         out.shm_num_frames         = static_cast<uint32_t>(std::stoul(val));
+        else if (key == "SHM_RING_BUFFER_SIZE")   out.shm_ring_buffer_size   = static_cast<uint32_t>(std::stoul(val));
+        else if (key == "SHM_DIR")                out.shm_dir                = val;
         else if (key == "FITS_ENABLED")           out.fits_enabled           = parse_bool(val);
         else if (key == "FITS_OUTPUT_DIR")        out.fits.output_dir        = val;
+        else if (key == "FITS_AUTODIR")           out.fits.autodir           = parse_bool(val);
         else if (key == "FITS_BASENAME")          out.fits.basename          = val;
-        else if (key == "FITS_WRITE_INTERVAL_MS") out.fits_write_interval_ms = static_cast<uint32_t>(std::stoul(val));
         else if (key == "FITS_QUEUE_SIZE")        out.fits.queue_size        = static_cast<size_t>(std::stoul(val));
         else if (key == "FITS_DRAIN_TIMEOUT_MS")  out.fits.drain_timeout_ms  = static_cast<uint32_t>(std::stoul(val));
       }
@@ -48,22 +51,21 @@ namespace Camera {
     std::vector<std::unique_ptr<FrameOutput>> outputs;
 
     if (cfg.shm_enabled) {
-      if (cfg.shm_max_frame_bytes == 0) {
-        logwrite(function, "WARNING shm_enabled but shm_max_frame_bytes==0; SHM skipped");
+#ifdef CAMERAD_HAVE_SHM
+      auto shm = std::make_unique<SharedMemoryWriter>(
+          cfg.shm_segment_name, cfg.shm_ring_buffer_size, cfg.shm_dir);
+      if (shm->open() == NO_ERROR) {
+        logwrite(function, "SHM output enabled: segment=" + cfg.shm_segment_name +
+                 " ring_buffer_size=" + std::to_string(cfg.shm_ring_buffer_size) +
+                 " dir=" + (cfg.shm_dir.empty() ? "(default)" : cfg.shm_dir));
+        outputs.push_back(std::move(shm));
       }
       else {
-        auto shm = std::make_unique<SharedMemoryWriter>(
-            cfg.shm_segment_name, cfg.shm_max_frame_bytes, cfg.shm_num_frames);
-        if (shm->open() == NO_ERROR) {
-          logwrite(function, "SHM output enabled: segment=" + cfg.shm_segment_name +
-                   " max_bytes=" + std::to_string(cfg.shm_max_frame_bytes) +
-                   " frames=" + std::to_string(cfg.shm_num_frames));
-          outputs.push_back(std::move(shm));
-        }
-        else {
-          logwrite(function, "WARNING SHM output failed to open; skipped");
-        }
+        logwrite(function, "WARNING SHM output failed to open; skipped");
       }
+#else
+      logwrite(function, "WARNING shm_enabled but this build was compiled without SHM support (ENABLE_SHM_OUTPUT=OFF)");
+#endif
     }
 
     if (cfg.fits_enabled) {
@@ -71,13 +73,8 @@ namespace Camera {
       if (fits->open() == NO_ERROR) {
         logwrite(function, "FITS output enabled: dir=" + cfg.fits.output_dir +
                  " basename=" + cfg.fits.basename +
-                 " interval_ms=" + std::to_string(cfg.fits_write_interval_ms) +
                  " queue=" + std::to_string(cfg.fits.queue_size));
-        std::unique_ptr<FrameOutput> output = std::move(fits);
-        if (cfg.fits_write_interval_ms > 0) {
-          output = std::make_unique<CadenceGate>(std::move(output), cfg.fits_write_interval_ms);
-        }
-        outputs.push_back(std::move(output));
+        outputs.push_back(std::move(fits));
       }
       else {
         logwrite(function, "WARNING FITS output failed to open; skipped");

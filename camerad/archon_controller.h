@@ -11,6 +11,7 @@
 #include <vector>
 #include <mutex>
 #include <map>
+#include <optional>
 #include <sstream>
 #include "common.h"
 #include "network.h"
@@ -190,9 +191,10 @@ namespace Camera {
       struct tapinfo_t {
         int num_taps;
         int tap[16];
+        std::string ampname[64];   //!< amplifier name for each tap, e.g. "AM54" (from TAPLINEn in the ACF)
         float gain[16];
         float offset[16];
-        std::string readoutdir[16];
+        std::string readoutdir[64];
       };
 
       /**
@@ -279,6 +281,14 @@ namespace Camera {
       Camera::Information info;        //!< information for this controller
       Network::TcpSocket archon;       //!< this is how we talk to the Archon
 
+      // Dedicated connection for commands that must succeed even while
+      // autofetch/freerun is actively streaming <QF frame data on the
+      // primary connection (e.g. disabling it). Never receives frame pushes,
+      // so its replies never need <QF-aware parsing.
+      Network::TcpSocket archon_control;
+      std::mutex control_mutex;
+      int control_msgref{0};
+
       /** @var      exposure_time
        *  @details  non-owning pointer to ExposureTime object owned by Information.
        *            Valid as long as Information exists.
@@ -292,13 +302,19 @@ namespace Camera {
       uint32_t framebuf_bytes;         //!< size of framebuf in bytes
       frametype_t frametype;           //!< Archon frame type (IMAGE|RAW)
 
+      // <QF frame bytes captured by send_cmd() while a reply shares a socket
+      // read with autofetch streaming; drained by read_autofetch_frame()
+      std::string autofetch_carryover;
+
       bool is_connected;               //!< true if controller connected
       bool is_powered;                 //!< power_status has 5 states. This is only true is power_status==ON
       std::atomic_flag archon_busy = ATOMIC_FLAG_INIT;  //!< indicates a thread is accessing Archon
       bool is_firmwareloaded;
       std::string firmware;
-      int msgref;
+      int msgref{0};       //!< message reference id, incremented per command; MUST start initialized
       std::string backplaneversion;
+      std::optional<float> heater_target_min_cfg;
+      std::optional<float> heater_target_max_cfg;
       std::vector<int> modtype;             //!< type of each module from SYSTEM command
       std::vector<std::string> modversion;  //!< version of each module from SYSTEM command
       std::string offset;
@@ -328,14 +344,20 @@ namespace Camera {
       long prep_parameter(const std::string &parameter, const int &value);
       long load_parameter(const std::string &parameter, const int &value);
       long set_vcpu_inreg(const std::string &args);
+      long heater(std::string args, std::string &retstring);
+      long sensor(std::string args, std::string &retstring);
       double get_exptime() const { return( this->exposure_time->get() ); }
       void print_frame_status();
       long send_cmd(const std::string &cmd, std::string &reply);
       long send_cmd(const std::string &cmd);
+      long send_control_cmd(const std::string &cmd, std::string &reply);
+      long send_control_cmd(const std::string &cmd);
+      long stop_autofetch();
       long wait_for_readout();
       long fetchlog();
       long load_acf(const std::string &filename, bool write_to_archon=true);
       long load_mode_settings(modeinfo_t* mode);
+      void parse_tapinfo(modeinfo_t &mode);   //!< populate mode.tapinfo from its TAPLINEn configmap entries
       long lock_buffer(int buffernumber);
       long unlock_buffer();
       template <class T> void get_configmap_value(const std::string &key_in, T &value_out);

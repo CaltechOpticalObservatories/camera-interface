@@ -292,6 +292,14 @@ namespace Camera {
       if ( cmd == CAMERAD_TEST ) {
         ret = interface->test(args, retstring);
       }
+      else
+      if ( cmd == CAMERAD_KEY ) {
+        ret = interface->key(args, retstring);
+      }
+      else
+      if ( cmd == CAMERAD_DATACUBE ) {
+        ret = interface->datacube(args, retstring);
+      }
 
       /**
        * controller-specific commands
@@ -330,6 +338,14 @@ namespace Camera {
       }
       else
       if ( cmd == "autofetch_mode" ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
+      else
+      if ( cmd == CAMERAD_HEATER ) {
+        ret = interface->controller_cmd(cmd, args, retstring);
+      }
+      else
+      if ( cmd == CAMERAD_SENSOR ) {
         ret = interface->controller_cmd(cmd, args, retstring);
       }
 

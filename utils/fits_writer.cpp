@@ -11,6 +11,8 @@
 #include "utilities.h"
 
 #include <CCfits/CCfits>
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <filesystem>
 #include <stdexcept>
@@ -18,6 +20,32 @@
 #include <valarray>
 
 namespace Camera {
+
+  namespace {
+    // HDU: common base of PHDU and ExtHDU, so this works for both
+    void add_key_from_fits_keys(CCfits::HDU &hdu, const Common::FitsKeys::user_key_t &entry) {
+      const std::string function("Camera::FitsWriter::add_key_from_fits_keys");
+      try {
+        if (entry.keytype == "DOUBLE" || entry.keytype == "FLOAT") {
+          hdu.addKey(entry.keyword, std::stod(entry.keyvalue), entry.keycomment);
+        } else if (entry.keytype == "INT" || entry.keytype == "LONG") {
+          hdu.addKey(entry.keyword, std::stol(entry.keyvalue), entry.keycomment);
+        } else if (entry.keytype == "BOOL") {
+          hdu.addKey(entry.keyword, entry.keyvalue == "T", entry.keycomment);
+        } else {
+          hdu.addKey(entry.keyword, entry.keyvalue, entry.keycomment);
+        }
+      }
+      catch (const std::exception &e) {
+        logwrite(function, "ERROR formatting key " + entry.keyword + ": " + e.what());
+      }
+    }
+
+    void add_keys_from(CCfits::HDU &hdu, const Common::FitsKeys *keys) {
+      if (!keys) return;
+      for (const auto &entry : keys->keydb) add_key_from_fits_keys(hdu, entry.second);
+    }
+  }
 
   FitsWriter::FitsWriter(FitsWriterConfig cfg)
     : cfg_(std::move(cfg)) {
@@ -105,6 +133,7 @@ namespace Camera {
     cv_.notify_all();
 
     if (worker_.joinable()) worker_.join();
+    close_cube();   // worker has exited, safe to touch its state here
     started_.store(false);
 
     const std::string function("Camera::FitsWriter::close");
@@ -113,6 +142,32 @@ namespace Camera {
              " dropped_queue=" + std::to_string(n_dropped_queue_.load()) +
              " failed=" + std::to_string(n_failed_.load()) +
              " dropped_shutdown=" + std::to_string(n_dropped_shutdown_.load()));
+  }
+
+  void FitsWriter::end_exposure() {
+    if (!started_.load()) return;
+    // Same queue as real frames, so it's processed after this exposure's frames are written
+    QueuedFrame end_marker;
+    end_marker.end_of_exposure = true;
+    {
+      std::lock_guard lock(mtx_);
+      queue_.push_back(std::move(end_marker));
+    }
+    cv_.notify_one();
+  }
+
+  bool FitsWriter::set_option(const std::string &key, const std::string &value) {
+    if (key != "datacube") return false;
+
+    std::string lower = value;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                    [](unsigned char c) { return std::tolower(c); });
+    if (lower == "true")       cube_enabled_.store(true);
+    else if (lower == "false") cube_enabled_.store(false);
+    else return false;
+
+    logwrite("Camera::FitsWriter::set_option", "datacube=" + lower);
+    return true;
   }
 
   FitsWriter::Stats FitsWriter::stats() const {
@@ -149,6 +204,11 @@ namespace Camera {
         queue_.pop_front();
       }
 
+      if (frame.end_of_exposure) {
+        close_cube();
+        continue;
+      }
+
       if (write_fits_file(frame) == NO_ERROR) {
         n_written_.fetch_add(1, std::memory_order_relaxed);
       } else {
@@ -158,6 +218,9 @@ namespace Camera {
   }
 
   long FitsWriter::write_fits_file(const QueuedFrame &frame) {
+    if (cube_enabled_.load()) return write_cube_frame(frame);
+    if (cube_fits_) close_cube();   // datacube was just turned off mid-cube; finalize it
+
     const std::string function("Camera::FitsWriter::write_fits_file");
     const auto &meta = frame.meta;
     const size_t npixels = static_cast<size_t>(meta.width) * meta.height;
@@ -178,6 +241,9 @@ namespace Camera {
       phdu.addKey("TIMESTMP", static_cast<long>(meta.timestamp),
                   "Archon timestamp (0.01 us units)");
       phdu.addKey("DATE", get_timestamp(), "FITS file write time");
+
+      add_keys_from(phdu, meta.header_set.get());
+      add_keys_from(phdu, meta.frame_keys.get());
 
       const long first_pixel = 1;
       if (meta.bytes_per_pixel == 2) {
@@ -202,12 +268,95 @@ namespace Camera {
     return NO_ERROR;
   }
 
-  std::string FitsWriter::make_filename(uint64_t frame_number) const {
+  long FitsWriter::write_cube_frame(const QueuedFrame &frame) {
+    const std::string function("Camera::FitsWriter::write_cube_frame");
+    const auto &meta = frame.meta;
+    const size_t npixels = static_cast<size_t>(meta.width) * meta.height;
+    const int bitpix = (meta.bytes_per_pixel == 2) ? USHORT_IMG : ULONG_IMG;
+
+    try {
+      if (!cube_fits_) {
+        const std::string filename = make_filename(meta.frame_number);
+        long axes[2] = {0, 0};   // NAXIS=0: header-only primary, matches v1's cube primary
+        cube_fits_ = std::make_unique<CCfits::FITS>(filename, bitpix, 0, axes);
+        add_keys_from(cube_fits_->pHDU(), meta.header_set.get());
+        cube_extension_count_ = 0;
+        logwrite(function, "opened cube " + filename);
+      }
+
+      std::vector<long> ext_axes = { static_cast<long>(meta.width),
+                                      static_cast<long>(meta.height) };
+      const std::string extname = std::to_string(cube_extension_count_ + 1);
+      auto *ext = cube_fits_->addImage(extname, bitpix, ext_axes);
+
+      if (bitpix == USHORT_IMG) {
+        ext->addKey("BZERO", 32768, "offset for signed short int");
+        ext->addKey("BSCALE", 1, "scaling factor");
+      }
+      ext->addKey("FRAMENO", static_cast<long>(meta.frame_number), "Frame number");
+      ext->addKey("TIMESTMP", static_cast<long>(meta.timestamp),
+                  "Archon timestamp (0.01 us units)");
+      add_keys_from(*ext, meta.frame_keys.get());
+      ext->addKey("WRTTIME", get_timestamp(), "FITS extension write time");
+
+      const long first_pixel = 1;
+      if (meta.bytes_per_pixel == 2) {
+        const auto *src = reinterpret_cast<const uint16_t*>(frame.data.data());
+        std::valarray<uint16_t> data(src, npixels);
+        ext->write(first_pixel, npixels, data);
+      } else {
+        const auto *src = reinterpret_cast<const uint32_t*>(frame.data.data());
+        std::valarray<uint32_t> data(src, npixels);
+        ext->write(first_pixel, npixels, data);
+      }
+      cube_fits_->flush();
+      ++cube_extension_count_;
+    }
+    catch (const CCfits::FitsException &e) {
+      logwrite(function, "ERROR FITS exception writing cube extension: " + e.message());
+      return ERROR;
+    }
+    catch (const std::exception &e) {
+      logwrite(function, "ERROR exception writing cube extension: " + std::string(e.what()));
+      return ERROR;
+    }
+
+    return NO_ERROR;
+  }
+
+  void FitsWriter::close_cube() {
+    if (!cube_fits_) return;
+    logwrite("Camera::FitsWriter::close_cube",
+             "closed cube with " + std::to_string(cube_extension_count_) + " extensions");
+    cube_fits_.reset();
+    cube_extension_count_ = 0;
+  }
+
+  std::string FitsWriter::resolve_output_dir() {
+    if (!cfg_.autodir) return cfg_.output_dir;
+
+    // Date subdir (YYYYMMDD, configured time zone), matching the imdir convention
+    const std::string dir = cfg_.output_dir + "/" + get_system_date();
+    if (dir != cur_date_dir_) {
+      std::error_code ec;
+      std::filesystem::create_directories(dir, ec);
+      if (ec) {
+        logwrite("Camera::FitsWriter::resolve_output_dir",
+                 "ERROR creating " + dir + ": " + ec.message() +
+                 " -- falling back to " + cfg_.output_dir);
+        return cfg_.output_dir;
+      }
+      cur_date_dir_ = dir;   // cache so we only create/log on date rollover
+    }
+    return dir;
+  }
+
+  std::string FitsWriter::make_filename(uint64_t frame_number) {
     char num[32];
     std::snprintf(num, sizeof(num), "%08llu",
                   static_cast<unsigned long long>(frame_number));
 
-    const std::string prefix = cfg_.output_dir + "/" + cfg_.basename + "_" + num;
+    const std::string prefix = resolve_output_dir() + "/" + cfg_.basename + "_" + num;
     std::string filename = prefix + ".fits";
 
     int suffix = 1;
