@@ -82,7 +82,6 @@ namespace Camera {
       //
       void set_server(Camera::Server* s);
       void func_shared();
-      void configure_frame_outputs();
       void disconnect_controller();
       long key(std::string args, std::string &retstring);
       long datacube(std::string args, std::string &retstring);
