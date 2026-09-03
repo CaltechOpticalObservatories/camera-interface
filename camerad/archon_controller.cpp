@@ -2376,7 +2376,7 @@ namespace Camera {
 
   /***** Camera::ArchonController::set_raw_config **************************/
   /**
-   * @brief      set one or more RAW config keywords then APPLYALL
+   * @brief      set one or more RAW config keywords then APPLYCDS
    * @param[in]  args       "KEY VALUE [KEY VALUE ...]"
    * @param[out] retstring  resulting RAW configuration
    */
@@ -2391,8 +2391,6 @@ namespace Camera {
       return ERROR;
     }
 
-    // accumulates across all keys: write_config_key only ever sets this to true,
-    // so APPLYCDS below fires if ANY key in the batch actually changed
     bool changed = false;
     for (size_t i = 0; i < tokens.size(); i += 2) {
       std::string key = tokens[i];
@@ -2408,7 +2406,9 @@ namespace Camera {
       }
     }
 
-    if (changed && this->send_cmd(APPLYCDS) != NO_ERROR) {
+    // Archon has no way to report whether a pending config write has already
+    // been applied, so always APPLYCDS instead of trying to infer if it's needed
+    if (this->send_cmd(APPLYCDS) != NO_ERROR) {
       logwrite(function, "ERROR applying RAW configuration");
       retstring = "failed to apply";
       return ERROR;
