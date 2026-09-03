@@ -68,6 +68,10 @@ namespace Camera {
       return this->set_camera_mode(args, retstring);
     }
     else
+    if ( cmd == CAMERAD_RAW ) {
+      return this->raw(args, retstring);
+    }
+    else
     if ( cmd == "autofetch_mode" ) {
       return this->autofetch_mode(args, retstring);
     }
@@ -953,6 +957,48 @@ namespace Camera {
     return this->controller->set_vcpu_inreg(args);
   }
   /***** Camera::ArchonInterface::set_vcpu_inreg ******************************/
+
+
+  /***** Camera::ArchonInterface::raw ****************************************/
+  /**
+   * @brief      configure and retrieve Archon RAW (pre-CDS) data
+   * @param[in]  args       "config" | "set <KEY> <VAL> [...]" | "read"
+   * @param[out] retstring  RAW configuration or retrieval summary
+   * @return     ERROR | NO_ERROR | HELP
+   *
+   */
+  long ArchonInterface::raw( const std::string args, std::string &retstring ) {
+    const std::string function("Camera::ArchonInterface::raw");
+
+    if (args=="?" || args=="help") {
+      retstring = CAMERAD_RAW;
+      retstring.append( " [ config | set <KEY> <VAL> [...] | read ]\n" );
+      retstring.append( "  config              report the RAW config keywords\n" );
+      retstring.append( "  set <KEY> <VAL> ..  set RAW keyword(s) then apply\n" );
+      retstring.append( "  read                retrieve RAW data in-band as 16-bit samples\n" );
+      retstring.append( "  Keys: RAWENABLE RAWSEL RAWSTARTLINE RAWENDLINE RAWSTARTPIXEL RAWSAMPLES\n" );
+      return HELP;
+    }
+
+    std::size_t sep = args.find_first_of(" ");
+    const std::string subcmd = args.substr(0, sep);
+    const std::string subargs = (sep==std::string::npos) ? "" : args.substr(sep+1);
+
+    if (subcmd.empty() || subcmd=="config") {
+      return this->controller->get_raw_config(retstring);
+    }
+    if (subcmd=="set") {
+      return this->controller->set_raw_config(subargs, retstring);
+    }
+    if (subcmd=="read") {
+      return this->controller->read_raw(retstring);
+    }
+
+    logwrite(function, "ERROR unrecognized subcommand: "+subcmd);
+    retstring = "unrecognized subcommand: "+subcmd;
+    return ERROR;
+  }
+  /***** Camera::ArchonInterface::raw ****************************************/
 
 
   /***** Camera::ArchonInterface::heater **************************************/

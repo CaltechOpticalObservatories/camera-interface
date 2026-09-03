@@ -1,4 +1,5 @@
 #include "camera_interface.h"
+#include "frame_output_factory.h"
 
 #include <algorithm>
 #include <cctype>

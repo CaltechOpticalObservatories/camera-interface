@@ -7,6 +7,8 @@
  *
  */
 
+#include <string_view>
+
 #include "archon_controller.h"
 #include "archon_interface.h"
 #include <algorithm>
@@ -571,7 +573,7 @@ namespace Camera {
       while (reply_ptr < reply_end && *reply_ptr != '=' && *reply_ptr != ' ') reply_ptr++;
       if (reply_ptr >= reply_end || *reply_ptr != '=') break;
 
-      size_t key_len = reply_ptr - key_start;
+      const std::string_view key(key_start, reply_ptr - key_start);
       reply_ptr++;  // skip "="
 
       // find value
@@ -580,62 +582,43 @@ namespace Camera {
       size_t valuelen = reply_ptr - value_start;
 
       // TIMER=XXXX pattern
-      if (key_len==5 && key_start[0]=='T' && std::strncmp(key_start, "TIMER", 5)==0) {
+      if (key == "TIMER") {
         this->frameinfo.timer.assign(value_start, valuelen);
       }
       else
-      if (key_len==4) {
-        // RBUF=XXXX pattern
-        if (key_start[0]=='R' && std::strncmp(key_start, "RBUF", 4)==0) {
-          this->frameinfo.rbuf = std::atoi(value_start);
-        }
-        else
-        // WBUF=XXXX pattern
-        if (key_start[0]=='W' && std::strncmp(key_start, "WBUF", 4)==0) {
-          this->frameinfo.wbuf = std::atoi(value_start);
-        }
+      // RBUF=XXXX pattern
+      if (key == "RBUF") {
+        this->frameinfo.rbuf = std::atoi(value_start);
+      }
+      else
+      // WBUF=XXXX pattern
+      if (key == "WBUF") {
+        this->frameinfo.wbuf = std::atoi(value_start);
       }
       else
       // BUFnXXXX=XXXX pattern...
-      if (key_len>3 && key_start[0]=='B' && key_start[1]=='U' && key_start[2]=='F') {
-        int bufnum = key_start[3]-'1';  // convert to 0-based
+      if (key.size()>3 && key[0]=='B' && key[1]=='U' && key[2]=='F') {
+        int bufnum = key[3]-'1';  // convert to 0-based
 
-        // match suffix
-        const char* suffix = key_start+4;
-        size_t suffix_len = key_len-4;
+        // match suffix; string_view compares length before bytes, so this
+        // stays as cheap as the switch-on-length it replaces
+        const std::string_view suffix = key.substr(4);
 
-        switch (suffix_len) {
-          case 4:  // BUFnBASE, MODE
-            if (std::strncmp(suffix, "BASE", 4)==0) this->frameinfo.bufbase[bufnum] = std::strtoul(value_start, nullptr, 10);
-            else
-            if (std::strncmp(suffix, "MODE", 4)==0) this->frameinfo.bufmode[bufnum] = std::atoi(value_start);
-            break;
-          case 5:  // BUFnFRAME, WIDTH, LINES
-            if (std::strncmp(suffix, "FRAME", 5)==0) this->frameinfo.bufframen[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "WIDTH", 5)==0) this->frameinfo.bufwidth[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "LINES", 5)==0) this->frameinfo.buflines[bufnum] = std::atoi(value_start);
-            break;
-          case 6:  // BUFnSAMPLE, PIXELS, HEIGHT
-            if (std::strncmp(suffix, "SAMPLE", 6)==0) this->frameinfo.bufsample[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "PIXELS", 6)==0) this->frameinfo.bufpixels[bufnum] = std::atoi(value_start);
-            else
-            if (std::strncmp(suffix, "HEIGHT", 6)==0) this->frameinfo.bufheight[bufnum] = std::atoi(value_start);
-            break;
-          case 8:  // BUFnCOMPLETE
-            if (std::strncmp(suffix, "COMPLETE", 8)==0) this->frameinfo.bufcomplete[bufnum] = std::atoi(value_start);
-            break;
-          case 9:  // BUFnTIMESTAMP
-            if (std::strncmp(suffix, "TIMESTAMP", 9)==0) this->frameinfo.buftimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
-            break;
-          case 11: // BUFnRETIMESTAMP, FETIMESTAMP
-            if (std::strncmp(suffix, "RETIMESTAMP", 11)==0) this->frameinfo.bufretimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
-            else
-            if (std::strncmp(suffix, "FETIMESTAMP", 11)==0) this->frameinfo.buffetimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
-            break;
-        } // end switch(suffix_len)
+        if (suffix == "BASE") this->frameinfo.bufbase[bufnum] = std::strtoul(value_start, nullptr, 10);
+        else if (suffix == "MODE") this->frameinfo.bufmode[bufnum] = std::atoi(value_start);
+        else if (suffix == "FRAME") this->frameinfo.bufframen[bufnum] = std::atoi(value_start);
+        else if (suffix == "WIDTH") this->frameinfo.bufwidth[bufnum] = std::atoi(value_start);
+        else if (suffix == "LINES") this->frameinfo.buflines[bufnum] = std::atoi(value_start);
+        else if (suffix == "SAMPLE") this->frameinfo.bufsample[bufnum] = std::atoi(value_start);
+        else if (suffix == "PIXELS") this->frameinfo.bufpixels[bufnum] = std::atoi(value_start);
+        else if (suffix == "HEIGHT") this->frameinfo.bufheight[bufnum] = std::atoi(value_start);
+        else if (suffix == "COMPLETE") this->frameinfo.bufcomplete[bufnum] = std::atoi(value_start);
+        else if (suffix == "RAWLINES") this->frameinfo.bufrawlines[bufnum] = std::atoi(value_start);
+        else if (suffix == "TIMESTAMP") this->frameinfo.buftimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
+        else if (suffix == "RAWOFFSET") this->frameinfo.bufrawoffset[bufnum] = std::strtoul(value_start, nullptr, 10);
+        else if (suffix == "RAWBLOCKS") this->frameinfo.bufrawblocks[bufnum] = std::atoi(value_start);
+        else if (suffix == "RETIMESTAMP") this->frameinfo.bufretimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
+        else if (suffix == "FETIMESTAMP") this->frameinfo.buffetimestamp[bufnum] = std::strtoull(value_start, nullptr, 16);
       } // end if BUFnXXXX pattern
     } // end looping through reply
 
@@ -1794,8 +1777,10 @@ namespace Camera {
       this->get_configmap_value("FRAMEMODE", mode->geometry.framemode);
       this->get_configmap_value("RAWENABLE", mode->rawenable);
       this->get_configmap_value("RAWSEL", this->rawinfo.adchan);
-      this->get_configmap_value("RAWSAMPLES", this->rawinfo.rawsamples);
-      this->get_configmap_value("RAWENDLINE", this->rawinfo.rawlines);
+      this->get_configmap_value("RAWSAMPLES", this->rawinfo.samples);
+      this->get_configmap_value("RAWSTARTLINE", this->rawinfo.startline);
+      this->get_configmap_value("RAWENDLINE", this->rawinfo.endline);
+      this->get_configmap_value("RAWSTARTPIXEL", this->rawinfo.startpixel);
 
       // Read geometry from the mode's configmap (not the global one) since each
       // mode section can override LINECOUNT/PIXELCOUNT
@@ -2173,11 +2158,10 @@ namespace Camera {
     //
     switch (this->frametype) {
       case Camera::ArchonController::FRAME_RAW:
-        // Archon buffer base address
+        // RAW data lives at bufbase + rawoffset; block count derives from the
+        // RAW geometry (RAWSAMPLES x rawlines x 2 bytes), never image_memory
         bufaddr   = this->frameinfo.bufbase[index] + this->frameinfo.bufrawoffset[index];
-
-        // Calculate the number of blocks expected. image_memory is bytes per detector
-        bufblocks = (unsigned int) floor( (this->interface->camera_info.image_memory + BLOCK_LEN - 1 ) / BLOCK_LEN );
+        bufblocks = (this->raw_frame_bytes() + BLOCK_LEN - 1) / BLOCK_LEN;
         break;
 
       case Camera::ArchonController::FRAME_IMAGE: {
@@ -2314,6 +2298,199 @@ namespace Camera {
 
     return error;
   }
+
+
+  /***** Camera::ArchonController::is_raw_config_key *************************/
+  /**
+   * @brief      return true if key is one of the settable RAW config keywords
+   */
+  bool ArchonController::is_raw_config_key(const std::string &key) {
+    for (const auto* raw_key : {"RAWENABLE", "RAWSEL", "RAWSTARTLINE",
+                                "RAWENDLINE", "RAWSTARTPIXEL", "RAWSAMPLES"}) {
+      if (key == raw_key) return true;
+    }
+    return false;
+  }
+  /***** Camera::ArchonController::is_raw_config_key *************************/
+
+
+  /***** Camera::ArchonController::raw_geometry ****************************/
+  /**
+   * @brief      resolve RAW capture geometry for the newest buffer
+   * @details    Prefers the controller-reported BUFnRAWBLOCKS/BUFnRAWLINES,
+   *             which already account for the per-line rounding to whole
+   *             1024-byte blocks. Falls back to the config keys when the
+   *             controller has not reported them (e.g. emulator). The line
+   *             range is inclusive: RAWSTARTLINE=0,RAWENDLINE=1 is two lines.
+   */
+  ArchonController::raw_geometry_t ArchonController::raw_geometry() const {
+    const auto index = this->frameinfo.index.load();
+    raw_geometry_t geom;
+    geom.samples         = static_cast<uint32_t>(this->rawinfo.samples);
+    geom.blocks_per_line = static_cast<uint32_t>(this->frameinfo.bufrawblocks[index]);
+    geom.lines           = static_cast<uint32_t>(this->frameinfo.bufrawlines[index]);
+
+    if (geom.blocks_per_line == 0 || geom.lines == 0) {
+      geom.blocks_per_line =
+        (static_cast<size_t>(geom.samples) * sizeof(uint16_t) + BLOCK_LEN - 1) / BLOCK_LEN;
+      const int span = this->rawinfo.endline - this->rawinfo.startline + 1;
+      geom.lines = span > 0 ? static_cast<uint32_t>(span) : 0u;
+    }
+    return geom;
+  }
+  /***** Camera::ArchonController::raw_geometry ****************************/
+
+
+  /***** Camera::ArchonController::raw_frame_bytes **************************/
+  /**
+   * @brief      padded, size-aware byte count for one RAW fetch
+   * @details    Each line occupies whole 1024-byte blocks, so the fetch reads
+   *             blocks_per_line x lines blocks. RAW samples are always 16-bit;
+   *             RAWSTARTPIXEL only sets where sampling begins in a line and so
+   *             does not change the count.
+   */
+  uint32_t ArchonController::raw_frame_bytes() const {
+    const raw_geometry_t geom = this->raw_geometry();
+    return geom.blocks_per_line * geom.lines * BLOCK_LEN;
+  }
+  /***** Camera::ArchonController::raw_frame_bytes **************************/
+
+
+  /***** Camera::ArchonController::get_raw_config **************************/
+  /**
+   * @brief      report the current RAW configuration keywords
+   * @param[out] retstring  space-delimited KEY=VALUE pairs
+   */
+  long ArchonController::get_raw_config(std::string &retstring) {
+    std::ostringstream oss;
+    for (const auto* key : {"RAWENABLE", "RAWSEL", "RAWSTARTLINE",
+                            "RAWENDLINE", "RAWSTARTPIXEL", "RAWSAMPLES"}) {
+      auto it = this->configmap.find(key);
+      oss << key << "=" << (it != this->configmap.end() ? it->second.value : "?") << " ";
+    }
+    retstring = oss.str();
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::get_raw_config **************************/
+
+
+  /***** Camera::ArchonController::set_raw_config **************************/
+  /**
+   * @brief      set one or more RAW config keywords then APPLYCDS
+   * @param[in]  args       "KEY VALUE [KEY VALUE ...]"
+   * @param[out] retstring  resulting RAW configuration
+   */
+  long ArchonController::set_raw_config(const std::string &args, std::string &retstring) {
+    const std::string function("Camera::ArchonController::set_raw_config");
+
+    std::vector<std::string> tokens;
+    Tokenize(args, tokens, " ");
+    if (tokens.empty() || tokens.size() % 2 != 0) {
+      logwrite(function, "ERROR expected KEY VALUE pairs");
+      retstring = "expected KEY VALUE pairs";
+      return ERROR;
+    }
+
+    bool changed = false;
+    for (size_t i = 0; i < tokens.size(); i += 2) {
+      std::string key = tokens[i];
+      std::transform(key.begin(), key.end(), key.begin(), ::toupper);
+      if (!is_raw_config_key(key)) {
+        logwrite(function, "ERROR unknown RAW key: "+key);
+        retstring = "unknown RAW key: "+key;
+        return ERROR;
+      }
+      if (this->write_config_key(key.c_str(), tokens[i+1].c_str(), changed) != NO_ERROR) {
+        retstring = "failed writing "+key;
+        return ERROR;
+      }
+    }
+
+    // Archon has no way to report whether a pending config write has already
+    // been applied, so always APPLYCDS instead of trying to infer if it's needed
+    if (this->send_cmd(APPLYCDS) != NO_ERROR) {
+      logwrite(function, "ERROR applying RAW configuration");
+      retstring = "failed to apply";
+      return ERROR;
+    }
+
+    // refresh cached geometry from the now-updated configmap
+    this->get_configmap_value("RAWSEL", this->rawinfo.adchan);
+    this->get_configmap_value("RAWSAMPLES", this->rawinfo.samples);
+    this->get_configmap_value("RAWSTARTLINE", this->rawinfo.startline);
+    this->get_configmap_value("RAWENDLINE", this->rawinfo.endline);
+    this->get_configmap_value("RAWSTARTPIXEL", this->rawinfo.startpixel);
+
+    return this->get_raw_config(retstring);
+  }
+  /***** Camera::ArchonController::set_raw_config **************************/
+
+
+  /***** Camera::ArchonController::read_raw *******************************/
+  /**
+   * @brief      retrieve RAW (pre-CDS) data from the newest frame buffer
+   * @details    Reads the size-aware RAW region as 16-bit unsigned samples and
+   *             dispatches it in-band as a (RAWSAMPLES x rawlines) frame,
+   *             independent of the post-CDS pixel mode.
+   * @param[out] retstring  "samples=<w> lines=<h> bytes=<n>"
+   */
+  long ArchonController::read_raw(std::string &retstring) {
+    const std::string function("Camera::ArchonController::read_raw");
+
+    long error = this->get_frame_status();
+    if (error != NO_ERROR) {
+      logwrite(function, "ERROR getting frame status");
+      retstring = "frame status query failed";
+      return error;
+    }
+
+    const raw_geometry_t geom = this->raw_geometry();
+    if (geom.samples == 0 || geom.lines == 0) {
+      logwrite(function, "ERROR RAW geometry is empty; check RAW config");
+      retstring = "invalid RAW geometry";
+      return ERROR;
+    }
+
+    const size_t fetch_bytes = static_cast<size_t>(geom.blocks_per_line) * geom.lines * BLOCK_LEN;
+    std::shared_ptr<char[]> raw_buffer(new char[fetch_bytes]);
+    char* bufptr = raw_buffer.get();
+
+    if (this->read_frame(FRAME_RAW, bufptr) != NO_ERROR) {
+      logwrite(function, "ERROR reading RAW frame");
+      retstring = "read failed";
+      return ERROR;
+    }
+
+    // The Archon pads each raw line out to whole 1024-byte blocks, so copy only
+    // the valid RAWSAMPLES from each line into a contiguous lines x samples array
+    const size_t line_stride = static_cast<size_t>(geom.blocks_per_line) * BLOCK_LEN;
+    const size_t payload_samples = static_cast<size_t>(geom.lines) * geom.samples;
+    std::vector<uint16_t> samples(payload_samples);
+    for (uint32_t line = 0; line < geom.lines; ++line) {
+      std::memcpy(samples.data() + static_cast<size_t>(line) * geom.samples,
+                  raw_buffer.get() + line * line_stride,
+                  static_cast<size_t>(geom.samples) * sizeof(uint16_t));
+    }
+
+    const auto index = this->frameinfo.index.load();
+    const size_t payload_bytes = payload_samples * sizeof(uint16_t);
+
+    Camera::FrameMetadata meta;
+    meta.frame_number    = this->frameinfo.bufframen[index];
+    meta.timestamp       = this->frameinfo.buftimestamp[index];
+    meta.width           = geom.samples;
+    meta.height          = geom.lines;
+    meta.bytes_per_pixel = sizeof(uint16_t);
+    this->interface->dispatch_frame(reinterpret_cast<const char*>(samples.data()),
+                                    payload_bytes, meta);
+
+    std::ostringstream oss;
+    oss << "samples=" << geom.samples << " lines=" << geom.lines << " bytes=" << payload_bytes;
+    retstring = oss.str();
+    logwrite(function, retstring);
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::read_raw *******************************/
 
 
   /***** Camera::ArchonController::wait_for_readout ***************************/
