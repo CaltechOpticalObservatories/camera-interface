@@ -33,6 +33,9 @@ namespace Camera {
 
       int blkport;
 
+      // Set from --foreground; decides whether logs also go to the console
+      bool foreground=false;
+
       NumberPool id_pool;
       std::map<int, std::shared_ptr<Network::TcpSocket>> socklist;
       std::mutex sock_block_mutex;

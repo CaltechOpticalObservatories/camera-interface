@@ -18,10 +18,12 @@
 int main( int argc, char** argv ) {
   const std::string function("main");
 
+  const bool foreground = hasOption(argc, argv, "--foreground");
+
   // Unless specifically requested to run in foreground,
   // immediately daemonize.
   //
-  if (!hasOption(argc, argv, "--foreground")) {
+  if (!foreground) {
     logwrite(function, "starting daemon");
     Daemon::daemonize( "camerad", "/tmp", "/dev/null", "/tmp/camerad.stderr", "", false );
     std::cerr << get_timestamp() << "  (" << function << ") daemonized. child process running" << std::endl;
@@ -31,6 +33,7 @@ int main( int argc, char** argv ) {
   // the child process instantiates a Server object
   //
   Camera::Server camerad;
+  camerad.foreground = foreground;
 
   // read the config file and configure the various components
   //
