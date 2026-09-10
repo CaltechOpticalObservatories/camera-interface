@@ -77,6 +77,16 @@ namespace Camera {
         }
       }
 
+      // Snapshot every FrameOutput. Non-blocking by contract: see FrameOutput::status
+      std::vector<OutputStatus> frame_output_status() const {
+        std::vector<OutputStatus> all;
+        all.reserve(this->frame_outputs.size());
+        for (const auto &output : this->frame_outputs) {
+          all.push_back(output->status());
+        }
+        return all;
+      }
+
       // These functions are shared by all interfaces with common implementations,
       // and are implemented in camera_interface.cpp
       //
@@ -121,6 +131,10 @@ namespace Camera {
       /** @brief  returns true if cmd is an instrument-specific command
        */
       virtual bool is_instrument_command(const std::string &cmd) { return false; }
+
+      // Names this instrument handles, so a caller can enumerate rather than
+      // guess. CAMERAD_SYNTAX lists none of them
+      virtual std::vector<std::string> instrument_commands() const { return {}; }
 
       /** @brief  returns error if not overridden
        */

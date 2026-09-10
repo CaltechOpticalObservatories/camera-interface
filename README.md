@@ -57,6 +57,15 @@ If you encounter any problems or have questions about this project, please open 
 
    ImageStreamIO's own `Config.cmake` files install directly under `<prefix>/lib/cmake/` rather than the CMake-conventional `<prefix>/lib/cmake/ImageStreamIO/`, so `-DImageStreamIO_DIR=...` must always be given explicitly, even for a standard system-wide install.
 
+   To build the Python module (see [Python Module](#python-module) below), add `-DBUILD_PYTHON_MODULE=ON`. It is off by default, so builds that don't want it never need pybind11:
+
+    ```bash
+    $ pip install pybind11
+    $ cmake -DBUILD_PYTHON_MODULE=ON ..
+    ```
+
+   pybind11 is located by asking the interpreter CMake selected, so pass `-DPython3_EXECUTABLE=...` to build against a specific one (a virtualenv, say). The module and that interpreter then always agree on the ABI.
+
 4. **Compile the sources:**
 
     ```bash
@@ -92,6 +101,33 @@ If you encounter any problems or have questions about this project, please open 
     ```bash
     $ ../bin/run_unit_tests
     ```
+
+## Python Module
+
+Built with `-DBUILD_PYTHON_MODULE=ON`, `camera_interface` lets a Python process own a camera directly, with no `camerad` process and no text protocol in between. It performs the same startup `camerad` does, then exposes the interface as methods:
+
+```python
+import camera_interface
+
+camera = camera_interface.Camera("hispecatc.cfg")
+camera.open()
+camera.load()
+camera.power("on")
+camera.exptime("0")
+camera.expose("1")
+
+print(camera.instrument_commands())   # this build's instrument-specific commands
+camera.instrument_cmd("roi", "51 60 51 60")
+print(camera.output_status())         # frames written, dropped, last file
+```
+
+The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
+
+`output_status()` is a snapshot, never a barrier: the FITS writer queues and drops frames by design because disk is slower than acquisition can be, so nothing here lets a caller stall acquisition by waiting on an output. Anything needing to be woken per frame should attach to the shared-memory segment, which posts semaphores.
+
+Commands release the GIL while they run, so a blocking `expose()` leaves the rest of the process responsive.
+
+Logging follows `LOG_STDERR` from the `.cfg`; pass `log_to_stderr=` to override it per session. The C++ log always goes to its daily file under `LOGPATH`.
 
 ## Frame Outputs
 

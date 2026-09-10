@@ -186,3 +186,12 @@ target_link_libraries(camerad
   ${ZMQ_LIB}
   )
 
+# ----------------------------------------------------------------------------
+# optional Python module
+# ----------------------------------------------------------------------------
+# Added here, not at the top level, to inherit the controller and instrument
+# selection above. The option itself is declared at the top level
+if (BUILD_PYTHON_MODULE)
+  add_subdirectory(${PROJECT_BASE_DIR}/python ${CMAKE_BINARY_DIR}/python)
+endif()
+

@@ -126,8 +126,18 @@ namespace Camera {
     this->write_keywords(meta);
 
     ImageStreamIO_UpdateIm(&image_);
+    frames_written_.fetch_add(1, std::memory_order_relaxed);
 
     return NO_ERROR;
+  }
+
+  OutputStatus SharedMemoryWriter::status() const {
+    OutputStatus out;
+    out.name           = "shm";
+    out.frames_written = frames_written_.load(std::memory_order_relaxed);
+    // A consumer that falls behind loses frames to the ring, which this writer
+    // cannot see, so nothing is counted as dropped here
+    return out;
   }
 
   void SharedMemoryWriter::close() {

@@ -80,6 +80,69 @@ jobs:
         pkill -f 'bin/camerad' || true
         pkill -f 'bin/emulator' || true
 
+  python-module-emulator-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libccfits-dev libcfitsio-dev libcurl4-openssl-dev \
+          nlohmann-json3-dev libzmq3-dev \
+          libopencv-dev libboost-thread-dev libboost-chrono-dev \
+          python3-dev python3-pip
+        python3 -m pip install --upgrade pybind11
+
+    - name: Build and install zmqpp from source
+      run: |
+        git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
+        cd /tmp/zmqpp
+        mkdir build && cd build
+        cmake ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+
+    - name: Build and install ImageStreamIO from source
+      run: |
+        git clone --depth 1 https://github.com/milk-org/ImageStreamIO.git /tmp/ImageStreamIO
+        cd /tmp/ImageStreamIO
+        mkdir build && cd build
+        cmake ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+
+    - name: Build the Python module and emulator
+      run: |
+        mkdir -p ${{github.workspace}}/build
+        cd ${{github.workspace}}/build
+        cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
+              -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake \
+              -DBUILD_PYTHON_MODULE=ON ..
+        make camera_interface emulator shm_reader -j$(nproc)
+
+    - name: Python module control test
+      run: |
+        mkdir -p /tmp/ci_milk_shm /tmp/ci_fits_test
+
+        bin/emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic &
+        sleep 2
+
+        # No camerad process here: the module owns the Archon connection, and
+        # asserts both writers itself since the SHM segment does not outlive it
+        PYTHONPATH=lib python3 python/tests/emulator_integration.py \
+          --config config/frame_outputs_test/frame_outputs_test.cfg \
+          --fits-dir /tmp/ci_fits_test
+
+        pkill -f 'bin/emulator' || true
+
   cryoscope-emulator-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10

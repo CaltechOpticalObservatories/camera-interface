@@ -25,6 +25,15 @@ std::condition_variable log_cv;
 std::atomic<bool> logger_running{false};
 std::thread logger_thread;
 
+namespace {
+  /// Joins logger_thread at static teardown, which would otherwise terminate
+  struct LoggerShutdown {
+    ~LoggerShutdown() { close_log(); }
+  };
+  // Declared after logger_thread so it is destroyed first
+  const LoggerShutdown logger_shutdown;
+}
+
 
 /***** logger_worker **********************************************************/
 /**
@@ -159,7 +168,9 @@ long init_log(std::string name, std::string logpath, std::string logstderr, std:
         return 1;
     }
 
-    // Start the background log writer thread
+    // Assigning over a joinable thread would terminate
+    if (logger_thread.joinable()) close_log();
+
     logger_running = true;
     logger_thread = std::thread(logger_worker);
 
