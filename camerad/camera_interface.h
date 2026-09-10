@@ -132,6 +132,10 @@ namespace Camera {
        */
       virtual bool is_instrument_command(const std::string &cmd) { return false; }
 
+      // Names this instrument handles, so a caller can enumerate rather than
+      // guess. CAMERAD_SYNTAX lists none of them
+      virtual std::vector<std::string> instrument_commands() const { return {}; }
+
       /** @brief  returns error if not overridden
        */
       virtual long instrument_cmd(const std::string &cmd,
