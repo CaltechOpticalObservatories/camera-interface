@@ -186,3 +186,14 @@ target_link_libraries(camerad
   ${ZMQ_LIB}
   )
 
+# ----------------------------------------------------------------------------
+# optional Python module
+# ----------------------------------------------------------------------------
+# Added from this directory rather than the top level so it inherits the
+# controller and instrument selection above. Off by default so builds that do
+# not want bindings never need pybind11.
+option(BUILD_PYTHON_MODULE "Build the camera_interface Python module" OFF)
+if (BUILD_PYTHON_MODULE)
+  add_subdirectory(${PROJECT_BASE_DIR}/python ${CMAKE_BINARY_DIR}/python)
+endif()
+
