@@ -189,10 +189,8 @@ target_link_libraries(camerad
 # ----------------------------------------------------------------------------
 # optional Python module
 # ----------------------------------------------------------------------------
-# Added from this directory rather than the top level so it inherits the
-# controller and instrument selection above. Off by default so builds that do
-# not want bindings never need pybind11.
-option(BUILD_PYTHON_MODULE "Build the camera_interface Python module" OFF)
+# Added here, not at the top level, to inherit the controller and instrument
+# selection above. The option itself is declared at the top level
 if (BUILD_PYTHON_MODULE)
   add_subdirectory(${PROJECT_BASE_DIR}/python ${CMAKE_BINARY_DIR}/python)
 endif()
