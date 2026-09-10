@@ -55,15 +55,15 @@ def check_introspection(camera: camera_interface.Camera) -> None:
           "an unknown command was accepted as an instrument command")
 
 
-def wait_for_write(camera: camera_interface.Camera) -> list[dict]:
-    """Return output status once a frame has been written, or time out."""
+def wait_for_writes(camera: camera_interface.Camera) -> list[dict]:
+    """Return output status once every configured output has written, or time out."""
     deadline = time.monotonic() + WRITE_TIMEOUT_S
     while time.monotonic() < deadline:
         status = camera.output_status()
-        if any(output["frames_written"] >= 1 for output in status):
+        if status and all(output["frames_written"] >= 1 for output in status):
             return status
         time.sleep(POLL_INTERVAL_S)
-    raise CheckFailed(f"no frame written within {WRITE_TIMEOUT_S}s: "
+    raise CheckFailed(f"not every output wrote within {WRITE_TIMEOUT_S}s: "
                       f"{camera.output_status()}")
 
 
@@ -84,7 +84,9 @@ def run(config_path: str, fits_dir: pathlib.Path) -> None:
 
     camera.expose("1")
 
-    for output in wait_for_write(camera):
+    # Asserted in process because the SHM segment is destroyed when the writer
+    # closes, so an external reader would race this script's exit
+    for output in wait_for_writes(camera):
         print(f"output: {output}")
         check(output["frames_dropped"] == 0,
               f"{output['name']} dropped {output['frames_dropped']} frames")

@@ -9,6 +9,7 @@
 
 #include <ImageStreamIO/ImageStreamIO.h>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -26,8 +27,11 @@ namespace Camera {
       long open() override;
       long write(const char* data, size_t size, const FrameMetadata& meta) override;
       void close() override;
+      OutputStatus status() const override;
 
     private:
+      std::atomic<uint64_t> frames_written_{0};
+
       std::string segment_name_;
       uint32_t ring_buffer_size_;
       std::string shm_dir_;

@@ -135,14 +135,11 @@ jobs:
         bin/emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic &
         sleep 2
 
-        # No camerad process here: the module owns the Archon connection
+        # No camerad process here: the module owns the Archon connection, and
+        # asserts both writers itself since the SHM segment does not outlive it
         PYTHONPATH=lib python3 python/tests/emulator_integration.py \
           --config config/frame_outputs_test/frame_outputs_test.cfg \
           --fits-dir /tmp/ci_fits_test
-
-        # The module reports the FITS write itself; shm_reader is the
-        # independent check that the SHM segment is real
-        bin/shm_reader ci_frame_outputs_shm /tmp/ci_milk_shm
 
         pkill -f 'bin/emulator' || true
 
