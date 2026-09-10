@@ -125,8 +125,7 @@ jobs:
         cd ${{github.workspace}}/build
         cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
               -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake \
-              -DBUILD_PYTHON_MODULE=ON \
-              -Dpybind11_DIR=$(python3 -c "import pybind11; print(pybind11.get_cmake_dir())") ..
+              -DBUILD_PYTHON_MODULE=ON ..
         make camera_interface emulator shm_reader -j$(nproc)
 
     - name: Python module control test
