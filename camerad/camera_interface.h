@@ -77,6 +77,16 @@ namespace Camera {
         }
       }
 
+      // Snapshot every FrameOutput. Non-blocking by contract: see FrameOutput::status
+      std::vector<OutputStatus> frame_output_status() const {
+        std::vector<OutputStatus> all;
+        all.reserve(this->frame_outputs.size());
+        for (const auto &output : this->frame_outputs) {
+          all.push_back(output->status());
+        }
+        return all;
+      }
+
       // These functions are shared by all interfaces with common implementations,
       // and are implemented in camera_interface.cpp
       //
