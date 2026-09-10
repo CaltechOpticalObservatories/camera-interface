@@ -47,6 +47,7 @@ namespace Camera {
       void close() override;
       bool set_option(const std::string &key, const std::string &value) override;
       void end_exposure() override;
+      OutputStatus status() const override;
 
       struct Stats {
         uint64_t frames_received{0};
@@ -93,6 +94,10 @@ namespace Camera {
       std::thread worker_;
       // Set in close() before stop_, so worker can read race-free
       std::chrono::steady_clock::time_point stop_time_;
+
+      // Off mtx_ so a status query never contends with write()
+      std::string last_written_;
+      mutable std::mutex last_written_mtx_;
 
       std::atomic<uint64_t> n_received_{0};
       std::atomic<uint64_t> n_written_{0};

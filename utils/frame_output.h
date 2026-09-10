@@ -29,6 +29,13 @@ namespace Camera {
     std::shared_ptr<const Common::FitsKeys> header_set;
   };
 
+  struct OutputStatus {
+    std::string name;
+    uint64_t    frames_written{0};
+    uint64_t    frames_dropped{0};
+    std::string last_written;      // empty when the output has no per-frame artifact
+  };
+
   class FrameOutput {
     public:
       virtual ~FrameOutput() = default;
@@ -41,6 +48,10 @@ namespace Camera {
 
       // Called when a whole exposure command finishes, so a multi-frame output (e.g. a datacube) can finalize its file
       virtual void end_exposure() {}
+
+      // Snapshot, never a barrier: letting a caller wait on a queueing output
+      // would serialize acquisition behind disk I/O
+      virtual OutputStatus status() const { return {}; }
   };
 
 }

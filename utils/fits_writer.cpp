@@ -180,6 +180,18 @@ namespace Camera {
     return s;
   }
 
+  OutputStatus FitsWriter::status() const {
+    OutputStatus out;
+    out.name           = "fits";
+    out.frames_written = n_written_.load();
+    out.frames_dropped = n_dropped_queue_.load() + n_dropped_shutdown_.load();
+    {
+      std::lock_guard lock(last_written_mtx_);
+      out.last_written = last_written_;
+    }
+    return out;
+  }
+
   void FitsWriter::worker_loop() {
     const auto drain_timeout = std::chrono::milliseconds(cfg_.drain_timeout_ms);
 
@@ -263,6 +275,12 @@ namespace Camera {
     catch (const std::exception &e) {
       logwrite(function, "ERROR exception writing " + filename + ": " + e.what());
       return ERROR;
+    }
+
+    // Published only after pFits left scope, so the file is readable
+    {
+      std::lock_guard lock(last_written_mtx_);
+      last_written_ = filename;
     }
 
     return NO_ERROR;
