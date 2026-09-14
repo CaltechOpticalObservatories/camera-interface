@@ -25,6 +25,15 @@ std::condition_variable log_cv;
 std::atomic<bool> logger_running{false};
 std::thread logger_thread;
 
+namespace {
+  /// Joins logger_thread at static teardown, which would otherwise terminate
+  struct LoggerShutdown {
+    ~LoggerShutdown() { close_log(); }
+  };
+  // Declared after logger_thread so it is destroyed first
+  const LoggerShutdown logger_shutdown;
+}
+
 
 /***** logger_worker **********************************************************/
 /**
@@ -77,6 +86,10 @@ long init_log(std::string name, std::string logpath, std::string logstderr, std:
     std::stringstream message;
     int year, mon, mday, hour, min, sec, usec;
     long error = 0;
+
+    // Retire any previous logger before opening the new stream, since close_log
+    // closes whatever is open
+    if (logger_thread.joinable()) close_log();
 
     to_stderr = (logstderr == "false" ? false : true); // should logwrite also print to stderr?
 
@@ -159,7 +172,6 @@ long init_log(std::string name, std::string logpath, std::string logstderr, std:
         return 1;
     }
 
-    // Start the background log writer thread
     logger_running = true;
     logger_thread = std::thread(logger_worker);
 

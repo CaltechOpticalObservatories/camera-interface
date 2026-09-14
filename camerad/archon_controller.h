@@ -321,7 +321,7 @@ namespace Camera {
       std::string gain;
       int readout_time_msec;                //!< readout time in msec from config file
       int configlines;                      //!< number of configuration lines in ACF
-      int n_hdrshift;
+      int n_hdrshift=0;                     //!< number of HDR right-shift bits
       uint64_t last_frame_timer;            //!< Archon timer of last frame
       std::string power_status;             //!< Archon power status
       std::mutex archon_mutex;

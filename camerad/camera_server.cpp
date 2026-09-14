@@ -49,7 +49,9 @@ namespace Camera {
 
     std::string logpath;
     std::string log_tmzone;
-    std::string log_stderr = "true";
+    // Daemonized, stderr is only a redirect file, so duplicating the log there
+    // is noise; in foreground it is what the operator is watching
+    std::string log_stderr = this->foreground ? "true" : "false";
 
     for (int row=0; row < interface->configfile.n_rows; row++) {
 
@@ -71,7 +73,7 @@ namespace Camera {
       if (interface->configfile.param[row]=="TM_ZONE_LOG")
         log_tmzone = interface->configfile.arg[row];
 
-      if (interface->configfile.param[row]=="LONGERROR")
+      if (interface->configfile.param[row]=="LOG_STDERR")
         log_stderr = interface->configfile.arg[row];
     }
 
