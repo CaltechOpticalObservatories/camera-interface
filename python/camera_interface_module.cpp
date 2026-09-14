@@ -203,6 +203,81 @@ PYBIND11_MODULE(camera_interface, module) {
          py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
          "Abort the exposure in progress")
 
+    .def("autodir",
+         [](CameraSession &self, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).autodir(args, retstring), "autodir", retstring);
+         },
+         py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
+         "Query whether images go in a dated subdirectory, or set it")
+
+    .def("basename",
+         [](CameraSession &self, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).basename(args, retstring), "basename", retstring);
+         },
+         py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
+         "Query the image base filename, or set it")
+
+    .def("bias",
+         [](CameraSession &self, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).bias(args, retstring), "bias", retstring);
+         },
+         py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
+         "Query a bias voltage, or set it")
+
+    .def("bin",
+         [](CameraSession &self, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).bin(args, retstring), "bin", retstring);
+         },
+         py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
+         "Query the binning factor for an axis, or set it")
+
+    .def("datacube",
+         [](CameraSession &self, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).datacube(args, retstring), "datacube", retstring);
+         },
+         py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
+         "Query whether frames are written as a datacube, or set it")
+
+    .def("exposure_mode",
+         [](CameraSession &self, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).exposure_mode(args, retstring), "exposure_mode", retstring);
+         },
+         py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
+         "Query the exposure mode pipeline, or set it")
+
+    .def("key",
+         [](CameraSession &self, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).key(args, retstring), "key", retstring);
+         },
+         py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
+         "Add, list or remove a user FITS header key")
+
+    .def("test",
+         [](CameraSession &self, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).test(args, retstring), "test", retstring);
+         },
+         py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
+         "Run a named interface test")
+
+    // Covers mode, raw, readacf, loadtiming, heater, sensor and autofetch_mode,
+    // which camerad also routes through controller_cmd
+    .def("controller_cmd",
+         [](CameraSession &self, const std::string &command, const std::string &args) {
+           std::string retstring;
+           return invoke((*self).controller_cmd(command, args, retstring), command, retstring);
+         },
+         py::arg("command"), py::arg("args") = "",
+         py::call_guard<py::gil_scoped_release>(),
+         "Run a controller-specific command")
+
     .def("native",
          [](CameraSession &self, const std::string &args) {
            std::string retstring;
