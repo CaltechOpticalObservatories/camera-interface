@@ -30,6 +30,13 @@ constexpr long JSON = 5;
 constexpr long ABORT = 6;
 constexpr long EXIT = 999;
 
+/// Log a failure reason and hand the same text to the caller in retstring
+inline long fail(const std::string &function, std::string &retstring, std::string reason) {
+  logwrite(function, "ERROR "+reason);
+  retstring = std::move(reason);
+  return ERROR;
+}
+
 const std::string JEOF = "EOF\n";              ///< used to terminate JSON messages
 const std::string TELEMREQUEST = "sendtelem";  ///< common daemon command used to request telemetry
 const std::string SNAPSHOT = "snapshot";       ///< common daemon command forces publish of telemetry

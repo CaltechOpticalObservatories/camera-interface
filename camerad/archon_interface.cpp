@@ -282,8 +282,7 @@ namespace Camera {
       this->controller->connect();
     }
     catch (const std::exception &e) {
-      logwrite(function, "ERROR: "+std::string(e.what()));
-      return ERROR;
+      return fail(function, retstring, std::string(e.what()));
     }
 
     logwrite(function, "connected");
@@ -362,9 +361,7 @@ namespace Camera {
         this->set_exptime(std::stod(args));
       }
       catch (const std::exception &e) {
-        retstring=std::string(e.what());
-        logwrite(function, "ERROR: "+retstring);
-        return ERROR;
+        return fail(function, retstring, std::string(e.what()));
       }
     }
 
@@ -421,16 +418,13 @@ namespace Camera {
     }
 
     if (!this->controller->is_connected) {
-      logwrite(function, "ERROR not connected to controller");
-      return ERROR;
+      return fail(function, retstring, "not connected to controller");
     }
     if (!this->controller->is_powered) {
-      logwrite(function, "ERROR power is not on");
-      return ERROR;
+      return fail(function, retstring, "power is not on");
     }
     if (!this->is_exposuremode_set()) {
-      logwrite(function, "ERROR exposure mode not set!");
-      return ERROR;
+      return fail(function, retstring, "exposure mode not set!");
     }
 
     int nseq=1;
@@ -602,8 +596,7 @@ namespace Camera {
 
     // args should contain only a single word, the parameter name
     if (args.find_first_of(" \t\n\r") != std::string::npos) {
-      logwrite(function, "ERROR expected <name>");
-      return ERROR;
+      return fail(function, retstring, "expected <name>");
     }
 
     // get the parameter value from the controller
@@ -919,8 +912,7 @@ namespace Camera {
     Tokenize(args, tokens, " ");
 
     if (tokens.size() != 2) {
-      logwrite(function, "ERROR expected <name> <value>");
-      return ERROR;
+      return fail(function, retstring, "expected <name> <value>");
     }
 
     // set the parameter value on the controller
@@ -950,8 +942,7 @@ namespace Camera {
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->controller->is_firmwareloaded ) {
-      logwrite(function, "ERROR firmware not loaded");
-      return ERROR;
+      return fail(function, retstring, "firmware not loaded");
     }
 
     return this->controller->set_vcpu_inreg(args);
@@ -1032,8 +1023,7 @@ namespace Camera {
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->controller->is_firmwareloaded ) {
-      logwrite(function, "ERROR firmware not loaded");
-      return ERROR;
+      return fail(function, retstring, "firmware not loaded");
     }
 
     return this->controller->heater(args, retstring);
@@ -1066,8 +1056,7 @@ namespace Camera {
     //                           //      memory from Archon, in order to remove this restriction.
     //
     if ( ! this->controller->is_firmwareloaded ) {
-      logwrite(function, "ERROR firmware not loaded");
-      return ERROR;
+      return fail(function, retstring, "firmware not loaded");
     }
 
     return this->controller->sensor(args, retstring);
@@ -1136,8 +1125,7 @@ namespace Camera {
         return NO_ERROR;
       }
       catch (const std::exception &e) {
-        logwrite(function, "ERROR: "+std::string(e.what()));
-        return ERROR;
+        return fail(function, retstring, std::string(e.what()));
       }
     }
 
@@ -1147,16 +1135,14 @@ namespace Camera {
     else
     if ( caseCompareString(args, "off") ) { state=0; }
     else {
-      logwrite(function, "ERROR expected {ON|OFF}");
-      return ERROR;
+      return fail(function, retstring, "expected {ON|OFF}");
     }
     // set the requested Archon power state returns the current state
     try {
       retstring = this->controller->set_power(state);
     }
     catch (const std::exception &e) {
-      logwrite(function, "ERROR: "+std::string(e.what()));
-      return ERROR;
+      return fail(function, retstring, std::string(e.what()));
     }
 
     logwrite(function, retstring);
@@ -1182,8 +1168,7 @@ namespace Camera {
     Tokenize(args, tokens, " ");
 
     if (tokens.size() < 1) {
-      logwrite(function, "ERROR no test name provided");
-      return ERROR;
+      return fail(function, retstring, "no test name provided");
     }
 
     std::string testname(tokens[0]);
@@ -1202,12 +1187,10 @@ namespace Camera {
     else
     if (testname=="showinfo") {
       if (!this->controller->is_connected) {
-        logwrite(function, "ERROR not connected to controller");
-        return ERROR;
+        return fail(function, retstring, "not connected to controller");
       }
       if (!this->controller->is_firmwareloaded) {
-        logwrite(function, "ERROR no firmware loaded");
-        return ERROR;
+        return fail(function, retstring, "no firmware loaded");
       }
       retstring = "\n";
       std::ostringstream oss;
@@ -1254,15 +1237,13 @@ namespace Camera {
       retstring.append(oss.str()); oss.str("");
     }
     else {
-      logwrite(function, "ERROR unknown test name \""+testname+"\"");
-      return ERROR;
+      return fail(function, retstring, "unknown test name \""+testname+"\"");
     }
 
     return NO_ERROR;
 
     if (!this->exposuremode) {
-      logwrite(function, "ERROR exposure mode undefined!");
-      return ERROR;
+      return fail(function, retstring, "exposure mode undefined!");
     }
 
     logwrite(function, "calling exposuremode->expose() for mode"+this->exposuremode->get_type());
@@ -1350,8 +1331,7 @@ namespace Camera {
 
       if (state == "TRUE" || state == "1") {
         if (this->controller->send_cmd("FASTAUTOFETCH1") != NO_ERROR) {
-          logwrite(function, "ERROR enabling autofetch mode");
-          return ERROR;
+          return fail(function, retstring, "enabling autofetch mode");
         }
         this->is_autofetch_mode = true;
         logwrite(function, "enabled");
@@ -1362,8 +1342,7 @@ namespace Camera {
         // with unsolicited <QF frames, which makes send_cmd()'s reply
         // matching unreliable right when we most need to disable it.
         if (this->controller->stop_autofetch() != NO_ERROR) {
-          logwrite(function, "ERROR disabling autofetch mode");
-          return ERROR;
+          return fail(function, retstring, "disabling autofetch mode");
         }
         this->is_autofetch_mode = false;
         logwrite(function, "disabled");
