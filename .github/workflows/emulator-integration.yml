@@ -126,7 +126,7 @@ jobs:
         cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
               -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake \
               -DBUILD_PYTHON_MODULE=ON ..
-        make camera_interface emulator shm_reader -j$(nproc)
+        make camera_interface emulator -j$(nproc)
 
     - name: Python module control test
       run: |
