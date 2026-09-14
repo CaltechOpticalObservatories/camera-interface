@@ -107,12 +107,6 @@ namespace {
         this->interface->configure_frame_outputs();
       }
 
-      // Release the camera before the logger, so teardown is still logged
-      ~CameraSession() {
-        this->interface.reset();
-        close_log();
-      }
-
       CameraSession(const CameraSession&) = delete;
       CameraSession& operator=(const CameraSession&) = delete;
 

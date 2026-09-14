@@ -87,6 +87,10 @@ long init_log(std::string name, std::string logpath, std::string logstderr, std:
     int year, mon, mday, hour, min, sec, usec;
     long error = 0;
 
+    // Retire any previous logger before opening the new stream, since close_log
+    // closes whatever is open
+    if (logger_thread.joinable()) close_log();
+
     to_stderr = (logstderr == "false" ? false : true); // should logwrite also print to stderr?
 
     tmzone_log = logtmzone;
@@ -167,9 +171,6 @@ long init_log(std::string name, std::string logpath, std::string logstderr, std:
         logwrite(function, message.str());
         return 1;
     }
-
-    // Assigning over a joinable thread would terminate
-    if (logger_thread.joinable()) close_log();
 
     logger_running = true;
     logger_thread = std::thread(logger_worker);
