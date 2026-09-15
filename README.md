@@ -33,11 +33,17 @@ If you encounter any problems or have questions about this project, please open 
     $ rm -Rf *
     ```
 
-3. **Create the Makefile by running CMake** (from the build directory):
+3. **Create the Makefile by running CMake** (from the build directory). `-DCONTROLLER=` is required; CMake stops with an error if it is missing:
 
-   | Archon                 | ARC                              |
-   |------------------------|----------------------------------|
-   | `$ cmake ..`           | `$ cmake -DINTERFACE_TYPE=AstroCam ..` |
+   | Archon                            | ARC                                  |
+   |-----------------------------------|--------------------------------------|
+   | `$ cmake -DCONTROLLER=archon ..`  | `$ cmake -DCONTROLLER=astrocam ..`   |
+
+   Add `-DINSTRUMENT=` to build an instrument module, whose sources come from `camerad/Instruments/<name>`:
+
+    ```bash
+    $ cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera ..
+    ```
 
    To enable the shared-memory output (`SHM_ENABLED` in a `.cfg` file, see [Frame Outputs](#frame-outputs) below), add `-DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=<prefix>/lib/cmake`:
 
@@ -74,31 +80,36 @@ If you encounter any problems or have questions about this project, please open 
 
 5. **Run the Camera Server:**
 
-    - **As a foreground process:**
+   The configuration file is passed with `--config` and is required.
+
+    - **As a foreground process**, logging to the console as well as to `LOGPATH`:
 
         ```bash
-        $ ../bin/camerad <file.cfg> --foreground
+        $ ../bin/camerad --foreground --config <file.cfg>
         ```
 
-    - **As a daemon:**
+    - **As a daemon**, which is the default without `--foreground`:
 
         ```bash
-        $ ../bin/camerad -d <file.cfg>
+        $ ../bin/camerad --config <file.cfg>
         ```
 
    *Replace `<file.cfg>` with an appropriate configuration file. See the example `.cfg` files in the `config` directory (per-instrument deployment configs live in each instrument's own repo under its `config/` directory; `config/demo` here is a generic example).*
 
+   Logging always goes to a daily file under `LOGPATH`. Whether it is also written to stderr follows `--foreground`, so an operator watching a console sees it and a daemon does not duplicate its whole log into the stderr redirect. `LOG_STDERR` in the `.cfg` overrides that either way.
+
 6. **(Optional) Run the Archon Emulator:**
 
     ```bash
-    $ ../bin/emulator <file.cfg>
+    $ ../bin/emulator <file.cfg> -i <instrument>
     ```
 
-   *Note: The emulator software will only be compiled when `INTERFACE_TYPE` is set to Archon (default).*
+   The emulator reads `EMULATOR_PORT` and `EMULATOR_SYSTEM` from the same `.cfg` the server uses, so point `ARCHON_IP`/`ARCHON_PORT` at it to run without hardware. `-i generic` suits the shipped test configs. It is built only for `-DCONTROLLER=archon`.
 
-7. **(Optional) Run Unit Tests:**
+7. **(Optional) Run Unit Tests.** The tests are excluded from the default target, so build them first:
 
     ```bash
+    $ make run_unit_tests
     $ ../bin/run_unit_tests
     ```
 
