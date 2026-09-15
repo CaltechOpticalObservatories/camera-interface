@@ -82,23 +82,31 @@ If you encounter any problems or have questions about this project, please open 
     $ make
     ```
 
-5. **(Optional) Install:** `make install` copies the binaries into
-   `${CMAKE_INSTALL_PREFIX}/bin`, which defaults to `/usr/local`:
+5. **(Optional) Install:** `make install` copies what the build produced under
+   `${CMAKE_INSTALL_PREFIX}`, which defaults to `/usr/local`:
 
     ```bash
     $ cmake -DCONTROLLER=archon -DCMAKE_INSTALL_PREFIX=$HOME/.local ..
     $ make && make install
     ```
 
-   | Binary                | Built when               |
-   |-----------------------|--------------------------|
-   | `camerad`             | always                   |
-   | `camerad-socksend`    | always                   |
-   | `camerad-emulator`    | `-DINTERFACE_TYPE=Archon` (the default) |
-   | `camerad-shm-reader`  | `-DENABLE_SHM_OUTPUT=ON` |
+   | Artifact             | Installed to | Built when               |
+   |----------------------|--------------|--------------------------|
+   | `camerad`            | `bin`        | always                   |
+   | `camerad-socksend`   | `bin`        | always                   |
+   | `camerad-emulator`   | `bin`        | `-DINTERFACE_TYPE=Archon` (the default) |
+   | `camerad-shm-reader` | `bin`        | `-DENABLE_SHM_OUTPUT=ON` |
+   | `camera_interface`   | `lib`        | `-DBUILD_PYTHON_MODULE=ON` |
 
    The tools carry a `camerad-` prefix because names like `socksend` are too
    generic for a directory shared with every other package.
+
+   The Python module installs to `lib`, so importing it means putting that
+   directory on `PYTHONPATH`:
+
+    ```bash
+    $ PYTHONPATH=$HOME/.local/lib python3 -c "import camera_interface"
+    ```
 
    Without installing, the binaries are only ever run from `bin/` in the source
    tree, so a rebuild replaces whatever is deployed and there is no way to keep
