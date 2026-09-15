@@ -45,6 +45,8 @@ If you encounter any problems or have questions about this project, please open 
     $ cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera ..
     ```
 
+   `-DINTERFACE_TYPE=` is separate from `-DCONTROLLER=` and selects only which emulator is built. It defaults to `Archon`; `-DINTERFACE_TYPE=AstroCam` skips the emulator, since none is implemented for ARC.
+
    To enable the shared-memory output (`SHM_ENABLED` in a `.cfg` file, see [Frame Outputs](#frame-outputs) below), add `-DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=<prefix>/lib/cmake`:
 
     ```bash
@@ -106,7 +108,7 @@ If you encounter any problems or have questions about this project, please open 
     $ ../bin/emulator <file.cfg> -i <instrument>
     ```
 
-   The emulator reads `EMULATOR_PORT` and `EMULATOR_SYSTEM` from the same `.cfg` the server uses, so point `ARCHON_IP`/`ARCHON_PORT` at it to run without hardware. `-i generic` suits the shipped test configs. It is built only for `-DCONTROLLER=archon`.
+   The emulator reads `EMULATOR_PORT` and `EMULATOR_SYSTEM` from the same `.cfg` the server uses, so point `ARCHON_IP`/`ARCHON_PORT` at it to run without hardware. `-i generic` suits the shipped test configs.
 
 7. **(Optional) Run Unit Tests.** The tests are excluded from the default target, so build them first:
 
