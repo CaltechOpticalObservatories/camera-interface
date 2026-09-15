@@ -72,6 +72,8 @@ If you encounter any problems or have questions about this project, please open 
 
    pybind11 is located by asking the interpreter CMake selected, so pass `-DPython3_EXECUTABLE=...` to build against a specific one (a virtualenv, say). The module and that interpreter then always agree on the ABI.
 
+   pybind11 is header-only and needed only to compile: the built module links cfitsio, CCfits and OpenCV but not pybind11, so it does not have to be present where the module is imported.
+
 4. **Compile the sources:**
 
     ```bash
