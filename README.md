@@ -121,6 +121,8 @@ camera.instrument_cmd("roi", "51 60 51 60")
 print(camera.output_status())         # frames written, dropped, last file
 ```
 
+Every command `camerad` accepts is reachable: the base commands are bound as methods, instrument-specific ones go through `instrument_cmd()` (enumerable with `instrument_commands()`), and controller-specific ones such as `mode`, `raw`, `readacf`, `loadtiming`, `heater` and `sensor` go through `controller_cmd()`. Only `exit` is omitted, since the process belongs to the caller.
+
 The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
 
 `output_status()` is a snapshot, never a barrier: the FITS writer queues and drops frames by design because disk is slower than acquisition can be, so nothing here lets a caller stall acquisition by waiting on an output. Anything needing to be woken per frame should attach to the shared-memory segment, which posts semaphores.
