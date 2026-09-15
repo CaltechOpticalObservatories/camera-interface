@@ -82,18 +82,27 @@ If you encounter any problems or have questions about this project, please open 
     $ make
     ```
 
-5. **(Optional) Install:** `make install` places `camerad`, `emulator`,
-   `socksend`, `listener` and, with `-DENABLE_SHM_OUTPUT=ON`, `shm_reader`
-   under `${CMAKE_INSTALL_PREFIX}/bin`, which defaults to `/usr/local`:
+5. **(Optional) Install:** `make install` copies the binaries into
+   `${CMAKE_INSTALL_PREFIX}/bin`, which defaults to `/usr/local`:
 
     ```bash
     $ cmake -DCONTROLLER=archon -DCMAKE_INSTALL_PREFIX=$HOME/.local ..
     $ make && make install
     ```
 
-   Without this the binaries are only ever run from `bin/` in the source tree,
-   so a rebuild replaces whatever is deployed and there is no way to keep two
-   versions or to tell which one is running.
+   | Binary                | Built when               |
+   |-----------------------|--------------------------|
+   | `camerad`             | always                   |
+   | `camerad-socksend`    | always                   |
+   | `camerad-emulator`    | `-DINTERFACE_TYPE=Archon` (the default) |
+   | `camerad-shm-reader`  | `-DENABLE_SHM_OUTPUT=ON` |
+
+   The tools carry a `camerad-` prefix because names like `socksend` are too
+   generic for a directory shared with every other package.
+
+   Without installing, the binaries are only ever run from `bin/` in the source
+   tree, so a rebuild replaces whatever is deployed and there is no way to keep
+   two versions or to tell which one is running.
 
 6. **Run the Camera Server:**
 
@@ -118,7 +127,7 @@ If you encounter any problems or have questions about this project, please open 
 7. **(Optional) Run the Archon Emulator:**
 
     ```bash
-    $ ../bin/emulator <file.cfg> -i <instrument>
+    $ ../bin/camerad-emulator <file.cfg> -i <instrument>
     ```
 
    The emulator reads `EMULATOR_PORT` and `EMULATOR_SYSTEM` from the same `.cfg` the server uses, so point `ARCHON_IP`/`ARCHON_PORT` at it to run without hardware. `-i generic` suits the shipped test configs.
