@@ -74,3 +74,8 @@ add_executable(listener
 add_executable(socksend
         ${PROJECT_UTILS_DIR}/sendcmd.cpp
 )
+
+install(TARGETS listener socksend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+if (ENABLE_SHM_OUTPUT)
+  install(TARGETS shm_reader RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()

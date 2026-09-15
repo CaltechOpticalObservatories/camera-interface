@@ -61,6 +61,8 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 find_package(Threads)
 find_package(nlohmann_json REQUIRED)
 
+include(GNUInstallDirs)
+
 # Declared here so the static libs get PIC, which ELF needs for a shared module
 option(BUILD_PYTHON_MODULE "Build the camera_interface Python module" OFF)
 if (BUILD_PYTHON_MODULE)
