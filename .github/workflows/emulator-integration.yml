@@ -119,14 +119,14 @@ jobs:
         sudo make install
         sudo ldconfig
 
-    - name: Build the Python module and emulator
+    - name: Build everything
       run: |
         mkdir -p ${{github.workspace}}/build
         cd ${{github.workspace}}/build
         cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
               -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake \
               -DBUILD_PYTHON_MODULE=ON ..
-        make camera_interface emulator -j$(nproc)
+        make -j$(nproc)
 
     - name: Python module control test
       run: |
@@ -142,6 +142,24 @@ jobs:
           --fits-dir /tmp/ci_fits_test
 
         pkill -f 'bin/camerad-emulator' || true
+
+    - name: Install to a prefix and verify
+      run: |
+        cmake --install build --prefix /tmp/camerad-prefix
+
+        for tool in camerad camerad-socksend camerad-emulator camerad-shm-reader; do
+          test -x "/tmp/camerad-prefix/bin/$tool" || { echo "not installed: $tool"; exit 1; }
+        done
+
+        # Run from /tmp so the build tree cannot satisfy the import and mask a
+        # missing install rule
+        cd /tmp
+        PYTHONPATH=/tmp/camerad-prefix/lib python3 - <<'PY'
+        import camera_interface as ci
+        assert ci.__file__.startswith("/tmp/camerad-prefix/lib/"), ci.__file__
+        assert ci.instrument_name() == "hispec_tracking_camera", ci.instrument_name()
+        print("imported", ci.__file__)
+        PY
 
   cryoscope-emulator-test:
     runs-on: ubuntu-latest
