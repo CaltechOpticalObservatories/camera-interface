@@ -6,6 +6,7 @@
 #include "frame_output_factory.h"
 #include "fits_writer.h"
 #include "common.h"
+#include "utilities.h"
 
 #ifdef CAMERAD_HAVE_SHM
 #include "shared_memory_writer.h"
@@ -13,12 +14,6 @@
 
 #include <stdexcept>
 #include <utility>
-
-namespace {
-  bool parse_bool(const std::string &v) {
-    return v == "yes" || v == "YES" || v == "true" || v == "TRUE" || v == "1";
-  }
-}
 
 namespace Camera {
 

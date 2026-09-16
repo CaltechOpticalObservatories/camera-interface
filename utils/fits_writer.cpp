@@ -253,6 +253,9 @@ namespace Camera {
       phdu.addKey("TIMESTMP", static_cast<long>(meta.timestamp),
                   "Archon timestamp (0.01 us units)");
       phdu.addKey("DATE", get_timestamp(), "FITS file write time");
+      // Basename only: a card holds 68 characters, less than a deployment path
+      phdu.addKey("FILENAME", std::filesystem::path(filename).filename().string(),
+                  "Name of the file");
 
       add_keys_from(phdu, meta.header_set.get());
       add_keys_from(phdu, meta.frame_keys.get());
@@ -297,6 +300,9 @@ namespace Camera {
         const std::string filename = make_filename(meta.frame_number);
         long axes[2] = {0, 0};   // NAXIS=0: header-only primary, matches v1's cube primary
         cube_fits_ = std::make_unique<CCfits::FITS>(filename, bitpix, 0, axes);
+        cube_fits_->pHDU().addKey("FILENAME",
+                                  std::filesystem::path(filename).filename().string(),
+                                  "Name of the file");
         add_keys_from(cube_fits_->pHDU(), meta.header_set.get());
         cube_extension_count_ = 0;
         logwrite(function, "opened cube " + filename);
