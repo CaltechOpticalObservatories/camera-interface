@@ -186,7 +186,7 @@ target_link_libraries(camerad
   ${ZMQ_LIB}
   )
 
-install(TARGETS camerad RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS camerad RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
 
 # ----------------------------------------------------------------------------
 # optional Python module

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "camera-interface"
+version = "2.0.0"
+description = "Python bindings for the camera-interface detector controller software"
+requires-python = ">=3.10"
+
+[tool.scikit-build]
+cmake.version = ">=3.15"
+
+# The wheel carries camerad and its tools as well as the module, so installing
+# the Python side gives a working command line too
+cmake.define.BUILD_PYTHON_MODULE = "ON"
+cmake.define.CONTROLLER = "archon"
+
+# Every file in the wheel comes from an install() rule, so there is no source
+# directory to copy
+wheel.packages = []

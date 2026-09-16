@@ -60,4 +60,4 @@ target_link_libraries(camera_interface PRIVATE
   ${ZMQ_LIB}
 )
 
-install(TARGETS camera_interface LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS camera_interface LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR})
