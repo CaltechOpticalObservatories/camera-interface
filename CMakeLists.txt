@@ -53,13 +53,27 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(PROJECT_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
-set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
+# A wheel build has nowhere to put a source-tree bin/, so let CMake keep its
+# outputs in the build directory
+if (NOT SKBUILD)
+  set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
+  set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
+endif()
 
 find_package(Threads)
 find_package(nlohmann_json REQUIRED)
 
 include(GNUInstallDirs)
+
+# A wheel lays out differently from a prefix: the module has to import as a
+# top-level name and the binaries have to land on the venv's PATH
+if (SKBUILD)
+  set(CAMERAD_INSTALL_BINDIR ${SKBUILD_SCRIPTS_DIR})
+  set(CAMERAD_INSTALL_LIBDIR ${SKBUILD_PLATLIB_DIR})
+else()
+  set(CAMERAD_INSTALL_BINDIR ${CMAKE_INSTALL_BINDIR})
+  set(CAMERAD_INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
+endif()
 
 # Declared here so the static libs get PIC, which ELF needs for a shared module
 option(BUILD_PYTHON_MODULE "Build the camera_interface Python module" OFF)

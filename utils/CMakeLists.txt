@@ -78,8 +78,8 @@ add_executable(socksend
 # Prefixed because these names are too generic for a shared bin directory
 set_target_properties(socksend PROPERTIES OUTPUT_NAME camerad-socksend)
 
-install(TARGETS socksend RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS socksend RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
 if (ENABLE_SHM_OUTPUT)
   set_target_properties(shm_reader PROPERTIES OUTPUT_NAME camerad-shm-reader)
-  install(TARGETS shm_reader RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  install(TARGETS shm_reader RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
 endif()
