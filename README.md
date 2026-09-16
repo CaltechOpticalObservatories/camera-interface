@@ -65,7 +65,7 @@ If you encounter any problems or have questions about this project, please open 
 
    ImageStreamIO's own `Config.cmake` files install directly under `<prefix>/lib/cmake/` rather than the CMake-conventional `<prefix>/lib/cmake/ImageStreamIO/`, so `-DImageStreamIO_DIR=...` must always be given explicitly, even for a standard system-wide install.
 
-   To build the Python module (see [Python Module](#python-module) below), add `-DBUILD_PYTHON_MODULE=ON`. It is off by default, so builds that don't want it never need pybind11:
+   To build the Python module (see [Python Module](#python-module) below), add `-DBUILD_PYTHON_MODULE=ON`. It is off by default, so builds that don't want it never need pybind11. To install it into an environment rather than build it here, see [Installing with pip](#installing-with-pip) instead, which fetches pybind11 itself:
 
     ```bash
     $ pip install pybind11
@@ -146,6 +146,27 @@ If you encounter any problems or have questions about this project, please open 
     $ make run_unit_tests
     $ ../bin/run_unit_tests
     ```
+
+## Installing with pip
+
+`pip install` builds the same artifacts and places them in the target environment, so `import camera_interface` needs no `PYTHONPATH` and `camerad` is on `PATH` whenever the environment is active:
+
+```bash
+$ pip install ./camera-interface \
+    --config-settings=cmake.define.INSTRUMENT=hispec_tracking_camera
+```
+
+Any CMake option can be passed the same way, so `--config-settings=cmake.define.ENABLE_SHM_OUTPUT=ON` works as well. `CONTROLLER` defaults to `archon` and `BUILD_PYTHON_MODULE` is forced on.
+
+pybind11 comes from `[build-system] requires`, so pip fetches it into an isolated build environment. It is never installed into the environment being built for.
+
+The controller and instrument are fixed when the wheel is built, and the module is always named `camera_interface`, so one environment holds one instrument's build. Install into a separate environment per instrument and have the caller assert which one it loaded:
+
+```python
+assert camera_interface.instrument_name() == "hispec_tracking_camera"
+```
+
+A compiler and the full dependency set have to be present wherever `pip install` runs, since it compiles camerad and the module from source.
 
 ## Python Module
 
