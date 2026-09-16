@@ -56,12 +56,12 @@ jobs:
       run: |
         mkdir -p /tmp/ci_milk_shm /tmp/ci_fits_test
 
-        bin/emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic &
+        bin/camerad-emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic &
         sleep 2
         bin/camerad --foreground --config config/frame_outputs_test/frame_outputs_test.cfg &
         sleep 3
 
-        send() { bin/socksend -p 3131 -t 60 "$1"; }
+        send() { bin/camerad-socksend -p 3131 -t 60 "$1"; }
 
         send "open"
         send "load"
@@ -74,11 +74,11 @@ jobs:
         # succeeded -- shm_reader's exit code and the FITS file's existence
         # are the real pass/fail signal
         sleep 1
-        bin/shm_reader ci_frame_outputs_shm /tmp/ci_milk_shm
+        bin/camerad-shm-reader ci_frame_outputs_shm /tmp/ci_milk_shm
         ls /tmp/ci_fits_test/ci_frame_outputs_*.fits
 
         pkill -f 'bin/camerad' || true
-        pkill -f 'bin/emulator' || true
+        pkill -f 'bin/camerad-emulator' || true
 
   python-module-emulator-test:
     runs-on: ubuntu-latest
@@ -119,20 +119,20 @@ jobs:
         sudo make install
         sudo ldconfig
 
-    - name: Build the Python module and emulator
+    - name: Build everything
       run: |
         mkdir -p ${{github.workspace}}/build
         cd ${{github.workspace}}/build
         cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
               -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake \
               -DBUILD_PYTHON_MODULE=ON ..
-        make camera_interface emulator -j$(nproc)
+        make -j$(nproc)
 
     - name: Python module control test
       run: |
         mkdir -p /tmp/ci_milk_shm /tmp/ci_fits_test
 
-        bin/emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic &
+        bin/camerad-emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic &
         sleep 2
 
         # No camerad process here: the module owns the Archon connection, and
@@ -141,7 +141,25 @@ jobs:
           --config config/frame_outputs_test/frame_outputs_test.cfg \
           --fits-dir /tmp/ci_fits_test
 
-        pkill -f 'bin/emulator' || true
+        pkill -f 'bin/camerad-emulator' || true
+
+    - name: Install to a prefix and verify
+      run: |
+        cmake --install build --prefix /tmp/camerad-prefix
+
+        for tool in camerad camerad-socksend camerad-emulator camerad-shm-reader; do
+          test -x "/tmp/camerad-prefix/bin/$tool" || { echo "not installed: $tool"; exit 1; }
+        done
+
+        # Run from /tmp so the build tree cannot satisfy the import and mask a
+        # missing install rule
+        cd /tmp
+        PYTHONPATH=/tmp/camerad-prefix/lib python3 - <<'PY'
+        import camera_interface as ci
+        assert ci.__file__.startswith("/tmp/camerad-prefix/lib/"), ci.__file__
+        assert ci.instrument_name() == "hispec_tracking_camera", ci.instrument_name()
+        print("imported", ci.__file__)
+        PY
 
   cryoscope-emulator-test:
     runs-on: ubuntu-latest
@@ -179,12 +197,12 @@ jobs:
 
     - name: CryoScope synthetic test
       run: |
-        bin/emulator config/cryoscope/cryoscope.cfg -i generic &
+        bin/camerad-emulator config/cryoscope/cryoscope.cfg -i generic &
         sleep 2
         bin/camerad --foreground --config config/cryoscope/cryoscope.cfg &
         sleep 3
 
-        send() { bin/socksend -p 3031 -t 60 "$1"; }
+        send() { bin/camerad-socksend -p 3031 -t 60 "$1"; }
 
         send "open"
         send "load"
@@ -195,7 +213,7 @@ jobs:
         echo "$resp" | grep -q "DONE" || exit 1
 
         pkill -f 'bin/camerad' || true
-        pkill -f 'bin/emulator' || true
+        pkill -f 'bin/camerad-emulator' || true
         sleep 1
 
     - name: CryoScope FITS playback test
@@ -203,12 +221,12 @@ jobs:
         cp config/cryoscope/cryoscope.cfg /tmp/cryoscope_fits_test.cfg
         echo "EMULATOR_DATADIR=config/cryoscope" >> /tmp/cryoscope_fits_test.cfg
 
-        bin/emulator /tmp/cryoscope_fits_test.cfg -i generic &
+        bin/camerad-emulator /tmp/cryoscope_fits_test.cfg -i generic &
         sleep 2
         bin/camerad --foreground --config /tmp/cryoscope_fits_test.cfg &
         sleep 3
 
-        send() { bin/socksend -p 3031 -t 60 "$1"; }
+        send() { bin/camerad-socksend -p 3031 -t 60 "$1"; }
 
         send "open"
         send "load"
@@ -220,4 +238,4 @@ jobs:
         echo "$resp" | grep -q "DONE" || exit 1
 
         pkill -f 'bin/camerad' || true
-        pkill -f 'bin/emulator' || true
+        pkill -f 'bin/camerad-emulator' || true
