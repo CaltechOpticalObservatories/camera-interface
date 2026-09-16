@@ -82,7 +82,37 @@ If you encounter any problems or have questions about this project, please open 
     $ make
     ```
 
-5. **Run the Camera Server:**
+5. **(Optional) Install:** `make install` copies what the build produced under
+   `${CMAKE_INSTALL_PREFIX}`, which defaults to `/usr/local`:
+
+    ```bash
+    $ cmake -DCONTROLLER=archon -DCMAKE_INSTALL_PREFIX=$HOME/.local ..
+    $ make && make install
+    ```
+
+   | Artifact             | Installed to | Built when               |
+   |----------------------|--------------|--------------------------|
+   | `camerad`            | `bin`        | always                   |
+   | `camerad-socksend`   | `bin`        | always                   |
+   | `camerad-emulator`   | `bin`        | `-DINTERFACE_TYPE=Archon` (the default) |
+   | `camerad-shm-reader` | `bin`        | `-DENABLE_SHM_OUTPUT=ON` |
+   | `camera_interface`   | `lib`        | `-DBUILD_PYTHON_MODULE=ON` |
+
+   The tools carry a `camerad-` prefix because names like `socksend` are too
+   generic for a directory shared with every other package.
+
+   The Python module installs to `lib`, so importing it means putting that
+   directory on `PYTHONPATH`:
+
+    ```bash
+    $ PYTHONPATH=$HOME/.local/lib python3 -c "import camera_interface"
+    ```
+
+   Without installing, the binaries are only ever run from `bin/` in the source
+   tree, so a rebuild replaces whatever is deployed and there is no way to keep
+   two versions or to tell which one is running.
+
+6. **Run the Camera Server:**
 
    The configuration file is passed with `--config` and is required.
 
@@ -102,15 +132,15 @@ If you encounter any problems or have questions about this project, please open 
 
    Logging always goes to a daily file under `LOGPATH`. Whether it is also written to stderr follows `--foreground`, so an operator watching a console sees it and a daemon does not duplicate its whole log into the stderr redirect. `LOG_STDERR` in the `.cfg` overrides that either way.
 
-6. **(Optional) Run the Archon Emulator:**
+7. **(Optional) Run the Archon Emulator:**
 
     ```bash
-    $ ../bin/emulator <file.cfg> -i <instrument>
+    $ ../bin/camerad-emulator <file.cfg> -i <instrument>
     ```
 
    The emulator reads `EMULATOR_PORT` and `EMULATOR_SYSTEM` from the same `.cfg` the server uses, so point `ARCHON_IP`/`ARCHON_PORT` at it to run without hardware. `-i generic` suits the shipped test configs.
 
-7. **(Optional) Run Unit Tests.** The tests are excluded from the default target, so build them first:
+8. **(Optional) Run Unit Tests.** The tests are excluded from the default target, so build them first:
 
     ```bash
     $ make run_unit_tests
