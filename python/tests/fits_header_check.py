@@ -39,14 +39,14 @@ EXPECTED_STRINGS: Final = {
 }
 
 # NCHANLS and REFPXAMP come from MODE_DEFAULT's 5 taplines. PIXTIME is the
-# instrument default, no PIXEL_TIME_USEC being set in the test cfg, and FRAMETME
-# is 2048 lines x 512 pixels per tap at that rate.
+# ACF's SHD2=695 ticks of 10 ns, and FRAMETME is 2048 lines x 512 pixels per
+# tap at that rate.
 EXPECTED_NUMBERS: Final = {
     "DETBITS": 16.0,
     "NCHANLS": 4.0,
     "REFPXAMP": 5.0,
-    "PIXTIME": 7.0,
-    "FRAMETME": 7.340032,
+    "PIXTIME": 6.95,
+    "FRAMETME": 7.2876032,
     "SKIPROWS": 0.0,
     "SKIPLNES": 0.0,
     "NREADS": 1.0,
