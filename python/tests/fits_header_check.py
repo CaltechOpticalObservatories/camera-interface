@@ -38,14 +38,15 @@ EXPECTED_STRINGS: Final = {
     "FREERUN": "F",
 }
 
-# NCHANLS and REFPXAMP come from MODE_DEFAULT's 5 taplines, FRAMETME from
-# 2048 lines x 512 pixels per tap at PIXTIME
+# NCHANLS and REFPXAMP come from MODE_DEFAULT's 5 taplines. PIXTIME is the
+# instrument default, no PIXEL_TIME_USEC being set in the test cfg, and FRAMETME
+# is 2048 lines x 512 pixels per tap at that rate.
 EXPECTED_NUMBERS: Final = {
     "DETBITS": 16.0,
     "NCHANLS": 4.0,
     "REFPXAMP": 5.0,
-    "PIXTIME": 5.92,
-    "FRAMETME": 6.20756992,
+    "PIXTIME": 7.0,
+    "FRAMETME": 7.340032,
     "SKIPROWS": 0.0,
     "SKIPLNES": 0.0,
     "NREADS": 1.0,
