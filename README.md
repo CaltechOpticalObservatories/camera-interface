@@ -147,6 +147,14 @@ If you encounter any problems or have questions about this project, please open 
     $ ../bin/run_unit_tests
     ```
 
+9. **(Optional) Check the FITS headers** of a file the writer produced, against the instrument's header definition:
+
+    ```bash
+    $ python3 python/tests/fits_header_check.py <file.fits> --exptime <sec>
+    ```
+
+   Asserts every expected keyword is present and carries the value the emulator's `MODE_DEFAULT` implies, so a keyword that stops being populated fails rather than going unnoticed. Needs no FITS library. Both emulator CI jobs run it after their exposure.
+
 ## Installing with pip
 
 `pip install` builds the same artifacts and places them in the target environment, so `import camera_interface` needs no `PYTHONPATH` and `camerad` is on `PATH` whenever the environment is active:
@@ -226,6 +234,18 @@ Publishes each frame as an [ImageStreamIO](https://github.com/milk-org/ImageStre
 | `SHM_DIR`               | (unset)    | Base directory ImageStreamIO writes into. If unset, ImageStreamIO falls back to its own default resolution (`MILK_SHM_DIR` env var, then `/milk/shm`). If set, it must already exist and be writable. |
 
 Frame geometry (width/height/pixel depth) isn't a config key: it's fixed for an ImageStreamIO stream's whole life, so the writer (re)creates the stream automatically whenever it sees the geometry change from what's currently allocated.
+
+## Exposure Time
+
+`exptime [ <time> [ s | ms ] ]` sets or reports the exposure time. Without a unit on the argument, the value is in whatever `LONGEXPOSURE` selects, and the value reported back uses that same unit. A unit on the argument overrides it for that one command, so `exptime 500 ms` is unambiguous whichever way the instrument is configured.
+
+| Key                   | Default | Meaning                                                            |
+|-----------------------|---------|--------------------------------------------------------------------|
+| `LONGEXPOSURE`        | `true`  | `true`: `exptime` arguments are seconds; `false`: milliseconds      |
+| `EXPTIME_MSEC_PARAM`  | none    | Archon parameter holding the milliseconds part; required            |
+| `EXPTIME_SEC_PARAM`   | none    | Archon parameter holding the whole-seconds part; optional           |
+
+Internally the exposure time is always seconds, which is also the unit of the `EXPTIME` FITS keyword, so the configured unit never changes what is archived. Archon parameters are 20 bits, so without `EXPTIME_SEC_PARAM` the longest exposure is 2^20 msec (about 1048 sec); beyond that `exptime` returns an error rather than leaving the controller and the header disagreeing.
 
 ## Heater & Sensor Control
 

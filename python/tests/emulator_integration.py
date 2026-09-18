@@ -13,6 +13,8 @@ import time
 
 import camera_interface
 
+from fits_header_check import CheckFailed, check, check_file
+
 EXPECTED_INSTRUMENT = "hispec_tracking_camera"
 EXPECTED_CONTROLLER = "archon"
 
@@ -21,15 +23,8 @@ EXPECTED_CONTROLLER = "archon"
 WRITE_TIMEOUT_S = 30.0
 POLL_INTERVAL_S = 0.1
 
-
-class CheckFailed(Exception):
-    """Raised when an integration check does not hold."""
-
-
-def check(condition: bool, message: str) -> None:
-    """Raise CheckFailed with message unless condition holds."""
-    if not condition:
-        raise CheckFailed(message)
+# Nonzero so the header's EXPTIME is checked against a value something had to carry
+EXPTIME_S = 1.5
 
 
 def check_build_identity() -> None:
@@ -77,7 +72,7 @@ def run(config_path: str, fits_dir: pathlib.Path) -> None:
     camera.open()
     camera.load()
     camera.power("on")
-    camera.exptime("0")
+    camera.exptime(str(EXPTIME_S))
     print(f"power={camera.power()} exptime={camera.exptime()}")
 
     check_introspection(camera)
@@ -95,6 +90,7 @@ def run(config_path: str, fits_dir: pathlib.Path) -> None:
     check(bool(written), f"no new FITS file appeared in {fits_dir}")
     for path in written:
         print(f"wrote: {path} ({path.stat().st_size} bytes)")
+        check_file(path, EXPTIME_S)
 
     camera.close()
 
