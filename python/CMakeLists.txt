@@ -39,8 +39,15 @@ target_include_directories(camera_interface PRIVATE
   ${INTERFACE_INCLUDES}
 )
 
+set(CAMERAD_MODULE_NAME "camera_interface" CACHE STRING
+    "Import name of the Python module")
+
+# Filename and import name must agree, so both come from CAMERAD_MODULE_NAME
+set_target_properties(camera_interface PROPERTIES OUTPUT_NAME ${CAMERAD_MODULE_NAME})
+
 target_compile_definitions(camera_interface PRIVATE
   CAMERAD_INSTRUMENT_NAME="${INSTRUMENT}"
+  CAMERAD_MODULE_NAME=${CAMERAD_MODULE_NAME}
 )
 
 # Same link set as camerad, minus the server sources it does not use

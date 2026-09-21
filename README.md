@@ -191,6 +191,15 @@ Every command `camerad` accepts is reachable: the base commands are bound as met
 
 The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
 
+Because one build serves one instrument, two instruments mean two builds, and they collide in a shared environment while both are called `camera_interface`. `-DCAMERAD_MODULE_NAME=` renames the module and its file together, so per-instrument builds can be installed and imported side by side:
+
+```bash
+$ cmake -DBUILD_PYTHON_MODULE=ON -DINSTRUMENT=hispec_tracking_camera \
+        -DCAMERAD_MODULE_NAME=camera_interface_tracking ..
+```
+
+It defaults to `camera_interface`, so a build that does not set it is unaffected.
+
 `output_status()` is a snapshot, never a barrier: the FITS writer queues and drops frames by design because disk is slower than acquisition can be, so nothing here lets a caller stall acquisition by waiting on an output. Anything needing to be woken per frame should attach to the shared-memory segment, which posts semaphores.
 
 Commands release the GIL while they run, so a blocking `expose()` leaves the rest of the process responsive.
