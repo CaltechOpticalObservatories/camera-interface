@@ -66,16 +66,23 @@ jobs:
         send "open"
         send "load"
         send "power on"
+
+        # This cfg sets no LONGEXPOSURE, so a bare argument is sec; an explicit
+        # unit has to override that
+        send "exptime 1500 ms" | grep -q "^1.500" || { echo "unit suffix ignored"; exit 1; }
+
+        send "exptime 1.5"
         resp=$(send "expose 1")
         echo "expose -> $resp"
         echo "$resp" | grep -q "DONE" || exit 1
 
         # DONE only means camerad accepted the command, not that the writers
-        # succeeded -- shm_reader's exit code and the FITS file's existence
-        # are the real pass/fail signal
+        # succeeded -- shm_reader's exit code and the FITS headers are the
+        # real pass/fail signal
         sleep 1
         bin/camerad-shm-reader ci_frame_outputs_shm /tmp/ci_milk_shm
-        ls /tmp/ci_fits_test/ci_frame_outputs_*.fits
+        python3 python/tests/fits_header_check.py \
+          /tmp/ci_fits_test/ci_frame_outputs_*.fits --exptime 1.5
 
         pkill -f 'bin/camerad' || true
         pkill -f 'bin/camerad-emulator' || true

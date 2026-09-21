@@ -329,6 +329,7 @@ namespace Camera {
 
       std::string sec_param;                //!< parameter name for exposure time seconds
       std::string msec_param;               //!< parameter name for exposure time milliseconds
+      bool is_longexposure{true};           //!< LONGEXPOSURE: true=exptime args in sec, false=msec
       std::string expose_param;             //!< parameter name to trigger exposure when set =1
       std::string abort_param;              //!< parameter name to abort when set =1 (optional)
 

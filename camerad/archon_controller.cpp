@@ -58,12 +58,6 @@ namespace Camera {
     this->frameinfo.buftimestamp.resize(MAXNBUFS);
     this->frameinfo.bufretimestamp.resize(MAXNBUFS);
     this->frameinfo.buffetimestamp.resize(MAXNBUFS);
-
-    {
-    auto ptr=std::make_unique<ArchonExposureTime>();  // create ArchonExposureTime object
-    this->exposure_time=ptr.get();                    // store non-owning pointer to derived type
-    this->info.exposure_time=std::move(ptr);          // transfer ownership to info
-    }
   }
   /***** Camera::ArchonController::ArchonController ***************************/
 
@@ -87,6 +81,13 @@ namespace Camera {
    */
   void ArchonController::set_interface(ArchonInterface* _interface) {
     this->interface = _interface;
+
+    // The Archon splits the exposure time into sec and msec, so camera_info's
+    // base ExposureTime is replaced with the derived one. camera_info owns it
+    // and is what an instrument reads; this class keeps the typed pointer.
+    auto ptr = std::make_unique<ArchonExposureTime>();
+    this->exposure_time = ptr.get();
+    this->interface->camera_info.exposure_time = std::move(ptr);
   }
   /***** Camera::ArchonController::set_interface ******************************/
 
@@ -147,6 +148,12 @@ namespace Camera {
       // EXPTIME_MSEC_PARAM
       if (this->interface->configfile.param[row]=="EXPTIME_MSEC_PARAM") {
         this->msec_param = this->interface->configfile.arg[row];
+        numapplied++;
+      }
+      else
+      // LONGEXPOSURE
+      if (this->interface->configfile.param[row]=="LONGEXPOSURE") {
+        this->is_longexposure = parse_bool(this->interface->configfile.arg[row]);
         numapplied++;
       }
       else
@@ -793,26 +800,27 @@ namespace Camera {
       throw std::runtime_error("exposure time parameters not in configuration");
     }
 
-    try {
-      if (!this->sec_param.empty()) {
-        // Split into seconds and milliseconds when both parameters are configured
-        auto [sec, msec] = this->exposure_time->split(exptime);
-        if ( (set_parameter(sec_param, sec)   == NO_ERROR) &&
-             (set_parameter(msec_param, msec) == NO_ERROR) ) {
-          this->exposure_time->set(exptime);
-        }
-      }
-      else {
-        // Single parameter mode: write as milliseconds
-        int msec = static_cast<int>(exptime * 1000.0);
-        if (set_parameter(msec_param, msec) == NO_ERROR) {
-          this->exposure_time->set(exptime);
-        }
+    // split() enforces the Archon's 20-bit parameter limit, so it is used even
+    // when only the msec parameter is configured and the seconds part is unusable
+    auto [sec, msec] = this->exposure_time->split(exptime);
+
+    if (!this->sec_param.empty()) {
+      if (set_parameter(sec_param, sec) != NO_ERROR || set_parameter(msec_param, msec) != NO_ERROR) {
+        throw std::runtime_error("writing exposure time to controller");
       }
     }
-    catch (const std::exception &e) {
-      throw;
+    else {
+      if (sec != 0) {
+        throw std::runtime_error("exposure time needs a seconds parameter: "
+                                 +std::to_string(exptime)+" sec exceeds 2^20 msec");
+      }
+      if (set_parameter(msec_param, msec) != NO_ERROR) {
+        throw std::runtime_error("writing exposure time to controller");
+      }
     }
+
+    // Only reached when the controller took it, so the stored value is the real one
+    this->exposure_time->set(exptime);
   }
   /***** Camera::ArchonController::set_exptime ********************************/
 
@@ -1595,7 +1603,10 @@ namespace Camera {
             filestream.close();
             return ERROR;
           }
-          keyword   = tokens[0].substr(0,8); // truncate keyword to 8 characters
+          // Keyed by the untruncated name so a lookup can use the name the ACF
+          // wrote; the 8-character limit applies only to the card itself
+          const std::string full_keyword = tokens[0];
+          keyword   = full_keyword.substr(0,8);
           keystring = tokens[1];                    // tokenize the rest in a moment
           keycomment = "";                          // initialize comment, assumed empty unless specified below
 
@@ -1624,10 +1635,10 @@ namespace Camera {
           }
 
           // Save all the user keyword information in a map for later
-          this->modemap[mode].acfkeys.keydb[keyword].keyword    = keyword;
-          this->modemap[mode].acfkeys.keydb[keyword].keytype    = this->interface->camera_info.userkeys.get_keytype(keyvalue);
-          this->modemap[mode].acfkeys.keydb[keyword].keyvalue   = keyvalue;
-          this->modemap[mode].acfkeys.keydb[keyword].keycomment = keycomment;
+          this->modemap[mode].acfkeys.keydb[full_keyword].keyword    = keyword;
+          this->modemap[mode].acfkeys.keydb[full_keyword].keytype    = this->interface->camera_info.userkeys.get_keytype(keyvalue);
+          this->modemap[mode].acfkeys.keydb[full_keyword].keyvalue   = keyvalue;
+          this->modemap[mode].acfkeys.keydb[full_keyword].keycomment = keycomment;
           // end if (line.compare(0,5,"FITS:")==0)
           //
           // ----- all done looking for "TAGS:" -----
@@ -1773,6 +1784,10 @@ namespace Camera {
 
     try {
       this->get_configmap_value("SAMPLEMODE", mode->samplemode);
+
+      // 32-bit sample mode doubles the width of every pixel the Archon delivers
+      this->interface->camera_info.bitpix = (mode->samplemode == 1) ? 32 : 16;
+
       this->get_configmap_value("BIGBUF", mode->bigbuf);
       this->get_configmap_value("FRAMEMODE", mode->geometry.framemode);
       this->get_configmap_value("RAWENABLE", mode->rawenable);
