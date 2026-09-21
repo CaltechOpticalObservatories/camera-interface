@@ -5,9 +5,8 @@ named by SHM_SEGMENT_NAME, carrying FRAMENO, TIMESTMP and SEQNUM as stream
 keywords. This script attaches to that stream, blocks on its semaphore, and
 reports each frame as it arrives.
 
-Needs numpy and the ImageStreamIOWrap module, the latter built from
-milk-org/ImageStreamIO with -DPYTHON_WRAPPER=ON since it is not on PyPI, and
-camerad running with SHM_ENABLED=yes.
+Needs numpy, the ImageStreamIOWrap module built from milk-org/ImageStreamIO
+with -DPYTHON_WRAPPER=ON, and camerad running with SHM_ENABLED=yes.
 
     python shm_read_frames.py --segment hispec_tracking_camera --count 10
 """
@@ -52,8 +51,8 @@ class SegmentUnavailable(Exception):
 
 def open_segment(name: str, timeout_s: float) -> Image:
     """Attach to the named stream, waiting for camerad to create it."""
-    # The writer sizes the stream from the first frame it publishes, so the
-    # segment does not exist until camerad has actually exposed once
+    # The writer creates the stream on its first frame, so it does not exist
+    # until camerad has actually exposed once
     deadline = time.monotonic() + timeout_s
     image = Image()
     while image.open(name) != IMAGESTREAMIO_SUCCESS:
@@ -79,8 +78,7 @@ def read_frames(image: Image, count: int | None) -> Iterator[Frame]:
     while count is None or yielded < count:
         image.semwait(semaphore)
 
-        # Nothing pins the live buffer, so a reader slower than the writer gets
-        # overtaken mid-copy; the cnt0 gap in report() is how that shows up
+        # Nothing pins the live buffer, so a slow reader is overtaken mid-copy
         pixels = image.copy()
         keywords = keyword_values(image)
 
@@ -117,13 +115,6 @@ def report(frame: Frame, previous: Frame | None) -> None:
     print(" ".join(fields), flush=True)
 
 
-def describe_segment(name: str, image: Image) -> None:
-    """Print the stream geometry the writer created."""
-    metadata = image.md
-    print(f"segment={name} size={tuple(metadata.size[:metadata.naxis])} "
-          f"datatype={metadata.datatype} cnt0={metadata.cnt0}", flush=True)
-
-
 def parse_arguments() -> argparse.Namespace:
     """Parse the command line."""
     parser = argparse.ArgumentParser(
@@ -146,8 +137,7 @@ def main() -> int:
     args = parse_arguments()
 
     if args.dir:
-        # ImageStreamIO reads this when resolving the segment path, so it has to
-        # be set before the first open
+        # ImageStreamIO resolves the segment path from this at open time
         os.environ["MILK_SHM_DIR"] = args.dir
 
     try:
@@ -156,7 +146,9 @@ def main() -> int:
         print(f"ERROR {failure}", file=sys.stderr)
         return 1
 
-    describe_segment(args.segment, image)
+    metadata = image.md
+    print(f"segment={args.segment} size={tuple(metadata.size[:metadata.naxis])} "
+          f"datatype={metadata.datatype} cnt0={metadata.cnt0}", flush=True)
 
     if args.save_dir:
         args.save_dir.mkdir(parents=True, exist_ok=True)

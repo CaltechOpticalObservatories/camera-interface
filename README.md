@@ -241,7 +241,7 @@ Two readers ship with the repo. `camerad-shm-reader` prints geometry, keywords a
 $ python python/examples/shm_read_frames.py --segment hispec_tracking_camera --count 10
 ```
 
-It needs numpy and `ImageStreamIOWrap`, the Python wrapper from the ImageStreamIO source tree, built with `-DPYTHON_WRAPPER=ON`. Neither the wrapper nor this script is on PyPI.
+It needs numpy and `ImageStreamIOWrap`, the Python wrapper from the ImageStreamIO source tree, built with `-DPYTHON_WRAPPER=ON`; the wrapper is not on PyPI.
 
 ## Exposure Time
 
