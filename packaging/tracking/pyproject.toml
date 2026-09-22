@@ -1,0 +1,19 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "camera-interface-tracking"
+version = "2.0.0"
+description = "camera_interface built for the HISPEC tracking camera"
+requires-python = ">=3.10"
+
+[tool.scikit-build]
+cmake.version = ">=3.15"
+cmake.source-dir = "../.."
+wheel.packages = []
+
+cmake.define.BUILD_PYTHON_MODULE = "ON"
+cmake.define.CONTROLLER = "archon"
+cmake.define.INSTRUMENT = "hispec_tracking_camera"
+cmake.define.CAMERAD_MODULE_NAME = "camera_interface_tracking"
