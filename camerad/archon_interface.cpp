@@ -8,8 +8,35 @@
 
 #include "archon_interface.h"
 #include "archon_controller.h"
+#include "utilities.h"
+
+#include <algorithm>
+#include <cctype>
+#include <stdexcept>
 
 namespace Camera {
+
+  namespace {
+    constexpr double MSEC_PER_SEC = 1000.0;
+
+    // "<value> [ s | ms ]", returned as seconds. A unit on the argument overrides
+    // the configured one for this command only.
+    double exptime_sec_from(const std::string &args, bool default_is_sec) {
+      size_t numeric_end = 0;
+      const double value = std::stod(args, &numeric_end);  // throws on a non-numeric argument
+
+      std::string unit = args.substr(numeric_end);
+      unit.erase(std::remove_if(unit.begin(), unit.end(),
+                                [](unsigned char c) { return std::isspace(c); }),
+                 unit.end());
+
+      if (unit.empty()) return default_is_sec ? value : value / MSEC_PER_SEC;
+      if (caseCompareString(unit, "s") || caseCompareString(unit, "sec")) return value;
+      if (caseCompareString(unit, "ms") || caseCompareString(unit, "msec")) return value / MSEC_PER_SEC;
+
+      throw std::invalid_argument("unrecognized unit \""+unit+"\", expected s or ms");
+    }
+  }
 
   /***** Camera::ArchonInterface::ArchonInterface *****************************/
   /**
@@ -338,36 +365,43 @@ namespace Camera {
   /***** Camera::ArchonInterface::exptime *************************************/
   /**
    * @brief      set/get the exposure time
-   * @details    exposure time is in the units set by longexposure() or the
-   *             unit can be optionally set here
-   * @param[in]  exptime_in  "<time> [ s | ms ]" exposure time in current units
+   * @details    The argument, and the value reported back, are in the unit
+   *             LONGEXPOSURE selects: sec when true (the default), else msec.
+   *             An explicit unit on the argument overrides that for one command.
+   * @param[in]  args        "<time> [ s | ms ]" exposure time in current units
    * @param[out] retstring   return string
    * @return     ERROR | NO_ERROR | HELP
    *
    */
   long ArchonInterface::exptime( const std::string args, std::string &retstring ) {
     const std::string function("Camera::ArchonInterface::exptime");
+    const bool longexposure = this->controller->is_longexposure;
     // Help
     if (args=="?" || args=="help") {
       retstring = CAMERAD_EXPTIME;
-      retstring.append( " [ <exptime> ]\n" );
-      retstring.append( "  get or optionally set the exposure time in floating point units of sec\n" );
+      retstring.append( " [ <exptime> [ s | ms ] ]\n" );
+      retstring.append( "  get or optionally set the exposure time, floating point.\n" );
+      retstring.append( "  Without a unit the value is in " );
+      retstring.append( longexposure ? "sec" : "msec" );
+      retstring.append( ", which LONGEXPOSURE selects.\n" );
       return HELP;
     }
 
     // If an arg was supplied then use it to try to set the exptime
     if (!args.empty()) {
       try {
-        this->set_exptime(std::stod(args));
+        this->set_exptime(exptime_sec_from(args, longexposure));
       }
       catch (const std::exception &e) {
         return fail(function, retstring, std::string(e.what()));
       }
     }
 
-    // read the exptime from the class
+    // read the exptime from the class, reported in the configured unit
+    const double exptime_sec = this->controller->exposure_time->get();
     std::ostringstream oss;
-    oss << std::fixed << std::setprecision(3) << this->controller->exposure_time->get();
+    oss << std::fixed << std::setprecision(3)
+        << (longexposure ? exptime_sec : exptime_sec * MSEC_PER_SEC);
     retstring = oss.str();
 
     return NO_ERROR;
