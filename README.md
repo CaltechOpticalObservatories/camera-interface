@@ -235,6 +235,14 @@ Publishes each frame as an [ImageStreamIO](https://github.com/milk-org/ImageStre
 
 Frame geometry (width/height/pixel depth) isn't a config key: it's fixed for an ImageStreamIO stream's whole life, so the writer (re)creates the stream automatically whenever it sees the geometry change from what's currently allocated.
 
+Two readers ship with the repo. `camerad-shm-reader` prints geometry, keywords and pixel statistics once, for diagnostics. `python/examples/shm_read_frames.py` is a sample streaming consumer: it blocks on the stream's semaphore and reports every frame as it arrives, flagging any it missed.
+
+```bash
+$ python python/examples/shm_read_frames.py --segment hispec_tracking_camera --count 10
+```
+
+It needs numpy and `ImageStreamIOWrap`, the Python wrapper from the ImageStreamIO source tree, built with `-DPYTHON_WRAPPER=ON`; the wrapper is not on PyPI.
+
 ## Exposure Time
 
 `exptime [ <time> [ s | ms ] ]` sets or reports the exposure time. Without a unit on the argument, the value is in whatever `LONGEXPOSURE` selects, and the value reported back uses that same unit. A unit on the argument overrides it for that one command, so `exptime 500 ms` is unambiguous whichever way the instrument is configured.
