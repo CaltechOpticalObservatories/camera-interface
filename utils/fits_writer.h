@@ -16,6 +16,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -68,8 +69,8 @@ namespace Camera {
       void worker_loop();
       long write_fits_file(const QueuedFrame &frame);
       long write_cube_frame(const QueuedFrame &frame);
-      void close_cube();
-      std::string make_filename(uint64_t frame_number);
+      void close_cubes();
+      std::string make_filename(const FrameMetadata &meta);
       // Resolve the target directory, creating today's autodir subdir on demand.
       // Worker-thread only (uses cur_date_dir_ without locking).
       std::string resolve_output_dir();
@@ -79,9 +80,14 @@ namespace Camera {
       // Cache of the last autodir path created; touched only on the worker thread
       std::string cur_date_dir_;
 
-      // Datacube state — worker-thread only, no locking needed
-      std::unique_ptr<CCfits::FITS> cube_fits_;
-      uint32_t cube_extension_count_{0};
+      /// One datacube being appended to, per FrameMetadata::stream
+      struct OpenCube {
+        std::unique_ptr<CCfits::FITS> fits;
+        uint32_t extension_count{0};
+      };
+
+      // Datacube state, worker-thread only, no locking needed
+      std::map<std::string, OpenCube> cubes_;
 
       std::deque<QueuedFrame> queue_;
       mutable std::mutex mtx_;

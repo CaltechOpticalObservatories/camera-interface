@@ -201,6 +201,10 @@ Logging follows `LOG_STDERR` from the `.cfg`; pass `log_to_stderr=` to override 
 
 Every instrument publishes each acquired frame to one or more outputs, configured entirely via `.cfg` file keys (`Camera::Interface::configure_frame_outputs()` builds them from `Camera::apply_config_overrides()`, called once at startup for every instrument, not just HISPEC). Both outputs are independent; either, both, or neither can be enabled per instrument.
 
+### Streams
+
+Every frame carries an optional stream name so that one exposure can deliver outputs of different geometry without them colliding. The primary image leaves it empty; an Archon `raw read` sets it to `raw`. FITS appends the name to the filename (`image_00000123_raw.fits`) and shared memory appends it to the segment name (`camera_raw`), so a RAW capture neither overwrites the image file nor resizes the image stream.
+
 ### FITS
 
 Writes one FITS file per frame asynchronously (a queue plus a dedicated writer thread, so the readout thread never blocks on disk I/O).
@@ -225,7 +229,7 @@ Publishes each frame as an [ImageStreamIO](https://github.com/milk-org/ImageStre
 | `SHM_RING_BUFFER_SIZE`  | `4`        | Depth of ImageStreamIO's internal history ring buffer (`CBsize`); the live frame a real-time reader sees is separate from this |
 | `SHM_DIR`               | (unset)    | Base directory ImageStreamIO writes into. If unset, ImageStreamIO falls back to its own default resolution (`MILK_SHM_DIR` env var, then `/milk/shm`). If set, it must already exist and be writable. |
 
-Frame geometry (width/height/pixel depth) isn't a config key: it's fixed for an ImageStreamIO stream's whole life, so the writer (re)creates the stream automatically whenever it sees the geometry change from what's currently allocated.
+Frame geometry (width/height/pixel depth) isn't a config key: it's fixed for an ImageStreamIO stream's whole life, so the writer (re)creates a stream automatically whenever it sees the geometry change from what's currently allocated for that stream.
 
 ## Heater & Sensor Control
 

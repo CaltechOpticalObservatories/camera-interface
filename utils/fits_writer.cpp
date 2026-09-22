@@ -133,7 +133,7 @@ namespace Camera {
     cv_.notify_all();
 
     if (worker_.joinable()) worker_.join();
-    close_cube();   // worker has exited, safe to touch its state here
+    close_cubes();   // worker has exited, safe to touch its state here
     started_.store(false);
 
     const std::string function("Camera::FitsWriter::close");
@@ -217,7 +217,7 @@ namespace Camera {
       }
 
       if (frame.end_of_exposure) {
-        close_cube();
+        close_cubes();
         continue;
       }
 
@@ -231,13 +231,13 @@ namespace Camera {
 
   long FitsWriter::write_fits_file(const QueuedFrame &frame) {
     if (cube_enabled_.load()) return write_cube_frame(frame);
-    if (cube_fits_) close_cube();   // datacube was just turned off mid-cube; finalize it
+    if (!cubes_.empty()) close_cubes();   // datacube was just turned off mid-cube; finalize it
 
     const std::string function("Camera::FitsWriter::write_fits_file");
     const auto &meta = frame.meta;
     const size_t npixels = static_cast<size_t>(meta.width) * meta.height;
 
-    const std::string filename = make_filename(meta.frame_number);
+    const std::string filename = make_filename(meta);
     // CCfits requires a non-existing path; "!" prefix would overwrite,
     // but make_filename() already resolved any conflict
     const int bitpix = (meta.bytes_per_pixel == 2) ? USHORT_IMG : ULONG_IMG;
@@ -291,21 +291,22 @@ namespace Camera {
     const auto &meta = frame.meta;
     const size_t npixels = static_cast<size_t>(meta.width) * meta.height;
     const int bitpix = (meta.bytes_per_pixel == 2) ? USHORT_IMG : ULONG_IMG;
+    OpenCube &cube = cubes_[meta.stream];
 
     try {
-      if (!cube_fits_) {
-        const std::string filename = make_filename(meta.frame_number);
+      if (!cube.fits) {
+        const std::string filename = make_filename(meta);
         long axes[2] = {0, 0};   // NAXIS=0: header-only primary, matches v1's cube primary
-        cube_fits_ = std::make_unique<CCfits::FITS>(filename, bitpix, 0, axes);
-        add_keys_from(cube_fits_->pHDU(), meta.header_set.get());
-        cube_extension_count_ = 0;
+        cube.fits = std::make_unique<CCfits::FITS>(filename, bitpix, 0, axes);
+        add_keys_from(cube.fits->pHDU(), meta.header_set.get());
+        cube.extension_count = 0;
         logwrite(function, "opened cube " + filename);
       }
 
       std::vector<long> ext_axes = { static_cast<long>(meta.width),
                                       static_cast<long>(meta.height) };
-      const std::string extname = std::to_string(cube_extension_count_ + 1);
-      auto *ext = cube_fits_->addImage(extname, bitpix, ext_axes);
+      const std::string extname = std::to_string(cube.extension_count + 1);
+      auto *ext = cube.fits->addImage(extname, bitpix, ext_axes);
 
       if (bitpix == USHORT_IMG) {
         ext->addKey("BZERO", 32768, "offset for signed short int");
@@ -327,8 +328,8 @@ namespace Camera {
         std::valarray<uint32_t> data(src, npixels);
         ext->write(first_pixel, npixels, data);
       }
-      cube_fits_->flush();
-      ++cube_extension_count_;
+      cube.fits->flush();
+      ++cube.extension_count;
     }
     catch (const CCfits::FitsException &e) {
       logwrite(function, "ERROR FITS exception writing cube extension: " + e.message());
@@ -342,12 +343,14 @@ namespace Camera {
     return NO_ERROR;
   }
 
-  void FitsWriter::close_cube() {
-    if (!cube_fits_) return;
-    logwrite("Camera::FitsWriter::close_cube",
-             "closed cube with " + std::to_string(cube_extension_count_) + " extensions");
-    cube_fits_.reset();
-    cube_extension_count_ = 0;
+  void FitsWriter::close_cubes() {
+    for (const auto &[stream, cube] : cubes_) {
+      if (!cube.fits) continue;
+      logwrite("Camera::FitsWriter::close_cubes",
+               "closed cube " + (stream.empty() ? "image" : stream) + " with " +
+               std::to_string(cube.extension_count) + " extensions");
+    }
+    cubes_.clear();
   }
 
   std::string FitsWriter::resolve_output_dir() {
@@ -369,12 +372,15 @@ namespace Camera {
     return dir;
   }
 
-  std::string FitsWriter::make_filename(uint64_t frame_number) {
+  std::string FitsWriter::make_filename(const FrameMetadata &meta) {
     char num[32];
     std::snprintf(num, sizeof(num), "%08llu",
-                  static_cast<unsigned long long>(frame_number));
+                  static_cast<unsigned long long>(meta.frame_number));
 
-    const std::string prefix = resolve_output_dir() + "/" + cfg_.basename + "_" + num;
+    // Stream last, so a frame and its off-geometry companions sort adjacently
+    const std::string stream_part = meta.stream.empty() ? "" : "_" + meta.stream;
+    const std::string prefix =
+      resolve_output_dir() + "/" + cfg_.basename + "_" + num + stream_part;
     std::string filename = prefix + ".fits";
 
     int suffix = 1;

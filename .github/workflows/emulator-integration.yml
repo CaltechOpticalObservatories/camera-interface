@@ -77,6 +77,35 @@ jobs:
         bin/camerad-shm-reader ci_frame_outputs_shm /tmp/ci_milk_shm
         ls /tmp/ci_fits_test/ci_frame_outputs_*.fits
 
+        image_size() {
+          bin/camerad-shm-reader ci_frame_outputs_shm /tmp/ci_milk_shm \
+            | grep -o 'size=[0-9]*x[0-9]*' | head -1
+        }
+        before=$(image_size)
+
+        # read must refuse to fetch until capture is actually enabled
+        send "raw read" | grep -q "ERROR" || { echo "raw read ran with RAWENABLE=0"; exit 1; }
+
+        # The Archon captures raw alongside the frame, so enabling it has to
+        # precede the exposure it should appear in
+        send "raw set RAWENABLE 1"
+        resp=$(send "expose 1")
+        echo "expose -> $resp"
+        echo "$resp" | grep -q "DONE" || exit 1
+
+        resp=$(send "raw read")
+        echo "raw read -> $resp"
+        echo "$resp" | grep -q "DONE" || exit 1
+        sleep 1
+
+        # RAW has its own geometry, so it has to land in its own outputs rather
+        # than collide with the image file or resize the image's SHM stream
+        bin/camerad-shm-reader ci_frame_outputs_shm_raw /tmp/ci_milk_shm
+        ls /tmp/ci_fits_test/ci_frame_outputs_*_raw.fits
+
+        after=$(image_size)
+        test "$before" = "$after" || { echo "image stream changed: $before -> $after"; exit 1; }
+
         pkill -f 'bin/camerad' || true
         pkill -f 'bin/camerad-emulator' || true
 

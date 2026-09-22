@@ -968,6 +968,7 @@ namespace Camera {
       retstring.append( "  set <KEY> <VAL> ..  set RAW keyword(s) then apply\n" );
       retstring.append( "  read                retrieve RAW data in-band as 16-bit samples\n" );
       retstring.append( "  Keys: RAWENABLE RAWSEL RAWSTARTLINE RAWENDLINE RAWSTARTPIXEL RAWSAMPLES\n" );
+      retstring.append( "  RAWENABLE must be set before the exposure the raw data comes from\n" );
       return HELP;
     }
 

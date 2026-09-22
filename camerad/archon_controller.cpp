@@ -1776,6 +1776,7 @@ namespace Camera {
       this->get_configmap_value("BIGBUF", mode->bigbuf);
       this->get_configmap_value("FRAMEMODE", mode->geometry.framemode);
       this->get_configmap_value("RAWENABLE", mode->rawenable);
+      this->get_configmap_value("RAWENABLE", this->rawinfo.enable);
       this->get_configmap_value("RAWSEL", this->rawinfo.adchan);
       this->get_configmap_value("RAWSAMPLES", this->rawinfo.samples);
       this->get_configmap_value("RAWSTARTLINE", this->rawinfo.startline);
@@ -2415,6 +2416,7 @@ namespace Camera {
     }
 
     // refresh cached geometry from the now-updated configmap
+    this->get_configmap_value("RAWENABLE", this->rawinfo.enable);
     this->get_configmap_value("RAWSEL", this->rawinfo.adchan);
     this->get_configmap_value("RAWSAMPLES", this->rawinfo.samples);
     this->get_configmap_value("RAWSTARTLINE", this->rawinfo.startline);
@@ -2424,6 +2426,34 @@ namespace Camera {
     return this->get_raw_config(retstring);
   }
   /***** Camera::ArchonController::set_raw_config **************************/
+
+
+  /***** Camera::ArchonController::raw_frame_keys **************************/
+  /**
+   * @brief      build the provenance keys describing a RAW capture
+   * @details    An AD channel and an ADM channel arrive as an identical uint16
+   *             block sampled at different rates, so a reader cannot interpret
+   *             the samples without RAWSEL and the selected module's type.
+   * @return     shared_ptr suitable for FrameMetadata::frame_keys
+   */
+  std::shared_ptr<const Common::FitsKeys> ArchonController::raw_frame_keys() const {
+    // RAWSEL indexes four channels per slot, starting at the first AD slot
+    const int channel = this->rawinfo.adchan;
+    const int slot    = AD_SLOT_FIRST + channel / MAXNADCHAN;
+
+    auto keys = std::make_shared<Common::FitsKeys>();
+    keys->addkey("RAWSEL",   channel, "Archon RAWSEL, channel captured");
+    keys->addkey("RAWSLOT",  slot, "backplane slot RAWSEL selects");
+    if (slot >= 1 && slot <= static_cast<int>(this->modtype.size())) {
+      keys->addkey("RAWMODTY", this->modtype[slot-1], "MODn_TYPE of the selected slot");
+    }
+    keys->addkey("RAWSAMP",  static_cast<int>(this->rawinfo.samples),    "RAWSAMPLES");
+    keys->addkey("RAWSLINE", static_cast<int>(this->rawinfo.startline),  "RAWSTARTLINE");
+    keys->addkey("RAWELINE", static_cast<int>(this->rawinfo.endline),    "RAWENDLINE");
+    keys->addkey("RAWSPIX",  static_cast<int>(this->rawinfo.startpixel), "RAWSTARTPIXEL");
+    return keys;
+  }
+  /***** Camera::ArchonController::raw_frame_keys **************************/
 
 
   /***** Camera::ArchonController::read_raw *******************************/
@@ -2437,11 +2467,29 @@ namespace Camera {
   long ArchonController::read_raw(std::string &retstring) {
     const std::string function("Camera::ArchonController::read_raw");
 
+    // Without this the fetch returns whatever sits at the raw offset, since a
+    // controller with capture off is indistinguishable from one reporting nothing
+    if (this->rawinfo.enable == 0) {
+      logwrite(function, "ERROR RAW capture is disabled");
+      retstring = "RAW capture is disabled; set it with \"raw set RAWENABLE 1\"";
+      return ERROR;
+    }
+
     long error = this->get_frame_status();
     if (error != NO_ERROR) {
       logwrite(function, "ERROR getting frame status");
       retstring = "frame status query failed";
       return error;
+    }
+
+    const auto index = this->frameinfo.index.load();
+
+    // Raw is captured with the frame, so a buffer filled before RAWENABLE was set
+    // reports zero and raw_geometry() falls back to inferring from the config keys
+    if (this->frameinfo.bufrawblocks[index] == 0 ||
+        this->frameinfo.bufrawlines[index] == 0) {
+      logwrite(function, "WARNING controller reports no raw data in this buffer; "
+                         "using configured geometry");
     }
 
     const raw_geometry_t geom = this->raw_geometry();
@@ -2472,7 +2520,6 @@ namespace Camera {
                   static_cast<size_t>(geom.samples) * sizeof(uint16_t));
     }
 
-    const auto index = this->frameinfo.index.load();
     const size_t payload_bytes = payload_samples * sizeof(uint16_t);
 
     Camera::FrameMetadata meta;
@@ -2481,6 +2528,8 @@ namespace Camera {
     meta.width           = geom.samples;
     meta.height          = geom.lines;
     meta.bytes_per_pixel = sizeof(uint16_t);
+    meta.stream          = RAW_STREAM;
+    meta.frame_keys      = this->raw_frame_keys();
     this->interface->dispatch_frame(reinterpret_cast<const char*>(samples.data()),
                                     payload_bytes, meta);
 

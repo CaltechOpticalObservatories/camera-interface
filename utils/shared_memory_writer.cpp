@@ -108,24 +108,31 @@ namespace Camera {
       return ERROR;
     }
 
-    if (meta.width != allocated_width_ ||
-        meta.height != allocated_height_ ||
-        meta.bytes_per_pixel != allocated_bytes_per_pixel_) {
-      if (this->recreate(meta.width, meta.height, meta.bytes_per_pixel) != NO_ERROR) {
+    const auto [entry, inserted] = segments_.try_emplace(meta.stream);
+    Segment &segment = entry->second;
+    if (inserted) {
+      segment.name = meta.stream.empty() ? segment_name_
+                                         : segment_name_ + "_" + meta.stream;
+    }
+
+    if (meta.width != segment.allocated_width ||
+        meta.height != segment.allocated_height ||
+        meta.bytes_per_pixel != segment.allocated_bytes_per_pixel) {
+      if (this->recreate(segment, meta.width, meta.height, meta.bytes_per_pixel) != NO_ERROR) {
         return ERROR;
       }
     }
 
     void* buffer = nullptr;
-    if (ImageStreamIO_writeBuffer(&image_, &buffer) != IMAGESTREAMIO_SUCCESS) {
-      logwrite(function, "ERROR ImageStreamIO_writeBuffer failed");
+    if (ImageStreamIO_writeBuffer(&segment.image, &buffer) != IMAGESTREAMIO_SUCCESS) {
+      logwrite(function, "ERROR ImageStreamIO_writeBuffer failed for \"" + segment.name + "\"");
       return ERROR;
     }
     std::memcpy(buffer, data, frame_bytes);
 
-    this->write_keywords(meta);
+    write_keywords(segment.image, meta);
 
-    ImageStreamIO_UpdateIm(&image_);
+    ImageStreamIO_UpdateIm(&segment.image);
     frames_written_.fetch_add(1, std::memory_order_relaxed);
 
     return NO_ERROR;
@@ -143,23 +150,24 @@ namespace Camera {
   void SharedMemoryWriter::close() {
     const std::string function("Camera::SharedMemoryWriter::close");
 
-    ImageStreamIO_destroyIm(&image_);
-    allocated_width_ = allocated_height_ = allocated_bytes_per_pixel_ = 0;
-
-    if (opened_) {
-      logwrite(function, "closed \"" + segment_name_ + "\"");
+    for (auto &entry : segments_) {
+      ImageStreamIO_destroyIm(&entry.second.image);
+      logwrite(function, "closed \"" + entry.second.name + "\"");
     }
+    segments_.clear();
     opened_ = false;
   }
 
-  long SharedMemoryWriter::recreate(uint32_t width, uint32_t height, uint32_t bytes_per_pixel) {
+  long SharedMemoryWriter::recreate(Segment &segment, uint32_t width, uint32_t height,
+                                    uint32_t bytes_per_pixel) {
     const std::string function("Camera::SharedMemoryWriter::recreate");
 
-    ImageStreamIO_destroyIm(&image_);
-    allocated_width_ = allocated_height_ = allocated_bytes_per_pixel_ = 0;
+    ImageStreamIO_destroyIm(&segment.image);
+    segment.allocated_width = segment.allocated_height = 0;
+    segment.allocated_bytes_per_pixel = 0;
 
     char path[STRINGMAXLEN_FILE_NAME];
-    ImageStreamIO_filename(path, sizeof(path), segment_name_.c_str());
+    ImageStreamIO_filename(path, sizeof(path), segment.name.c_str());
 
     // Diagnostic even when the library's internal unlink-and-retry self-heals a
     // same-owner crash leftover, so an operator can see it happened
@@ -172,12 +180,12 @@ namespace Camera {
     uint32_t size[2] = {width, height};
 
     const errno_t status = ImageStreamIO_createIm(
-        &image_, segment_name_.c_str(), 2, size, datatype,
+        &segment.image, segment.name.c_str(), 2, size, datatype,
         1 /* shared */, NUM_KEYWORDS, static_cast<int>(ring_buffer_size_));
 
     if (status != IMAGESTREAMIO_SUCCESS) {
       const std::string blocker = describe_path(path);
-      logwrite(function, "ERROR ImageStreamIO_createIm failed for \"" + segment_name_ +
+      logwrite(function, "ERROR ImageStreamIO_createIm failed for \"" + segment.name +
                "\" (" + std::to_string(width) + "x" + std::to_string(height) + ")" +
                (blocker.empty() ? "" : "; blocked by " + blocker));
       return ERROR;
@@ -187,23 +195,23 @@ namespace Camera {
       logwrite(function, "WARNING chmod failed for \"" + std::string(path) + "\"");
     }
 
-    allocated_width_ = width;
-    allocated_height_ = height;
-    allocated_bytes_per_pixel_ = bytes_per_pixel;
+    segment.allocated_width = width;
+    segment.allocated_height = height;
+    segment.allocated_bytes_per_pixel = bytes_per_pixel;
 
-    logwrite(function, "created \"" + segment_name_ + "\" (" +
+    logwrite(function, "created \"" + segment.name + "\" (" +
              std::to_string(width) + "x" + std::to_string(height) + ", " +
              std::to_string(bytes_per_pixel) + " bytes/px, " +
              std::to_string(ring_buffer_size_) + " frames)");
     return NO_ERROR;
   }
 
-  void SharedMemoryWriter::write_keywords(const FrameMetadata &meta) {
-    set_long_keyword(image_.kw[0], "FRAMENO",
+  void SharedMemoryWriter::write_keywords(IMAGE &image, const FrameMetadata &meta) {
+    set_long_keyword(image.kw[0], "FRAMENO",
                      static_cast<int64_t>(meta.frame_number), "Frame number");
-    set_long_keyword(image_.kw[1], "TIMESTMP",
+    set_long_keyword(image.kw[1], "TIMESTMP",
                      static_cast<int64_t>(meta.timestamp), "Archon timestamp (0.01 us units)");
-    set_long_keyword(image_.kw[2], "SEQNUM",
+    set_long_keyword(image.kw[2], "SEQNUM",
                      static_cast<int64_t>(meta.sequence_number), "Sequence number");
   }
 
