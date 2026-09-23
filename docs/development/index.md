@@ -57,6 +57,13 @@ than pasting signatures into the prose.
 - Every build uploads the rendered HTML as a workflow artifact, which is the fallback for pull
   requests from forks, since those get a read-only token and cannot deploy.
 
+:::{important}
+The `gh-pages` branch needs a `.nojekyll` file at its root. Without it Pages runs the output through
+Jekyll, which skips directories beginning with an underscore, and the whole site loads with no CSS
+because `_static/` returns 404. A marker inside a preview subdirectory is not enough; it has to be at
+the branch root. Recreating `gh-pages` from scratch means adding it again.
+:::
+
 ## Testing camerad itself
 
 ```bash
