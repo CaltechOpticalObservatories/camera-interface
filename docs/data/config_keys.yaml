@@ -1,0 +1,102 @@
+# Descriptions for the configuration file keys camerad honours.
+#
+# The key list is extracted from the source; this file supplies the prose and the grouping. A key
+# the code starts or stops reading without a matching change here fails the documentation build.
+#
+# Only keys the code actually reads appear. Several keys in older configuration files and in the
+# superseded 2022 ICD are no longer read by anything and are deliberately absent.
+
+ARCHON_IP:
+  group: Controller connection
+  summary: IP address of the Archon controller. Point this at the emulator to run without hardware.
+ARCHON_PORT:
+  group: Controller connection
+  summary: Port of the Archon controller
+DEFAULT_FIRMWARE:
+  group: Controller connection
+  summary: Firmware that `load` uses when given no argument
+
+ABORT_PARAM:
+  group: Archon parameters
+  summary: Parameter written to abort an exposure
+EXPOSE_PARAM:
+  group: Archon parameters
+  summary: Parameter written to trigger an exposure
+EXPTIME_MSEC_PARAM:
+  group: Archon parameters
+  summary: Parameter holding the milliseconds part of the exposure time. Required.
+EXPTIME_SEC_PARAM:
+  group: Archon parameters
+  summary: Parameter holding the whole-seconds part of the exposure time. Optional.
+
+BLKPORT:
+  group: Server
+  summary: TCP port the server listens on. This is the only port camerad opens.
+LOGPATH:
+  group: Server
+  summary: Directory for the daily log file. Required; the server refuses to start without it.
+LOG_STDERR:
+  group: Server
+  summary: Also write the log to stderr, overriding what `--foreground` implies
+TM_ZONE_LOG:
+  group: Server
+  summary: Time zone for log entry timestamps, `UTC` or `local`
+
+LONGEXPOSURE:
+  group: Exposure
+  summary: Unit for a bare `exptime` argument. `true` for seconds, `false` for milliseconds.
+
+HEATER_TARGET_MIN:
+  group: Heater
+  summary: Lower bound for heater targets, overriding the backplane default
+HEATER_TARGET_MAX:
+  group: Heater
+  summary: Upper bound for heater targets, overriding the backplane default
+
+FITS_ENABLED:
+  group: FITS output
+  summary: Enable the FITS writer. Default `no`.
+FITS_OUTPUT_DIR:
+  group: FITS output
+  summary: Base directory for FITS files, which must already exist. Default `/tmp/images`.
+FITS_AUTODIR:
+  group: FITS output
+  summary: Write into a `YYYYMMDD` subdirectory of `FITS_OUTPUT_DIR`. Default `no`.
+FITS_BASENAME:
+  group: FITS output
+  summary: Base filename for FITS files. Default `tracking`.
+FITS_QUEUE_SIZE:
+  group: FITS output
+  summary: Frames buffered for the writer thread; the oldest is dropped when full. Default `32`.
+FITS_DRAIN_TIMEOUT_MS:
+  group: FITS output
+  summary: How long to keep draining the queue at shutdown before giving up. Default `5000`.
+
+SHM_ENABLED:
+  group: Shared memory output
+  summary: Enable the shared-memory writer. Ignored with a warning on a build without `ENABLE_SHM_OUTPUT`.
+SHM_SEGMENT_NAME:
+  group: Shared memory output
+  summary: ImageStreamIO stream name. Default `camera`.
+SHM_RING_BUFFER_SIZE:
+  group: Shared memory output
+  summary: Depth of ImageStreamIO's internal history ring buffer. Default `4`.
+SHM_DIR:
+  group: Shared memory output
+  summary: Directory ImageStreamIO writes into. Unset falls back to `MILK_SHM_DIR`, then `/milk/shm`.
+
+EMULATOR_PORT:
+  group: Emulator
+  summary: Port the emulator listens on. `ARCHON_PORT` points here to run without hardware.
+EMULATOR_SYSTEM:
+  group: Emulator
+  summary: Path to the `.system` file describing the module complement the emulator reports
+EMULATOR_DATADIR:
+  group: Emulator
+  summary: Directory of real frames for the emulator to serve. Unset means synthetic pixel data.
+NBPORT:
+  group: Emulator
+  summary: Read by the emulator only. camerad itself does not open a non-blocking port.
+INSTRUMENT:
+  group: Emulator
+  summary: Instrument name the emulator reports

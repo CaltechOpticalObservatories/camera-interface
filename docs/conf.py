@@ -1,10 +1,12 @@
 """Sphinx configuration for the camera-interface documentation."""
 
 import importlib.util
+import sys
 import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent / "_ext"))
 
 project = "camera-interface"
 author = "Caltech Optical Observatories"
@@ -20,9 +22,10 @@ extensions = [
     "sphinx.ext.extlinks",
     "sphinx_copybutton",
     "sphinx_design",
+    "camerad_tables",
 ]
 
-exclude_patterns = ["_build"]
+exclude_patterns = ["_build", "data"]
 
 # Link to a source file with {source}`camerad/camera_interface.h` instead of pasting signatures,
 # since the C++ reference is narrative rather than generated

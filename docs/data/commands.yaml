@@ -1,0 +1,124 @@
+# Descriptions for the commands camerad dispatches.
+#
+# The command list and the argument syntax are generated from the source; this file supplies the
+# prose. A command added to or removed from the dispatch in camerad/camera_server.cpp without a
+# matching change here fails the documentation build.
+#
+#   summary     one line, imperative
+#   controller  "any", or "archon" for commands routed through controller_cmd
+#   note        optional caveat appended to the summary
+
+abort:
+  summary: Abort an exposure in progress
+  controller: any
+
+autodir:
+  summary: Write images into a dated subdirectory
+  controller: any
+  note: "Not implemented: the Archon interface logs `not yet implemented` and returns an error. Use `FITS_AUTODIR` instead."
+
+autofetch_mode:
+  summary: Control autofetch, where the controller pushes frames continuously rather than on request
+  controller: archon
+
+basename:
+  summary: Set or get the image base name
+  controller: any
+
+bias:
+  summary: Set or get a bias voltage
+  controller: any
+
+bin:
+  summary: Set or get the binning factor
+  controller: any
+  note: "Broken: the server routes this to the bias handler, so an argument is applied as a bias rather than a binning factor."
+
+bob:
+  summary: Reach the BOB interface
+  controller: archon
+  note: "Non-functional: no controller implements a handler for it, so it always returns an error."
+
+close:
+  summary: Disconnect from the controller
+  controller: any
+
+datacube:
+  summary: Set or report whether reads are written as one multi-extension FITS file
+  controller: any
+
+exit:
+  summary: Shut the server down
+  controller: any
+
+expose:
+  summary: Take an exposure, or a counted series of them
+  controller: any
+
+exposuremode:
+  summary: Select or report the exposure mode
+  controller: any
+
+exptime:
+  summary: Set or report the exposure time
+  controller: any
+
+getp:
+  summary: Read an Archon parameter value
+  controller: archon
+
+heater:
+  summary: Control a closed-loop heater on a Heater or HeaterX module
+  controller: archon
+
+inreg:
+  summary: Write a VCPU input register
+  controller: archon
+
+key:
+  summary: Add, list or delete a user FITS keyword written into every exposure
+  controller: any
+
+load:
+  summary: Load firmware, defaulting to DEFAULT_FIRMWARE from the config
+  controller: any
+
+loadtiming:
+  summary: Load a timing script and its parameters
+  controller: archon
+
+mode:
+  summary: Select a camera mode defined in the ACF
+  controller: archon
+
+native:
+  summary: Send a command straight to the controller and return its reply
+  controller: any
+
+open:
+  summary: Connect to the controller
+  controller: any
+
+power:
+  summary: Turn detector power on or off, or report the current state
+  controller: any
+
+raw:
+  summary: Read or write the Archon configuration memory directly
+  controller: archon
+
+readacf:
+  summary: Read an ACF file into the controller configuration
+  controller: archon
+
+sensor:
+  summary: Set or get a temperature sensor's excitation current and digital averaging
+  controller: archon
+
+setp:
+  summary: Write an Archon parameter value
+  controller: archon
+
+test:
+  summary: Run a development-level test
+  controller: any

@@ -21,16 +21,21 @@ build time and cross-checked against the source, so the build fails when they di
 
 | Table | Source of truth |
 |---|---|
-| Base commands | `CAMERAD_SYNTAX` in {source}`common/camerad_commands.h` |
-| Configuration keys | The key comparisons in `camerad`, `common`, `utils` and `emulator` |
+| Base commands | The dispatch chain in {source}`camerad/camera_server.cpp`, with syntax from `CAMERAD_SYNTAX` |
+| Configuration keys | Reads through a config object's `param` array, plus the frame output parser |
 | ATC FITS keywords | The `HeaderDictEntry` table in {source}`camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp` |
 
 Descriptions are written by hand in `docs/data/`, keyed by command or key name. Adding a command or
 a config key to the source without a description there fails the docs build; so does describing one
 that no longer exists.
 
-:::{note}
-The generators arrive in M2. Until then the affected tables are hand-written and marked as such.
+The generators are Sphinx directives in `docs/_ext/camerad_tables.py`. Validation runs once at
+`builder-inited`, so a mismatch fails immediately rather than partway through writing pages.
+
+:::{tip}
+Commands are taken from the dispatch chain rather than from `CAMERAD_SYNTAX`, because the two have
+diverged: `CAMERAD_SYNTAX` feeds the `help` output and still advertises commands the server no
+longer implements. The dispatch is what actually answers a client.
 :::
 
 ## Documentation layout
