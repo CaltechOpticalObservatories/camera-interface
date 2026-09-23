@@ -279,9 +279,10 @@
 <section id="building-the-documentation">
 <h2>Building the documentation<a class="headerlink" href="#building-the-documentation" title="Link to this heading">¶</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>docs/requirements.txt
-sphinx-build<span class="w"> </span>-W<span class="w"> </span>-b<span class="w"> </span>html<span class="w"> </span>docs<span class="w"> </span>docs/_build/html
+sphinx-build<span class="w"> </span>-W<span class="w"> </span>-b<span class="w"> </span>html<span class="w"> </span>-d<span class="w"> </span>docs/_build/doctrees<span class="w"> </span>docs<span class="w"> </span>docs/_build/html
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">-d</span></code> keeps Sphinx’s build cache out of the output directory, which is published verbatim.</p>
 <p><code class="docutils literal notranslate"><span class="pre">-W</span></code> turns warnings into errors, which is what CI uses, so a broken cross-reference fails the build
 rather than shipping a dead link.</p>
 <p>The Python API page needs the compiled <code class="docutils literal notranslate"><span class="pre">camera_interface</span></code> module to be importable. Without it the
