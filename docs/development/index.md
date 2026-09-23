@@ -4,8 +4,10 @@
 
 ```bash
 pip install -r docs/requirements.txt
-sphinx-build -W -b html docs docs/_build/html
+sphinx-build -W -b html -d docs/_build/doctrees docs docs/_build/html
 ```
+
+`-d` keeps Sphinx's build cache out of the output directory, which is published verbatim.
 
 `-W` turns warnings into errors, which is what CI uses, so a broken cross-reference fails the build
 rather than shipping a dead link.
