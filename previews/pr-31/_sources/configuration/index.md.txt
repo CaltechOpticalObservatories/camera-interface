@@ -35,9 +35,9 @@ exposure-time
 ```
 
 :::{note}
-The key tables are generated from the source at documentation build time and cross-checked against
-the keys `camerad` actually honours, so a key added to the code without a description here fails the
-build. See [development](../development/index.md).
+The key tables are generated at documentation build time from the keys `camerad` actually reads, so
+a key added to or dropped from the code without a matching description fails the build. See
+[development](../development/index.md).
 :::
 
 ## Build options

@@ -212,7 +212,6 @@
 <li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Command reference</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Command reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="base.html">Base commands</a></li>
 <li class="toctree-l2"><a class="reference internal" href="controller.html">Controller commands</a></li>
-<li class="toctree-l2"><a class="reference internal" href="async-messages.html">Asynchronous messages</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../fits/index.html">FITS output</a></li>
@@ -279,29 +278,22 @@
 <h1>Command reference<a class="headerlink" href="#command-reference" title="Link to this heading">¶</a></h1>
 <p>The server speaks a line-oriented ASCII protocol over TCP. Commands are short mnemonics with
 space-separated arguments; replies are plain text.</p>
-<section id="ports">
-<h2>Ports<a class="headerlink" href="#ports" title="Link to this heading">¶</a></h2>
-<p>Three ports are configured in the <code class="docutils literal notranslate"><span class="pre">.cfg</span></code> file, and they behave differently.</p>
-<dl class="simple myst">
-<dt>Blocking port (<code class="docutils literal notranslate"><span class="pre">BLKPORT</span></code>)</dt><dd><p>The connection stays open for as long as the client holds it, so it works directly with <code class="docutils literal notranslate"><span class="pre">telnet</span></code>
-as an ad hoc command line. One command at a time: a command sent before the previous one has
-replied is ignored. The reply on the same connection is what signals completion. Use this when the
-order of execution matters.</p>
-</dd>
-<dt>Non-blocking port (<code class="docutils literal notranslate"><span class="pre">NBPORT</span></code>)</dt><dd><p>Accepts one command, then closes the connection. Each connection is handled on its own thread, so
-commands can run concurrently. Their relative order is not guaranteed, which is the trade for the
-concurrency.</p>
-</dd>
-<dt>Asynchronous message port (<code class="docutils literal notranslate"><span class="pre">ASYNCPORT</span></code>)</dt><dd><p>Connectionless UDP, multicast to <code class="docutils literal notranslate"><span class="pre">ASYNCGROUP</span></code>. Listen-only. Carries status the server emits on its
-own schedule, such as exposure progress, along with replies to non-blocking commands and messages
-too long for a command reply. Each message is prefixed with a tag naming its type.</p>
-</dd>
-</dl>
-<p>Connections to the non-blocking port that sit idle are closed after 3 seconds
-(<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/utils/network.h">utils/network.h</a>), so a client that opens a connection and never sends anything cannot
-accumulate threads.</p>
-<p>The server serializes access to hardware that cannot tolerate concurrent use, whichever port the
-commands arrive on.</p>
+<section id="the-port">
+<h2>The port<a class="headerlink" href="#the-port" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">camerad</span></code> opens exactly one TCP port, <code class="docutils literal notranslate"><span class="pre">BLKPORT</span></code> (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camerad.cpp">camerad/camerad.cpp</a>). The connection
+stays open for as long as the client holds it, so it works directly with <code class="docutils literal notranslate"><span class="pre">telnet</span></code> as an ad hoc
+command line, and the reply on the same connection is what signals completion.</p>
+<p>Each client connection is served on its own thread. A socket that sits idle is closed after 3
+seconds (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/utils/network.h">utils/network.h</a>).</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Older configuration files and the superseded 2022 ICD describe two more ports: a non-blocking
+command port (<code class="docutils literal notranslate"><span class="pre">NBPORT</span></code>) and a UDP multicast port for asynchronous status messages (<code class="docutils literal notranslate"><span class="pre">ASYNCPORT</span></code>,
+<code class="docutils literal notranslate"><span class="pre">ASYNCGROUP</span></code>). Neither exists in camerad 2.0.</p>
+<p><code class="docutils literal notranslate"><span class="pre">NBPORT</span></code> is read only by the emulator. <code class="docutils literal notranslate"><span class="pre">ASYNCPORT</span></code> and <code class="docutils literal notranslate"><span class="pre">ASYNCGROUP</span></code> are read by nothing: the UDP
+multicast class still exists in <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/utils/network.cpp">utils/network.cpp</a> but is never instantiated, so no
+asynchronous messages are ever sent. Setting those keys has no effect.</p>
+</div>
 </section>
 <section id="replies">
 <h2>Replies<a class="headerlink" href="#replies" title="Link to this heading">¶</a></h2>
@@ -333,14 +325,13 @@ and readout complete, whether or not the FITS writer kept up. See
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="base.html">Base commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="controller.html">Controller commands</a></li>
-<li class="toctree-l1"><a class="reference internal" href="async-messages.html">Asynchronous messages</a></li>
 </ul>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The base command table is generated from <code class="docutils literal notranslate"><span class="pre">CAMERAD_SYNTAX</span></code> in
-<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/common/camerad_commands.h">common/camerad_commands.h</a> and cross-checked against the descriptions kept alongside the
-docs, so a command added to the server without a description here fails the documentation build.</p>
+<p>The base command table is generated from the server’s dispatch chain and cross-checked against the
+descriptions kept alongside the docs, so a command the server gains or loses without a matching
+description fails the documentation build.</p>
 </div>
 </section>
 </section>
@@ -401,7 +392,7 @@ docs, so a command added to the server without a description here fails the docu
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Command reference</a><ul>
-<li><a class="reference internal" href="#ports">Ports</a></li>
+<li><a class="reference internal" href="#the-port">The port</a></li>
 <li><a class="reference internal" href="#replies">Replies</a></li>
 <li><a class="reference internal" href="#command-tables">Command tables</a></li>
 </ul>

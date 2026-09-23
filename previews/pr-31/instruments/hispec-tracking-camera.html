@@ -212,7 +212,6 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../commands/index.html">Command reference</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Command reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../commands/base.html">Base commands</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../commands/controller.html">Controller commands</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../commands/async-messages.html">Asynchronous messages</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../fits/index.html">FITS output</a></li>
@@ -368,12 +367,186 @@ build.</p>
 </section>
 <section id="fits-keywords">
 <h2>FITS keywords<a class="headerlink" href="#fits-keywords" title="Link to this heading">¶</a></h2>
-<p>The module carries its own keyword dictionary
-(<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp">camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp</a>) mapping each
-internal property to a keyword, comment, type and default. It covers two cameras, ATC and SPEC, with
-separate defaults.</p>
-<p>The generated keyword table lands here in M2. <code class="docutils literal notranslate"><span class="pre">python/tests/fits_header_check.py</span></code> validates a
-written file against this dictionary.</p>
+<p>The module carries its own keyword dictionary mapping each internal property to a keyword, comment,
+type and default. It covers two cameras, ATC and SPEC, with separate defaults; the table below shows
+the ATC default, falling back to the SPEC one where ATC has none.</p>
+<p><code class="docutils literal notranslate"><span class="pre">python/tests/fits_header_check.py</span></code> validates a written file against this dictionary.</p>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 12.0%" />
+<col style="width: 20.0%" />
+<col style="width: 10.0%" />
+<col style="width: 10.0%" />
+<col style="width: 48.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Keyword</p></th>
+<th class="head"><p>Property</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Comment</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">EXPMJDST</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mjd_start</span></code></p></td>
+<td><p>Number</p></td>
+<td></td>
+<td><p>Exposure start Modified Julian Date of first read</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">READMODE</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">read_mode</span></code></p></td>
+<td><p>String</p></td>
+<td></td>
+<td><p>Readout mode</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SUBFRAME</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">subframe_mode</span></code></p></td>
+<td><p>String</p></td>
+<td></td>
+<td><p>Subframe mode, e.g. guiding, ROI, or fullframe</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OPSMODE</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">operational_mode</span></code></p></td>
+<td><p>String</p></td>
+<td></td>
+<td><p>Operational mode, e.g. freerun or autofetch</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">EXPTIME</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">exposure_time</span></code></p></td>
+<td><p>Number</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
+<td><p>[sec] Effective exposure time</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">EXPTUNIT</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">exposure_time_unit</span></code></p></td>
+<td><p>String</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">sec</span></code></p></td>
+<td><p>Unit of EXPTIME</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">DETBITS</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bitpix</span></code></p></td>
+<td><p>Integer</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">16</span></code></p></td>
+<td><p>Detector bit depth, needed for offset correction</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">PIXTIME</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pixel_time</span></code></p></td>
+<td><p>Number</p></td>
+<td></td>
+<td><p>[us] Pixel time spent reading out each pixel</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">FRAMETME</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">frame_time</span></code></p></td>
+<td><p>Number</p></td>
+<td></td>
+<td><p>[sec] Time to read out each amplifier region</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NCHANLS</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">n_channels</span></code></p></td>
+<td><p>Integer</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">4</span></code></p></td>
+<td><p>Number of detector channels</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">REFPXAMP</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">refpix_channel</span></code></p></td>
+<td><p>Integer</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">5</span></code></p></td>
+<td><p>The channel corresponding to the reference pixel</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">REFCHPOS</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ref_channel_position</span></code></p></td>
+<td><p>String</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">right</span></code></p></td>
+<td><p>Position of the reference channel in the data array (<code class="docutils literal notranslate"><span class="pre">TOP</span></code>, <code class="docutils literal notranslate"><span class="pre">BOTTOM</span></code>, <code class="docutils literal notranslate"><span class="pre">LEFT</span></code>, <code class="docutils literal notranslate"><span class="pre">RIGHT</span></code>, <code class="docutils literal notranslate"><span class="pre">NONE</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CHANVERT</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">channels_are_vertical</span></code></p></td>
+<td><p>Boolean</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">N/A</span></code></p></td>
+<td><p>Are the spectral channels aligned vertically in the data array?</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">FILENAME</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">filename</span></code></p></td>
+<td><p>String</p></td>
+<td></td>
+<td><p>Name of the file</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">FILETYPE</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">file_type</span></code></p></td>
+<td><p>String</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FITS</span></code></p></td>
+<td><p>Type of file (<code class="docutils literal notranslate"><span class="pre">FITS</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">LVLC_V1</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LVLC_V1</span></code></p></td>
+<td><p>Number</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">ACF</span></code></p></td>
+<td><p>[volts] Gate voltage</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">LVLC_V2</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LVLC_V2</span></code></p></td>
+<td><p>Number</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">ACF</span></code></p></td>
+<td><p>[volts] Bias power</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">LVLC_V3</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LVLC_V3</span></code></p></td>
+<td><p>Number</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">ACF</span></code></p></td>
+<td><p>[volts] Diode substrate voltage</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CAMD_VER</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CAMD_VER</span></code></p></td>
+<td><p>String</p></td>
+<td></td>
+<td><p>camerad build date</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">FIRMWARE</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FIRMWARE</span></code></p></td>
+<td><p>String</p></td>
+<td></td>
+<td><p>Controller ACF file used</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SKIPROWS</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nskip_rows</span></code></p></td>
+<td><p>Integer</p></td>
+<td></td>
+<td><p>Number of rows skipped</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SKIPLNES</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nskip_lines</span></code></p></td>
+<td><p>Integer</p></td>
+<td></td>
+<td><p>Number of lines skipped</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NREADS</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">n_reads</span></code></p></td>
+<td><p>Integer</p></td>
+<td></td>
+<td><p>Number of reads in series or datacube</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ACQTIME</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">acq_time</span></code></p></td>
+<td><p>String</p></td>
+<td></td>
+<td><p>UTC time of acquisition</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">FREERUN</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FREERUN</span></code></p></td>
+<td><p>Boolean</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FALSE</span></code></p></td>
+<td><p>Exposure was acquired in freerun mode</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Generated from <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp">camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp</a>, so
+it cannot drift from the dictionary the instrument actually writes.</p>
+</div>
 </section>
 </section>
 

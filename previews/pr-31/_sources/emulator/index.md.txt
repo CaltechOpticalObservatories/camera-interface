@@ -26,8 +26,11 @@ lets the emulator answer `SYSTEM` convincingly for a given instrument.
 ## What it models
 
 The emulator answers the Archon command set the server uses: configuration load, parameter writes,
-frame status, and pixel delivery on the timing the exposure implies. Frames carry synthetic pixel
-data, so it validates plumbing, geometry, timing and headers, not image quality.
+frame status, and pixel delivery on the timing the exposure implies.
+
+Frames carry synthetic pixel data by default, so it validates plumbing, geometry, timing and headers
+rather than image quality. Point `EMULATOR_DATADIR` at a directory of real frames to have it serve
+those instead, which is what makes it useful for exercising downstream processing.
 
 Sources are in {source}`emulator`, with the per-detector frame sources alongside
 (`generic.h`, `nirc2.h`).

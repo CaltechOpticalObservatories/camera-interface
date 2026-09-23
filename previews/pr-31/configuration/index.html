@@ -212,7 +212,6 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../commands/index.html">Command reference</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Command reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../commands/base.html">Base commands</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../commands/controller.html">Controller commands</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../commands/async-messages.html">Asynchronous messages</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../fits/index.html">FITS output</a></li>
@@ -306,9 +305,9 @@ runtime. The key tables note which is which.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The key tables are generated from the source at documentation build time and cross-checked against
-the keys <code class="docutils literal notranslate"><span class="pre">camerad</span></code> actually honours, so a key added to the code without a description here fails the
-build. See <a class="reference internal" href="../development/index.html"><span class="std std-doc">development</span></a>.</p>
+<p>The key tables are generated at documentation build time from the keys <code class="docutils literal notranslate"><span class="pre">camerad</span></code> actually reads, so
+a key added to or dropped from the code without a matching description fails the build. See
+<a class="reference internal" href="../development/index.html"><span class="std std-doc">development</span></a>.</p>
 </div>
 </section>
 <section id="build-options">

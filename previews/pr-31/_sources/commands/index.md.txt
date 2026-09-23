@@ -3,32 +3,24 @@
 The server speaks a line-oriented ASCII protocol over TCP. Commands are short mnemonics with
 space-separated arguments; replies are plain text.
 
-## Ports
+## The port
 
-Three ports are configured in the `.cfg` file, and they behave differently.
+`camerad` opens exactly one TCP port, `BLKPORT` ({source}`camerad/camerad.cpp`). The connection
+stays open for as long as the client holds it, so it works directly with `telnet` as an ad hoc
+command line, and the reply on the same connection is what signals completion.
 
-Blocking port (`BLKPORT`)
-: The connection stays open for as long as the client holds it, so it works directly with `telnet`
-  as an ad hoc command line. One command at a time: a command sent before the previous one has
-  replied is ignored. The reply on the same connection is what signals completion. Use this when the
-  order of execution matters.
+Each client connection is served on its own thread. A socket that sits idle is closed after 3
+seconds ({source}`utils/network.h`).
 
-Non-blocking port (`NBPORT`)
-: Accepts one command, then closes the connection. Each connection is handled on its own thread, so
-  commands can run concurrently. Their relative order is not guaranteed, which is the trade for the
-  concurrency.
+:::{warning}
+Older configuration files and the superseded 2022 ICD describe two more ports: a non-blocking
+command port (`NBPORT`) and a UDP multicast port for asynchronous status messages (`ASYNCPORT`,
+`ASYNCGROUP`). Neither exists in camerad 2.0.
 
-Asynchronous message port (`ASYNCPORT`)
-: Connectionless UDP, multicast to `ASYNCGROUP`. Listen-only. Carries status the server emits on its
-  own schedule, such as exposure progress, along with replies to non-blocking commands and messages
-  too long for a command reply. Each message is prefixed with a tag naming its type.
-
-Connections to the non-blocking port that sit idle are closed after 3 seconds
-({source}`utils/network.h`), so a client that opens a connection and never sends anything cannot
-accumulate threads.
-
-The server serializes access to hardware that cannot tolerate concurrent use, whichever port the
-commands arrive on.
+`NBPORT` is read only by the emulator. `ASYNCPORT` and `ASYNCGROUP` are read by nothing: the UDP
+multicast class still exists in {source}`utils/network.cpp` but is never instantiated, so no
+asynchronous messages are ever sent. Setting those keys has no effect.
+:::
 
 ## Replies
 
@@ -64,11 +56,10 @@ and readout complete, whether or not the FITS writer kept up. See
 
 base
 controller
-async-messages
 ```
 
 :::{note}
-The base command table is generated from `CAMERAD_SYNTAX` in
-{source}`common/camerad_commands.h` and cross-checked against the descriptions kept alongside the
-docs, so a command added to the server without a description here fails the documentation build.
+The base command table is generated from the server's dispatch chain and cross-checked against the
+descriptions kept alongside the docs, so a command the server gains or loses without a matching
+description fails the documentation build.
 :::

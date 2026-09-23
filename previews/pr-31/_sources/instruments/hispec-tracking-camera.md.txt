@@ -53,10 +53,18 @@ build.
 
 ## FITS keywords
 
-The module carries its own keyword dictionary
-({source}`camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp`) mapping each
-internal property to a keyword, comment, type and default. It covers two cameras, ATC and SPEC, with
-separate defaults.
+The module carries its own keyword dictionary mapping each internal property to a keyword, comment,
+type and default. It covers two cameras, ATC and SPEC, with separate defaults; the table below shows
+the ATC default, falling back to the SPEC one where ATC has none.
 
-The generated keyword table lands here in M2. `python/tests/fits_header_check.py` validates a
-written file against this dictionary.
+`python/tests/fits_header_check.py` validates a written file against this dictionary.
+
+```{eval-rst}
+.. camerad-fits-keywords::
+   :widths: 12 20 10 10 48
+```
+
+:::{note}
+Generated from {source}`camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp`, so
+it cannot drift from the dictionary the instrument actually writes.
+:::

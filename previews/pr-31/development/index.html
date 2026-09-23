@@ -212,7 +212,6 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../commands/index.html">Command reference</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Command reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../commands/base.html">Base commands</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../commands/controller.html">Controller commands</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../commands/async-messages.html">Asynchronous messages</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../fits/index.html">FITS output</a></li>
@@ -302,10 +301,10 @@ build time and cross-checked against the source, so the build fails when they di
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Base commands</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">CAMERAD_SYNTAX</span></code> in <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/common/camerad_commands.h">common/camerad_commands.h</a></p></td>
+<td><p>The dispatch chain in <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camera_server.cpp">camerad/camera_server.cpp</a>, with syntax from <code class="docutils literal notranslate"><span class="pre">CAMERAD_SYNTAX</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Configuration keys</p></td>
-<td><p>The key comparisons in <code class="docutils literal notranslate"><span class="pre">camerad</span></code>, <code class="docutils literal notranslate"><span class="pre">common</span></code>, <code class="docutils literal notranslate"><span class="pre">utils</span></code> and <code class="docutils literal notranslate"><span class="pre">emulator</span></code></p></td>
+<td><p>Reads through a config object’s <code class="docutils literal notranslate"><span class="pre">param</span></code> array, plus the frame output parser</p></td>
 </tr>
 <tr class="row-even"><td><p>ATC FITS keywords</p></td>
 <td><p>The <code class="docutils literal notranslate"><span class="pre">HeaderDictEntry</span></code> table in <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp">camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp</a></p></td>
@@ -316,9 +315,13 @@ build time and cross-checked against the source, so the build fails when they di
 <p>Descriptions are written by hand in <code class="docutils literal notranslate"><span class="pre">docs/data/</span></code>, keyed by command or key name. Adding a command or
 a config key to the source without a description there fails the docs build; so does describing one
 that no longer exists.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The generators arrive in M2. Until then the affected tables are hand-written and marked as such.</p>
+<p>The generators are Sphinx directives in <code class="docutils literal notranslate"><span class="pre">docs/_ext/camerad_tables.py</span></code>. Validation runs once at
+<code class="docutils literal notranslate"><span class="pre">builder-inited</span></code>, so a mismatch fails immediately rather than partway through writing pages.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Commands are taken from the dispatch chain rather than from <code class="docutils literal notranslate"><span class="pre">CAMERAD_SYNTAX</span></code>, because the two have
+diverged: <code class="docutils literal notranslate"><span class="pre">CAMERAD_SYNTAX</span></code> feeds the <code class="docutils literal notranslate"><span class="pre">help</span></code> output and still advertises commands the server no
+longer implements. The dispatch is what actually answers a client.</p>
 </div>
 </section>
 <section id="documentation-layout">
