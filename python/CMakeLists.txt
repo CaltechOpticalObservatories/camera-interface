@@ -29,7 +29,8 @@ find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(camera_interface
   ${PROJECT_BASE_DIR}/python/camera_interface_module.cpp
-  ${INSTRUMENT_SOURCES}
+  ${INSTRUMENT_REGISTRATION}
+  ${INSTRUMENT_OBJECTS}
 )
 
 target_include_directories(camera_interface PRIVATE
