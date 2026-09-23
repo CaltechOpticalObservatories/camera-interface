@@ -1,0 +1,104 @@
+name: Documentation
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  workflow_dispatch:
+
+# Serialize per ref so a rapid second push cannot race the first one's gh-pages commit. Only pull
+# request builds are superseded; cancelling a publish would leave the site unbuilt.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          bash .github/workflows/install-deps.sh
+          sudo apt-get install -y python3-dev
+
+      - name: Build and install zmqpp from source
+        run: |
+          git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
+          cmake -S /tmp/zmqpp -B /tmp/zmqpp/build
+          cmake --build /tmp/zmqpp/build -j"$(nproc)"
+          sudo cmake --install /tmp/zmqpp/build
+          sudo ldconfig
+
+      # autodoc imports the compiled module, so the Python API page cannot drift from the bindings
+      - name: Install camera_interface
+        run: |
+          pip install . \
+            --config-settings=cmake.define.INSTRUMENT=hispec_tracking_camera
+
+      - name: Install documentation toolchain
+        run: pip install -r docs/requirements.txt
+
+      - name: Build documentation
+        run: |
+          python -c "import camera_interface; print(camera_interface.instrument_name())"
+          sphinx-build -W -b html -d docs/_build/doctrees docs docs/_build/html
+          touch docs/_build/html/.nojekyll
+
+      - name: Upload rendered site
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/_build/html
+          retention-days: 14
+
+      # workflow_dispatch publishes too, so the site can be restored without an empty commit
+      - name: Publish to the site root
+        if: >
+          github.ref == 'refs/heads/main' &&
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/_build/html
+          # Preserve previews/, which lives on the same branch
+          keep_files: true
+
+      # Fork pull requests get a read-only token and cannot deploy; they use the artifact instead
+      - name: Publish pull request preview
+        if: >
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: docs/_build/html
+          umbrella-dir: previews
+          action: deploy
+
+  remove-preview:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: rossjrw/pr-preview-action@v1
+        with:
+          umbrella-dir: previews
+          action: remove

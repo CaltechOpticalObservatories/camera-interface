@@ -5,3 +5,4 @@ cmake-build*
 /lib/
 /bin/
 __pycache__/
+/docs/_build/

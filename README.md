@@ -2,6 +2,13 @@
 
 Camera Detector Controller Interface Software
 
+## Documentation
+
+Full documentation is at
+<https://caltechopticalobservatories.github.io/camera-interface/>, covering the architecture, the
+command and configuration references, the instruments, the emulator and the Python bindings. This
+README stays focused on building and running; the site is the reference.
+
 ## Reporting Issues
 
 If you encounter any problems or have questions about this project, please open an issue on the [GitHub Issues page](https://github.com/CaltechOpticalObservatories/camera-interface/issues). Your feedback helps us improve the project!
