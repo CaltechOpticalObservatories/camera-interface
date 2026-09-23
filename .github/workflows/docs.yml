@@ -7,10 +7,11 @@ on:
     types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
-# Serialize per ref so a rapid second push cannot race the first one's gh-pages commit
+# Serialize per ref so a rapid second push cannot race the first one's gh-pages commit. Only pull
+# request builds are superseded; cancelling a publish would leave the site unbuilt.
 concurrency:
   group: docs-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write
@@ -58,7 +59,7 @@ jobs:
       - name: Build documentation
         run: |
           python -c "import camera_interface; print(camera_interface.instrument_name())"
-          sphinx-build -W -b html docs docs/_build/html
+          sphinx-build -W -b html -d docs/_build/doctrees docs docs/_build/html
           touch docs/_build/html/.nojekyll
 
       - name: Upload rendered site
@@ -68,8 +69,11 @@ jobs:
           path: docs/_build/html
           retention-days: 14
 
+      # workflow_dispatch publishes too, so the site can be restored without an empty commit
       - name: Publish to the site root
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: >
+          github.ref == 'refs/heads/main' &&
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
