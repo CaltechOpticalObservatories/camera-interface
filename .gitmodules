@@ -10,3 +10,6 @@
 [submodule "camerad/Instruments/hispec"]
 	path = camerad/Instruments/hispec
 	url = https://github.com/CaltechOpticalObservatories/hispec-instrument.git
+[submodule "camerad/Instruments/lris2"]
+	path = camerad/Instruments/lris2
+	url = https://github.com/CaltechOpticalObservatories/lris2-camerad-instrument.git
