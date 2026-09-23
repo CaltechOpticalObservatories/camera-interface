@@ -344,6 +344,13 @@ link. The preview is removed when the PR closes.</p></li>
 <li><p>Every build uploads the rendered HTML as a workflow artifact, which is the fallback for pull
 requests from forks, since those get a read-only token and cannot deploy.</p></li>
 </ul>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">gh-pages</span></code> branch needs a <code class="docutils literal notranslate"><span class="pre">.nojekyll</span></code> file at its root. Without it Pages runs the output through
+Jekyll, which skips directories beginning with an underscore, and the whole site loads with no CSS
+because <code class="docutils literal notranslate"><span class="pre">_static/</span></code> returns 404. A marker inside a preview subdirectory is not enough; it has to be at
+the branch root. Recreating <code class="docutils literal notranslate"><span class="pre">gh-pages</span></code> from scratch means adding it again.</p>
+</div>
 </section>
 <section id="testing-camerad-itself">
 <h2>Testing camerad itself<a class="headerlink" href="#testing-camerad-itself" title="Link to this heading">¶</a></h2>
