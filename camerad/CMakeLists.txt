@@ -119,11 +119,15 @@ endif()
 
 # ----------------------------------------------------------------------------
 # Camera Interface Base
+#
+# The registration translation unit, and any instrument sources, are
+# deliberately not part of this library. They are compiled into the final
+# targets below, so linking this library never forces a choice of interface
+# and the final target alone determines which registration is linked.
 # ----------------------------------------------------------------------------
 list (APPEND INTERFACE_SOURCES
   ${CAMERAD_DIR}/camera_interface.cpp
   ${CAMERAD_DIR}/image_process.cpp
-  ${INSTRUMENT_SOURCES}
   )
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
 target_link_libraries(${INTERFACE_TARGET}
@@ -164,6 +168,7 @@ find_package(Threads)
 add_executable(camerad
   ${CAMERAD_DIR}/camerad.cpp
   ${CAMERAD_DIR}/camera_server.cpp
+  ${INSTRUMENT_SOURCES}
   )
 
 # ----------------------------------------------------------------------------
