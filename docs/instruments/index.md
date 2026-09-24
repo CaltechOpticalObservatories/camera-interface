@@ -12,13 +12,16 @@ submodule is pinned, so a given `camera-interface` commit builds one specific in
 | Instrument | Controller | Detector | State |
 |---|---|---|---|
 | [hispec_tracking_camera](hispec-tracking-camera.md) | Archon | H2RG | In active use. The reference implementation. |
-| [cryoscope](cryoscope.md) | Archon | H2RG | Implemented, RXR mode |
+| [cryoscope](cryoscope.md) | Archon | H2RG | Scaffolding, and does not currently build |
 | `hispec` | Archon | | Repository exists, no sources yet |
 | `deimos` | | | Repository exists, no sources yet |
 
 :::{note}
-`hispec` and `deimos` are currently README-only submodules. They are listed so the set is not
-misleading about what exists; there is nothing to document until they carry sources.
+`hispec` and `deimos` are README-only submodules today. They are listed so the set is not misleading
+about what exists; there is nothing to document until they carry sources.
+
+Only `hispec_tracking_camera` is built in CI, so the others can fall behind changes to the core
+without anything noticing.
 :::
 
 ```{toctree}
