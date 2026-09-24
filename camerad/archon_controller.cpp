@@ -2448,21 +2448,22 @@ namespace Camera {
   /**
    * @brief      build the provenance keys describing a RAW capture
    * @details    An AD channel and an ADM channel arrive as an identical uint16
-   *             block sampled at different rates, so a reader cannot interpret
-   *             the samples without RAWSEL and the selected module's type.
+   *             block sampled at different rates, so the samples cannot be
+   *             interpreted without RAWSEL and the installed module types.
    * @return     shared_ptr suitable for FrameMetadata::frame_keys
    */
   std::shared_ptr<const Common::FitsKeys> ArchonController::raw_frame_keys() const {
-    // RAWSEL indexes four channels per slot, starting at the first AD slot
-    const int channel = this->rawinfo.adchan;
-    const int slot    = AD_SLOT_FIRST + channel / MAXNADCHAN;
-
     auto keys = std::make_shared<Common::FitsKeys>();
-    keys->addkey("RAWSEL",   channel, "Archon RAWSEL, channel captured");
-    keys->addkey("RAWSLOT",  slot, "backplane slot RAWSEL selects");
-    if (slot >= 1 && slot <= static_cast<int>(this->modtype.size())) {
-      keys->addkey("RAWMODTY", this->modtype[slot-1], "MODn_TYPE of the selected slot");
+    keys->addkey("RAWSEL", this->rawinfo.adchan, "Archon RAWSEL, channel captured");
+
+    // RAWSEL's channels per slot is 4 in the manual but 18 in the Archon GUI,
+    // so report every candidate slot rather than derive one from an unknown stride
+    for (int slot = AD_SLOT_FIRST;
+         slot <= AD_SLOT_LAST && slot <= static_cast<int>(this->modtype.size()); ++slot) {
+      keys->addkey("RAWMOD"+std::to_string(slot), this->modtype[slot-1],
+                   "MODn_TYPE of slot "+std::to_string(slot));
     }
+
     keys->addkey("RAWSAMP",  static_cast<int>(this->rawinfo.samples),    "RAWSAMPLES");
     keys->addkey("RAWSLINE", static_cast<int>(this->rawinfo.startline),  "RAWSTARTLINE");
     keys->addkey("RAWELINE", static_cast<int>(this->rawinfo.endline),    "RAWENDLINE");

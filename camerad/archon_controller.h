@@ -49,6 +49,7 @@ constexpr int MODTYPE_ADM     = 17;
 
 // AD and ADM modules are restricted to slots 5-8, the range RAWSEL addresses
 constexpr int AD_SLOT_FIRST = 5;
+constexpr int AD_SLOT_LAST  = 8;
 
 // Stream label keeping a pre-CDS RAW capture in outputs of its own
 const std::string RAW_STREAM = "raw";
