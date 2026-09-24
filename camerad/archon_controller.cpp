@@ -2345,8 +2345,9 @@ namespace Camera {
     geom.samples         = static_cast<uint32_t>(this->rawinfo.samples);
     geom.blocks_per_line = static_cast<uint32_t>(this->frameinfo.bufrawblocks[index]);
     geom.lines           = static_cast<uint32_t>(this->frameinfo.bufrawlines[index]);
+    geom.from_config     = (geom.blocks_per_line == 0 || geom.lines == 0);
 
-    if (geom.blocks_per_line == 0 || geom.lines == 0) {
+    if (geom.from_config) {
       geom.blocks_per_line =
         (static_cast<size_t>(geom.samples) * sizeof(uint16_t) + BLOCK_LEN - 1) / BLOCK_LEN;
       const int span = this->rawinfo.endline - this->rawinfo.startline + 1;
@@ -2497,21 +2498,18 @@ namespace Camera {
       return error;
     }
 
-    const auto index = this->frameinfo.index.load();
-
-    // Raw is captured with the frame, so a buffer filled before RAWENABLE was set
-    // reports zero and raw_geometry() falls back to inferring from the config keys
-    if (this->frameinfo.bufrawblocks[index] == 0 ||
-        this->frameinfo.bufrawlines[index] == 0) {
-      logwrite(function, "WARNING controller reports no raw data in this buffer; "
-                         "using configured geometry");
-    }
-
     const raw_geometry_t geom = this->raw_geometry();
     if (geom.samples == 0 || geom.lines == 0) {
       logwrite(function, "ERROR RAW geometry is empty; check RAW config");
       retstring = "invalid RAW geometry";
       return ERROR;
+    }
+
+    // Raw is captured with the frame, so a buffer filled before RAWENABLE was set
+    // holds none and reports zero, leaving only the config keys to size the fetch
+    if (geom.from_config) {
+      logwrite(function, "WARNING controller reports no raw data in this buffer; "
+                         "using configured geometry");
     }
 
     const size_t fetch_bytes = static_cast<size_t>(geom.blocks_per_line) * geom.lines * BLOCK_LEN;
@@ -2535,6 +2533,7 @@ namespace Camera {
                   static_cast<size_t>(geom.samples) * sizeof(uint16_t));
     }
 
+    const auto index = this->frameinfo.index.load();
     const size_t payload_bytes = payload_samples * sizeof(uint16_t);
 
     Camera::FrameMetadata meta;

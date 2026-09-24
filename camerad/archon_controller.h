@@ -47,7 +47,7 @@ constexpr int MODTYPE_ADLN    = 15;
 constexpr int MODTYPE_UNKNOWN = 16;
 constexpr int MODTYPE_ADM     = 17;
 
-// First backplane slot an AD or ADM module may occupy, which RAWSEL indexes from
+// AD and ADM modules are restricted to slots 5-8, the range RAWSEL addresses
 constexpr int AD_SLOT_FIRST = 5;
 
 // Stream label keeping a pre-CDS RAW capture in outputs of its own
@@ -384,6 +384,7 @@ namespace Camera {
         uint32_t samples;          // valid 16-bit samples per line (RAWSAMPLES)
         uint32_t blocks_per_line;  // 1024-byte blocks per line, padded per Archon
         uint32_t lines;            // number of raw lines (RAWENDLINE-RAWSTARTLINE+1)
+        bool from_config{false};   // controller reported nothing, so this is inferred
       };
 
       static bool is_raw_config_key(const std::string &key);
