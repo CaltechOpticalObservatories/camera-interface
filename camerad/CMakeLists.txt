@@ -118,12 +118,19 @@ else()
 endif()
 
 # ----------------------------------------------------------------------------
+# Separate the registration TU from the instrument implementation so that
+# the registration is compiled into the final target.
+# ----------------------------------------------------------------------------
+set (INSTRUMENT_REGISTRATION ${INSTRUMENT_SOURCES})
+list (FILTER INSTRUMENT_REGISTRATION INCLUDE REGEX "_interface_factory\\.cpp$")
+list (FILTER INSTRUMENT_SOURCES EXCLUDE REGEX "_interface_factory\\.cpp$")
+
+# ----------------------------------------------------------------------------
 # Camera Interface Base
 # ----------------------------------------------------------------------------
 list (APPEND INTERFACE_SOURCES
   ${CAMERAD_DIR}/camera_interface.cpp
   ${CAMERAD_DIR}/image_process.cpp
-  ${INSTRUMENT_SOURCES}
   )
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
 target_link_libraries(${INTERFACE_TARGET}
@@ -131,6 +138,18 @@ target_link_libraries(${INTERFACE_TARGET}
                       frame_output_factory
                       )
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
+
+# ----------------------------------------------------------------------------
+# instrument implementation, if any.
+# objects shared by the final targets, not depended on as a library
+# ----------------------------------------------------------------------------
+if (INSTRUMENT_SOURCES)
+  add_library(instrument_obj OBJECT ${INSTRUMENT_SOURCES})
+  target_link_libraries(instrument_obj ${INTERFACE_TARGET})
+  set (INSTRUMENT_OBJECTS $<TARGET_OBJECTS:instrument_obj>)
+else()
+  set (INSTRUMENT_OBJECTS "")
+endif()
 
 # ----------------------------------------------------------------------------
 # External libraries, such as FITS, etc.
@@ -164,6 +183,8 @@ find_package(Threads)
 add_executable(camerad
   ${CAMERAD_DIR}/camerad.cpp
   ${CAMERAD_DIR}/camera_server.cpp
+  ${INSTRUMENT_REGISTRATION}
+  ${INSTRUMENT_OBJECTS}
   )
 
 # ----------------------------------------------------------------------------
