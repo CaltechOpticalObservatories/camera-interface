@@ -279,11 +279,43 @@
 <p>An H2RG on an Archon controller, reading in RXR mode.</p>
 <p>Repository: <a class="reference external" href="https://github.com/CaltechOpticalObservatories/cryoscope-instrument">cryoscope-instrument</a>,
 checked out at <code class="docutils literal notranslate"><span class="pre">camerad/Instruments/cryoscope</span></code>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Expands in M4. The module defines a <code class="docutils literal notranslate"><span class="pre">CryoScope</span></code> interface deriving from <code class="docutils literal notranslate"><span class="pre">ArchonInterface</span></code>, with its
-own exposure modes, and registers no additional instrument commands beyond the base set.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This module does not currently build against the core. Its exposure mode instantiates
+<code class="docutils literal notranslate"><span class="pre">ExposureModeTemplate</span></code> with two template parameters where the base declares one, and assigns to
+<code class="docutils literal notranslate"><span class="pre">modetype</span></code> and <code class="docutils literal notranslate"><span class="pre">modeargs</span></code>, which are named <code class="docutils literal notranslate"><span class="pre">type</span></code> and <code class="docutils literal notranslate"><span class="pre">args</span></code> in
+<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/exposure_modes.h">camerad/exposure_modes.h</a>. It was left behind by a refactor of the exposure mode base
+class.</p>
+<p>CI does not catch this, because the build workflow compiles the default target and only builds an
+instrument when one is named explicitly.</p>
 </div>
+<section id="what-it-defines">
+<h2>What it defines<a class="headerlink" href="#what-it-defines" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">CryoScope</span></code> derives from <code class="docutils literal notranslate"><span class="pre">ArchonInterface</span></code> and overrides <code class="docutils literal notranslate"><span class="pre">instrument_cmd</span></code>,
+<code class="docutils literal notranslate"><span class="pre">configure_instrument</span></code>, <code class="docutils literal notranslate"><span class="pre">power</span></code>, <code class="docutils literal notranslate"><span class="pre">get_exposure_modes</span></code> and <code class="docutils literal notranslate"><span class="pre">set_exposure_mode</span></code>, plus a private
+<code class="docutils literal notranslate"><span class="pre">setup_detector()</span></code>.</p>
+<p>It registers no instrument-specific commands beyond the base set, and its exposure mode is still a
+placeholder named <code class="docutils literal notranslate"><span class="pre">XXX</span></code>.</p>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">¶</a></h2>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">START_PARAM</span></code></p></td>
+<td><p>Archon parameter used to start the timing script</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">START_PARAM</span></code> is read only by this module, which is why it does not appear in the
+<a class="reference internal" href="../configuration/core.html"><span class="std std-doc">core key tables</span></a>.</p>
+</section>
 <section id="build">
 <h2>Build<a class="headerlink" href="#build" title="Link to this heading">¶</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>build
@@ -350,6 +382,8 @@ make
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">CryoScope</a><ul>
+<li><a class="reference internal" href="#what-it-defines">What it defines</a></li>
+<li><a class="reference internal" href="#configuration">Configuration</a></li>
 <li><a class="reference internal" href="#build">Build</a></li>
 </ul>
 </li>
