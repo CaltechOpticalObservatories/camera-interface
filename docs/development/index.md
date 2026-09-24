@@ -7,10 +7,9 @@ pip install -r docs/requirements.txt
 sphinx-build -W -b html -d docs/_build/doctrees docs docs/_build/html
 ```
 
-`-d` keeps Sphinx's build cache out of the output directory, which is published verbatim.
-
 `-W` turns warnings into errors, which is what CI uses, so a broken cross-reference fails the build
-rather than shipping a dead link.
+rather than shipping a dead link. `-d` keeps Sphinx's build cache out of the output directory, which
+is published verbatim.
 
 The Python API page needs the compiled `camera_interface` module to be importable. Without it the
 build still succeeds and the page shows a note in place of the reference, so a docs-only change does
@@ -18,8 +17,8 @@ not require a full C++ build locally.
 
 ## How the docs stay current
 
-Reference tables that restate something the source already knows are generated at documentation
-build time and cross-checked against the source, so the build fails when they diverge:
+Reference tables that restate something the source already knows are generated at build time and
+cross-checked against the source, so the build fails when they diverge:
 
 | Table | Source of truth |
 |---|---|
@@ -40,6 +39,14 @@ diverged: `CAMERAD_SYNTAX` feeds the `help` output and still advertises commands
 longer implements. The dispatch is what actually answers a client.
 :::
 
+### Adding a command or key
+
+1. Make the change in the C++ as usual.
+2. Run the docs build. It fails, naming what is now undescribed.
+3. Add the entry to `docs/data/commands.yaml` or `docs/data/config_keys.yaml`.
+
+Nothing has to be added to a page: the tables pick it up.
+
 ## Documentation layout
 
 ```
@@ -51,24 +58,23 @@ docs/
   <chapter>/          one directory per chapter
 ```
 
-Pages are Markdown via MyST. Use `{source}`` `path` `` to link to a file in the repository rather
-than pasting signatures into the prose.
+Pages are Markdown via MyST. Link to a file in the repository with
+`` {source}`camerad/camera_interface.h` `` rather than pasting signatures into the prose; the C++
+reference here is narrative by design.
 
 ## Publishing
 
 `.github/workflows/docs.yml` builds on every pull request and every push to `main`.
 
-- A pull request publishes to `previews/pr-<N>/` on the `gh-pages` branch, and a bot comments the
-  link. The preview is removed when the PR closes.
-- A merge to `main` publishes to the site root.
-- Every build uploads the rendered HTML as a workflow artifact, which is the fallback for pull
-  requests from forks, since those get a read-only token and cannot deploy.
+- A merge to `main` publishes the site to the root of the `gh-pages` branch.
+- Every build uploads the rendered HTML as a workflow artifact, which is how a pull request build is
+  viewed rendered. Download it from the run's summary page.
+- `workflow_dispatch` on `main` also publishes, so the site can be restored without an empty commit.
 
 :::{important}
 The `gh-pages` branch needs a `.nojekyll` file at its root. Without it Pages runs the output through
 Jekyll, which skips directories beginning with an underscore, and the whole site loads with no CSS
-because `_static/` returns 404. A marker inside a preview subdirectory is not enough; it has to be at
-the branch root. Recreating `gh-pages` from scratch means adding it again.
+because `_static/` returns 404. Recreating `gh-pages` from scratch means adding it again.
 :::
 
 ## Testing camerad itself
@@ -77,7 +83,14 @@ the branch root. Recreating `gh-pages` from scratch means adding it again.
 make run_unit_tests && ./bin/run_unit_tests
 ```
 
-The end-to-end tests run against the [emulator](../emulator/index.md) in CI.
+The end-to-end tests run against the [emulator](../emulator/index.md) in CI, in
+`.github/workflows/emulator-integration.yml`.
+
+:::{warning}
+The build workflow compiles the default target, and an instrument only when one is named explicitly.
+`hispec_tracking_camera` is the only instrument any workflow builds, so the other modules can fall
+behind changes to the core without CI noticing.
+:::
 
 ## Instrument submodules
 
