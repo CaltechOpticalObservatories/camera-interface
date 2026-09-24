@@ -282,17 +282,17 @@
 sphinx-build<span class="w"> </span>-W<span class="w"> </span>-b<span class="w"> </span>html<span class="w"> </span>-d<span class="w"> </span>docs/_build/doctrees<span class="w"> </span>docs<span class="w"> </span>docs/_build/html
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">-d</span></code> keeps Sphinx’s build cache out of the output directory, which is published verbatim.</p>
 <p><code class="docutils literal notranslate"><span class="pre">-W</span></code> turns warnings into errors, which is what CI uses, so a broken cross-reference fails the build
-rather than shipping a dead link.</p>
+rather than shipping a dead link. <code class="docutils literal notranslate"><span class="pre">-d</span></code> keeps Sphinx’s build cache out of the output directory, which
+is published verbatim.</p>
 <p>The Python API page needs the compiled <code class="docutils literal notranslate"><span class="pre">camera_interface</span></code> module to be importable. Without it the
 build still succeeds and the page shows a note in place of the reference, so a docs-only change does
 not require a full C++ build locally.</p>
 </section>
 <section id="how-the-docs-stay-current">
 <h2>How the docs stay current<a class="headerlink" href="#how-the-docs-stay-current" title="Link to this heading">¶</a></h2>
-<p>Reference tables that restate something the source already knows are generated at documentation
-build time and cross-checked against the source, so the build fails when they diverge:</p>
+<p>Reference tables that restate something the source already knows are generated at build time and
+cross-checked against the source, so the build fails when they diverge:</p>
 <div class="table-wrapper colwidths-auto docutils container">
 <table class="docutils align-default">
 <thead>
@@ -324,6 +324,15 @@ that no longer exists.</p>
 diverged: <code class="docutils literal notranslate"><span class="pre">CAMERAD_SYNTAX</span></code> feeds the <code class="docutils literal notranslate"><span class="pre">help</span></code> output and still advertises commands the server no
 longer implements. The dispatch is what actually answers a client.</p>
 </div>
+<section id="adding-a-command-or-key">
+<h3>Adding a command or key<a class="headerlink" href="#adding-a-command-or-key" title="Link to this heading">¶</a></h3>
+<ol class="arabic simple">
+<li><p>Make the change in the C++ as usual.</p></li>
+<li><p>Run the docs build. It fails, naming what is now undescribed.</p></li>
+<li><p>Add the entry to <code class="docutils literal notranslate"><span class="pre">docs/data/commands.yaml</span></code> or <code class="docutils literal notranslate"><span class="pre">docs/data/config_keys.yaml</span></code>.</p></li>
+</ol>
+<p>Nothing has to be added to a page: the tables pick it up.</p>
+</section>
 </section>
 <section id="documentation-layout">
 <h2>Documentation layout<a class="headerlink" href="#documentation-layout" title="Link to this heading">¶</a></h2>
@@ -335,25 +344,24 @@ longer implements. The dispatch is what actually answers a client.</p>
   <span class="o">&lt;</span><span class="n">chapter</span><span class="o">&gt;/</span>          <span class="n">one</span> <span class="n">directory</span> <span class="n">per</span> <span class="n">chapter</span>
 </pre></div>
 </div>
-<p>Pages are Markdown via MyST. Use <code class="docutils literal notranslate"><span class="pre">{source}``</span> </code>path` `` to link to a file in the repository rather
-than pasting signatures into the prose.</p>
+<p>Pages are Markdown via MyST. Link to a file in the repository with
+<code class="docutils literal notranslate"><span class="pre">{source}`camerad/camera_interface.h`</span></code> rather than pasting signatures into the prose; the C++
+reference here is narrative by design.</p>
 </section>
 <section id="publishing">
 <h2>Publishing<a class="headerlink" href="#publishing" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.github/workflows/docs.yml</span></code> builds on every pull request and every push to <code class="docutils literal notranslate"><span class="pre">main</span></code>.</p>
 <ul class="simple">
-<li><p>A pull request publishes to <code class="docutils literal notranslate"><span class="pre">previews/pr-&lt;N&gt;/</span></code> on the <code class="docutils literal notranslate"><span class="pre">gh-pages</span></code> branch, and a bot comments the
-link. The preview is removed when the PR closes.</p></li>
-<li><p>A merge to <code class="docutils literal notranslate"><span class="pre">main</span></code> publishes to the site root.</p></li>
-<li><p>Every build uploads the rendered HTML as a workflow artifact, which is the fallback for pull
-requests from forks, since those get a read-only token and cannot deploy.</p></li>
+<li><p>A merge to <code class="docutils literal notranslate"><span class="pre">main</span></code> publishes the site to the root of the <code class="docutils literal notranslate"><span class="pre">gh-pages</span></code> branch.</p></li>
+<li><p>Every build uploads the rendered HTML as a workflow artifact, which is how a pull request build is
+viewed rendered. Download it from the run’s summary page.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">workflow_dispatch</span></code> on <code class="docutils literal notranslate"><span class="pre">main</span></code> also publishes, so the site can be restored without an empty commit.</p></li>
 </ul>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">gh-pages</span></code> branch needs a <code class="docutils literal notranslate"><span class="pre">.nojekyll</span></code> file at its root. Without it Pages runs the output through
 Jekyll, which skips directories beginning with an underscore, and the whole site loads with no CSS
-because <code class="docutils literal notranslate"><span class="pre">_static/</span></code> returns 404. A marker inside a preview subdirectory is not enough; it has to be at
-the branch root. Recreating <code class="docutils literal notranslate"><span class="pre">gh-pages</span></code> from scratch means adding it again.</p>
+because <code class="docutils literal notranslate"><span class="pre">_static/</span></code> returns 404. Recreating <code class="docutils literal notranslate"><span class="pre">gh-pages</span></code> from scratch means adding it again.</p>
 </div>
 </section>
 <section id="testing-camerad-itself">
@@ -361,7 +369,14 @@ the branch root. Recreating <code class="docutils literal notranslate"><span cla
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>make<span class="w"> </span>run_unit_tests<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./bin/run_unit_tests
 </pre></div>
 </div>
-<p>The end-to-end tests run against the <a class="reference internal" href="../emulator/index.html"><span class="std std-doc">emulator</span></a> in CI.</p>
+<p>The end-to-end tests run against the <a class="reference internal" href="../emulator/index.html"><span class="std std-doc">emulator</span></a> in CI, in
+<code class="docutils literal notranslate"><span class="pre">.github/workflows/emulator-integration.yml</span></code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The build workflow compiles the default target, and an instrument only when one is named explicitly.
+<code class="docutils literal notranslate"><span class="pre">hispec_tracking_camera</span></code> is the only instrument any workflow builds, so the other modules can fall
+behind changes to the core without CI noticing.</p>
+</div>
 </section>
 <section id="instrument-submodules">
 <h2>Instrument submodules<a class="headerlink" href="#instrument-submodules" title="Link to this heading">¶</a></h2>
@@ -420,7 +435,10 @@ lives here, in this repository, while each instrument repository keeps its own R
             <ul>
 <li><a class="reference internal" href="#">Development</a><ul>
 <li><a class="reference internal" href="#building-the-documentation">Building the documentation</a></li>
-<li><a class="reference internal" href="#how-the-docs-stay-current">How the docs stay current</a></li>
+<li><a class="reference internal" href="#how-the-docs-stay-current">How the docs stay current</a><ul>
+<li><a class="reference internal" href="#adding-a-command-or-key">Adding a command or key</a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#documentation-layout">Documentation layout</a></li>
 <li><a class="reference internal" href="#publishing">Publishing</a></li>
 <li><a class="reference internal" href="#testing-camerad-itself">Testing camerad itself</a></li>

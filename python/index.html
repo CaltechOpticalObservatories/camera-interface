@@ -277,8 +277,8 @@
           <section id="python-bindings">
 <h1>Python bindings<a class="headerlink" href="#python-bindings" title="Link to this heading">¶</a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">camera_interface</span></code> lets a Python process own a camera directly: no <code class="docutils literal notranslate"><span class="pre">camerad</span></code> process, no socket, no
-text protocol. It performs the same startup the server does, then exposes the command set as
-methods.</p>
+text protocol. Constructing a <code class="docutils literal notranslate"><span class="pre">Camera</span></code> performs the same one-time setup <code class="docutils literal notranslate"><span class="pre">camerad</span></code> does at startup,
+then the command set is available as methods.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">camera_interface</span>
 
 <span class="n">camera</span> <span class="o">=</span> <span class="n">camera_interface</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="s2">"hispecatc.cfg"</span><span class="p">)</span>
@@ -289,17 +289,22 @@ methods.</p>
 <span class="n">camera</span><span class="o">.</span><span class="n">expose</span><span class="p">(</span><span class="s2">"1"</span><span class="p">)</span>
 </pre></div>
 </div>
+<p>Use it when the caller <em>is</em> the control system, so the text protocol would only be overhead. Keep
+<code class="docutils literal notranslate"><span class="pre">camerad</span></code> when several clients share one camera, or when the camera must outlive the client.</p>
 <section id="installing">
 <h2>Installing<a class="headerlink" href="#installing" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> compiles <code class="docutils literal notranslate"><span class="pre">camerad</span></code> and the module and puts both in the environment, so <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">camera_interface</span></code> needs no <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> and <code class="docutils literal notranslate"><span class="pre">camerad</span></code> is on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>:</p>
+<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> compiles <code class="docutils literal notranslate"><span class="pre">camerad</span></code> and the module together and puts both in the environment, so
+<code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">camera_interface</span></code> needs no <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> and <code class="docutils literal notranslate"><span class="pre">camerad</span></code> is on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>./camera-interface<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--config-settings<span class="o">=</span>cmake.define.INSTRUMENT<span class="o">=</span>hispec_tracking_camera
 </pre></div>
 </div>
-<p>Any CMake option can be passed the same way. <code class="docutils literal notranslate"><span class="pre">CONTROLLER</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">archon</span></code> and
-<code class="docutils literal notranslate"><span class="pre">BUILD_PYTHON_MODULE</span></code> is forced on. pybind11 comes from the build requirements into an isolated
-build environment, and is never installed into the target environment.</p>
-<p>A compiler and the full C++ dependency set must be present wherever <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> runs.</p>
+<p>Any CMake option can be passed the same way, so
+<code class="docutils literal notranslate"><span class="pre">--config-settings=cmake.define.ENABLE_SHM_OUTPUT=ON</span></code> works too. <code class="docutils literal notranslate"><span class="pre">CONTROLLER</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">archon</span></code>
+and <code class="docutils literal notranslate"><span class="pre">BUILD_PYTHON_MODULE</span></code> is forced on. pybind11 comes from the build requirements into an isolated
+build environment and is never installed into the target environment.</p>
+<p>A compiler and the full C++ dependency set must be present wherever <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> runs, since it
+builds from source.</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
 <p>The controller and instrument are fixed when the wheel is built, and the module is always named
@@ -309,28 +314,70 @@ instrument, and have the caller assert which one it got:</p>
 </pre></div>
 </div>
 </div>
-<p>Alternatively, <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">-DBUILD_PYTHON_MODULE=ON</span></code> builds it in the source tree, where importing it
-means putting the build’s <code class="docutils literal notranslate"><span class="pre">lib</span></code> directory on <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>.</p>
+<p>Alternatively <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">-DBUILD_PYTHON_MODULE=ON</span></code> builds it in the source tree, where importing means
+putting the build’s <code class="docutils literal notranslate"><span class="pre">lib</span></code> directory on <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>.</p>
 </section>
-<section id="behaviour-worth-knowing">
-<h2>Behaviour worth knowing<a class="headerlink" href="#behaviour-worth-knowing" title="Link to this heading">¶</a></h2>
-<p>Commands release the GIL while they run, so a blocking <code class="docutils literal notranslate"><span class="pre">expose()</span></code> leaves the rest of the process
-responsive. For a daemon, that is the difference between one exposure and its whole RPC loop
-stalling.</p>
-<p>A failed command raises <code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code>.</p>
-<p>Every command <code class="docutils literal notranslate"><span class="pre">camerad</span></code> accepts is reachable. Base commands are bound as methods; instrument
-commands go through <code class="docutils literal notranslate"><span class="pre">instrument_cmd()</span></code>, enumerable with <code class="docutils literal notranslate"><span class="pre">instrument_commands()</span></code>; controller
-commands such as <code class="docutils literal notranslate"><span class="pre">mode</span></code>, <code class="docutils literal notranslate"><span class="pre">raw</span></code>, <code class="docutils literal notranslate"><span class="pre">readacf</span></code>, <code class="docutils literal notranslate"><span class="pre">loadtiming</span></code>, <code class="docutils literal notranslate"><span class="pre">heater</span></code> and <code class="docutils literal notranslate"><span class="pre">sensor</span></code> go through
-<code class="docutils literal notranslate"><span class="pre">controller_cmd()</span></code>. Only <code class="docutils literal notranslate"><span class="pre">exit</span></code> is missing, since the process belongs to the caller.</p>
-<p>Logging follows <code class="docutils literal notranslate"><span class="pre">LOG_STDERR</span></code> from the <code class="docutils literal notranslate"><span class="pre">.cfg</span></code>, overridable per session with <code class="docutils literal notranslate"><span class="pre">log_to_stderr=</span></code>. The C++
-log always goes to its daily file under <code class="docutils literal notranslate"><span class="pre">LOGPATH</span></code>.</p>
+<section id="command-coverage">
+<h2>Command coverage<a class="headerlink" href="#command-coverage" title="Link to this heading">¶</a></h2>
+<p>Every command <code class="docutils literal notranslate"><span class="pre">camerad</span></code> accepts is reachable, through three routes:</p>
+<dl class="simple myst">
+<dt>Base commands</dt><dd><p>Bound as methods: <code class="docutils literal notranslate"><span class="pre">open</span></code>, <code class="docutils literal notranslate"><span class="pre">close</span></code>, <code class="docutils literal notranslate"><span class="pre">load</span></code>, <code class="docutils literal notranslate"><span class="pre">power</span></code>, <code class="docutils literal notranslate"><span class="pre">exptime</span></code>, <code class="docutils literal notranslate"><span class="pre">expose</span></code>, <code class="docutils literal notranslate"><span class="pre">abort</span></code>, <code class="docutils literal notranslate"><span class="pre">key</span></code>,
+<code class="docutils literal notranslate"><span class="pre">datacube</span></code> and the rest.</p>
+</dd>
+<dt>Instrument commands</dt><dd><p><code class="docutils literal notranslate"><span class="pre">instrument_cmd(command,</span> <span class="pre">args)</span></code>, a deliberate passthrough rather than one binding each, so a build
+whose instrument gains a command exposes it with no change to the module. Enumerate with
+<code class="docutils literal notranslate"><span class="pre">instrument_commands()</span></code>, or test one with <code class="docutils literal notranslate"><span class="pre">is_instrument_command()</span></code>.</p>
+</dd>
+<dt>Controller commands</dt><dd><p><code class="docutils literal notranslate"><span class="pre">controller_cmd(command,</span> <span class="pre">args)</span></code> for <code class="docutils literal notranslate"><span class="pre">mode</span></code>, <code class="docutils literal notranslate"><span class="pre">raw</span></code>, <code class="docutils literal notranslate"><span class="pre">readacf</span></code>, <code class="docutils literal notranslate"><span class="pre">loadtiming</span></code>, <code class="docutils literal notranslate"><span class="pre">heater</span></code>, <code class="docutils literal notranslate"><span class="pre">sensor</span></code> and
+the other Archon-only commands.</p>
+</dd>
+</dl>
+<p>Only <code class="docutils literal notranslate"><span class="pre">exit</span></code> is missing, since the process belongs to the caller.</p>
+</section>
+<section id="errors">
+<h2>Errors<a class="headerlink" href="#errors" title="Link to this heading">¶</a></h2>
+<p>A command that fails raises <code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code>, carrying the server’s own error detail where there is
+one:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">try</span><span class="p">:</span>
+    <span class="n">camera</span><span class="o">.</span><span class="n">expose</span><span class="p">(</span><span class="s2">"1"</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">RuntimeError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"exposure failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">error</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Commands that succeed return the command’s return string, which is often empty.</p>
+</section>
+<section id="concurrency">
+<h2>Concurrency<a class="headerlink" href="#concurrency" title="Link to this heading">¶</a></h2>
+<p>Blocking commands release the GIL while they run, so a long <code class="docutils literal notranslate"><span class="pre">expose()</span></code> leaves the rest of the
+process responsive. For a daemon that is the difference between one exposure stalling and its whole
+RPC loop stalling.</p>
+<p>This does not make the object thread-safe. The underlying interface serializes hardware access, but
+issuing conflicting commands from several threads is still a logic error.</p>
+</section>
+<section id="frame-outputs">
+<h2>Frame outputs<a class="headerlink" href="#frame-outputs" title="Link to this heading">¶</a></h2>
+<p>The frame outputs are configured from the <code class="docutils literal notranslate"><span class="pre">.cfg</span></code> exactly as they are for <code class="docutils literal notranslate"><span class="pre">camerad</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">output_status()</span></code> reports on them. It returns a list of dicts, one per configured output:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">output_status</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">output</span><span class="p">[</span><span class="s2">"name"</span><span class="p">],</span> <span class="n">output</span><span class="p">[</span><span class="s2">"frames_written"</span><span class="p">],</span>
+          <span class="n">output</span><span class="p">[</span><span class="s2">"frames_dropped"</span><span class="p">],</span> <span class="n">output</span><span class="p">[</span><span class="s2">"last_written"</span><span class="p">])</span>
+</pre></div>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p><code class="docutils literal notranslate"><span class="pre">output_status()</span></code> is a snapshot, never a barrier. The FITS writer queues and drops frames by design,
-and nothing in this API lets a caller stall acquisition by waiting on an output. Anything that must
-be woken per frame should attach to the
-<a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">shared-memory segment</span></a>, which posts semaphores.</p>
+and nothing in this API lets a caller stall acquisition by waiting on an output, because that would
+serialize acquisition behind disk I/O. Anything that must be woken per frame should attach to the
+<a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">shared-memory segment</span></a>, which posts a semaphore per frame.</p>
 </div>
+</section>
+<section id="logging">
+<h2>Logging<a class="headerlink" href="#logging" title="Link to this heading">¶</a></h2>
+<p>Logging follows <code class="docutils literal notranslate"><span class="pre">LOG_STDERR</span></code> from the <code class="docutils literal notranslate"><span class="pre">.cfg</span></code>, overridable per session with <code class="docutils literal notranslate"><span class="pre">log_to_stderr=</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">camera</span> <span class="o">=</span> <span class="n">camera_interface</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="s2">"hispecatc.cfg"</span><span class="p">,</span> <span class="n">log_to_stderr</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The C++ log always goes to its daily file under <code class="docutils literal notranslate"><span class="pre">LOGPATH</span></code> regardless.</p>
 </section>
 <section id="api">
 <h2>API<a class="headerlink" href="#api" title="Link to this heading">¶</a></h2>
@@ -492,8 +539,9 @@ call open() for that.</p>
 </section>
 <section id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">python/examples/shm_read_frames.py</span></code> is a streaming shared-memory consumer; see
-<a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame outputs</span></a>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">python/examples/shm_read_frames.py</span></code> is a streaming shared-memory consumer that blocks on the
+stream’s semaphore and flags frames it missed. See
+<a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame outputs</span></a> for what it needs.</p>
 </section>
 </section>
 
@@ -554,7 +602,11 @@ call open() for that.</p>
             <ul>
 <li><a class="reference internal" href="#">Python bindings</a><ul>
 <li><a class="reference internal" href="#installing">Installing</a></li>
-<li><a class="reference internal" href="#behaviour-worth-knowing">Behaviour worth knowing</a></li>
+<li><a class="reference internal" href="#command-coverage">Command coverage</a></li>
+<li><a class="reference internal" href="#errors">Errors</a></li>
+<li><a class="reference internal" href="#concurrency">Concurrency</a></li>
+<li><a class="reference internal" href="#frame-outputs">Frame outputs</a></li>
+<li><a class="reference internal" href="#logging">Logging</a></li>
 <li><a class="reference internal" href="#api">API</a><ul>
 <li><a class="reference internal" href="#camera_interface.Camera"><code class="docutils literal notranslate"><span class="pre">Camera</span></code></a><ul>
 <li><a class="reference internal" href="#camera_interface.Camera.abort"><code class="docutils literal notranslate"><span class="pre">Camera.abort()</span></code></a></li>

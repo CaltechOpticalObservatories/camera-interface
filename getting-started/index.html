@@ -276,8 +276,8 @@
         <article role="main" id="furo-main-content">
           <section id="getting-started">
 <h1>Getting started<a class="headerlink" href="#getting-started" title="Link to this heading">¶</a></h1>
-<p>This walks from a clean checkout to a FITS file on disk, with no detector controller attached: the
-Archon emulator stands in for the hardware.</p>
+<p>From a clean checkout to a FITS file on disk, with no detector controller attached: the Archon
+emulator stands in for the hardware.</p>
 <section id="dependencies">
 <h2>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">camerad</span></code> needs a C++20 compiler, CMake 3.12 or newer, and:</p>
@@ -298,8 +298,8 @@ Archon emulator stands in for the hardware.</p>
 </section>
 <section id="build">
 <h2>Build<a class="headerlink" href="#build" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">-DCONTROLLER=</span></code> is required; CMake stops with an error without it. <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code> is optional and
-selects an instrument module from <code class="docutils literal notranslate"><span class="pre">camerad/Instruments/&lt;name&gt;</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">-DCONTROLLER=</span></code> is required; CMake stops with an error without it. <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code> selects an
+instrument module from <code class="docutils literal notranslate"><span class="pre">camerad/Instruments/&lt;name&gt;</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>--recurse-submodules<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>https://github.com/CaltechOpticalObservatories/camera-interface.git
 <span class="nb">cd</span><span class="w"> </span>camera-interface/build
@@ -308,9 +308,8 @@ make
 </pre></div>
 </div>
 <p>Binaries land in <code class="docutils literal notranslate"><span class="pre">bin/</span></code> in the source tree. <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">install</span></code> copies them under
-<code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code> instead, which is the better choice for anything deployed.</p>
-<p>The build options are covered in full under <a class="reference internal" href="../configuration/index.html"><span class="std std-doc">configuration</span></a>; the ones that
-change what gets built are <code class="docutils literal notranslate"><span class="pre">ENABLE_SHM_OUTPUT</span></code>, <code class="docutils literal notranslate"><span class="pre">BUILD_PYTHON_MODULE</span></code> and <code class="docutils literal notranslate"><span class="pre">INTERFACE_TYPE</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code> instead, which is the better choice for anything deployed. The full set of
+build options is in the <a class="reference internal" href="../configuration/index.html"><span class="std std-doc">configuration reference</span></a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Instrument modules are git submodules. A clone without <code class="docutils literal notranslate"><span class="pre">--recurse-submodules</span></code> leaves
@@ -318,18 +317,17 @@ change what gets built are <code class="docutils literal notranslate"><span clas
 <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">submodule</span> <span class="pre">update</span> <span class="pre">--init</span> <span class="pre">--recursive</span></code>.</p>
 </div>
 </section>
-<section id="run-the-emulator">
-<h2>Run the emulator<a class="headerlink" href="#run-the-emulator" title="Link to this heading">¶</a></h2>
-<p>The emulator reads <code class="docutils literal notranslate"><span class="pre">EMULATOR_PORT</span></code> and <code class="docutils literal notranslate"><span class="pre">EMULATOR_SYSTEM</span></code> from the same <code class="docutils literal notranslate"><span class="pre">.cfg</span></code> the server uses, so
-pointing <code class="docutils literal notranslate"><span class="pre">ARCHON_IP</span></code> and <code class="docutils literal notranslate"><span class="pre">ARCHON_PORT</span></code> at it is all that separates a test rig from real hardware. The
-shipped <code class="docutils literal notranslate"><span class="pre">config/demo/demo.cfg</span></code> already does this.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bin/camerad-emulator<span class="w"> </span>config/demo/demo.cfg<span class="w"> </span>-i<span class="w"> </span>generic
+<section id="run-it">
+<h2>Run it<a class="headerlink" href="#run-it" title="Link to this heading">¶</a></h2>
+<p>This uses <code class="docutils literal notranslate"><span class="pre">config/frame_outputs_test/frame_outputs_test.cfg</span></code>, which is the config the CI integration
+test drives, so it is known to work end to end. It enables the FITS writer, points <code class="docutils literal notranslate"><span class="pre">ARCHON_IP</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ARCHON_PORT</span></code> at the emulator, and listens on port 3131.</p>
+<p>Start the emulator:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bin/camerad-emulator<span class="w"> </span>config/frame_outputs_test/frame_outputs_test.cfg<span class="w"> </span>-i<span class="w"> </span>generic
 </pre></div>
 </div>
-</section>
-<section id="run-the-server">
-<h2>Run the server<a class="headerlink" href="#run-the-server" title="Link to this heading">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bin/camerad<span class="w"> </span>--foreground<span class="w"> </span>--config<span class="w"> </span>config/demo/demo.cfg
+<p>Then the server, in another terminal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bin/camerad<span class="w"> </span>--foreground<span class="w"> </span>--config<span class="w"> </span>config/frame_outputs_test/frame_outputs_test.cfg
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">--config</span></code> is required. Without <code class="docutils literal notranslate"><span class="pre">--foreground</span></code> the server daemonizes. Logging always goes to a daily
@@ -337,9 +335,8 @@ file under <code class="docutils literal notranslate"><span class="pre">LOGPATH<
 </section>
 <section id="take-an-exposure">
 <h2>Take an exposure<a class="headerlink" href="#take-an-exposure" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">camerad-socksend</span></code> sends one command and prints the reply. Point it at the blocking port from the
-<code class="docutils literal notranslate"><span class="pre">.cfg</span></code> (<code class="docutils literal notranslate"><span class="pre">BLKPORT</span></code>).</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>send<span class="o">()</span><span class="w"> </span><span class="o">{</span><span class="w"> </span>bin/camerad-socksend<span class="w"> </span>-p<span class="w"> </span><span class="m">3031</span><span class="w"> </span>-t<span class="w"> </span><span class="m">60</span><span class="w"> </span><span class="s2">"</span><span class="nv">$1</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<p><code class="docutils literal notranslate"><span class="pre">camerad-socksend</span></code> sends one command and prints the reply. Point it at <code class="docutils literal notranslate"><span class="pre">BLKPORT</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>send<span class="o">()</span><span class="w"> </span><span class="o">{</span><span class="w"> </span>bin/camerad-socksend<span class="w"> </span>-p<span class="w"> </span><span class="m">3131</span><span class="w"> </span>-t<span class="w"> </span><span class="m">60</span><span class="w"> </span><span class="s2">"</span><span class="nv">$1</span><span class="s2">"</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
 
 send<span class="w"> </span><span class="s2">"open"</span><span class="w">          </span><span class="c1"># connect to the controller</span>
 send<span class="w"> </span><span class="s2">"load"</span><span class="w">          </span><span class="c1"># load firmware named by DEFAULT_FIRMWARE</span>
@@ -348,20 +345,57 @@ send<span class="w"> </span><span class="s2">"exptime 1.5"</span><span class="w"
 send<span class="w"> </span><span class="s2">"expose 1"</span>
 </pre></div>
 </div>
-<p>Each returns <code class="docutils literal notranslate"><span class="pre">DONE</span></code> or <code class="docutils literal notranslate"><span class="pre">ERROR</span></code>. The FITS file appears under <code class="docutils literal notranslate"><span class="pre">IMDIR</span></code>, named from <code class="docutils literal notranslate"><span class="pre">BASENAME</span></code>.</p>
+<p>Each returns <code class="docutils literal notranslate"><span class="pre">DONE</span></code> or <code class="docutils literal notranslate"><span class="pre">ERROR</span></code>. The FITS file appears under <code class="docutils literal notranslate"><span class="pre">FITS_OUTPUT_DIR</span></code>, which this config
+sets to <code class="docutils literal notranslate"><span class="pre">/tmp/ci_fits_test</span></code>, named from <code class="docutils literal notranslate"><span class="pre">FITS_BASENAME</span></code>.</p>
+<p>Check the header carries what the instrument promises:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>python/tests/fits_header_check.py<span class="w"> </span>/tmp/ci_fits_test/ci_frame_outputs_*.fits<span class="w"> </span>--exptime<span class="w"> </span><span class="m">1</span>.5
+</pre></div>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p><code class="docutils literal notranslate"><span class="pre">DONE</span></code> means the server accepted and completed the command, not that every frame output succeeded.
-The FITS writer drops frames by design when the queue backs up, so <code class="docutils literal notranslate"><span class="pre">DONE</span></code> from <code class="docutils literal notranslate"><span class="pre">expose</span></code> is not a
-promise that a file was written. <a class="reference internal" href="../fits/index.html"><span class="std std-doc">Frame outputs</span></a> explains how to check.</p>
+<p><code class="docutils literal notranslate"><span class="pre">DONE</span></code> means the server accepted and completed the command, not that a file was written. The FITS
+writer drops frames by design when its queue backs up, so the file on disk is the real confirmation.
+See <a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame outputs</span></a>.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">config/demo/demo.cfg</span></code> is a smaller example, but it enables no frame outputs at all, so an exposure
+against it returns <code class="docutils literal notranslate"><span class="pre">DONE</span></code> and writes nothing. It is a starting point for a config, not a working
+demonstration.</p>
+</div>
+</section>
+<section id="where-things-went">
+<h2>Where things went<a class="headerlink" href="#where-things-went" title="Link to this heading">¶</a></h2>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>What</p></th>
+<th class="head"><p>Where</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>FITS files</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">FITS_OUTPUT_DIR</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Log file</p></td>
+<td><p>a daily file under <code class="docutils literal notranslate"><span class="pre">LOGPATH</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Shared-memory stream</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SHM_DIR</span></code>, or <code class="docutils literal notranslate"><span class="pre">MILK_SHM_DIR</span></code>, or <code class="docutils literal notranslate"><span class="pre">/milk/shm</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">IMDIR</span></code> and <code class="docutils literal notranslate"><span class="pre">BASENAME</span></code> appear in the shipped configs but are read by nothing. Output
+location is set entirely by the <a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame output keys</span></a>.</p>
 </section>
 <section id="next">
 <h2>Next<a class="headerlink" href="#next" title="Link to this heading">¶</a></h2>
 <ul class="simple">
+<li><p>What the commands are: <a class="reference internal" href="../commands/index.html"><span class="std std-doc">command reference</span></a></p></li>
 <li><p>Drive the camera from Python instead of a socket: <a class="reference internal" href="../python/index.html"><span class="std std-doc">Python bindings</span></a></p></li>
-<li><p>Understand what the emulator does and does not model: <a class="reference internal" href="../emulator/index.html"><span class="std std-doc">Emulator</span></a></p></li>
-<li><p>Configure a real instrument: <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">Instruments</span></a></p></li>
+<li><p>What the emulator does and does not model: <a class="reference internal" href="../emulator/index.html"><span class="std std-doc">emulator</span></a></p></li>
+<li><p>Configure a real instrument: <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">instruments</span></a></p></li>
 </ul>
 </section>
 </section>
@@ -424,9 +458,9 @@ promise that a file was written. <a class="reference internal" href="../fits/ind
 <li><a class="reference internal" href="#">Getting started</a><ul>
 <li><a class="reference internal" href="#dependencies">Dependencies</a></li>
 <li><a class="reference internal" href="#build">Build</a></li>
-<li><a class="reference internal" href="#run-the-emulator">Run the emulator</a></li>
-<li><a class="reference internal" href="#run-the-server">Run the server</a></li>
+<li><a class="reference internal" href="#run-it">Run it</a></li>
 <li><a class="reference internal" href="#take-an-exposure">Take an exposure</a></li>
+<li><a class="reference internal" href="#where-things-went">Where things went</a></li>
 <li><a class="reference internal" href="#next">Next</a></li>
 </ul>
 </li>

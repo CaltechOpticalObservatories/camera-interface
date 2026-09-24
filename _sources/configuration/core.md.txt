@@ -5,9 +5,12 @@ Keys the server itself reads, independent of the frame outputs.
 :::{important}
 These tables list only keys the code actually reads. Configuration files in the wild, and the
 superseded 2022 ICD, carry a number of keys that nothing reads any more: `IMDIR`, `BASENAME`,
-`AUTODIR`, `DIRMODE`, `DAEMON`, `LONGERROR`, `TM_ZONE`, `TZ_ENV`, `ASYNCPORT`, `ASYNCGROUP` and
-`START_PARAM` among them. Setting them has no effect. Image naming and location moved to the
+`AUTODIR`, `DIRMODE`, `DAEMON`, `LONGERROR`, `TM_ZONE`, `TZ_ENV`, `ASYNCPORT` and `ASYNCGROUP`
+among them. Setting them has no effect. Image naming and location moved to the
 [frame output keys](frame-outputs.md).
+
+Instrument modules read keys of their own, which are documented with the
+[instrument](../instruments/index.md) rather than here.
 :::
 
 ## Controller connection

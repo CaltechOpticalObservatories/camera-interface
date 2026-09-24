@@ -1,7 +1,7 @@
 # Getting started
 
-This walks from a clean checkout to a FITS file on disk, with no detector controller attached: the
-Archon emulator stands in for the hardware.
+From a clean checkout to a FITS file on disk, with no detector controller attached: the Archon
+emulator stands in for the hardware.
 
 ## Dependencies
 
@@ -24,8 +24,8 @@ sudo apt-get install -y build-essential cmake ninja-build \
 
 ## Build
 
-`-DCONTROLLER=` is required; CMake stops with an error without it. `-DINSTRUMENT=` is optional and
-selects an instrument module from `camerad/Instruments/<name>`.
+`-DCONTROLLER=` is required; CMake stops with an error without it. `-DINSTRUMENT=` selects an
+instrument module from `camerad/Instruments/<name>`.
 
 ```bash
 git clone --recurse-submodules \
@@ -36,10 +36,8 @@ make
 ```
 
 Binaries land in `bin/` in the source tree. `make install` copies them under
-`CMAKE_INSTALL_PREFIX` instead, which is the better choice for anything deployed.
-
-The build options are covered in full under [configuration](../configuration/index.md); the ones that
-change what gets built are `ENABLE_SHM_OUTPUT`, `BUILD_PYTHON_MODULE` and `INTERFACE_TYPE`.
+`CMAKE_INSTALL_PREFIX` instead, which is the better choice for anything deployed. The full set of
+build options is in the [configuration reference](../configuration/index.md).
 
 :::{note}
 Instrument modules are git submodules. A clone without `--recurse-submodules` leaves
@@ -47,20 +45,22 @@ Instrument modules are git submodules. A clone without `--recurse-submodules` le
 `git submodule update --init --recursive`.
 :::
 
-## Run the emulator
+## Run it
 
-The emulator reads `EMULATOR_PORT` and `EMULATOR_SYSTEM` from the same `.cfg` the server uses, so
-pointing `ARCHON_IP` and `ARCHON_PORT` at it is all that separates a test rig from real hardware. The
-shipped `config/demo/demo.cfg` already does this.
+This uses `config/frame_outputs_test/frame_outputs_test.cfg`, which is the config the CI integration
+test drives, so it is known to work end to end. It enables the FITS writer, points `ARCHON_IP` and
+`ARCHON_PORT` at the emulator, and listens on port 3131.
+
+Start the emulator:
 
 ```bash
-bin/camerad-emulator config/demo/demo.cfg -i generic
+bin/camerad-emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic
 ```
 
-## Run the server
+Then the server, in another terminal:
 
 ```bash
-bin/camerad --foreground --config config/demo/demo.cfg
+bin/camerad --foreground --config config/frame_outputs_test/frame_outputs_test.cfg
 ```
 
 `--config` is required. Without `--foreground` the server daemonizes. Logging always goes to a daily
@@ -68,11 +68,10 @@ file under `LOGPATH`; `--foreground` additionally writes it to stderr.
 
 ## Take an exposure
 
-`camerad-socksend` sends one command and prints the reply. Point it at the blocking port from the
-`.cfg` (`BLKPORT`).
+`camerad-socksend` sends one command and prints the reply. Point it at `BLKPORT`.
 
 ```bash
-send() { bin/camerad-socksend -p 3031 -t 60 "$1"; }
+send() { bin/camerad-socksend -p 3131 -t 60 "$1"; }
 
 send "open"          # connect to the controller
 send "load"          # load firmware named by DEFAULT_FIRMWARE
@@ -81,16 +80,41 @@ send "exptime 1.5"   # seconds, because this config leaves LONGEXPOSURE at its d
 send "expose 1"
 ```
 
-Each returns `DONE` or `ERROR`. The FITS file appears under `IMDIR`, named from `BASENAME`.
+Each returns `DONE` or `ERROR`. The FITS file appears under `FITS_OUTPUT_DIR`, which this config
+sets to `/tmp/ci_fits_test`, named from `FITS_BASENAME`.
+
+Check the header carries what the instrument promises:
+
+```bash
+python3 python/tests/fits_header_check.py /tmp/ci_fits_test/ci_frame_outputs_*.fits --exptime 1.5
+```
 
 :::{warning}
-`DONE` means the server accepted and completed the command, not that every frame output succeeded.
-The FITS writer drops frames by design when the queue backs up, so `DONE` from `expose` is not a
-promise that a file was written. [Frame outputs](../fits/index.md) explains how to check.
+`DONE` means the server accepted and completed the command, not that a file was written. The FITS
+writer drops frames by design when its queue backs up, so the file on disk is the real confirmation.
+See [frame outputs](../configuration/frame-outputs.md).
 :::
+
+:::{note}
+`config/demo/demo.cfg` is a smaller example, but it enables no frame outputs at all, so an exposure
+against it returns `DONE` and writes nothing. It is a starting point for a config, not a working
+demonstration.
+:::
+
+## Where things went
+
+| What | Where |
+|---|---|
+| FITS files | `FITS_OUTPUT_DIR` |
+| Log file | a daily file under `LOGPATH` |
+| Shared-memory stream | `SHM_DIR`, or `MILK_SHM_DIR`, or `/milk/shm` |
+
+Note that `IMDIR` and `BASENAME` appear in the shipped configs but are read by nothing. Output
+location is set entirely by the [frame output keys](../configuration/frame-outputs.md).
 
 ## Next
 
+- What the commands are: [command reference](../commands/index.md)
 - Drive the camera from Python instead of a socket: [Python bindings](../python/index.md)
-- Understand what the emulator does and does not model: [Emulator](../emulator/index.md)
-- Configure a real instrument: [Instruments](../instruments/index.md)
+- What the emulator does and does not model: [emulator](../emulator/index.md)
+- Configure a real instrument: [instruments](../instruments/index.md)

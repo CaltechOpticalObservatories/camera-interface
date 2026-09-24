@@ -276,69 +276,112 @@
         <article role="main" id="furo-main-content">
           <section id="architecture">
 <h1>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">¶</a></h1>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Expands in M3 with the thread model, the frame path and the instrument plugin contract in full. The
-layering below is accurate now.</p>
-</div>
-<p>The C++ reference here is narrative and links to source rather than reproducing signatures.</p>
+<p>How the pieces fit together, and why acquisition is kept separate from output. The C++ reference
+here is narrative and links to source rather than reproducing signatures.</p>
 <section id="layers">
 <h2>Layers<a class="headerlink" href="#layers" title="Link to this heading">¶</a></h2>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>        <span class="n">client</span> <span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">socksend</span><span class="p">,</span> <span class="ow">or</span> <span class="n">Python</span> <span class="n">module</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>        <span class="n">client</span> <span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="n">camerad</span><span class="o">-</span><span class="n">socksend</span><span class="p">,</span> <span class="ow">or</span> <span class="n">the</span> <span class="n">Python</span> <span class="n">module</span><span class="p">)</span>
                           <span class="o">|</span>
-   <span class="n">Camera</span><span class="p">::</span><span class="n">Server</span> <span class="o">........|......</span> <span class="n">command</span> <span class="n">dispatch</span><span class="p">,</span> <span class="n">ports</span><span class="p">,</span> <span class="n">logging</span>
+   <span class="n">Camera</span><span class="p">::</span><span class="n">Server</span> <span class="o">.......................</span>  <span class="n">one</span> <span class="n">TCP</span> <span class="n">port</span><span class="p">,</span> <span class="n">command</span> <span class="n">dispatch</span><span class="p">,</span> <span class="n">logging</span>
                           <span class="o">|</span>
-   <span class="n">Camera</span><span class="p">::</span><span class="n">Interface</span> <span class="o">.....|......</span> <span class="n">the</span> <span class="n">camera</span><span class="p">,</span> <span class="k">as</span> <span class="n">commands</span>
-        <span class="o">|</span>         <span class="o">|</span>
-        <span class="o">|</span>         <span class="o">+------</span> <span class="n">Camera</span><span class="p">::</span><span class="n">ExposureMode</span> <span class="o">.....</span> <span class="n">how</span> <span class="n">one</span> <span class="n">exposure</span> <span class="n">runs</span>
+   <span class="n">Camera</span><span class="p">::</span><span class="n">Interface</span> <span class="o">....................</span>  <span class="n">the</span> <span class="n">camera</span><span class="p">,</span> <span class="n">expressed</span> <span class="k">as</span> <span class="n">commands</span>
+        <span class="o">|</span>            <span class="o">|</span>              <span class="o">|</span>
+        <span class="o">|</span>            <span class="o">|</span>              <span class="o">+-----</span>  <span class="n">FrameOutput</span> <span class="o">....</span>  <span class="n">FITS</span> <span class="n">file</span><span class="p">,</span> <span class="n">shared</span> <span class="n">memory</span>
+        <span class="o">|</span>            <span class="o">|</span>
+        <span class="o">|</span>            <span class="o">+--------------------</span>  <span class="n">Camera</span><span class="p">::</span><span class="n">ExposureMode</span> <span class="o">....</span>  <span class="n">how</span> <span class="n">one</span> <span class="n">exposure</span> <span class="n">runs</span>
         <span class="o">|</span>
-   <span class="n">Camera</span><span class="p">::</span><span class="n">Controller</span> <span class="o">....|......</span> <span class="n">the</span> <span class="n">wire</span> <span class="n">to</span> <span class="n">the</span> <span class="n">hardware</span>
+   <span class="n">Camera</span><span class="p">::</span><span class="n">Controller</span> <span class="o">...................</span>  <span class="n">the</span> <span class="n">wire</span> <span class="n">to</span> <span class="n">the</span> <span class="n">hardware</span>
                           <span class="o">|</span>
               <span class="n">Archon</span> <span class="p">(</span><span class="n">TCP</span><span class="p">)</span> <span class="ow">or</span> <span class="n">ARC</span> <span class="p">(</span><span class="n">PCIe</span><span class="p">)</span>
 </pre></div>
 </div>
 <dl class="simple myst">
-<dt><code class="docutils literal notranslate"><span class="pre">Camera::Server</span></code> (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camera_server.h">camerad/camera_server.h</a>)</dt><dd><p>Owns the ports and the command dispatch loop. Parses a command line, calls the matching
-<code class="docutils literal notranslate"><span class="pre">Interface</span></code> method, and formats the reply. Knows nothing about detectors.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">Camera::Server</span></code> (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camera_server.h">camerad/camera_server.h</a>)</dt><dd><p>Owns the listening socket and the command dispatch chain. Parses a command line, calls the
+matching <code class="docutils literal notranslate"><span class="pre">Interface</span></code> method, appends <code class="docutils literal notranslate"><span class="pre">DONE</span></code> or <code class="docutils literal notranslate"><span class="pre">ERROR</span></code>, writes the reply back. Knows nothing about
+detectors. Each client connection is served on its own thread.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">Camera::Interface</span></code> (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camera_interface.h">camerad/camera_interface.h</a>)</dt><dd><p>The abstract camera. Declares one pure virtual per command: <code class="docutils literal notranslate"><span class="pre">expose</span></code>, <code class="docutils literal notranslate"><span class="pre">exptime</span></code>, <code class="docutils literal notranslate"><span class="pre">bias</span></code>, <code class="docutils literal notranslate"><span class="pre">bin</span></code>,
-<code class="docutils literal notranslate"><span class="pre">load_firmware</span></code>, <code class="docutils literal notranslate"><span class="pre">power</span></code> and the rest. <code class="docutils literal notranslate"><span class="pre">ArchonInterface</span></code> and <code class="docutils literal notranslate"><span class="pre">AstroCamInterface</span></code> implement it for
-the two controller families, and an instrument module subclasses one of those.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">Camera::Interface</span></code> (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camera_interface.h">camerad/camera_interface.h</a>)</dt><dd><p>The abstract camera. Declares one pure virtual per command, and owns the config, the
+<code class="docutils literal notranslate"><span class="pre">Camera::Information</span></code> for the current exposure, and the list of frame outputs.
+<code class="docutils literal notranslate"><span class="pre">ArchonInterface</span></code> and <code class="docutils literal notranslate"><span class="pre">AstroCamInterface</span></code> implement it for the two controller families; an
+instrument module subclasses one of those.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">Camera::Controller</span></code></dt><dd><p>The transport to the hardware, separate from <code class="docutils literal notranslate"><span class="pre">Interface</span></code> so that the command semantics and the
-wire protocol can vary independently.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">Camera::Controller</span></code></dt><dd><p>The transport to the hardware, kept separate from <code class="docutils literal notranslate"><span class="pre">Interface</span></code> so command semantics and wire
+protocol vary independently.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">Camera::ExposureMode</span></code> (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/exposure_modes.h">camerad/exposure_modes.h</a>)</dt><dd><p>One way of running an exposure, as a producer/consumer pair: an acquisition thread pulls frames
-from the controller, a processing thread turns them into images. A single <code class="docutils literal notranslate"><span class="pre">expose</span></code> command means
-different things for a slow CCD readout and a continuously reading H2RG, and this is where that
-difference lives. <code class="docutils literal notranslate"><span class="pre">Interface::select_expose_mode()</span></code> picks one.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">Camera::ExposureMode</span></code> (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/exposure_modes.h">camerad/exposure_modes.h</a>)</dt><dd><p>One way of running an exposure. <code class="docutils literal notranslate"><span class="pre">ExposureModeTemplate&lt;InterfaceType&gt;</span></code> is the base each concrete
+mode derives from; the template parameter gives a mode typed access to its interface. Each mode
+owns its own <code class="docutils literal notranslate"><span class="pre">Camera::Information</span></code> for processed and unprocessed images, and an <code class="docutils literal notranslate"><span class="pre">ImageProcessor</span></code>
+for deinterlacing.</p>
 </dd>
 </dl>
+<p>A single <code class="docutils literal notranslate"><span class="pre">expose</span></code> means different things for a slow CCD readout and a continuously reading H2RG,
+which is exactly what the exposure mode abstracts.</p>
+</section>
+<section id="acquisition-producer-and-consumer">
+<h2>Acquisition: producer and consumer<a class="headerlink" href="#acquisition-producer-and-consumer" title="Link to this heading">¶</a></h2>
+<p>An exposure mode is a producer/consumer pair over a bounded queue:</p>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">image_acquisition_thread()</span></code></dt><dd><p>The producer. Pulls frames off the controller as fast as the hardware delivers them and enqueues
+them.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">image_processing_thread()</span></code></dt><dd><p>The consumer. Dequeues a frame, runs it through the deinterlacer, and hands the result to the
+frame outputs.</p>
+</dd>
+</dl>
+<p>The base class carries the synchronization (<code class="docutils literal notranslate"><span class="pre">queue_mutex</span></code>, <code class="docutils literal notranslate"><span class="pre">queue_cv</span></code>, and the
+<code class="docutils literal notranslate"><span class="pre">is_producer_finished</span></code> / <code class="docutils literal notranslate"><span class="pre">is_producer_error</span></code> / <code class="docutils literal notranslate"><span class="pre">is_consumer_error</span></code> flags), so a concrete mode
+implements only the parts that differ. In the tracking camera module, for instance, a shared base
+owns the queue and the consumer and each subclass implements only the producer.</p>
+<p>Two lifetimes exist. For a counted exposure the consumer is one-shot: <code class="docutils literal notranslate"><span class="pre">do_expose()</span></code> spawns it,
+and it terminates once the producer is finished and the queue is drained. In freerun, one producer
+and one consumer run for the whole session and <code class="docutils literal notranslate"><span class="pre">expose</span></code> returns immediately, leaving them going
+until an abort or a producer error.</p>
+</section>
+<section id="the-frame-path">
+<h2>The frame path<a class="headerlink" href="#the-frame-path" title="Link to this heading">¶</a></h2>
+<p>A processed frame is fanned out synchronously to every configured output by
+<code class="docutils literal notranslate"><span class="pre">Interface::dispatch_frame()</span></code>, which simply calls <code class="docutils literal notranslate"><span class="pre">write()</span></code> on each in turn. When the whole exposure
+command finishes, <code class="docutils literal notranslate"><span class="pre">end_exposure()</span></code> tells each output, so a multi-frame output such as a data cube
+can finalize its file.</p>
+<p>Outputs are built once at startup by <code class="docutils literal notranslate"><span class="pre">Interface::configure_frame_outputs()</span></code>, called from
+<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camerad.cpp">camerad/camerad.cpp</a> for every instrument. It is deliberately not virtual, so no derived
+class can silently skip wiring its outputs.</p>
+<section id="why-outputs-never-block">
+<h3>Why outputs never block<a class="headerlink" href="#why-outputs-never-block" title="Link to this heading">¶</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">dispatch_frame()</span></code> runs on the consumer thread, so anything slow inside an output would stall
+acquisition. Each output is therefore required to return promptly, and absorbs the mismatch itself.</p>
+<p>The FITS writer is the clearest case (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/utils/fits_writer.h">utils/fits_writer.h</a>): <code class="docutils literal notranslate"><span class="pre">write()</span></code> copies the pixels
+into a bounded queue and returns, never touching CCfits. A dedicated worker thread drains that queue
+to disk. When the queue is full the oldest frame is dropped. Disk is slower than acquisition can be,
+and the design chooses to lose a frame rather than apply backpressure to the detector.</p>
+<p>This is also why <code class="docutils literal notranslate"><span class="pre">FrameOutput::status()</span></code> is documented as a snapshot and never a barrier: letting a
+caller wait on an output would serialize acquisition behind disk I/O, reintroducing the coupling the
+queue exists to remove.</p>
+<p>The shared-memory output makes the opposite trade (<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/utils/shared_memory_writer.cpp">utils/shared_memory_writer.cpp</a>): it
+copies the frame into the stream buffer and calls <code class="docutils literal notranslate"><span class="pre">ImageStreamIO_UpdateIm</span></code>, which posts the
+semaphores. Nothing it does depends on a reader, so a reader that cannot keep up misses frames but
+never delays the writer. Anything that must be woken per frame should attach there rather than watch
+for files.</p>
+<p>See <a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame output keys</span></a> for configuring them.</p>
+</section>
 </section>
 <section id="instrument-modules">
 <h2>Instrument modules<a class="headerlink" href="#instrument-modules" title="Link to this heading">¶</a></h2>
-<p>An instrument is a separate git repository, checked out as a submodule under
-<code class="docutils literal notranslate"><span class="pre">camerad/Instruments/&lt;name&gt;</span></code> and selected with <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code>. It contributes four things:</p>
+<p>An instrument is a separate repository, checked out as a submodule under
+<code class="docutils literal notranslate"><span class="pre">camerad/Instruments/&lt;name&gt;</span></code> and selected with <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code>. It contributes:</p>
 <ol class="arabic simple">
-<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.cmake</span></code> fragment setting <code class="docutils literal notranslate"><span class="pre">INSTRUMENT_SOURCES</span></code>, which is the whole of the build
-integration.</p></li>
-<li><p>An <code class="docutils literal notranslate"><span class="pre">Interface</span></code> subclass, deriving from <code class="docutils literal notranslate"><span class="pre">ArchonInterface</span></code> or <code class="docutils literal notranslate"><span class="pre">AstroCamInterface</span></code>, overriding what
-the detector needs and adding instrument commands via <code class="docutils literal notranslate"><span class="pre">instrument_cmd()</span></code> and
-<code class="docutils literal notranslate"><span class="pre">is_instrument_command()</span></code>.</p></li>
-<li><p>Its own <code class="docutils literal notranslate"><span class="pre">ExposureMode</span></code> implementations, if the stock ones do not fit.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.cmake</span></code> fragment setting <code class="docutils literal notranslate"><span class="pre">INSTRUMENT_SOURCES</span></code>. That is the whole build integration.</p></li>
+<li><p>An <code class="docutils literal notranslate"><span class="pre">Interface</span></code> subclass deriving from <code class="docutils literal notranslate"><span class="pre">ArchonInterface</span></code> or <code class="docutils literal notranslate"><span class="pre">AstroCamInterface</span></code>, overriding what
+the detector needs and adding commands through <code class="docutils literal notranslate"><span class="pre">instrument_cmd()</span></code> and <code class="docutils literal notranslate"><span class="pre">is_instrument_command()</span></code>.</p></li>
+<li><p>Its own <code class="docutils literal notranslate"><span class="pre">ExposureMode</span></code> implementations, where the stock ones do not fit.</p></li>
 <li><p>Optionally a FITS header dictionary and shipped <code class="docutils literal notranslate"><span class="pre">.cfg</span></code> and <code class="docutils literal notranslate"><span class="pre">.acf</span></code> files.</p></li>
 </ol>
-<p>An interface factory function ties it together, so the core builds against the base class and never
-names a concrete instrument.</p>
-<p>See <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">instruments</span></a> for the four that exist, and
+<p>An interface factory ties it together, so the core builds against the base class and never names a
+concrete instrument.</p>
+<p>Instrument commands are checked <em>before</em> the base command chain, so an instrument can add commands
+and also override a base one of the same name.</p>
+<p>See <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">instruments</span></a> for the modules that exist, and
 <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/Instruments/hispec_tracking_camera">camerad/Instruments/hispec_tracking_camera</a> for the most complete example.</p>
-</section>
-<section id="frame-path">
-<h2>Frame path<a class="headerlink" href="#frame-path" title="Link to this heading">¶</a></h2>
-<p>Acquisition is deliberately decoupled from output. The exposure mode’s processing thread publishes a
-completed frame to every configured <a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame output</span></a>; each output
-owns its own queue and thread. Nothing an output does can block acquisition, which is why the FITS
-writer drops frames instead of applying backpressure.</p>
 </section>
 </section>
 
@@ -399,8 +442,12 @@ writer drops frames instead of applying backpressure.</p>
             <ul>
 <li><a class="reference internal" href="#">Architecture</a><ul>
 <li><a class="reference internal" href="#layers">Layers</a></li>
+<li><a class="reference internal" href="#acquisition-producer-and-consumer">Acquisition: producer and consumer</a></li>
+<li><a class="reference internal" href="#the-frame-path">The frame path</a><ul>
+<li><a class="reference internal" href="#why-outputs-never-block">Why outputs never block</a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#instrument-modules">Instrument modules</a></li>
-<li><a class="reference internal" href="#frame-path">Frame path</a></li>
 </ul>
 </li>
 </ul>

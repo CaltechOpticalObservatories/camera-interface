@@ -276,61 +276,119 @@
         <article role="main" id="furo-main-content">
           <section id="controller-commands">
 <h1>Controller commands<a class="headerlink" href="#controller-commands" title="Link to this heading">¶</a></h1>
-<p>Commands passed through to the detector controller largely untouched. The server does not interpret
-them, so this is the escape hatch for anything the higher-level commands do not cover.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Fills out in M3 alongside the architecture chapter.</p>
-</div>
+<p>Commands that reach the detector controller rather than being interpreted by the server. This is
+the escape hatch for anything the higher-level commands do not cover.</p>
+<p>Two routes exist. <code class="docutils literal notranslate"><span class="pre">native</span></code> passes a command straight through and returns the reply. The commands
+routed through <code class="docutils literal notranslate"><span class="pre">controller_cmd</span></code>, marked Archon in the <a class="reference internal" href="base.html"><span class="std std-doc">base command table</span></a>, are
+server-side implementations of controller-specific features.</p>
 <section id="archon">
 <h2>Archon<a class="headerlink" href="#archon" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">native</span></code> sends an Archon command directly and returns its reply. The commands most worth knowing:</p>
+<p><code class="docutils literal notranslate"><span class="pre">native</span> <span class="pre">&lt;cmd&gt;</span></code> sends <code class="docutils literal notranslate"><span class="pre">&lt;cmd&gt;</span></code> to the Archon and returns its reply without parsing it, beyond
+confirming that a reply came back. The commands most worth knowing:</p>
 <dl class="simple myst">
-<dt><code class="docutils literal notranslate"><span class="pre">FRAME</span></code></dt><dd><p>Frame buffer status: which buffer is complete, frame numbers, timestamps, sizes.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">FRAME</span></code></dt><dd><p>Frame buffer status: which buffer is complete, frame numbers, timestamps and sizes.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">STATUS</span></code></dt><dd><p>Backplane status, including module temperatures, voltages and currents.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">SYSTEM</span></code></dt><dd><p>Module complement: what is in each slot, with type, revision and version.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">SYSTEM</span></code></dt><dd><p>Module complement: what occupies each slot, with type, revision and version.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">TIMER</span></code></dt><dd><p>The controller’s free-running timer, useful for checking the link is alive.</p>
 </dd>
 </dl>
-<p><code class="docutils literal notranslate"><span class="pre">raw</span></code> reaches the Archon configuration memory directly, to read the loaded configuration or set keys
-in it.</p>
+<p>The server itself parses <code class="docutils literal notranslate"><span class="pre">FRAME</span></code>, <code class="docutils literal notranslate"><span class="pre">STATUS</span></code> and <code class="docutils literal notranslate"><span class="pre">SYSTEM</span></code> replies for its own bookkeeping, so use
+<code class="docutils literal notranslate"><span class="pre">native</span></code> for inspection rather than as a control path.</p>
+<p>Beyond <code class="docutils literal notranslate"><span class="pre">native</span></code>, the Archon-specific commands are <code class="docutils literal notranslate"><span class="pre">raw</span></code> for configuration memory, <code class="docutils literal notranslate"><span class="pre">getp</span></code> and <code class="docutils literal notranslate"><span class="pre">setp</span></code>
+for parameters, <code class="docutils literal notranslate"><span class="pre">inreg</span></code> for a VCPU input register, <code class="docutils literal notranslate"><span class="pre">loadtiming</span></code> and <code class="docutils literal notranslate"><span class="pre">readacf</span></code> for loading, <code class="docutils literal notranslate"><span class="pre">mode</span></code>
+for camera modes, <code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code>, and <code class="docutils literal notranslate"><span class="pre">heater</span></code> and <code class="docutils literal notranslate"><span class="pre">sensor</span></code> for the thermal modules. The
+<a class="reference internal" href="#heater-and-sensor">heater and sensor</a> syntax is below.</p>
 </section>
 <section id="arc-astrocam">
 <h2>ARC (AstroCam)<a class="headerlink" href="#arc-astrocam" title="Link to this heading">¶</a></h2>
-<p>ARC controllers take three-letter DSP commands. The ones the server exposes:</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code class="docutils literal notranslate"><span class="pre">native</span></code> is not implemented on an ARC build. <code class="docutils literal notranslate"><span class="pre">AstroCamInterface::native</span></code> logs “not yet implemented”
+and returns success, so the command replies <code class="docutils literal notranslate"><span class="pre">DONE</span></code> while doing nothing.</p>
+<p><code class="docutils literal notranslate"><span class="pre">controller_cmd</span></code> is not implemented either, so every command in the Archon list above returns
+<code class="docutils literal notranslate"><span class="pre">not_supported</span></code> on an ARC build.</p>
+</div>
+<p>Passing three-letter DSP commands through to an ARC controller is therefore not currently possible
+from the command interface.</p>
+</section>
+<section id="heater-and-sensor">
+<h2>Heater and sensor<a class="headerlink" href="#heater-and-sensor" title="Link to this heading">¶</a></h2>
+<p>For Archon <strong>Heater</strong> and <strong>HeaterX</strong> modules. Both require firmware to be loaded and a
+sufficiently recent backplane.</p>
+<section id="heater">
+<h3>heater<a class="headerlink" href="#heater" title="Link to this heading">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">heater</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">A</span><span class="o">|</span><span class="n">B</span><span class="o">&gt;</span> <span class="p">[</span> <span class="o">&lt;</span><span class="n">on</span><span class="o">|</span><span class="n">off</span><span class="o">&gt;</span> <span class="p">[</span><span class="n">target</span><span class="p">]</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">target</span><span class="o">&gt;</span> <span class="o">|</span> <span class="n">PID</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">p</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">i</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">d</span><span class="o">&gt;</span><span class="p">]</span>
+                        <span class="o">|</span> <span class="n">RAMP</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">on</span><span class="o">|</span><span class="n">off</span><span class="o">&gt;</span> <span class="p">[</span><span class="n">rate</span><span class="p">]]</span> <span class="o">|</span> <span class="n">ILIM</span> <span class="p">[</span><span class="n">val</span><span class="p">]</span> <span class="o">|</span> <span class="n">INPUT</span> <span class="p">[</span><span class="n">A</span><span class="o">|</span><span class="n">B</span><span class="o">|</span><span class="n">C</span><span class="p">]</span> <span class="p">]</span>
+</pre></div>
+</div>
 <div class="table-wrapper colwidths-auto docutils container">
 <table class="docutils align-default">
 <thead>
-<tr class="row-odd"><th class="head"><p>Command</p></th>
-<th class="head"><p>Meaning</p></th>
+<tr class="row-odd"><th class="head"><p>Form</p></th>
+<th class="head"><p>Effect</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">PON</span></code></p></td>
-<td><p>Power on</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">heater</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B&gt;</span></code></p></td>
+<td><p>Get enable state and target</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">POF</span></code></p></td>
-<td><p>Power off</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">heater</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B&gt;</span> <span class="pre">&lt;on|off&gt;</span> <span class="pre">[target]</span></code></p></td>
+<td><p>Set enable state, optionally the target</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RDM</span></code></p></td>
-<td><p>Read memory</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">heater</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B&gt;</span> <span class="pre">&lt;target&gt;</span></code></p></td>
+<td><p>Set the target</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">WRM</span></code></p></td>
-<td><p>Write memory</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">heater</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B&gt;</span> <span class="pre">PID</span> <span class="pre">[&lt;p&gt;</span> <span class="pre">&lt;i&gt;</span> <span class="pre">&lt;d&gt;]</span></code></p></td>
+<td><p>Get or set the P, I and D terms, each 0 to 10000</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SBN</span></code></p></td>
-<td><p>Set bias number</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">heater</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B&gt;</span> <span class="pre">RAMP</span> <span class="pre">[&lt;on|off&gt;</span> <span class="pre">[rate]]</span></code></p></td>
+<td><p>Get or set ramp enable and rate, 1 to 32767</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SMX</span></code></p></td>
-<td><p>Set multiplexer</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">heater</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B&gt;</span> <span class="pre">ILIM</span> <span class="pre">[val]</span></code></p></td>
+<td><p>Get or set the current limit, 0 to 10000</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TDL</span></code></p></td>
-<td><p>Test data link</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">heater</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B&gt;</span> <span class="pre">INPUT</span> <span class="pre">[A|B|C]</span></code></p></td>
+<td><p>Get or set the input sensor. <code class="docutils literal notranslate"><span class="pre">C</span></code> requires HeaterX.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
+<p>The target range defaults to backplane-dependent limits, overridable with <code class="docutils literal notranslate"><span class="pre">HEATER_TARGET_MIN</span></code> and
+<code class="docutils literal notranslate"><span class="pre">HEATER_TARGET_MAX</span></code> in degrees C. See <a class="reference internal" href="../configuration/core.html"><span class="std std-doc">core keys</span></a>.</p>
+</section>
+<section id="sensor">
+<h3>sensor<a class="headerlink" href="#sensor" title="Link to this heading">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sensor</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">A</span><span class="o">|</span><span class="n">B</span><span class="o">|</span><span class="n">C</span><span class="o">&gt;</span> <span class="p">[</span> <span class="o">&lt;</span><span class="n">current</span><span class="o">&gt;</span> <span class="o">|</span> <span class="n">AVG</span> <span class="p">[</span> <span class="o">&lt;</span><span class="n">N</span><span class="o">&gt;</span> <span class="p">]</span> <span class="p">]</span>
+</pre></div>
+</div>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Form</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sensor</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B|C&gt;</span></code></p></td>
+<td><p>Get the RTD excitation current in nanoamps</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sensor</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B|C&gt;</span> <span class="pre">&lt;current&gt;</span></code></p></td>
+<td><p>Set it, 0 to 1600000 nA</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sensor</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B|C&gt;</span> <span class="pre">AVG</span></code></p></td>
+<td><p>Get the digital averaging count</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sensor</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B|C&gt;</span> <span class="pre">AVG</span> <span class="pre">&lt;N&gt;</span></code></p></td>
+<td><p>Set it, N in {1, 2, 4, 8, … 256}</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Sensor <code class="docutils literal notranslate"><span class="pre">C</span></code> exists only on HeaterX modules.</p>
+</section>
 </section>
 </section>
 
@@ -392,6 +450,11 @@ in it.</p>
 <li><a class="reference internal" href="#">Controller commands</a><ul>
 <li><a class="reference internal" href="#archon">Archon</a></li>
 <li><a class="reference internal" href="#arc-astrocam">ARC (AstroCam)</a></li>
+<li><a class="reference internal" href="#heater-and-sensor">Heater and sensor</a><ul>
+<li><a class="reference internal" href="#heater">heater</a></li>
+<li><a class="reference internal" href="#sensor">sensor</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>

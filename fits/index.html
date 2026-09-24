@@ -276,42 +276,51 @@
         <article role="main" id="furo-main-content">
           <section id="fits-output">
 <h1>FITS output<a class="headerlink" href="#fits-output" title="Link to this heading">¶</a></h1>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Expands in M2, when the ATC keyword table becomes generated output. Naming, cube layout and the
-system keyword tables are written then.</p>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">camerad</span></code> writes FITS through an asynchronous writer: the readout thread hands a completed frame to
-a queue, and a dedicated thread writes it. Configuration is under
-<a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame output keys</span></a>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">camerad</span></code> writes FITS through an asynchronous writer: the consumer thread hands a completed frame to
+a queue and returns, and a dedicated thread writes it. Enabling and locating the output is covered
+in <a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame output keys</span></a>.</p>
 <section id="filenames">
 <h2>Filenames<a class="headerlink" href="#filenames" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">fitsnaming</span></code> selects between two schemes:</p>
-<dl class="simple myst">
-<dt><code class="docutils literal notranslate"><span class="pre">time</span></code></dt><dd><p>The filename carries a timestamp, so names never collide and sort chronologically.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">number</span></code></dt><dd><p>The filename carries an incrementing image number, reported and set with <code class="docutils literal notranslate"><span class="pre">imnum</span></code>.</p>
-</dd>
-</dl>
-<p><code class="docutils literal notranslate"><span class="pre">autodir</span></code> adds a <code class="docutils literal notranslate"><span class="pre">YYYYMMDD</span></code> subdirectory under the image directory. Which midnight that rolls over
-on follows <code class="docutils literal notranslate"><span class="pre">TM_ZONE</span></code>.</p>
+<p>The writer builds each name itself:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">FITS_OUTPUT_DIR</span><span class="o">&gt;/&lt;</span><span class="n">FITS_BASENAME</span><span class="o">&gt;</span><span class="n">_</span><span class="o">&lt;</span><span class="n">frame</span> <span class="n">number</span><span class="o">&gt;.</span><span class="n">fits</span>
+</pre></div>
+</div>
+<p>The frame number is zero-padded to eight digits. If that path already exists the writer appends
+<code class="docutils literal notranslate"><span class="pre">_1</span></code>, <code class="docutils literal notranslate"><span class="pre">_2</span></code> and so on until it finds a free name, so a file is never silently overwritten.</p>
+<p><code class="docutils literal notranslate"><span class="pre">FITS_AUTODIR</span></code> puts all of this inside a <code class="docutils literal notranslate"><span class="pre">YYYYMMDD</span></code> subdirectory of <code class="docutils literal notranslate"><span class="pre">FITS_OUTPUT_DIR</span></code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Older documentation describes a <code class="docutils literal notranslate"><span class="pre">fitsnaming</span></code> command choosing between timestamp and number
+schemes, with <code class="docutils literal notranslate"><span class="pre">imnum</span></code> and <code class="docutils literal notranslate"><span class="pre">fitsname</span></code> to go with it. Those commands no longer exist. Naming is
+entirely <code class="docutils literal notranslate"><span class="pre">FITS_BASENAME</span></code> plus the frame number.</p>
+</div>
 </section>
-<section id="cubes-and-extensions">
-<h2>Cubes and extensions<a class="headerlink" href="#cubes-and-extensions" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">datacube</span></code> writes successive frames as planes of one cube rather than separate files. For detectors
-read through several amplifiers, <code class="docutils literal notranslate"><span class="pre">mexamps</span></code> writes each amplifier as its own extension, and <code class="docutils literal notranslate"><span class="pre">mex</span></code>
-controls multi-extension output generally.</p>
+<section id="cubes">
+<h2>Cubes<a class="headerlink" href="#cubes" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">datacube</span> <span class="pre">true</span></code> makes the writer accumulate frames into one file instead of writing one file per
+frame. The primary HDU is header-only (<code class="docutils literal notranslate"><span class="pre">NAXIS=0</span></code>) and each frame becomes an image extension. The
+cube is finalized when the exposure command finishes, which the server signals to every output
+after the last frame.</p>
+<p><code class="docutils literal notranslate"><span class="pre">datacube</span></code> is the only runtime option the FITS writer accepts; anything else is rejected.</p>
 </section>
 <section id="keywords">
 <h2>Keywords<a class="headerlink" href="#keywords" title="Link to this heading">¶</a></h2>
-<p>Three sources of keywords end up in a header:</p>
-<ol class="arabic simple">
-<li><p><strong>System keywords</strong>, written by the server: geometry, timing, exposure and controller state.</p></li>
-<li><p><strong>Instrument keywords</strong>, from the instrument module’s header dictionary. The ATC dictionary is in
-<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp">camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp</a>.</p></li>
-<li><p><strong>User keywords</strong>, added at runtime with <code class="docutils literal notranslate"><span class="pre">key</span></code>. <code class="docutils literal notranslate"><span class="pre">writekeys</span></code> controls whether they are written
-before or after the exposure, which matters for anything whose value changes during it.</p></li>
-</ol>
+<p>Four sources end up in a header.</p>
+<dl class="simple myst">
+<dt>Writer keywords</dt><dd><p>Added to every file: <code class="docutils literal notranslate"><span class="pre">FRAMENO</span></code>, <code class="docutils literal notranslate"><span class="pre">TIMESTMP</span></code> (the Archon timestamp in 0.01 microsecond units),
+<code class="docutils literal notranslate"><span class="pre">DATE</span></code> (when the file was written) and <code class="docutils literal notranslate"><span class="pre">FILENAME</span></code>. <code class="docutils literal notranslate"><span class="pre">FILENAME</span></code> carries the base name only, because
+a FITS card holds 68 characters and a deployment path can exceed that.</p>
+</dd>
+<dt>Per-exposure keywords</dt><dd><p>Resolved once when the exposure starts and shared by all of its frames.</p>
+</dd>
+<dt>Per-frame keywords</dt><dd><p>Rebuilt for each frame, for values that change between reads within one exposure.</p>
+</dd>
+<dt>User keywords</dt><dd><p>Added at runtime with <code class="docutils literal notranslate"><span class="pre">key</span> <span class="pre">KEYWORD=VALUE//COMMENT</span></code>. <code class="docutils literal notranslate"><span class="pre">key</span> <span class="pre">list</span></code> shows both the system and user
+sets, and <code class="docutils literal notranslate"><span class="pre">key</span> <span class="pre">KEYWORD=.</span></code> deletes one.</p>
+</dd>
+</dl>
+<p>Instrument modules supply their own dictionary on top of this; see the
+<a class="reference internal" href="../instruments/hispec-tracking-camera.html"><span class="std std-doc">tracking camera keyword table</span></a> for the worked example.</p>
 </section>
 <section id="checking-a-header">
 <h2>Checking a header<a class="headerlink" href="#checking-a-header" title="Link to this heading">¶</a></h2>
@@ -321,6 +330,10 @@ rather than going unnoticed. It needs no FITS library, and both emulator CI jobs
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>python/tests/fits_header_check.py<span class="w"> </span>&lt;file.fits&gt;<span class="w"> </span>--exptime<span class="w"> </span>&lt;sec&gt;
 </pre></div>
 </div>
+</section>
+<section id="pixel-format">
+<h2>Pixel format<a class="headerlink" href="#pixel-format" title="Link to this heading">¶</a></h2>
+<p>Frames of 2 bytes per pixel are written as <code class="docutils literal notranslate"><span class="pre">USHORT_IMG</span></code>, anything wider as <code class="docutils literal notranslate"><span class="pre">ULONG_IMG</span></code>.</p>
 </section>
 </section>
 
@@ -381,9 +394,10 @@ rather than going unnoticed. It needs no FITS library, and both emulator CI jobs
             <ul>
 <li><a class="reference internal" href="#">FITS output</a><ul>
 <li><a class="reference internal" href="#filenames">Filenames</a></li>
-<li><a class="reference internal" href="#cubes-and-extensions">Cubes and extensions</a></li>
+<li><a class="reference internal" href="#cubes">Cubes</a></li>
 <li><a class="reference internal" href="#keywords">Keywords</a></li>
 <li><a class="reference internal" href="#checking-a-header">Checking a header</a></li>
+<li><a class="reference internal" href="#pixel-format">Pixel format</a></li>
 </ul>
 </li>
 </ul>
