@@ -1,42 +1,58 @@
 # FITS output
 
-:::{note}
-Expands in M2, when the ATC keyword table becomes generated output. Naming, cube layout and the
-system keyword tables are written then.
-:::
-
-`camerad` writes FITS through an asynchronous writer: the readout thread hands a completed frame to
-a queue, and a dedicated thread writes it. Configuration is under
-[frame output keys](../configuration/frame-outputs.md).
+`camerad` writes FITS through an asynchronous writer: the consumer thread hands a completed frame to
+a queue and returns, and a dedicated thread writes it. Enabling and locating the output is covered
+in [frame output keys](../configuration/frame-outputs.md).
 
 ## Filenames
 
-`fitsnaming` selects between two schemes:
+The writer builds each name itself:
 
-`time`
-: The filename carries a timestamp, so names never collide and sort chronologically.
+```
+<FITS_OUTPUT_DIR>/<FITS_BASENAME>_<frame number>.fits
+```
 
-`number`
-: The filename carries an incrementing image number, reported and set with `imnum`.
+The frame number is zero-padded to eight digits. If that path already exists the writer appends
+`_1`, `_2` and so on until it finds a free name, so a file is never silently overwritten.
 
-`autodir` adds a `YYYYMMDD` subdirectory under the image directory. Which midnight that rolls over
-on follows `TM_ZONE`.
+`FITS_AUTODIR` puts all of this inside a `YYYYMMDD` subdirectory of `FITS_OUTPUT_DIR`.
 
-## Cubes and extensions
+:::{warning}
+Older documentation describes a `fitsnaming` command choosing between timestamp and number
+schemes, with `imnum` and `fitsname` to go with it. Those commands no longer exist. Naming is
+entirely `FITS_BASENAME` plus the frame number.
+:::
 
-`datacube` writes successive frames as planes of one cube rather than separate files. For detectors
-read through several amplifiers, `mexamps` writes each amplifier as its own extension, and `mex`
-controls multi-extension output generally.
+## Cubes
+
+`datacube true` makes the writer accumulate frames into one file instead of writing one file per
+frame. The primary HDU is header-only (`NAXIS=0`) and each frame becomes an image extension. The
+cube is finalized when the exposure command finishes, which the server signals to every output
+after the last frame.
+
+`datacube` is the only runtime option the FITS writer accepts; anything else is rejected.
 
 ## Keywords
 
-Three sources of keywords end up in a header:
+Four sources end up in a header.
 
-1. **System keywords**, written by the server: geometry, timing, exposure and controller state.
-2. **Instrument keywords**, from the instrument module's header dictionary. The ATC dictionary is in
-   {source}`camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp`.
-3. **User keywords**, added at runtime with `key`. `writekeys` controls whether they are written
-   before or after the exposure, which matters for anything whose value changes during it.
+Writer keywords
+: Added to every file: `FRAMENO`, `TIMESTMP` (the Archon timestamp in 0.01 microsecond units),
+  `DATE` (when the file was written) and `FILENAME`. `FILENAME` carries the base name only, because
+  a FITS card holds 68 characters and a deployment path can exceed that.
+
+Per-exposure keywords
+: Resolved once when the exposure starts and shared by all of its frames.
+
+Per-frame keywords
+: Rebuilt for each frame, for values that change between reads within one exposure.
+
+User keywords
+: Added at runtime with `key KEYWORD=VALUE//COMMENT`. `key list` shows both the system and user
+  sets, and `key KEYWORD=.` deletes one.
+
+Instrument modules supply their own dictionary on top of this; see the
+[tracking camera keyword table](../instruments/hispec-tracking-camera.md) for the worked example.
 
 ## Checking a header
 
@@ -47,3 +63,7 @@ rather than going unnoticed. It needs no FITS library, and both emulator CI jobs
 ```bash
 python3 python/tests/fits_header_check.py <file.fits> --exptime <sec>
 ```
+
+## Pixel format
+
+Frames of 2 bytes per pixel are written as `USHORT_IMG`, anything wider as `ULONG_IMG`.
