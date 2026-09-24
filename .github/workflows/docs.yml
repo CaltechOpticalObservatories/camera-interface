@@ -4,7 +4,6 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 # Serialize per ref so a rapid second push cannot race the first one's gh-pages commit. Only pull
@@ -15,11 +14,9 @@ concurrency:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   build:
-    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -62,6 +59,7 @@ jobs:
           sphinx-build -W -b html -d docs/_build/doctrees docs docs/_build/html
           touch docs/_build/html/.nojekyll
 
+      # How a pull request build is viewed rendered, since only main is published
       - name: Upload rendered site
         uses: actions/upload-artifact@v4
         with:
@@ -78,27 +76,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: docs/_build/html
-          # Preserve previews/, which lives on the same branch
-          keep_files: true
-
-      # Fork pull requests get a read-only token and cannot deploy; they use the artifact instead
-      - name: Publish pull request preview
-        if: >
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        uses: rossjrw/pr-preview-action@v1
-        with:
-          source-dir: docs/_build/html
-          umbrella-dir: previews
-          action: deploy
-
-  remove-preview:
-    if: github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: rossjrw/pr-preview-action@v1
-        with:
-          umbrella-dir: previews
-          action: remove
