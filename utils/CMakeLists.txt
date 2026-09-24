@@ -46,6 +46,7 @@ find_library(FITSWRITER_CCFITS_LIB CCfits NAMES libCCfits PATHS /usr/local/lib /
 find_library(FITSWRITER_CFITS_LIB cfitsio NAMES libcfitsio PATHS /usr/local/lib /opt/homebrew/lib)
 target_link_libraries(fits_writer
         nlohmann_json::nlohmann_json
+        utilities
         ${FITSWRITER_CCFITS_LIB}
         ${FITSWRITER_CFITS_LIB}
 )
