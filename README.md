@@ -175,13 +175,25 @@ Any CMake option can be passed the same way, so `--config-settings=cmake.define.
 
 pybind11 comes from `[build-system] requires`, so pip fetches it into an isolated build environment. It is never installed into the environment being built for.
 
-The controller and instrument are fixed when the wheel is built, and the module is always named `camera_interface`, so one environment holds one instrument's build. Install into a separate environment per instrument and have the caller assert which one it loaded:
+The controller and instrument are fixed when the wheel is built, so a caller should assert which build it loaded:
 
 ```python
 assert camera_interface.instrument_name() == "hispec_tracking_camera"
 ```
 
 A compiler and the full dependency set have to be present wherever `pip install` runs, since it compiles camerad and the module from source.
+
+### Per-instrument packages
+
+Installing this way twice replaces the first build, since both wheels are called `camera-interface` and both modules `camera_interface`. `packaging/` holds one directory per instrument that needs its own package, each fixing the instrument and the module name so neither is the caller's to pass:
+
+```bash
+$ pip install ./camera-interface/packaging/tracking
+```
+
+That installs `camera-interface-tracking`, providing the module `camera_interface_tracking`. Such packages are independent of each other and of the plain `camera-interface` above, so any combination can share one environment.
+
+To add one, copy a `packaging/*/pyproject.toml` and change `name`, `INSTRUMENT` and `CAMERAD_MODULE_NAME`.
 
 ## Python Module
 
@@ -205,6 +217,15 @@ print(camera.output_status())         # frames written, dropped, last file
 Every command `camerad` accepts is reachable: the base commands are bound as methods, instrument-specific ones go through `instrument_cmd()` (enumerable with `instrument_commands()`), and controller-specific ones such as `mode`, `raw`, `readacf`, `loadtiming`, `heater` and `sensor` go through `controller_cmd()`. Only `exit` is omitted, since the process belongs to the caller.
 
 The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
+
+`-DCAMERAD_MODULE_NAME=` renames the module and its file together, so per-instrument builds can be imported side by side. [Per-instrument packages](#per-instrument-packages) is the packaged form of the same thing:
+
+```bash
+$ cmake -DBUILD_PYTHON_MODULE=ON -DINSTRUMENT=hispec_tracking_camera \
+        -DCAMERAD_MODULE_NAME=camera_interface_tracking ..
+```
+
+It defaults to `camera_interface`, so a build that does not set it is unaffected.
 
 `output_status()` is a snapshot, never a barrier: the FITS writer queues and drops frames by design because disk is slower than acquisition can be, so nothing here lets a caller stall acquisition by waiting on an output. Anything needing to be woken per frame should attach to the shared-memory segment, which posts semaphores.
 
