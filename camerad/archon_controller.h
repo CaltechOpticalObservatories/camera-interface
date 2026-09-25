@@ -47,6 +47,13 @@ constexpr int MODTYPE_ADLN    = 15;
 constexpr int MODTYPE_UNKNOWN = 16;
 constexpr int MODTYPE_ADM     = 17;
 
+// AD and ADM modules are restricted to slots 5-8, the range RAWSEL addresses
+constexpr int AD_SLOT_FIRST = 5;
+constexpr int AD_SLOT_LAST  = 8;
+
+// Stream label keeping a pre-CDS RAW capture in outputs of its own
+const std::string RAW_STREAM = "raw";
+
 /**
  * Archon commands
  */
@@ -253,6 +260,7 @@ namespace Camera {
 
       /** @brief Archon RAW (pre-CDS) capture configuration, mirrors ACF keywords */
       struct rawinfo_t {
+        int      enable{0};      // RAWENABLE: whether the controller captures raw at all
         int      adchan{0};      // RAWSEL: AD channel captured
         uint16_t samples{0};     // RAWSAMPLES: 16-bit samples per line
         uint16_t startline{0};   // RAWSTARTLINE
@@ -377,6 +385,7 @@ namespace Camera {
         uint32_t samples;          // valid 16-bit samples per line (RAWSAMPLES)
         uint32_t blocks_per_line;  // 1024-byte blocks per line, padded per Archon
         uint32_t lines;            // number of raw lines (RAWENDLINE-RAWSTARTLINE+1)
+        bool from_config{false};   // controller reported nothing, so this is inferred
       };
 
       static bool is_raw_config_key(const std::string &key);
@@ -384,6 +393,7 @@ namespace Camera {
       uint32_t raw_frame_bytes() const;   // padded, size-aware byte count for a RAW fetch
       long set_raw_config(const std::string &args, std::string &retstring);
       long get_raw_config(std::string &retstring);
+      std::shared_ptr<const Common::FitsKeys> raw_frame_keys() const;
       long read_raw(std::string &retstring);
 
 

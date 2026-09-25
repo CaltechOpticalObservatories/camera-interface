@@ -22,6 +22,11 @@ namespace Camera {
     uint32_t bytes_per_pixel{0};
     uint64_t sequence_number{0};   // monotonic per-stream counter
 
+    // Names the output stream a frame belongs to; empty is the primary image.
+    // Outputs keep streams apart by it, so an off-geometry frame cannot
+    // collide with or resize the image stream
+    std::string stream;
+
     // FITS keys that vary per frame (e.g. per read within one exposure); rebuilt each frame
     std::shared_ptr<const Common::FitsKeys> frame_keys;
 
