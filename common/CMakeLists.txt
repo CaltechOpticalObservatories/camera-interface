@@ -16,4 +16,4 @@ include_directories(${PROJECT_BASE_DIR}/utils)    # needed for logentry
 add_library(common STATIC
         ${PROJECT_UTILS_DIR}/common.cpp
 )
-target_link_libraries(common nlohmann_json::nlohmann_json)
+target_link_libraries(common nlohmann_json::nlohmann_json logentry)

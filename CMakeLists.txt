@@ -36,16 +36,22 @@ option(ENABLE_SHM_OUTPUT "Build shared-memory output support (requires ImageStre
 
 cmake_minimum_required(VERSION 3.12)
 
-find_program(GXX_COMPILER NAMES g++)
+# Choosing the compiler belongs to whoever owns the build. A parent project has
+# already detected a compiler by the time it descends into this file, and
+# overriding that here would cause CMake to discard its cache and reconfigure,
+# losing the command line, -DCONTROLLER included
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    find_program(GXX_COMPILER NAMES g++)
 
-if(GXX_COMPILER)
-    message(STATUS "Found g++: ${GXX_COMPILER}")
-    set(CMAKE_CXX_COMPILER ${GXX_COMPILER})
-else()
-    message(FATAL_ERROR "g++ compiler not found. Please install g++ and try again.")
+    if(GXX_COMPILER)
+        message(STATUS "Found g++: ${GXX_COMPILER}")
+        set(CMAKE_CXX_COMPILER ${GXX_COMPILER})
+    else()
+        message(FATAL_ERROR "g++ compiler not found. Please install g++ and try again.")
+    endif()
 endif()
 
-project(camera)
+project(camerad)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -54,8 +60,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(PROJECT_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # A wheel build has nowhere to put a source-tree bin/, so let CMake keep its
-# outputs in the build directory
-if (NOT SKBUILD)
+# outputs in the build directory. A project that add_subdirectory()s this one
+# has nowhere to put them either, and its source tree is not ours to write into
+if (NOT SKBUILD AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
   set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 endif()

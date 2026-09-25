@@ -127,16 +127,32 @@ list (FILTER INSTRUMENT_SOURCES EXCLUDE REGEX "_interface_factory\\.cpp$")
 
 # ----------------------------------------------------------------------------
 # Camera Interface Base
+#
+# Controller-agnostic. Carries its own include directories and link interface
+# rather than relying on the directory-scoped include_directories above, which
+# a project consuming this one does not inherit
 # ----------------------------------------------------------------------------
-list (APPEND INTERFACE_SOURCES
+add_library(camerad_base
   ${CAMERAD_DIR}/camera_interface.cpp
   ${CAMERAD_DIR}/image_process.cpp
   )
-add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
-target_link_libraries(${INTERFACE_TARGET}
+target_include_directories(camerad_base PUBLIC
+                      ${CAMERAD_DIR}
+                      ${PROJECT_BASE_DIR}/common
+                      ${PROJECT_BASE_DIR}/utils
+                      )
+target_link_libraries(camerad_base PUBLIC
                       common
+                      logentry
                       frame_output_factory
                       )
+
+# ----------------------------------------------------------------------------
+# controller implementation, linking the base PUBLIC so that anything
+# depending on the controller gets the base transitively
+# ----------------------------------------------------------------------------
+add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
+target_link_libraries(${INTERFACE_TARGET} PUBLIC camerad_base)
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 
 # ----------------------------------------------------------------------------
