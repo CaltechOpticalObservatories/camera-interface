@@ -30,9 +30,9 @@ int main( int argc, char** argv ) {
   }
   else logwrite(function, "starting");
 
-  // the child process instantiates a Server object
+  // the child process obtains the interface and gives it to a Server object
   //
-  Camera::Server camerad;
+  Camera::Server camerad( Camera::Interface::create() );
   camerad.foreground = foreground;
 
   // read the config file and configure the various components

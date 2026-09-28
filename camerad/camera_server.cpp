@@ -12,15 +12,16 @@ namespace Camera {
   /***** Camera::Server::Server ***********************************************/
   /**
    * @brief      Server constructor
+   * @param[in]  interface  the interface this Server holds, created by the caller
    *
    */
-  Server::Server() :
+  Server::Server(std::unique_ptr<Interface> interface) :
+    interface(std::move(interface)),
     blkport(-1),
     id_pool(N_THREADS),
     cmd_num(0)
   {
-    interface=Camera::Interface::create();  // factory funcion creates the appropriate interface type
-    interface->set_server(this);            // pointer back to this Server instance
+    this->interface->set_server(this);      // pointer back to this Server instance
   }
   /***** Camera::Server::Server ***********************************************/
 
