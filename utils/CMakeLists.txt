@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------------
 # utils/CMakeLists.txt
 # ----------------------------------------------------------------------------
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.24)
 
 set(PROJECT_UTILS_DIR ${PROJECT_BASE_DIR}/utils)
 
@@ -9,7 +9,7 @@ add_compile_options(-Wall -O1 -Wno-variadic-macros -ggdb)
 
 add_library(utilities STATIC
         ${PROJECT_UTILS_DIR}/utilities.cpp
-        md5
+        ${PROJECT_UTILS_DIR}/md5.cpp
 )
 target_link_libraries(utilities nlohmann_json::nlohmann_json)
 

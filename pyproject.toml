@@ -9,7 +9,7 @@ description = "Python bindings for the camera-interface detector controller soft
 requires-python = ">=3.10"
 
 [tool.scikit-build]
-cmake.version = ">=3.15"
+cmake.version = ">=3.24"
 
 # The wheel carries camerad and its tools as well as the module, so installing
 # the Python side gives a working command line too

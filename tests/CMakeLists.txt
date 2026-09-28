@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.24)
 
 set(PROJECT_TESTS_DIR ${PROJECT_BASE_DIR}/tests)
 

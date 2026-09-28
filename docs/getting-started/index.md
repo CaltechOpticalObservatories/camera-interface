@@ -5,7 +5,7 @@ emulator stands in for the hardware.
 
 ## Dependencies
 
-`camerad` needs a C++20 compiler, CMake 3.12 or newer, and:
+`camerad` needs a C++20 compiler, CMake 3.24 or newer, and:
 
 - cfitsio and CCfits, for FITS output
 - OpenCV, Boost (thread and chrono), nlohmann-json

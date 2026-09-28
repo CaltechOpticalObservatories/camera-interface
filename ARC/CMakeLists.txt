@@ -4,7 +4,7 @@
 # @author  David Hale <dhale@caltech.edu>
 # ----------------------------------------------------------------------------
 
-cmake_minimum_required( VERSION 3.12 )
+cmake_minimum_required( VERSION 3.24 )
 
 set( ARC_DIR ${PROJECT_BASE_DIR}/ARC )
 

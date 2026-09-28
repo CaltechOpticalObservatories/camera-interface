@@ -34,7 +34,7 @@ option(ENABLE_SHM_OUTPUT "Build shared-memory output support (requires ImageStre
 # un-comment the following to log verbose debug messages
 #add_definitions(-DLOGLEVEL_DEBUG)
 
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.24)
 
 # Choosing the compiler belongs to whoever owns the build. A parent project has
 # already detected a compiler by the time it descends into this file, and
