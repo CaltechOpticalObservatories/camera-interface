@@ -62,7 +62,6 @@ target_link_libraries(camera_interface PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   ${CCFITS_LIB}
   ${CFITS_LIB}
-  ${OpenCV_LIBS}
   Boost::thread
   Boost::chrono
   ${ZMQPP_LIB}

@@ -184,11 +184,6 @@ find_library(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/local/lib)
 find_library( ZMQPP_LIB zmqpp NAMES libzmqpp PATHS /usr/local/lib )
 find_library( ZMQ_LIB zmq NAMES libzmq PATHS /usr/local/lib )
 
-# OpenCV
-#
-find_package( OpenCV REQUIRED )
-include_directories( ${OpenCV_INCLUDE_DIRS} )
-
 # Boost
 #
 find_package(Boost REQUIRED COMPONENTS thread chrono)
@@ -218,7 +213,6 @@ target_link_libraries(camerad
   ${CMAKE_THREAD_LIBS_INIT}
   ${CCFITS_LIB}
   ${CFITS_LIB}
-  ${OpenCV_LIBS}
   ${BOOST_INCLUDES}
   Boost::thread
   Boost::chrono
