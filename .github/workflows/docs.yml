@@ -21,10 +21,21 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # Two instrument submodules are private, and GITHUB_TOKEN cannot read
+      # another repository, so checkout needs a token scoped by the app install
+      - name: Mint a submodule read token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.SUBMODULE_APP_ID }}
+          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up Python
         uses: actions/setup-python@v5

@@ -12,9 +12,20 @@ jobs:
     timeout-minutes: 10
 
     steps:
+    # Two instrument submodules are private, and GITHUB_TOKEN cannot read
+    # another repository, so checkout needs a token scoped by the app install
+    - name: Mint a submodule read token
+      id: app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.SUBMODULE_APP_ID }}
+        private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+
     - uses: actions/checkout@v4
       with:
         submodules: true
+        token: ${{ steps.app-token.outputs.token }}
 
     - name: Install dependencies
       run: |
@@ -121,9 +132,20 @@ jobs:
     timeout-minutes: 15
 
     steps:
+    # Two instrument submodules are private, and GITHUB_TOKEN cannot read
+    # another repository, so checkout needs a token scoped by the app install
+    - name: Mint a submodule read token
+      id: app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.SUBMODULE_APP_ID }}
+        private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+
     - uses: actions/checkout@v4
       with:
         submodules: true
+        token: ${{ steps.app-token.outputs.token }}
 
     - name: Install dependencies
       run: |
@@ -202,9 +224,20 @@ jobs:
     timeout-minutes: 10
 
     steps:
+    # Two instrument submodules are private, and GITHUB_TOKEN cannot read
+    # another repository, so checkout needs a token scoped by the app install
+    - name: Mint a submodule read token
+      id: app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.SUBMODULE_APP_ID }}
+        private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+
     - uses: actions/checkout@v4
       with:
         submodules: true
+        token: ${{ steps.app-token.outputs.token }}
 
     - name: Install dependencies
       run: |

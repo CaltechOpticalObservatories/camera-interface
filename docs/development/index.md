@@ -97,3 +97,17 @@ behind changes to the core without CI noticing.
 Instrument modules are pinned submodules. Updating one is a commit to `camera-interface` that moves
 the pin, which `.github/workflows/update-submodules.yml` automates. Documentation for an instrument
 lives here, in this repository, while each instrument repository keeps its own README.
+
+Some instrument repositories are private. A workflow's built-in `GITHUB_TOKEN` is scoped to this
+repository alone and cannot read another one, so any job checking out submodules first mints a token
+from a GitHub App and passes it to `actions/checkout`. That needs two repository secrets:
+
+| Secret | Holds |
+|---|---|
+| `SUBMODULE_APP_ID` | The App's numeric ID |
+| `SUBMODULE_APP_PRIVATE_KEY` | The App's private key, in PEM form |
+
+The App needs `Contents: read` and must be installed on every instrument repository, public ones
+included, because the token authenticates all submodule fetches and a repository outside the
+installation is rejected even when it is public. Adding a new private instrument therefore means
+adding it to the App installation, not changing any workflow.
