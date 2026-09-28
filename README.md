@@ -233,6 +233,12 @@ Commands release the GIL while they run, so a blocking `expose()` leaves the res
 
 Logging follows `LOG_STDERR` from the `.cfg`; pass `log_to_stderr=` to override it per session. The C++ log always goes to its daily file under `LOGPATH`.
 
+`python/examples/raw_channel_sweep.py` uses the module to capture a pre-CDS waveform from several channels. The Archon covers one channel per exposure, so the script loops `RAWSEL`, exposes and fetches, leaving one RAW file per channel next to each paired image.
+
+```bash
+$ python python/examples/raw_channel_sweep.py --config lris2.cfg --fits-dir /tmp/images --channels 0-3,18-21
+```
+
 ## Frame Outputs
 
 Every instrument publishes each acquired frame to one or more outputs, configured entirely via `.cfg` file keys (`Camera::Interface::configure_frame_outputs()` builds them from `Camera::apply_config_overrides()`, called once at startup for every instrument, not just HISPEC). Both outputs are independent; either, both, or neither can be enabled per instrument.
