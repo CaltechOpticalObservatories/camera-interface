@@ -4,7 +4,7 @@
 # @author  David Hale <dhale@caltech.edu>
 # ----------------------------------------------------------------------------
 
-cmake_minimum_required( VERSION 3.12 )
+cmake_minimum_required( VERSION 3.24 )
 
 include_directories( ${ARC_DIR}/CArcBase/inc )
 include_directories( ${CARC_DEVICE_DIR}/inc )

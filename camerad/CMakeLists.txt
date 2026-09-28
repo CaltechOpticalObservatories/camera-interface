@@ -4,7 +4,7 @@
 # @author  David Hale <dhale@caltech.edu>
 # ----------------------------------------------------------------------------
 
-cmake_minimum_required( VERSION 3.12 )
+cmake_minimum_required( VERSION 3.24 )
 
 set( CAMERAD_DIR ${PROJECT_BASE_DIR}/camerad )
 
@@ -146,6 +146,9 @@ target_link_libraries(camerad_base PUBLIC
                       logentry
                       frame_output_factory
                       )
+# The public headers need C++17. The standard set for this directory is not
+# inherited by a project consuming this one, so it has to travel with the target
+target_compile_features(camerad_base PUBLIC cxx_std_17)
 
 # ----------------------------------------------------------------------------
 # controller implementation, linking the base PUBLIC so that anything
@@ -181,11 +184,6 @@ find_library(CFITS_LIB cfitsio NAMES libcfitsio  PATHS /usr/local/lib)
 find_library( ZMQPP_LIB zmqpp NAMES libzmqpp PATHS /usr/local/lib )
 find_library( ZMQ_LIB zmq NAMES libzmq PATHS /usr/local/lib )
 
-# OpenCV
-#
-find_package( OpenCV REQUIRED )
-include_directories( ${OpenCV_INCLUDE_DIRS} )
-
 # Boost
 #
 find_package(Boost REQUIRED COMPONENTS thread chrono)
@@ -215,7 +213,6 @@ target_link_libraries(camerad
   ${CMAKE_THREAD_LIBS_INIT}
   ${CCFITS_LIB}
   ${CFITS_LIB}
-  ${OpenCV_LIBS}
   ${BOOST_INCLUDES}
   Boost::thread
   Boost::chrono
@@ -223,7 +220,9 @@ target_link_libraries(camerad
   ${ZMQ_LIB}
   )
 
-install(TARGETS camerad RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
+if (CAMERAD_INSTALL)
+  install(TARGETS camerad RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
+endif()
 
 # ----------------------------------------------------------------------------
 # optional Python module

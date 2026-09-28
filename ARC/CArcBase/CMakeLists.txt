@@ -4,7 +4,7 @@
 # @author  David Hale <dhale@caltech.edu>
 # ----------------------------------------------------------------------------
 
-cmake_minimum_required( VERSION 3.12 )
+cmake_minimum_required( VERSION 3.24 )
 
 add_definitions( -std=c++17 -O3 -Wall -c -fmessage-length=0 -fPIC -MMD -MP -MF )
 

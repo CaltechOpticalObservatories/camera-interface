@@ -13,7 +13,6 @@ packages=(
   libgtest-dev
   nlohmann-json3-dev
   libzmq3-dev
-  libopencv-dev
   libboost-thread-dev
   libboost-chrono-dev
 )

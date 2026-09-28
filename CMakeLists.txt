@@ -34,7 +34,7 @@ option(ENABLE_SHM_OUTPUT "Build shared-memory output support (requires ImageStre
 # un-comment the following to log verbose debug messages
 #add_definitions(-DLOGLEVEL_DEBUG)
 
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.24)
 
 # Choosing the compiler belongs to whoever owns the build. A parent project has
 # already detected a compiler by the time it descends into this file, and
@@ -62,7 +62,7 @@ set(PROJECT_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # A wheel build has nowhere to put a source-tree bin/, so let CMake keep its
 # outputs in the build directory. A project that add_subdirectory()s this one
 # has nowhere to put them either, and its source tree is not ours to write into
-if (NOT SKBUILD AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+if (NOT SKBUILD AND PROJECT_IS_TOP_LEVEL)
   set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BASE_DIR}/bin)
   set(LIBRARY_OUTPUT_PATH ${PROJECT_BASE_DIR}/lib)
 endif()
@@ -88,8 +88,15 @@ if (BUILD_PYTHON_MODULE)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
+# A project that composes this one gets the libraries; the programs and the
+# install rules are built only if it asks for them
+option(CAMERAD_BUILD_TOOLS "Build the emulator, listener, socksend and shm_reader" ${PROJECT_IS_TOP_LEVEL})
+option(CAMERAD_INSTALL "Generate install rules" ${PROJECT_IS_TOP_LEVEL})
+
 add_subdirectory(${PROJECT_BASE_DIR}/utils)
 add_subdirectory(${PROJECT_BASE_DIR}/common)
 add_subdirectory(${PROJECT_BASE_DIR}/camerad)
-add_subdirectory(${PROJECT_BASE_DIR}/emulator)
+if (CAMERAD_BUILD_TOOLS)
+  add_subdirectory(${PROJECT_BASE_DIR}/emulator)
+endif()
 add_subdirectory(${PROJECT_BASE_DIR}/tests EXCLUDE_FROM_ALL)

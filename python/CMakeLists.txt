@@ -62,11 +62,12 @@ target_link_libraries(camera_interface PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   ${CCFITS_LIB}
   ${CFITS_LIB}
-  ${OpenCV_LIBS}
   Boost::thread
   Boost::chrono
   ${ZMQPP_LIB}
   ${ZMQ_LIB}
 )
 
-install(TARGETS camera_interface LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR})
+if (CAMERAD_INSTALL)
+  install(TARGETS camera_interface LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR})
+endif()
