@@ -121,3 +121,70 @@ jobs:
         shell: bash
         run: |
           cmake --build build -j"$(nproc)"
+
+  cmake-3-24-subproject:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CMAKE_324: cmake-3.24.4-linux-x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          bash .github/workflows/install-deps.sh
+
+      - name: Build and install zmqpp from source
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
+          cmake -S /tmp/zmqpp -B /tmp/zmqpp/build
+          cmake --build /tmp/zmqpp/build -j"$(nproc)"
+          sudo cmake --install /tmp/zmqpp/build
+          sudo ldconfig
+
+      # The declared minimum is only true if something builds with it
+      - name: Install CMake 3.24.4
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -sSLO "https://github.com/Kitware/CMake/releases/download/v3.24.4/${CMAKE_324}.tar.gz"
+          echo "cac77d28fb8668c179ac02c283b058aeb846fe2133a57d40b503711281ed9f19  ${CMAKE_324}.tar.gz" | sha256sum -c
+          tar xzf "${CMAKE_324}.tar.gz"
+          echo "$RUNNER_TEMP/${CMAKE_324}/bin" >> "$GITHUB_PATH"
+
+      - name: Build the core as a top-level project
+        shell: bash
+        run: |
+          cmake --version
+          cmake -G Ninja -S . -B build -DCONTROLLER=archon
+          cmake --build build -j"$(nproc)"
+
+      # Stands in for an instrument's build: the core composed as a subproject,
+      # and a translation unit of the consumer's own that includes its headers
+      - name: Build the core as a subproject
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          cat > CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.24)
+          project(consumer CXX)
+          # Below the core's C++17, so the core has to raise it for its headers
+          set(CMAKE_CXX_STANDARD 14)
+          set(CONTROLLER archon CACHE STRING "")
+          include(FetchContent)
+          FetchContent_Declare(camerad SOURCE_DIR ${CAMERAD_SOURCE_DIR})
+          FetchContent_MakeAvailable(camerad)
+          add_library(consumer OBJECT consumer.cpp)
+          target_link_libraries(consumer PRIVATE camerad_base)
+          EOF
+          cat > consumer.cpp <<'EOF'
+          #include "camera_interface.h"
+          EOF
+          cmake -G Ninja -S . -B build -DCAMERAD_SOURCE_DIR="$GITHUB_WORKSPACE"
+          cmake --build build -j"$(nproc)"

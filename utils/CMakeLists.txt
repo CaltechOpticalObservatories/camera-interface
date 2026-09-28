@@ -32,10 +32,13 @@ if(ENABLE_SHM_OUTPUT)
   target_include_directories(shared_memory_writer PRIVATE ${PROJECT_BASE_DIR}/common ${PROJECT_BASE_DIR}/utils)
   target_link_libraries(shared_memory_writer nlohmann_json::nlohmann_json ImageStreamIO::ImageStreamIO)
 
-  add_executable(shm_reader
-          ${PROJECT_UTILS_DIR}/shm_reader.cpp
-  )
-  target_link_libraries(shm_reader ImageStreamIO::ImageStreamIO)
+  if(CAMERAD_BUILD_TOOLS)
+    add_executable(shm_reader
+            ${PROJECT_UTILS_DIR}/shm_reader.cpp
+    )
+    target_link_libraries(shm_reader ImageStreamIO::ImageStreamIO)
+    set_target_properties(shm_reader PROPERTIES OUTPUT_NAME camerad-shm-reader)
+  endif()
 endif()
 
 add_library(fits_writer STATIC
@@ -68,19 +71,22 @@ add_library(md5 STATIC
         ${PROJECT_UTILS_DIR}/md5.cpp
 )
 
-add_executable(listener
-        ${PROJECT_UTILS_DIR}/listener.cpp
-)
+if(CAMERAD_BUILD_TOOLS)
+  add_executable(listener
+          ${PROJECT_UTILS_DIR}/listener.cpp
+  )
 
-add_executable(socksend
-        ${PROJECT_UTILS_DIR}/sendcmd.cpp
-)
+  add_executable(socksend
+          ${PROJECT_UTILS_DIR}/sendcmd.cpp
+  )
 
-# Prefixed because these names are too generic for a shared bin directory
-set_target_properties(socksend PROPERTIES OUTPUT_NAME camerad-socksend)
+  # Prefixed because these names are too generic for a shared bin directory
+  set_target_properties(socksend PROPERTIES OUTPUT_NAME camerad-socksend)
+endif()
 
-install(TARGETS socksend RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
-if (ENABLE_SHM_OUTPUT)
-  set_target_properties(shm_reader PROPERTIES OUTPUT_NAME camerad-shm-reader)
-  install(TARGETS shm_reader RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
+if(CAMERAD_BUILD_TOOLS AND CAMERAD_INSTALL)
+  install(TARGETS socksend RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
+  if (ENABLE_SHM_OUTPUT)
+    install(TARGETS shm_reader RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
+  endif()
 endif()

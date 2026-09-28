@@ -52,7 +52,9 @@ target_link_directories(emulator PRIVATE ${CFITSIO_LIBRARY_DIRS})
 # Prefixed because "emulator" is too generic for a shared bin directory
 set_target_properties(emulator PROPERTIES OUTPUT_NAME camerad-emulator)
 
-install(TARGETS emulator RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
+if( CAMERAD_INSTALL )
+        install(TARGETS emulator RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
+endif()
 elseif( ${INTERFACE_TYPE} STREQUAL "AstroCam" )
         message( STATUS "emulator not implemented for AstroCam" )
 else()
