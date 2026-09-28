@@ -104,7 +104,7 @@ from a GitHub App and passes it to `actions/checkout`. That needs two repository
 
 | Secret | Holds |
 |---|---|
-| `SUBMODULE_APP_ID` | The App's numeric ID |
+| `SUBMODULE_APP_CLIENT_ID` | The App's client ID, the `Iv23...` string rather than the numeric ID |
 | `SUBMODULE_APP_PRIVATE_KEY` | The App's private key, in PEM form |
 
 The App needs `Contents: read` and must be installed on every instrument repository, public ones
