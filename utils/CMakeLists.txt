@@ -67,10 +67,6 @@ if(ENABLE_SHM_OUTPUT)
   target_compile_definitions(frame_output_factory PRIVATE CAMERAD_HAVE_SHM)
 endif()
 
-add_library(md5 STATIC
-        ${PROJECT_UTILS_DIR}/md5.cpp
-)
-
 if(CAMERAD_BUILD_TOOLS)
   add_executable(listener
           ${PROJECT_UTILS_DIR}/listener.cpp
