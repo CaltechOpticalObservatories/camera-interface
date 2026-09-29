@@ -26,7 +26,7 @@ namespace Camera {
 
   class Server {
     public:
-      Server();
+      explicit Server(std::unique_ptr<Interface> interface);
       ~Server();
 
       std::unique_ptr<Interface> interface;
