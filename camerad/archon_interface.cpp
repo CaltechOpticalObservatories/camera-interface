@@ -997,10 +997,11 @@ namespace Camera {
 
     if (args=="?" || args=="help") {
       retstring = CAMERAD_RAW;
-      retstring.append( " [ config | set <KEY> <VAL> [...] | read ]\n" );
+      retstring.append( " [ config | set <KEY> <VAL> [...] | read | pair ]\n" );
       retstring.append( "  config              report the RAW config keywords\n" );
       retstring.append( "  set <KEY> <VAL> ..  set RAW keyword(s) then apply\n" );
       retstring.append( "  read                retrieve RAW data in-band as 16-bit samples\n" );
+      retstring.append( "  pair                retrieve the image and its RAW data under one lock\n" );
       retstring.append( "  Keys: RAWENABLE RAWSEL RAWSTARTLINE RAWENDLINE RAWSTARTPIXEL RAWSAMPLES\n" );
       retstring.append( "  RAWENABLE must be set before the exposure the raw data comes from\n" );
       return HELP;
@@ -1018,6 +1019,9 @@ namespace Camera {
     }
     if (subcmd=="read") {
       return this->controller->read_raw(retstring);
+    }
+    if (subcmd=="pair") {
+      return this->controller->read_image_and_raw(retstring);
     }
 
     logwrite(function, "ERROR unrecognized subcommand: "+subcmd);

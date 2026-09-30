@@ -376,6 +376,8 @@ namespace Camera {
 
       long allocate_framebuf(uint32_t reqsz);
       long read_frame(frametype_t type, char* &imagebufferptr);
+      long lock_newest_buffer();
+      long fetch_region(frametype_t type, char* &imagebufferptr);
       long write_config_key(const char* key, const char* newvalue, bool &changed);
       long write_config_key(const char* key, int newvalue, bool &changed);
 
@@ -395,6 +397,7 @@ namespace Camera {
       long get_raw_config(std::string &retstring);
       std::shared_ptr<const Common::FitsKeys> raw_frame_keys() const;
       long read_raw(std::string &retstring);
+      long read_image_and_raw(std::string &retstring);
 
 
       std::map<std::string, modeinfo_t> modemap;

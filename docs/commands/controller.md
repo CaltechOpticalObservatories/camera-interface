@@ -60,6 +60,7 @@ raw [ config | set <KEY> <VAL> [...] | read ]
 | `raw config` | Report the six RAW keywords |
 | `raw set <KEY> <VAL> ...` | Write the keyword(s) to configuration memory, then apply |
 | `raw read` | Fetch the raw region of the newest buffer and dispatch it as a frame |
+| `raw pair` | Fetch the image and the raw region of the newest buffer under one lock |
 
 The keywords are `RAWENABLE`, `RAWSEL`, `RAWSTARTLINE`, `RAWENDLINE`, `RAWSTARTPIXEL` and
 `RAWSAMPLES`. `RAWSAMPLES` is rounded up to a whole 1024-byte block per line.
@@ -80,6 +81,13 @@ otherwise return whatever happens to sit at the raw offset and label it as raw d
 The result is dispatched on its own stream, named `raw`, so it never collides with the image. The
 FITS writer gives it a separate file and the shared-memory writer a separate segment. See
 [frame output keys](../configuration/frame-outputs.md).
+
+`raw pair` fetches the image and the raw region together. Fetching them with separate `read`
+commands unlocks the buffer in between, which lets a new frame land there, so the two halves need
+not describe the same exposure. `pair` holds one lock across both and dispatches them with the same
+frame number, which is what makes them comparable. It reads whatever buffer is newest rather than
+triggering an exposure, so it also works on a frame the controller already holds. It supports a
+single detector and refuses otherwise, rather than dispatching part of a frame.
 
 ### Interpreting the samples
 
