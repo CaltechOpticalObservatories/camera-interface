@@ -2652,8 +2652,11 @@ namespace Camera {
     char* raw_cursor = raw_buffer.get();
     if (error == NO_ERROR) error = this->fetch_region(FRAME_RAW, raw_cursor);
 
-    const long unlock_error = this->unlock_buffer();
-    if (error != NO_ERROR || unlock_error != NO_ERROR) {
+    // A failed fetch can leave block data unread, which UNLOCK would consume as
+    // its own reply, and the next LOCKn replaces this lock anyway
+    if (error == NO_ERROR) error = this->unlock_buffer();
+
+    if (error != NO_ERROR) {
       logwrite(function, "ERROR fetching the image and RAW pair");
       retstring = "pair fetch failed";
       return ERROR;
