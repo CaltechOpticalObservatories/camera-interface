@@ -155,3 +155,8 @@ python python/examples/raw_channel_sweep.py --config lris2.cfg \
 
 It reports the module inventory from `SYSTEM` rather than inferring a slot from `RAWSEL`, for the
 reason given under [raw samples](../commands/controller.md#raw-samples).
+
+`--repeat` takes several frames per channel. Since `expose()` reports success even when the readout
+timed out, the script treats a repeated frame number as a failure rather than handing back the same
+buffer twice. `--keep-config` reads the ACF host-side only, leaving the controller's applied
+configuration alone, and then needs `--mode` to name the mode that `load` would have selected.
