@@ -2138,10 +2138,52 @@ namespace Camera {
 
 
   long ArchonController::read_frame(frametype_t type, char* &imagebufferptr) {
-    const std::string function("Camera::ArchonController::read_frame");
+    if (this->lock_newest_buffer() != NO_ERROR) return ERROR;
+
+    long error = this->fetch_region(type, imagebufferptr);
+
+    if (error == NO_ERROR) error = this->unlock_buffer();
+
+    return error;
+  }
+  /***** Camera::ArchonController::read_frame *********************************/
+
+
+  /***** Camera::ArchonController::lock_newest_buffer *************************/
+  /**
+   * @brief      lock the buffer holding the newest frame, for reading
+   */
+  long ArchonController::lock_newest_buffer() {
+    const std::string function("Camera::ArchonController::lock_newest_buffer");
+    char message[256];
+
+    const int bufready = this->frameinfo.index.load() + 1;
+
+    if (bufready < 1 || bufready > this->activebufs) {
+      SNPRINTF(message, "invalid Archon buffer %d requested. Expected {1:%d}", bufready, this->activebufs);
+      logwrite(function, std::string(message));
+      return ERROR;
+    }
+
+    if (this->lock_buffer(bufready) == ERROR) {
+      logwrite(function, "ERROR locking frame buffer");
+      return ERROR;
+    }
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::lock_newest_buffer *************************/
+
+
+  /***** Camera::ArchonController::fetch_region *******************************/
+  /**
+   * @brief      fetch one region of the locked buffer into caller memory
+   * @details    Assumes the buffer is already locked, so several regions of the
+   *             same frame can be fetched under one lock.
+   */
+  long ArchonController::fetch_region(frametype_t type, char* &imagebufferptr) {
+    const std::string function("Camera::ArchonController::fetch_region");
     char message[256];
     int retval;
-    int bufready;
     char check[5], header[5];
     int bytesread, totalbytesread, toread;
     uint64_t bufaddr;
@@ -2153,20 +2195,6 @@ namespace Camera {
     logwrite(function, "");
 
     this->frametype = type;
-
-    // Archon buffer number of the last frame read into memory
-    //
-    bufready = index + 1;
-
-    if (bufready < 1 || bufready > this->activebufs) {
-      SNPRINTF(message, "invalid Archon buffer %d requested. Expected {1:%d}", bufready, this->activebufs);
-      logwrite(function, std::string(message));
-      return ERROR;
-    }
-
-    // Lock the frame buffer before reading it
-    //
-    if ( this->lock_buffer(bufready) == ERROR) { logwrite(function, "ERROR locking frame buffer"); return ERROR; }
 
     // Send the FETCH command to read the memory buffer from the Archon backplane.
     // Archon replies with one binary response per requested block. Each response
@@ -2308,12 +2336,9 @@ namespace Camera {
       this->print_frame_status();
     }
 
-    // Unlock the frame buffer
-    //
-    if (error == NO_ERROR) error = this->unlock_buffer();
-
     return error;
   }
+  /***** Camera::ArchonController::fetch_region *******************************/
 
 
   /***** Camera::ArchonController::is_raw_config_key *************************/
@@ -2555,6 +2580,126 @@ namespace Camera {
     return NO_ERROR;
   }
   /***** Camera::ArchonController::read_raw *******************************/
+
+
+  /***** Camera::ArchonController::read_image_and_raw *************************/
+  /**
+   * @brief      fetch the image and the RAW region of one buffer, under one lock
+   * @details    Fetching them separately unlocks in between, which lets a new
+   *             frame land in the buffer, so the two halves need not describe
+   *             the same exposure. Holding one lock across both guarantees a
+   *             matched pair. Dispatches the image first, then the RAW capture.
+   * @param[out] retstring  a summary of both payloads
+   */
+  long ArchonController::read_image_and_raw(std::string &retstring) {
+    const std::string function("Camera::ArchonController::read_image_and_raw");
+
+    if (this->rawinfo.enable == 0) {
+      logwrite(function, "ERROR RAW capture is disabled");
+      retstring = "RAW capture is disabled; set it with \"raw set RAWENABLE 1\"";
+      return ERROR;
+    }
+
+    if (this->get_frame_status() != NO_ERROR) {
+      logwrite(function, "ERROR getting frame status");
+      retstring = "frame status query failed";
+      return ERROR;
+    }
+
+    const int num_detect = this->modemap[this->selectedmode].geometry.num_detect;
+    if (num_detect != 1) {
+      logwrite(function, "ERROR pair fetch supports one detector, not "+std::to_string(num_detect));
+      retstring = "pair fetch supports a single detector";
+      return ERROR;
+    }
+
+    const auto index = this->frameinfo.index.load();
+    const uint32_t width  = static_cast<uint32_t>(this->frameinfo.bufwidth[index]);
+    const uint32_t height = static_cast<uint32_t>(this->frameinfo.bufheight[index]);
+    const uint32_t bytes_per_pixel = (this->frameinfo.bufsample[index] == 1) ? 4 : 2;
+    if (width == 0 || height == 0) {
+      logwrite(function, "ERROR buffer reports no image; has a frame completed?");
+      retstring = "buffer holds no image";
+      return ERROR;
+    }
+
+    const raw_geometry_t geom = this->raw_geometry();
+    if (geom.samples == 0 || geom.lines == 0) {
+      logwrite(function, "ERROR RAW geometry is empty; check RAW config");
+      retstring = "invalid RAW geometry";
+      return ERROR;
+    }
+    if (geom.from_config) {
+      logwrite(function, "WARNING controller reports no raw data in this buffer; "
+                         "using configured geometry");
+    }
+
+    const size_t raw_fetch_bytes =
+      static_cast<size_t>(geom.blocks_per_line) * geom.lines * BLOCK_LEN;
+    std::shared_ptr<char[]> raw_buffer(new char[raw_fetch_bytes]);
+
+    if (this->lock_newest_buffer() != NO_ERROR) {
+      retstring = "could not lock the frame buffer";
+      return ERROR;
+    }
+
+    // Both fetches advance their pointer, so keep the originals for dispatch
+    char* image_start = this->framebuf;
+    char* image_cursor = image_start;
+    long error = this->fetch_region(FRAME_IMAGE, image_cursor);
+    image_start = this->framebuf;   // a grow inside fetch_region moves it
+
+    char* raw_cursor = raw_buffer.get();
+    if (error == NO_ERROR) error = this->fetch_region(FRAME_RAW, raw_cursor);
+
+    // A failed fetch can leave block data unread, which UNLOCK would consume as
+    // its own reply, and the next LOCKn replaces this lock anyway
+    if (error == NO_ERROR) error = this->unlock_buffer();
+
+    if (error != NO_ERROR) {
+      logwrite(function, "ERROR fetching the image and RAW pair");
+      retstring = "pair fetch failed";
+      return ERROR;
+    }
+
+    // The Archon pads each raw line out to whole blocks, so copy only the valid
+    // samples into a contiguous lines x samples array
+    const size_t line_stride = static_cast<size_t>(geom.blocks_per_line) * BLOCK_LEN;
+    const size_t payload_samples = static_cast<size_t>(geom.lines) * geom.samples;
+    std::vector<uint16_t> samples(payload_samples);
+    for (uint32_t line = 0; line < geom.lines; ++line) {
+      std::memcpy(samples.data() + static_cast<size_t>(line) * geom.samples,
+                  raw_buffer.get() + line * line_stride,
+                  static_cast<size_t>(geom.samples) * sizeof(uint16_t));
+    }
+
+    Camera::FrameMetadata meta;
+    meta.frame_number    = this->frameinfo.bufframen[index];
+    meta.timestamp       = this->frameinfo.buftimestamp[index];
+    meta.width           = width;
+    meta.height          = height;
+    meta.bytes_per_pixel = bytes_per_pixel;
+    this->interface->dispatch_frame(image_start,
+                                    static_cast<size_t>(width) * height * bytes_per_pixel,
+                                    meta);
+
+    meta.width           = geom.samples;
+    meta.height          = geom.lines;
+    meta.bytes_per_pixel = sizeof(uint16_t);
+    meta.stream          = RAW_STREAM;
+    meta.frame_keys      = this->raw_frame_keys();
+    this->interface->dispatch_frame(reinterpret_cast<const char*>(samples.data()),
+                                    payload_samples * sizeof(uint16_t), meta);
+
+    std::ostringstream oss;
+    oss << "frame=" << meta.frame_number
+        << " image=" << width << "x" << height
+        << " raw=" << geom.samples << "x" << geom.lines;
+    retstring = oss.str();
+    logwrite(function, retstring);
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::read_image_and_raw *************************/
 
 
   /***** Camera::ArchonController::wait_for_readout ***************************/
