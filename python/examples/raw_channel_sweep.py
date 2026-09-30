@@ -16,6 +16,9 @@ instead, and each file's header carries RAWSEL beside every candidate slot type.
     python raw_channel_sweep.py --config lris2.cfg --fits-dir /tmp/images \\
         --channels 0-3,18-21
 
+`--repeat` captures several frames per channel, so `--channels 4 --repeat 5`
+takes five exposures on one channel, each with its own RAW capture.
+
 Needs a camera_interface module built for an Archon controller, and an ACF that
 defines the six RAW keys, since camerad can only write keys it already loaded.
 It loads that ACF, so do not point it at a controller someone else is using.
@@ -26,6 +29,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import pathlib
+import re
 import sys
 import time
 from types import MappingProxyType
@@ -46,6 +50,11 @@ MODULE_NAMES: Final = MappingProxyType({
 AD_SLOTS: Final = range(5, 9)
 
 RAW_COMMAND: Final = "raw"
+
+# The writer suffixes a colliding name, so a repeated frame number lands as
+# <base>_<frame>_raw_1.fits rather than overwriting
+RAW_FILE_GLOB: Final = "*_raw*.fits"
+FRAME_NUMBER_PATTERN: Final = re.compile(r"_(\d+)_raw")
 
 # The FITS writer queues and drops by design, so a caller wanting the file has
 # to wait for it rather than expect it synchronously
@@ -102,12 +111,18 @@ def wait_for_raw_file(fits_dir: pathlib.Path,
     """Return the RAW file that appears after a fetch, or raise on timeout."""
     deadline = time.monotonic() + WRITE_TIMEOUT_S
     while time.monotonic() < deadline:
-        new = sorted(set(fits_dir.glob("*_raw.fits")) - already_present)
+        new = sorted(set(fits_dir.glob(RAW_FILE_GLOB)) - already_present)
         if new:
             return new[-1]
         time.sleep(POLL_INTERVAL_S)
-    raise SweepError(f"no new *_raw.fits appeared in {fits_dir} "
+    raise SweepError(f"no new {RAW_FILE_GLOB} appeared in {fits_dir} "
                      f"within {WRITE_TIMEOUT_S}s")
+
+
+def frame_number_of(path: pathlib.Path) -> int | None:
+    """Return the frame number the writer put in a RAW filename, if present."""
+    match = FRAME_NUMBER_PATTERN.search(path.name)
+    return int(match.group(1)) if match else None
 
 
 def capture_channel(camera: camera_interface.Camera, channel: int,
@@ -117,7 +132,7 @@ def capture_channel(camera: camera_interface.Camera, channel: int,
     settings = ["RAWENABLE", "1", "RAWSEL", str(channel), *geometry]
     camera.controller_cmd(RAW_COMMAND, "set " + " ".join(settings))
 
-    already_present = set(fits_dir.glob("*_raw.fits"))
+    already_present = set(fits_dir.glob(RAW_FILE_GLOB))
     camera.expose("1")
     summary = camera.controller_cmd(RAW_COMMAND, "read")
     print(f"  RAWSEL={channel}: {summary}")
@@ -137,18 +152,29 @@ def geometry_settings(args: argparse.Namespace) -> list[str]:
             for token in (key, str(value))]
 
 
-def sweep(camera: camera_interface.Camera, channels: list[int],
-          geometry: list[str],
-          fits_dir: pathlib.Path) -> tuple[dict[int, pathlib.Path], dict[int, str]]:
-    """Capture each channel in turn, returning the files and any failures."""
-    captured: dict[int, pathlib.Path] = {}
-    failures: dict[int, str] = {}
+def sweep(camera: camera_interface.Camera, channels: list[int], repeat: int,
+          geometry: list[str], fits_dir: pathlib.Path
+          ) -> tuple[list[tuple[int, pathlib.Path]], list[tuple[int, str]]]:
+    """Capture every channel `repeat` times, returning the files and failures."""
+    captured: list[tuple[int, pathlib.Path]] = []
+    failures: list[tuple[int, str]] = []
+    seen_frames: set[int] = set()
     for channel in channels:
-        try:
-            captured[channel] = capture_channel(camera, channel, geometry, fits_dir)
-        except (SweepError, RuntimeError) as failure:
-            print(f"  RAWSEL={channel}: FAILED {failure}", file=sys.stderr)
-            failures[channel] = str(failure)
+        for _ in range(repeat):
+            try:
+                path = capture_channel(camera, channel, geometry, fits_dir)
+                # expose() reports success even when the readout timed out, so a
+                # repeated frame number is the only sign the buffer never moved
+                frame = frame_number_of(path)
+                if frame is not None:
+                    if frame in seen_frames:
+                        raise SweepError(f"controller returned frame {frame} again, "
+                                         f"so the exposure produced no new frame")
+                    seen_frames.add(frame)
+                captured.append((channel, path))
+            except (SweepError, RuntimeError) as failure:
+                print(f"  RAWSEL={channel}: FAILED {failure}", file=sys.stderr)
+                failures.append((channel, str(failure)))
     return captured, failures
 
 
@@ -160,6 +186,8 @@ def run(args: argparse.Namespace) -> int:
                          f"built for {controller}")
 
     channels = parse_channels(args.channels)
+    if args.repeat < 1:
+        raise SweepError(f"--repeat must be at least 1, got {args.repeat}")
     fits_dir = pathlib.Path(args.fits_dir)
     if not fits_dir.is_dir():
         raise SweepError(f"not a directory: {fits_dir}")
@@ -169,25 +197,34 @@ def run(args: argparse.Namespace) -> int:
     with contextlib.closing(camera_interface.Camera(args.config,
                                                     log_to_stderr=True)) as camera:
         camera.open()
-        camera.load()
+        if args.keep_config:
+            # readacf parses into host memory only, so the controller keeps the
+            # configuration it already has
+            camera.controller_cmd("readacf")
+        else:
+            camera.load()
         camera.power("on")
+        if args.keep_config:
+            # After power, because selecting a mode applies CDS settings
+            camera.controller_cmd("mode", args.mode)
         if args.exptime is not None:
             camera.exptime(str(args.exptime))
 
         print(f"instrument={camera_interface.instrument_name()} "
               f"exptime={camera.exptime()}")
         print(f"modules: {describe_modules(read_module_types(camera))}")
-        print(f"sweeping RAWSEL {channels}")
+        print(f"sweeping RAWSEL {channels}, {args.repeat} frame(s) each")
 
         try:
-            captured, failures = sweep(camera, channels,
+            captured, failures = sweep(camera, channels, args.repeat,
                                        geometry_settings(args), fits_dir)
         finally:
             # Leave capture off so a later exposure does not silently carry raw data
             camera.controller_cmd(RAW_COMMAND, "set RAWENABLE 0")
 
-    print(f"\ncaptured {len(captured)} of {len(channels)} channels")
-    for channel, path in captured.items():
+    expected = len(channels) * args.repeat
+    print(f"\ncaptured {len(captured)} of {expected} frames")
+    for channel, path in captured:
         print(f"  RAWSEL={channel} -> {path.name} ({path.stat().st_size} bytes)")
     return 1 if failures else 0
 
@@ -201,6 +238,14 @@ def main() -> int:
                         help="directory the FITS writer is configured to use")
     parser.add_argument("--channels", default="0-3",
                         help="RAWSEL values, e.g. \"0-3,18-21\" (default: 0-3)")
+    parser.add_argument("--repeat", type=int, default=1,
+                        help="frames to capture per channel (default: 1)")
+    parser.add_argument("--keep-config", action="store_true",
+                        help="leave the controller's loaded configuration alone, "
+                             "reading the ACF host-side only")
+    parser.add_argument("--mode", default="DEFAULT",
+                        help="camera mode to select with --keep-config "
+                             "(default: DEFAULT)")
     parser.add_argument("--exptime", type=float,
                         help="exposure time, in the unit the config selects")
     parser.add_argument("--samples", type=int, help="RAWSAMPLES override")
