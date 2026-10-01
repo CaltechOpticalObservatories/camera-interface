@@ -36,6 +36,17 @@ namespace Camera {
 
       throw std::invalid_argument("unrecognized unit \""+unit+"\", expected s or ms");
     }
+
+    ArchonController::BiasField bias_field_from(const std::string &name) {
+      std::string mutable_name = name;
+      const std::string upper = to_uppercase(mutable_name);
+      if (upper == "V")      return ArchonController::BiasField::VOLTS;
+      if (upper == "ORDER")  return ArchonController::BiasField::ORDER;
+      if (upper == "ENABLE") return ArchonController::BiasField::ENABLE;
+      if (upper == "IL")     return ArchonController::BiasField::CURRENT_LIMIT;
+      if (upper == "LABEL")  return ArchonController::BiasField::LABEL;
+      throw std::invalid_argument("unrecognized field \""+name+"\", expected V ORDER ENABLE IL or LABEL");
+    }
   }
 
   /***** Camera::ArchonInterface::ArchonInterface *****************************/
@@ -226,8 +237,11 @@ namespace Camera {
     // Help
     if (args=="?" || args=="help") {
       retstring = CAMERAD_BIAS;
-      retstring.append( " <mod> <chan> [ <volts> ]\n" );
-      retstring.append( "  set or optionally get a bias voltage\n" );
+      retstring.append( " [ list [<mod>] | <mod> <chan> [ <volts> | <FIELD> <VAL> ... ] ]\n" );
+      retstring.append( "  list [<mod>]        report every configured bias channel\n" );
+      retstring.append( "  <mod> <chan>        report one channel's attributes\n" );
+      retstring.append( "  <mod> <chan> <volts>  set the voltage\n" );
+      retstring.append( "  Fields: V ORDER ENABLE IL LABEL, set together in one apply\n" );
       return HELP;
     }
 
@@ -235,28 +249,40 @@ namespace Camera {
     Tokenize(args, tokens, " ");
 
     try {
-      int mod, chan;
-      float volts;
-      size_t ntok = tokens.size();
-      bool should_write=false;
+      if (tokens.empty()) throw std::runtime_error("expected <mod> <chan> or list");
 
-      if (ntok != 2 && ntok != 3) {
-        throw std::runtime_error("expected <mod> <chan> [ <volts> ]");
+      if (tokens.at(0) == "list") {
+        const int mod = (tokens.size() > 1) ? std::stoi(tokens.at(1)) : 0;
+        error = this->controller->list_biases(mod, retstring);
+        logwrite(function, retstring);
+        return error;
       }
 
-      mod  = std::stoi(tokens.at(0));
-      chan = std::stoi(tokens.at(1));
+      if (tokens.size() < 2) throw std::runtime_error("expected <mod> <chan>");
 
-      if (ntok==3) {
-        volts = std::stof(tokens.at(2));
-        should_write = true;
+      const int mod  = std::stoi(tokens.at(0));
+      const int chan = std::stoi(tokens.at(1));
+
+      if (tokens.size() == 2) {
+        retstring = this->controller->read_bias_channel(mod, chan);
+        logwrite(function, retstring);
+        return NO_ERROR;
       }
 
-      this->controller->bias(mod, chan, volts, should_write);
-      std::ostringstream oss;
-      oss << std::fixed << std::setprecision(3) << volts;
-      retstring=oss.str();
-      error=NO_ERROR;
+      std::vector<std::pair<ArchonController::BiasField,std::string>> fields;
+
+      // A lone value keeps the original "bias <mod> <chan> <volts>" form
+      if (tokens.size() == 3) {
+        fields.emplace_back(ArchonController::BiasField::VOLTS, tokens.at(2));
+      }
+      else {
+        if ((tokens.size()-2) % 2 != 0) throw std::runtime_error("expected <FIELD> <VAL> pairs");
+        for (size_t i=2; i < tokens.size(); i+=2) {
+          fields.emplace_back(bias_field_from(tokens.at(i)), tokens.at(i+1));
+        }
+      }
+
+      error = this->controller->set_bias_fields(mod, chan, fields, retstring);
     }
     catch (const std::exception &e) {
       retstring=std::string(e.what());

@@ -394,59 +394,196 @@ namespace Camera {
    * @throws     std::runtime_error
    *
    */
+  std::vector<ArchonController::bias_bank_t> ArchonController::bias_banks(int modtype) {
+    switch (modtype) {
+      case MODTYPE_LVBIAS:
+      case MODTYPE_LVXBIAS:
+        return {{"LVLC",  1, 24, -14.0, +14.0, false, false},
+                {"LVHC", 25,  6, -14.0, +14.0, true,  true}};
+      case MODTYPE_HVBIAS:
+      case MODTYPE_HVXBIAS:
+        return {{"HVLC",  1, 24,   0.0, +31.0, false, false},
+                {"HVHC", 25,  6,   0.0, +31.0, true,  true}};
+      case MODTYPE_XVBIAS:
+        return {{"XVP", 1, XVBIAS_CHANS_PER_POLARITY,
+                 0.0, XVBIAS_VOLTS_MAGNITUDE, true, false},
+                {"XVN", 1+XVBIAS_CHANS_PER_POLARITY, XVBIAS_CHANS_PER_POLARITY,
+                 -XVBIAS_VOLTS_MAGNITUDE, 0.0, true, false}};
+      default:
+        return {};
+    }
+  }
+
+
   ArchonController::bias_config_t ArchonController::get_bias_config(int mod, int chan) const {
     std::ostringstream oss;
 
-    // Check that the module number is valid
-    if ( (mod < 0) || (mod > MAXNMODS) ) {
-      oss << "module " << mod << ": outside range {0:" << MAXNMODS << "}";
+    if ( (mod < 1) || (mod > MAXNMODS) ) {
+      oss << "module " << mod << ": outside range {1:" << MAXNMODS << "}";
       throw std::runtime_error(oss.str());
     }
 
-    // Check that the channel number is valid
-    if ( (chan < 1) || (chan > 30) ) {
-      oss << "bias channel " << mod << ": outside range {1:30}";
+    if (this->modtype[mod-1] == MODTYPE_NONE) {
+      oss << "module " << mod << " not installed";
       throw std::runtime_error(oss.str());
     }
 
-    bias_config_t info;
-    std::ostringstream biasconfig;
-
-    // Use the module type to get LV or HV Bias
-    // and start building the bias configuration string.
-    float vmin, vmax;
-    switch ( this->modtype[ mod-1 ] ) {
-      case MODTYPE_NONE:
-        oss << "module " << mod << " not installed";
-        throw std::runtime_error(oss.str());
-      case MODTYPE_LVBIAS:
-      case MODTYPE_LVXBIAS:
-        biasconfig << "MOD" << mod << "/LV";
-        info.vmin = -14.0;
-        info.vmax = +14.0;
-        break;
-      case MODTYPE_HVBIAS:
-      case MODTYPE_HVXBIAS:
-        biasconfig << "MOD" << mod << "/HV";
-        info.vmin =   0.0;
-        info.vmax = +31.0;
-        break;
-      default:
-        oss << "module " << mod << " not a bias board";
-        throw std::runtime_error(oss.str());
+    const auto banks = bias_banks(this->modtype[mod-1]);
+    if (banks.empty()) {
+      oss << "module " << mod << " not a bias board";
+      throw std::runtime_error(oss.str());
     }
 
-    // append the channel to the bias configuration string
-    if (chan < 25) {
-      biasconfig << "LC_V" << chan;
-    }
-    else {
-      biasconfig << "HC_V" << (chan-24);
+    for (const auto &bank : banks) {
+      if (chan < bank.first_chan || chan >= bank.first_chan + bank.count) continue;
+      bias_config_t info;
+      info.bank  = bank;
+      info.index = chan - bank.first_chan + 1;
+      info.vmin  = bank.vmin;
+      info.vmax  = bank.vmax;
+      return info;
     }
 
-    info.key = biasconfig.str();
-    return info;
+    oss << "bias channel " << chan << ": outside range {1:"
+        << banks.back().first_chan + banks.back().count - 1 << "} for module " << mod;
+    throw std::runtime_error(oss.str());
   }
+
+
+  std::string ArchonController::bias_key(int mod, const bias_config_t &info, BiasField field) {
+    std::ostringstream key;
+    key << "MOD" << mod << "/" << info.bank.prefix << "_";
+    switch (field) {
+      case BiasField::VOLTS:         key << "V";      break;
+      case BiasField::ORDER:         key << "ORDER";  break;
+      case BiasField::ENABLE:        key << "ENABLE"; break;
+      case BiasField::CURRENT_LIMIT: key << "IL";     break;
+      case BiasField::LABEL:         key << "LABEL";  break;
+    }
+    key << info.index;
+    return key.str();
+  }
+
+
+  /***** Camera::ArchonController::read_bias_channel **************************/
+  /**
+   * @brief      report every attribute one bias channel carries
+   * @details    Values come from configuration memory, so they are what was
+   *             asked of the board, not a measurement of what it is doing.
+   */
+  std::string ArchonController::read_bias_channel(int mod, int chan) const {
+    const auto info = get_bias_config(mod, chan);
+
+    auto value_of = [&](BiasField field) {
+      const auto it = this->configmap.find(bias_key(mod, info, field));
+      return it == this->configmap.end() ? std::string() : it->second.value;
+    };
+
+    const std::string label = value_of(BiasField::LABEL);
+
+    std::ostringstream oss;
+    oss << "MOD" << mod << " chan " << chan << " " << info.bank.prefix
+        << " V=" << value_of(BiasField::VOLTS)
+        << " ORDER=" << value_of(BiasField::ORDER);
+    if (info.bank.has_enable)        oss << " ENABLE=" << value_of(BiasField::ENABLE);
+    if (info.bank.has_current_limit) oss << " IL=" << value_of(BiasField::CURRENT_LIMIT);
+    oss << " LABEL=\"" << label << "\"";
+    return oss.str();
+  }
+  /***** Camera::ArchonController::read_bias_channel **************************/
+
+
+  /***** Camera::ArchonController::set_bias_fields ****************************/
+  /**
+   * @brief      write one or more attributes of a bias channel, then apply once
+   * @details    Batched because every APPLYMOD is a round trip, so setting
+   *             three attributes separately would apply the module three times.
+   */
+  long ArchonController::set_bias_fields(int mod, int chan,
+                                         const std::vector<std::pair<BiasField,std::string>> &fields,
+                                         std::string &retstring) {
+    const std::string function("Camera::ArchonController::set_bias_fields");
+
+    if (!this->archon.isconnected()) {
+      throw std::runtime_error("connection not open to controller");
+    }
+
+    const auto info = get_bias_config(mod, chan);
+    std::ostringstream oss;
+
+    for (const auto &[field, value] : fields) {
+      if (field == BiasField::ENABLE && !info.bank.has_enable) {
+        oss << "bank " << info.bank.prefix << " has no enable";
+        throw std::runtime_error(oss.str());
+      }
+      if (field == BiasField::CURRENT_LIMIT && !info.bank.has_current_limit) {
+        oss << "bank " << info.bank.prefix << " has no current limit";
+        throw std::runtime_error(oss.str());
+      }
+      if (field == BiasField::VOLTS) {
+        const float volts = std::stof(value);
+        if (volts < info.vmin || volts > info.vmax) {
+          oss << volts << " outside range {" << info.vmin << ":" << info.vmax << "}";
+          throw std::runtime_error(oss.str());
+        }
+      }
+      if (field == BiasField::CURRENT_LIMIT) {
+        const int milliamps = std::stoi(value);
+        if (milliamps < 0 || milliamps > BIAS_CURRENT_LIMIT_MAX_MA) {
+          oss << milliamps << " outside range {0:" << BIAS_CURRENT_LIMIT_MAX_MA << "} mA";
+          throw std::runtime_error(oss.str());
+        }
+      }
+      bool changed = false;
+      this->write_config_key(bias_key(mod, info, field).c_str(), value.c_str(), changed);
+    }
+
+    if (this->send_cmd(make_applymod_command(mod)) != NO_ERROR) {
+      throw std::runtime_error("applying module "+std::to_string(mod));
+    }
+
+    retstring = read_bias_channel(mod, chan);
+    logwrite(function, retstring);
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::set_bias_fields ****************************/
+
+
+  /***** Camera::ArchonController::list_biases ********************************/
+  /**
+   * @brief      report every configured bias channel, for one module or all
+   * @param[in]  mod  module to report, or 0 for every bias board installed
+   */
+  long ArchonController::list_biases(int mod, std::string &retstring) const {
+    std::ostringstream oss;
+
+    for (int slot = 1; slot <= MAXNMODS; ++slot) {
+      if (mod != 0 && slot != mod) continue;
+      if (bias_banks(this->modtype[slot-1]).empty()) continue;
+
+      for (const auto &bank : bias_banks(this->modtype[slot-1])) {
+        for (int i = 0; i < bank.count; ++i) {
+          const int chan = bank.first_chan + i;
+          // Skip channels the ACF never defined; the board has them, the
+          // configuration does not, so there is nothing to report
+          bias_config_t probe;
+          probe.bank = bank;
+          probe.index = i + 1;
+          if (this->configmap.find(bias_key(slot, probe, BiasField::VOLTS)) ==
+              this->configmap.end()) continue;
+          oss << read_bias_channel(slot, chan) << "\n";
+        }
+      }
+    }
+
+    retstring = oss.str();
+    if (retstring.empty()) {
+      retstring = (mod == 0) ? "no bias boards installed"
+                             : "module "+std::to_string(mod)+" has no configured bias channels";
+    }
+    return NO_ERROR;
+  }
+  /***** Camera::ArchonController::list_biases ********************************/
   /***** Camera::ArchonController::get_bias_config ****************************/
 
 
@@ -468,62 +605,6 @@ namespace Camera {
   /***** Camera::ArchonController::make_applymod_command **********************/
 
 
-  /***** Camera::ArchonController::bias ***************************************/
-  /**
-   * @brief      parse the configuration file for controller-related parameters
-   * @details    The config file has already been read into the Config class.
-   * @throws     std::runtime_error
-   *
-   */
-  void ArchonController::bias(const int &mod, const int &chan, float &volts, const bool &should_write) {
-    const std::string function("Camera::ArchonController::bias");
-    std::ostringstream oss;
-    std::ostringstream biasconfig;
-
-    // nothing to do if no connection open to controller
-    if (!this->archon.isconnected()) {
-      throw std::runtime_error("connection not open to controller");
-    }
-
-    // creating the bias configuration key also validates mod and chan
-    auto info = get_bias_config(mod, chan);
-
-    // write the bias configuration line if needed
-    if (should_write) {
-      bool changed=false;
-      // check requested voltage is within range
-      if ( (volts < info.vmin) || (volts > info.vmax) ) {
-        oss << volts << " outside range {" << info.vmin << ":" << info.vmax << "}";
-        throw std::runtime_error(oss.str());
-      }
-
-      // write the configuration line to update the bias voltage
-      std::string val = std::to_string(volts);
-      this->write_config_key(info.key.c_str(), val.c_str(), changed);
-
-      // send the APPLYMODx command
-      long error = this->send_cmd(make_applymod_command(mod));
-
-      if (error != NO_ERROR) {
-        oss << "writing bias configuration " << info.key << "=" << val;
-        throw std::runtime_error(oss.str());
-      }
-      else if (!changed) {
-        oss << "bias configuration " << info.key << "=" << val << " unchanged";
-        logwrite(function, oss.str());
-        return;
-      }
-      else {
-        oss << "updated bias configuration " << info.key << "=" << val;
-        logwrite(function, oss.str());
-        return;
-      }
-    }
-
-    // read the configuration
-    this->get_configmap_value(info.key, volts);
-  }
-  /***** Camera::ArchonController::bias ***************************************/
 
 
   /***** Camera::ArchonController::initiate_exposure **************************/

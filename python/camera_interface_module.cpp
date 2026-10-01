@@ -231,7 +231,7 @@ PYBIND11_MODULE(CAMERAD_MODULE_NAME, module) {
            return invoke((*self).bias(args, retstring), "bias", retstring);
          },
          py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
-         "Query a bias voltage, or set it")
+         "Read or set the attributes of a bias channel, or list them all")
 
     .def("bin",
          [](CameraSession &self, const std::string &args) {
