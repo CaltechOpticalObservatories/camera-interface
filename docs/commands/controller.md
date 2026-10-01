@@ -139,6 +139,35 @@ The two strides disagree, and on a chassis with a mix of AD and ADM modules they
 verbatim beside the type of every slot it could refer to, leaving the reader to resolve it.
 :::
 
+## Bias voltages
+
+```
+bias [ list [<mod>] | <mod> <chan> [ <volts> | <FIELD> <VAL> ... ] ]
+```
+
+A bias board's channels fall into banks that share a key prefix, and the banks differ in what they
+carry, so a channel is addressed by a number that spans the whole board:
+
+| board | bank | channels | range | enable | current limit |
+|---|---|---|---|---|---|
+| LVBias, LVXBias | `LVLC`, `LVHC` | 1 to 24, 25 to 30 | -14 to +14 V | high current only | high current only |
+| HVBias, HVXBias | `HVLC`, `HVHC` | 1 to 24, 25 to 30 | 0 to +31 V | high current only | high current only |
+| XVBias | `XVP`, `XVN` | 1 to 4, 5 to 8 | 0 to +95 V, -95 to 0 V | yes | no |
+
+Fields are `V`, `ORDER`, `ENABLE`, `IL` and `LABEL`. Setting several in one command applies the
+module once, where separate commands would apply it once each. Asking for a field the bank does not
+carry is refused rather than writing a key the board ignores, and the current limit is capped at 250
+mA.
+
+Every read and every set reports the channel's label, so a voltage is never shown without saying
+which bias it belongs to. `bias list` covers every installed bias board, or one of them, skipping
+channels the loaded ACF never defined.
+
+:::{note}
+Values come from configuration memory, so they report what the board was asked for rather than a
+measurement of what it is doing.
+:::
+
 ## Heater and sensor
 
 For Archon **Heater** and **HeaterX** modules. Both require firmware to be loaded and a

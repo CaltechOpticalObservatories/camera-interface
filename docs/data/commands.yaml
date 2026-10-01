@@ -26,7 +26,7 @@ basename:
   controller: any
 
 bias:
-  summary: Set or get a bias voltage
+  summary: Read or set the attributes of a bias channel, or list them all
   controller: any
 
 bin:

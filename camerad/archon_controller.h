@@ -51,6 +51,9 @@ constexpr int MODTYPE_ADM     = 17;
 constexpr int   XVBIAS_CHANS_PER_POLARITY = 4;
 constexpr float XVBIAS_VOLTS_MAGNITUDE    = 95.0f;
 
+// Highest current limit a high-current bias channel accepts
+constexpr int BIAS_CURRENT_LIMIT_MAX_MA = 250;
+
 // AD and ADM modules are restricted to slots 5-8, the range RAWSEL addresses
 constexpr int AD_SLOT_FIRST = 5;
 constexpr int AD_SLOT_LAST  = 8;
@@ -174,13 +177,40 @@ namespace Camera {
        * @var     struct bias_config_t
        * @details structure of bias configuration info
        */
-      struct bias_config_t {
-	std::string key;
-	float vmin;
-	float vmax;
+      /**
+       * @var     struct bias_bank_t
+       * @details one run of bias channels sharing a key prefix. The banks of a
+       *          board differ in which attributes they carry, so this says what
+       *          a channel supports rather than the caller assuming.
+       */
+      struct bias_bank_t {
+        const char* prefix{nullptr};   //!< HVLC, HVHC, XVP, XVN, LVLC, LVHC
+        int   first_chan{0};           //!< channel this bank starts at
+        int   count{0};
+        float vmin{0.0};
+        float vmax{0.0};
+        bool  has_enable{false};
+        bool  has_current_limit{false};
       };
 
+      struct bias_config_t {
+	float vmin{0.0};
+	float vmax{0.0};
+	bias_bank_t bank;
+	int index{0};                  //!< 1-based channel number within the bank
+      };
+
+      /// an attribute of one bias channel, each a separate configuration key
+      enum class BiasField { VOLTS, ORDER, ENABLE, CURRENT_LIMIT, LABEL };
+
+      static std::vector<bias_bank_t> bias_banks(int modtype);
+      static std::string bias_key(int mod, const bias_config_t &info, BiasField field);
       bias_config_t get_bias_config(int mod, int chan) const;
+      std::string read_bias_channel(int mod, int chan) const;
+      long set_bias_fields(int mod, int chan,
+                           const std::vector<std::pair<BiasField,std::string>> &fields,
+                           std::string &retstring);
+      long list_biases(int mod, std::string &retstring) const;
       std::string make_applymod_command(int mod) const;
 
       /**
@@ -346,7 +376,6 @@ namespace Camera {
       std::string abort_param;              //!< parameter name to abort when set =1 (optional)
 
       void connect();
-      void bias(const int &mod, const int &chan, float &volts, const bool &should_write);
       long initiate_exposure(const int &nexp);
       long get_frame_status();
       template<typename T> T get_parameter(const std::string &parameter);
