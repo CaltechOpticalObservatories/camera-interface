@@ -161,7 +161,19 @@ mA.
 
 Every read and every set reports the channel's label, so a voltage is never shown without saying
 which bias it belongs to. `bias list` covers every installed bias board, or one of them, skipping
-channels the loaded ACF never defined.
+channels the loaded ACF never defined:
+
+```
+$ bias list 10
+MOD10 chan 1 LVLC V=2.3 ORDER=2 LABEL="Bias Gate"
+MOD10 chan 2 LVLC V=3.3 ORDER=2 LABEL="Bias Power"
+MOD10 chan 3 LVLC V=0.55 ORDER=2 LABEL="Diode Sub"
+...
+MOD10 chan 25 LVHC V=3.3 ORDER=3 ENABLE=1 IL=10 LABEL="PullUp"
+MOD10 chan 26 LVHC V=0.0 ORDER=1 ENABLE=0 IL=50 LABEL="Misc 1"
+```
+
+The high-current channels carry the two extra fields, the low-current ones do not.
 
 :::{note}
 Values come from configuration memory, so they report what the board was asked for rather than a
