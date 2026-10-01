@@ -188,3 +188,13 @@ jobs:
           EOF
           cmake -G Ninja -S . -B build -DCAMERAD_SOURCE_DIR="$GITHUB_WORKSPACE"
           cmake --build build -j"$(nproc)"
+
+      # The reference instrument built the way an instrument repository will,
+      # so a change that breaks a consumer fails here rather than downstream
+      - name: Build the reference instrument
+        shell: bash
+        run: |
+          cmake -G Ninja -S examples/reference_instrument -B "$RUNNER_TEMP/reference" \
+                -DFETCHCONTENT_SOURCE_DIR_CAMERA_INTERFACE="$GITHUB_WORKSPACE"
+          cmake --build "$RUNNER_TEMP/reference" -j"$(nproc)"
+          test -x "$RUNNER_TEMP/reference/camerad"

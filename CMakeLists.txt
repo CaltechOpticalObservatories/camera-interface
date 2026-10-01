@@ -93,6 +93,10 @@ endif()
 option(CAMERAD_BUILD_TOOLS "Build the emulator, listener, socksend and shm_reader" ${PROJECT_IS_TOP_LEVEL})
 option(CAMERAD_INSTALL "Generate install rules" ${PROJECT_IS_TOP_LEVEL})
 
+# An instrument builds its own daemon from camerad_server, so the core's would
+# only collide with it
+option(CAMERAD_BUILD_DAEMON "Build the camerad executable" ${PROJECT_IS_TOP_LEVEL})
+
 add_subdirectory(${PROJECT_BASE_DIR}/utils)
 add_subdirectory(${PROJECT_BASE_DIR}/common)
 add_subdirectory(${PROJECT_BASE_DIR}/camerad)
