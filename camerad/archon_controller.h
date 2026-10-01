@@ -47,6 +47,10 @@ constexpr int MODTYPE_ADLN    = 15;
 constexpr int MODTYPE_UNKNOWN = 16;
 constexpr int MODTYPE_ADM     = 17;
 
+// An XVBias module carries this many positive channels, then as many negative
+constexpr int   XVBIAS_CHANS_PER_POLARITY = 4;
+constexpr float XVBIAS_VOLTS_MAGNITUDE    = 95.0f;
+
 // AD and ADM modules are restricted to slots 5-8, the range RAWSEL addresses
 constexpr int AD_SLOT_FIRST = 5;
 constexpr int AD_SLOT_LAST  = 8;

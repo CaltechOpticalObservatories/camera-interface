@@ -431,6 +431,27 @@ namespace Camera {
         info.vmin =   0.0;
         info.vmax = +31.0;
         break;
+      case MODTYPE_XVBIAS: {
+        // Its channels are split by polarity with a key and range each, so the
+        // shared low/high-current suffix below does not apply
+        if (chan > 2*XVBIAS_CHANS_PER_POLARITY) {
+          oss << "bias channel " << chan << ": outside range {1:"
+              << 2*XVBIAS_CHANS_PER_POLARITY << "} for an XVBias module";
+          throw std::runtime_error(oss.str());
+        }
+        if (chan <= XVBIAS_CHANS_PER_POLARITY) {
+          biasconfig << "MOD" << mod << "/XVP_V" << chan;
+          info.vmin = 0.0;
+          info.vmax = XVBIAS_VOLTS_MAGNITUDE;
+        }
+        else {
+          biasconfig << "MOD" << mod << "/XVN_V" << (chan - XVBIAS_CHANS_PER_POLARITY);
+          info.vmin = -XVBIAS_VOLTS_MAGNITUDE;
+          info.vmax = 0.0;
+        }
+        info.key = biasconfig.str();
+        return info;
+      }
       default:
         oss << "module " << mod << " not a bias board";
         throw std::runtime_error(oss.str());
