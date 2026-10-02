@@ -194,17 +194,14 @@ find_package(Threads)
 # ----------------------------------------------------------------------------
 # build the camera daemon
 # ----------------------------------------------------------------------------
-add_executable(camerad
+# The server and its whole link interface, so a project consuming this one
+# builds its own daemon by linking this and supplying Camera::Interface::create()
+add_library(camerad_server STATIC
   ${CAMERAD_DIR}/camerad.cpp
   ${CAMERAD_DIR}/camera_server.cpp
-  ${INSTRUMENT_REGISTRATION}
-  ${INSTRUMENT_OBJECTS}
   )
 
-# ----------------------------------------------------------------------------
-# link everything
-# ----------------------------------------------------------------------------
-target_link_libraries(camerad
+target_link_libraries(camerad_server PUBLIC
   network
   utilities
   logentry
@@ -219,6 +216,15 @@ target_link_libraries(camerad
   ${ZMQPP_LIB}
   ${ZMQ_LIB}
   )
+
+if (CAMERAD_BUILD_DAEMON)
+  add_executable(camerad
+    ${INSTRUMENT_REGISTRATION}
+    ${INSTRUMENT_OBJECTS}
+    )
+
+  target_link_libraries(camerad camerad_server)
+endif()
 
 if (CAMERAD_INSTALL)
   install(TARGETS camerad RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})

@@ -1,0 +1,56 @@
+name: Instrument CI
+
+# Called by an instrument repository, which owns its own build but should not
+# own a copy of this. Runs in the caller's context, so checkout takes the
+# instrument, and the core arrives through its CMake fetch.
+#
+#   jobs:
+#     build:
+#       uses: CaltechOpticalObservatories/camera-interface/.github/workflows/instrument-ci.yml@main
+
+on:
+  workflow_call:
+    inputs:
+      cmake-args:
+        description: "Extra arguments for the configure step"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout the instrument
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build \
+            libccfits-dev libcfitsio-dev libcurl4-openssl-dev \
+            nlohmann-json3-dev libzmq3-dev \
+            libboost-thread-dev libboost-chrono-dev
+
+      # Not packaged for common distros, so every consumer builds it
+      - name: Build and install zmqpp
+        run: |
+          git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
+          cmake -S /tmp/zmqpp -B /tmp/zmqpp/build
+          cmake --build /tmp/zmqpp/build -j"$(nproc)"
+          sudo cmake --install /tmp/zmqpp/build
+          sudo ldconfig
+
+      - name: Build
+        run: |
+          cmake -G Ninja -S . -B build ${{ inputs.cmake-args }}
+          cmake --build build -j"$(nproc)"
+
+      # camerad exits 0 with no config and prints nothing, so there is nothing
+      # here to assert beyond the daemon having been produced. An instrument
+      # wanting more adds its own job against the emulator.
+      - name: Check the daemon was built
+        run: test -x build/camerad
