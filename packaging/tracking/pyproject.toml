@@ -16,4 +16,3 @@ wheel.packages = []
 cmake.define.BUILD_PYTHON_MODULE = "ON"
 cmake.define.CONTROLLER = "archon"
 cmake.define.INSTRUMENT = "hispec_tracking_camera"
-cmake.define.CAMERAD_MODULE_NAME = "camera_interface_tracking"

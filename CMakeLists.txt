@@ -88,6 +88,12 @@ if (BUILD_PYTHON_MODULE)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
+# The core's own module is tested by importing it, so that ctest from the
+# build directory finds that test
+if (BUILD_PYTHON_MODULE AND PROJECT_IS_TOP_LEVEL)
+  enable_testing()
+endif()
+
 # A project that composes this one gets the libraries; the programs and the
 # install rules are built only if it asks for them
 option(CAMERAD_BUILD_TOOLS "Build the emulator, listener, socksend and shm_reader" ${PROJECT_IS_TOP_LEVEL})

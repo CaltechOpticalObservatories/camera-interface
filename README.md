@@ -162,6 +162,42 @@ If you encounter any problems or have questions about this project, please open 
 
    Asserts every expected keyword is present and carries the value the emulator's `MODE_DEFAULT` implies, so a keyword that stops being populated fails rather than going unnoticed. Needs no FITS library. Both emulator CI jobs run it after their exposure.
 
+### Composing the core
+
+An instrument's build composes the core as a subproject (CMake `FetchContent`) and declares its own `camerad` and Python module. The core declares those two only when it is the top-level project. Link only the `camerad::` names:
+
+- `camerad::base` — the `Interface` base class and image processing
+- `camerad::archon` — the controller library, named after `CONTROLLER`
+- `camerad::daemon` — the daemon's `main` and its server
+- `camerad::python` — the module's source, compiled inside the target that links it
+
+```cmake
+set(CONTROLLER archon CACHE STRING "")
+set(BUILD_PYTHON_MODULE ON CACHE BOOL "")
+FetchContent_Declare(camerad GIT_REPOSITORY <url> GIT_TAG <version>)
+FetchContent_MakeAvailable(camerad)
+
+add_executable(myinst_camerad myinst_interface_factory.cpp myinst_instrument.cpp)
+target_link_libraries(myinst_camerad camerad::daemon camerad::archon)
+set_target_properties(myinst_camerad PROPERTIES OUTPUT_NAME camerad)
+
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+# pybind11 must come from the interpreter found above. A pip-installed one is
+# not on CMake's search path, and CMake may silently find a system copy
+# instead: pass -Dpybind11_DIR=$(<that python> -m pybind11 --cmakedir), or
+# ask ${Python3_EXECUTABLE} as python/CMakeLists.txt does
+find_package(pybind11 CONFIG REQUIRED)
+pybind11_add_module(camera_interface myinst_interface_factory.cpp myinst_instrument.cpp)
+target_link_libraries(camera_interface PRIVATE camerad::python camerad::archon)
+target_compile_definitions(camera_interface PRIVATE CAMERAD_INSTRUMENT_NAME="myinst")
+```
+
+- Each final target compiles exactly one interface factory definition. The linker rejects zero or two for the daemon. A module with none still links and fails only when imported, so the instrument's tests import it and check `instrument_name()`.
+- `BUILD_PYTHON_MODULE=ON` is needed for a module: it declares `camerad::python` and makes the core's static libraries position-independent.
+- The module's file name is `camera_interface`, the import name fixed in its source.
+- Without `CAMERAD_INSTRUMENT_NAME` the module reports `"none"`.
+- Finding Python and pybind11 is the consumer's job; the core does neither as a subproject. `python/CMakeLists.txt` shows one way.
+
 ## Installing with pip
 
 `pip install` builds the same artifacts and places them in the target environment, so `import camera_interface` needs no `PYTHONPATH` and `camerad` is on `PATH` whenever the environment is active:
@@ -182,18 +218,6 @@ assert camera_interface.instrument_name() == "hispec_tracking_camera"
 ```
 
 A compiler and the full dependency set have to be present wherever `pip install` runs, since it compiles camerad and the module from source.
-
-### Per-instrument packages
-
-Installing this way twice replaces the first build, since both wheels are called `camera-interface` and both modules `camera_interface`. `packaging/` holds one directory per instrument that needs its own package, each fixing the instrument and the module name so neither is the caller's to pass:
-
-```bash
-$ pip install ./camera-interface/packaging/tracking
-```
-
-That installs `camera-interface-tracking`, providing the module `camera_interface_tracking`. Such packages are independent of each other and of the plain `camera-interface` above, so any combination can share one environment.
-
-To add one, copy a `packaging/*/pyproject.toml` and change `name`, `INSTRUMENT` and `CAMERAD_MODULE_NAME`.
 
 ## Python Module
 
@@ -218,14 +242,7 @@ Every command `camerad` accepts is reachable: the base commands are bound as met
 
 The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
 
-`-DCAMERAD_MODULE_NAME=` renames the module and its file together, so per-instrument builds can be imported side by side. [Per-instrument packages](#per-instrument-packages) is the packaged form of the same thing:
-
-```bash
-$ cmake -DBUILD_PYTHON_MODULE=ON -DINSTRUMENT=hispec_tracking_camera \
-        -DCAMERAD_MODULE_NAME=camera_interface_tracking ..
-```
-
-It defaults to `camera_interface`, so a build that does not set it is unaffected.
+The module always imports as `camera_interface`, whatever the instrument, so one Python process drives one instrument, as one `camerad` does. Install each instrument's build into its own environment.
 
 `output_status()` is a snapshot, never a barrier: the FITS writer queues and drops frames by design because disk is slower than acquisition can be, so nothing here lets a caller stall acquisition by waiting on an output. Anything needing to be woken per frame should attach to the shared-memory segment, which posts semaphores.
 

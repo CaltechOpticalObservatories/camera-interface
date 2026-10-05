@@ -165,7 +165,8 @@ jobs:
           cmake --build build -j"$(nproc)"
 
       # Stands in for an instrument's build: the core composed as a subproject,
-      # and a translation unit of the consumer's own that includes its headers
+      # a translation unit of the consumer's own that includes its headers, and
+      # the consumer's own daemon
       - name: Build the core as a subproject
         shell: bash
         run: |
@@ -181,7 +182,10 @@ jobs:
           FetchContent_Declare(camerad SOURCE_DIR ${CAMERAD_SOURCE_DIR})
           FetchContent_MakeAvailable(camerad)
           add_library(consumer OBJECT consumer.cpp)
-          target_link_libraries(consumer PRIVATE camerad_base)
+          target_link_libraries(consumer PRIVATE camerad::base)
+          add_executable(consumer_camerad ${CAMERAD_SOURCE_DIR}/camerad/archon_interface_factory.cpp)
+          target_link_libraries(consumer_camerad camerad::daemon camerad::archon)
+          set_target_properties(consumer_camerad PROPERTIES OUTPUT_NAME camerad)
           EOF
           cat > consumer.cpp <<'EOF'
           #include "camera_interface.h"
