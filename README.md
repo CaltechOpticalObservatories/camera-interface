@@ -198,6 +198,8 @@ target_compile_definitions(camera_interface PRIVATE CAMERAD_INSTRUMENT_NAME="myi
 - Without `CAMERAD_INSTRUMENT_NAME` the module reports `"none"`.
 - Finding Python and pybind11 is the consumer's job; the core does neither as a subproject. `python/CMakeLists.txt` shows one way.
 
+An instrument repository that installs its module puts it inside a Python package of its own, e.g. `myinst/camera_interface…so` with an `__init__.py` that re-exports it, so the module keeps its name and both `import myinst` and `import myinst.camera_interface` work. It names its daemon and emulator for the package, e.g. `camerad-myinst` and `camerad-emulator-myinst`, so that installing it never replaces another package's files.
+
 ## Installing with pip
 
 `pip install` builds the same artifacts and places them in the target environment, so `import camera_interface` needs no `PYTHONPATH` and `camerad` is on `PATH` whenever the environment is active:
@@ -218,6 +220,27 @@ assert camera_interface.instrument_name() == "hispec_tracking_camera"
 ```
 
 A compiler and the full dependency set have to be present wherever `pip install` runs, since it compiles camerad and the module from source.
+
+### Instrument packages
+
+An instrument package can share an environment with the generic package and with other instruments. Its build sets `CAMERAD_PYTHON_PACKAGE` to the package's name, e.g. in a `pyproject.toml` in the instrument's own repository that builds the core from its checkout:
+
+```toml
+[tool.scikit-build]
+cmake.source-dir = "external/camera-interface"
+wheel.packages = []
+cmake.define.BUILD_PYTHON_MODULE = "ON"
+cmake.define.CONTROLLER = "archon"
+cmake.define.INSTRUMENT = "myinst"
+cmake.define.CAMERAD_PYTHON_PACKAGE = "myinst_camera"
+```
+
+That package installs:
+
+- `myinst_camera/camera_interface…so` and `myinst_camera/__init__.py`, imported as `import myinst_camera` or `import myinst_camera.camera_interface`;
+- `camerad-myinst-camera` and `camerad-emulator-myinst-camera`, named for the package with `_` replaced by `-`.
+
+It does not install `camerad-socksend` or `camerad-shm-reader`, which come with the generic package. The generic package is unchanged: `import camera_interface`, plus `camerad`, `camerad-emulator` and `camerad-socksend`. Uninstalling one package leaves the others' files in place.
 
 ## Python Module
 
@@ -242,7 +265,7 @@ Every command `camerad` accepts is reachable: the base commands are bound as met
 
 The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
 
-The module always imports as `camera_interface`, whatever the instrument, so one Python process drives one instrument, as one `camerad` does. Install each instrument's build into its own environment.
+Every build's module is named `camera_interface`. The generic build installs it at the top level, and an instrument package installs it inside a package of its own ([Instrument packages](#instrument-packages)), so several instruments can share one environment. Importing several instruments into one process is intended to be supported but is not yet tested; for now, use one instrument per process.
 
 `output_status()` is a snapshot, never a barrier: the FITS writer queues and drops frames by design because disk is slower than acquisition can be, so nothing here lets a caller stall acquisition by waiting on an output. Anything needing to be woken per frame should attach to the shared-memory segment, which posts semaphores.
 

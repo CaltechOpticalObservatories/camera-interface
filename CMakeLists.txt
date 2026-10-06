@@ -99,6 +99,18 @@ endif()
 option(CAMERAD_BUILD_TOOLS "Build the emulator, listener, socksend and shm_reader" ${PROJECT_IS_TOP_LEVEL})
 option(CAMERAD_INSTALL "Generate install rules" ${PROJECT_IS_TOP_LEVEL})
 
+# This lets an instrument package share an environment with the generic package
+# and other instruments. The module installs into a Python package of this name,
+# and camerad and the emulator are named for it. The name is supplied by
+# whoever builds the instrument package.
+#
+# This is temporary and I'll remove it once each instrument's
+# repository declares its own module and writes its own install rules
+set(CAMERAD_PYTHON_PACKAGE "" CACHE STRING "Python package an instrument package installs its module into")
+if (CAMERAD_PYTHON_PACKAGE)
+  string(REPLACE "_" "-" CAMERAD_PACKAGE_SUFFIX ${CAMERAD_PYTHON_PACKAGE})
+endif()
+
 add_subdirectory(${PROJECT_BASE_DIR}/utils)
 add_subdirectory(${PROJECT_BASE_DIR}/common)
 add_subdirectory(${PROJECT_BASE_DIR}/camerad)

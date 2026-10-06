@@ -55,7 +55,22 @@ target_link_libraries(camera_interface PRIVATE
 )
 
 if (CAMERAD_INSTALL)
-  install(TARGETS camera_interface LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR})
+  if (CAMERAD_PYTHON_PACKAGE)
+    # The module keeps its name inside the package; the __init__.py lets
+    # "import <package>" behave as the module too
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/package/__init__.py [[
+from . import camera_interface as _module
+from .camera_interface import *  # noqa: F401,F403
+
+__all__ = [name for name in dir(_module) if not name.startswith("_")]
+]])
+    install(TARGETS camera_interface
+            LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR}/${CAMERAD_PYTHON_PACKAGE})
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/package/__init__.py
+            DESTINATION ${CAMERAD_INSTALL_LIBDIR}/${CAMERAD_PYTHON_PACKAGE})
+  else()
+    install(TARGETS camera_interface LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR})
+  endif()
 endif()
 
 # A shared library may leave symbols undefined, so a module missing its

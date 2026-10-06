@@ -245,6 +245,9 @@ if (PROJECT_IS_TOP_LEVEL)
     camerad_daemon
     ${INTERFACE_TARGET}
     )
+  if (CAMERAD_PYTHON_PACKAGE)
+    set_target_properties(camerad PROPERTIES OUTPUT_NAME camerad-${CAMERAD_PACKAGE_SUFFIX})
+  endif()
 
   if (CAMERAD_INSTALL)
     install(TARGETS camerad RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
