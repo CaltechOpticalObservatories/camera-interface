@@ -28,7 +28,6 @@ endif()
 find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(camera_interface
-  ${PROJECT_BASE_DIR}/python/camera_interface_module.cpp
   ${INSTRUMENT_REGISTRATION}
   ${INSTRUMENT_OBJECTS}
 )
@@ -41,33 +40,49 @@ target_include_directories(camera_interface PRIVATE
   ${INTERFACE_INCLUDES}
 )
 
-set(CAMERAD_MODULE_NAME "camera_interface" CACHE STRING
-    "Import name of the Python module")
+# Without an instrument the module source reports "none"
+if (INSTRUMENT)
+  target_compile_definitions(camera_interface PRIVATE
+    CAMERAD_INSTRUMENT_NAME="${INSTRUMENT}"
+  )
+endif()
 
-# Filename and import name must agree, so both come from CAMERAD_MODULE_NAME
-set_target_properties(camera_interface PROPERTIES OUTPUT_NAME ${CAMERAD_MODULE_NAME})
-
-target_compile_definitions(camera_interface PRIVATE
-  CAMERAD_INSTRUMENT_NAME="${INSTRUMENT}"
-  CAMERAD_MODULE_NAME=${CAMERAD_MODULE_NAME}
-)
-
-# Same link set as camerad, minus the server sources it does not use
+# camerad_python carries the module source, so it compiles here, with this
+# target's instrument name
 target_link_libraries(camera_interface PRIVATE
-  network
-  utilities
-  logentry
+  camerad_python
   ${INTERFACE_TARGET}
-  ${INTERFACE_LIBS}
-  ${CMAKE_THREAD_LIBS_INIT}
-  ${CCFITS_LIB}
-  ${CFITS_LIB}
-  Boost::thread
-  Boost::chrono
-  ${ZMQPP_LIB}
-  ${ZMQ_LIB}
 )
 
 if (CAMERAD_INSTALL)
-  install(TARGETS camera_interface LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR})
+  if (CAMERAD_PYTHON_PACKAGE)
+    # The module keeps its name inside the package; the __init__.py lets
+    # "import <package>" behave as the module too
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/package/__init__.py [[
+from . import camera_interface as _module
+from .camera_interface import *  # noqa: F401,F403
+
+__all__ = [name for name in dir(_module) if not name.startswith("_")]
+]])
+    install(TARGETS camera_interface
+            LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR}/${CAMERAD_PYTHON_PACKAGE})
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/package/__init__.py
+            DESTINATION ${CAMERAD_INSTALL_LIBDIR}/${CAMERAD_PYTHON_PACKAGE})
+  else()
+    install(TARGETS camera_interface LIBRARY DESTINATION ${CAMERAD_INSTALL_LIBDIR})
+  endif()
 endif()
+
+# A shared library may leave symbols undefined, so a module missing its
+# interface factory definition links and fails only when imported
+if (INSTRUMENT)
+  set(CAMERAD_EXPECTED_INSTRUMENT ${INSTRUMENT})
+else()
+  set(CAMERAD_EXPECTED_INSTRUMENT none)
+endif()
+add_test(NAME python_import
+  COMMAND ${Python3_EXECUTABLE} -c "import camera_interface\nassert camera_interface.instrument_name() == '${CAMERAD_EXPECTED_INSTRUMENT}', camera_interface.instrument_name()\nassert camera_interface.controller_name() == '${CONTROLLER}', camera_interface.controller_name()"
+)
+set_tests_properties(python_import PROPERTIES
+  ENVIRONMENT PYTHONPATH=$<TARGET_FILE_DIR:camera_interface>
+)

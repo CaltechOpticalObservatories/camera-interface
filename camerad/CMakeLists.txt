@@ -27,6 +27,7 @@ option(CONTROLLER "Choose controller type { bob joe archon astrocam }")
 if (CONTROLLER STREQUAL "bob")
   message (STATUS "controller: Bob")
   add_definitions(-DCONTROLLER_BOB)
+  set (INTERFACE_DEFINITIONS CONTROLLER_BOB)
   set (INTERFACE_SOURCES
       ${CAMERAD_DIR}/bob_interface.cpp
       )
@@ -36,6 +37,7 @@ if (CONTROLLER STREQUAL "bob")
 elseif (CONTROLLER STREQUAL "joe")
   message (STATUS "controller: Joe")
   add_definitions(-DCONTROLLER_JOE)
+  set (INTERFACE_DEFINITIONS CONTROLLER_JOE)
   set (INTERFACE_SOURCES
       ${CAMERAD_DIR}/joe_interface.cpp
       )
@@ -45,11 +47,15 @@ elseif (CONTROLLER STREQUAL "joe")
 elseif (CONTROLLER STREQUAL "archon")
   message (STATUS "controller: Archon")
   add_definitions(-DCONTROLLER_ARCHON)
+  set (INTERFACE_DEFINITIONS CONTROLLER_ARCHON)
   set (INTERFACE_TARGET archon)
   set (INTERFACE_SOURCES
       ${CAMERAD_DIR}/archon_interface.cpp
       ${CAMERAD_DIR}/archon_controller.cpp
       ${CAMERAD_DIR}/archon_exposure_modes.cpp
+      )
+  set (INTERFACE_LIBS
+      network
       )
 # ----------------------------------------------------------------------------
 # AstroCam ARC-64/66 PCI/e
@@ -57,6 +63,7 @@ elseif (CONTROLLER STREQUAL "archon")
 elseif (CONTROLLER STREQUAL "astrocam")
   message (STATUS "controller: AstroCam GenIII PCI/PCIe")
   add_definitions (-DCONTROLLER_ASTROCAM)
+  set (INTERFACE_DEFINITIONS CONTROLLER_ASTROCAM)
   set (INTERFACE_TARGET astrocam)
   set (ARCAPI_DIR "${PROJECT_BASE_DIR}/ARC")
   find_path (ARCAPI_BASE "CArcBase.h" PATHS ${ARCAPI_DIR}/CArcBase/inc)
@@ -149,14 +156,19 @@ target_link_libraries(camerad_base PUBLIC
 # The public headers need C++17. The standard set for this directory is not
 # inherited by a project consuming this one, so it has to travel with the target
 target_compile_features(camerad_base PUBLIC cxx_std_17)
+add_library(camerad::base ALIAS camerad_base)
 
 # ----------------------------------------------------------------------------
 # controller implementation, linking the base PUBLIC so that anything
 # depending on the controller gets the base transitively
 # ----------------------------------------------------------------------------
 add_library(${INTERFACE_TARGET} ${INTERFACE_SOURCES})
-target_link_libraries(${INTERFACE_TARGET} PUBLIC camerad_base)
+target_link_libraries(${INTERFACE_TARGET} PUBLIC camerad_base ${INTERFACE_LIBS})
 target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
+# so that code compiled against the controller, such as a consumer's Python
+# module, knows which controller it is
+target_compile_definitions(${INTERFACE_TARGET} INTERFACE ${INTERFACE_DEFINITIONS})
+add_library(camerad::${INTERFACE_TARGET} ALIAS ${INTERFACE_TARGET})
 
 # ----------------------------------------------------------------------------
 # instrument implementation, if any.
@@ -192,44 +204,58 @@ include_directories(${BOOST_INCLUDES})
 find_package(Threads)
 
 # ----------------------------------------------------------------------------
-# build the camera daemon
+# the camera daemon's main and its Server. No controller and no interface
+# factory definition: the final target supplies both
 # ----------------------------------------------------------------------------
-add_executable(camerad
+add_library(camerad_daemon STATIC
   ${CAMERAD_DIR}/camerad.cpp
   ${CAMERAD_DIR}/camera_server.cpp
-  ${INSTRUMENT_REGISTRATION}
-  ${INSTRUMENT_OBJECTS}
   )
-
-# ----------------------------------------------------------------------------
-# link everything
-# ----------------------------------------------------------------------------
-target_link_libraries(camerad
+target_link_libraries(camerad_daemon PUBLIC
+  camerad_base
   network
   utilities
   logentry
-  ${INTERFACE_TARGET}
-  ${INTERFACE_LIBS}
   ${CMAKE_THREAD_LIBS_INIT}
-  ${CCFITS_LIB}
-  ${CFITS_LIB}
-  ${BOOST_INCLUDES}
-  Boost::thread
-  Boost::chrono
-  ${ZMQPP_LIB}
-  ${ZMQ_LIB}
   )
-
-if (CAMERAD_INSTALL)
-  install(TARGETS camerad RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
-endif()
+add_library(camerad::daemon ALIAS camerad_daemon)
 
 # ----------------------------------------------------------------------------
-# optional Python module
+# the Python module's source, compiled inside each target that links this,
+# so that the module is built for that target's instrument. Only with
+# BUILD_PYTHON_MODULE, which is what makes the static libraries PIC
 # ----------------------------------------------------------------------------
-# Added here, not at the top level, to inherit the controller and instrument
-# selection above. The option itself is declared at the top level
 if (BUILD_PYTHON_MODULE)
-  add_subdirectory(${PROJECT_BASE_DIR}/python ${CMAKE_BINARY_DIR}/python)
+  add_library(camerad_python INTERFACE)
+  target_sources(camerad_python INTERFACE ${PROJECT_BASE_DIR}/python/camera_interface_module.cpp)
+  target_link_libraries(camerad_python INTERFACE camerad_base)
+  add_library(camerad::python ALIAS camerad_python)
 endif()
 
+# ----------------------------------------------------------------------------
+# final targets, only when this is the top-level project. A project that
+# composes this one declares its own, linking the libraries above
+# ----------------------------------------------------------------------------
+if (PROJECT_IS_TOP_LEVEL)
+  add_executable(camerad
+    ${INSTRUMENT_REGISTRATION}
+    ${INSTRUMENT_OBJECTS}
+    )
+  target_link_libraries(camerad
+    camerad_daemon
+    ${INTERFACE_TARGET}
+    )
+  if (CAMERAD_PYTHON_PACKAGE)
+    set_target_properties(camerad PROPERTIES OUTPUT_NAME camerad-${CAMERAD_PACKAGE_SUFFIX})
+  endif()
+
+  if (CAMERAD_INSTALL)
+    install(TARGETS camerad RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
+  endif()
+
+  # Added here, not at the top level, to inherit the controller and instrument
+  # selection above. The option itself is declared at the top level
+  if (BUILD_PYTHON_MODULE)
+    add_subdirectory(${PROJECT_BASE_DIR}/python ${CMAKE_BINARY_DIR}/python)
+  endif()
+endif()

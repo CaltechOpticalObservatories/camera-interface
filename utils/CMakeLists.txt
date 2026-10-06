@@ -80,7 +80,8 @@ if(CAMERAD_BUILD_TOOLS)
   set_target_properties(socksend PROPERTIES OUTPUT_NAME camerad-socksend)
 endif()
 
-if(CAMERAD_BUILD_TOOLS AND CAMERAD_INSTALL)
+# An instrument package leaves the generic tools to the generic package
+if(CAMERAD_BUILD_TOOLS AND CAMERAD_INSTALL AND NOT CAMERAD_PYTHON_PACKAGE)
   install(TARGETS socksend RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
   if (ENABLE_SHM_OUTPUT)
     install(TARGETS shm_reader RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})

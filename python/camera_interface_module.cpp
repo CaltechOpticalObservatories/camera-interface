@@ -118,11 +118,7 @@ namespace {
 
 }
 
-#ifndef CAMERAD_MODULE_NAME
-#define CAMERAD_MODULE_NAME camera_interface
-#endif
-
-PYBIND11_MODULE(CAMERAD_MODULE_NAME, module) {
+PYBIND11_MODULE(camera_interface, module) {
   module.doc() = "Direct control of a camera-interface camera, without camerad";
 
   module.def("instrument_name", [] { return std::string(INSTRUMENT_NAME); },
@@ -130,9 +126,7 @@ PYBIND11_MODULE(CAMERAD_MODULE_NAME, module) {
   module.def("controller_name", [] { return std::string(CONTROLLER_NAME); },
              "Return the controller this module was built for");
 
-  // module_local keeps this out of pybind11's process-wide type registry, so
-  // two per-instrument builds can be imported together
-  py::class_<CameraSession>(module, "Camera", py::module_local(),
+  py::class_<CameraSession>(module, "Camera",
       "One camera, configured from a camerad .cfg file.\n\n"
       "Construction performs the same setup camerad does at startup: read the\n"
       "config, initialize logging, then configure the controller, interface,\n"
