@@ -143,3 +143,20 @@ The C++ log always goes to its daily file under `LOGPATH` regardless.
 `python/examples/shm_read_frames.py` is a streaming shared-memory consumer that blocks on the
 stream's semaphore and flags frames it missed. See
 [frame outputs](../configuration/frame-outputs.md) for what it needs.
+
+`python/examples/raw_channel_sweep.py` captures a pre-CDS waveform from each of several channels.
+The Archon covers one channel per exposure, so the script loops `RAWSEL`, exposes, and fetches,
+ending with one RAW file per channel alongside each paired image:
+
+```bash
+python python/examples/raw_channel_sweep.py --config lris2.cfg \
+    --fits-dir /tmp/images --channels 0-3,18-21
+```
+
+It reports the module inventory from `SYSTEM` rather than inferring a slot from `RAWSEL`, for the
+reason given under [raw samples](../commands/controller.md#raw-samples).
+
+`--repeat` takes several frames per channel. Since `expose()` reports success even when the readout
+timed out, the script treats a repeated frame number as a failure rather than handing back the same
+buffer twice. `--keep-config` reads the ACF host-side only, leaving the controller's applied
+configuration alone, and then needs `--mode` to name the mode that `load` would have selected.

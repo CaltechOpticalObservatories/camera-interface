@@ -280,10 +280,10 @@
 emulator stands in for the hardware.</p>
 <section id="dependencies">
 <h2>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">camerad</span></code> needs a C++20 compiler, CMake 3.12 or newer, and:</p>
+<p><code class="docutils literal notranslate"><span class="pre">camerad</span></code> needs a C++20 compiler, CMake 3.24 or newer, and:</p>
 <ul class="simple">
 <li><p>cfitsio and CCfits, for FITS output</p></li>
-<li><p>OpenCV, Boost (thread and chrono), nlohmann-json</p></li>
+<li><p>Boost (thread and chrono), nlohmann-json</p></li>
 <li><p>ZeroMQ and <a class="reference external" href="https://github.com/zeromq/zmqpp">zmqpp</a>, which is not usually packaged and is built from source</p></li>
 <li><p>gtest, to run the unit tests</p></li>
 <li><p><a class="reference external" href="https://github.com/milk-org/ImageStreamIO">ImageStreamIO</a>, only for the shared-memory output</p></li>
@@ -291,7 +291,7 @@ emulator stands in for the hardware.</p>
 <p>On Debian or Ubuntu the packaged ones are what CI installs:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>ninja-build<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>libccfits-dev<span class="w"> </span>libcfitsio-dev<span class="w"> </span>libcurl4-openssl-dev<span class="w"> </span>libgtest-dev<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>nlohmann-json3-dev<span class="w"> </span>libzmq3-dev<span class="w"> </span>libopencv-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>nlohmann-json3-dev<span class="w"> </span>libzmq3-dev<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>libboost-thread-dev<span class="w"> </span>libboost-chrono-dev
 </pre></div>
 </div>

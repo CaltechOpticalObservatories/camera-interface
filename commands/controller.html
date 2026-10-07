@@ -297,10 +297,10 @@ confirming that a reply came back. The commands most worth knowing:</p>
 </dl>
 <p>The server itself parses <code class="docutils literal notranslate"><span class="pre">FRAME</span></code>, <code class="docutils literal notranslate"><span class="pre">STATUS</span></code> and <code class="docutils literal notranslate"><span class="pre">SYSTEM</span></code> replies for its own bookkeeping, so use
 <code class="docutils literal notranslate"><span class="pre">native</span></code> for inspection rather than as a control path.</p>
-<p>Beyond <code class="docutils literal notranslate"><span class="pre">native</span></code>, the Archon-specific commands are <code class="docutils literal notranslate"><span class="pre">raw</span></code> for configuration memory, <code class="docutils literal notranslate"><span class="pre">getp</span></code> and <code class="docutils literal notranslate"><span class="pre">setp</span></code>
-for parameters, <code class="docutils literal notranslate"><span class="pre">inreg</span></code> for a VCPU input register, <code class="docutils literal notranslate"><span class="pre">loadtiming</span></code> and <code class="docutils literal notranslate"><span class="pre">readacf</span></code> for loading, <code class="docutils literal notranslate"><span class="pre">mode</span></code>
-for camera modes, <code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code>, and <code class="docutils literal notranslate"><span class="pre">heater</span></code> and <code class="docutils literal notranslate"><span class="pre">sensor</span></code> for the thermal modules. The
-<a class="reference internal" href="#heater-and-sensor">heater and sensor</a> syntax is below.</p>
+<p>Beyond <code class="docutils literal notranslate"><span class="pre">native</span></code>, the Archon-specific commands are <code class="docutils literal notranslate"><span class="pre">raw</span></code> for pre-CDS sample capture, <code class="docutils literal notranslate"><span class="pre">getp</span></code> and
+<code class="docutils literal notranslate"><span class="pre">setp</span></code> for parameters, <code class="docutils literal notranslate"><span class="pre">inreg</span></code> for a VCPU input register, <code class="docutils literal notranslate"><span class="pre">loadtiming</span></code> and <code class="docutils literal notranslate"><span class="pre">readacf</span></code> for loading,
+<code class="docutils literal notranslate"><span class="pre">mode</span></code> for camera modes, <code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code>, and <code class="docutils literal notranslate"><span class="pre">heater</span></code> and <code class="docutils literal notranslate"><span class="pre">sensor</span></code> for the thermal modules. The
+<a class="reference internal" href="#raw-samples">raw samples</a> and <a class="reference internal" href="#heater-and-sensor">heater and sensor</a> syntax is below.</p>
 </section>
 <section id="arc-astrocam">
 <h2>ARC (AstroCam)<a class="headerlink" href="#arc-astrocam" title="Link to this heading">¶</a></h2>
@@ -313,6 +313,207 @@ and returns success, so the command replies <code class="docutils literal notran
 </div>
 <p>Passing three-letter DSP commands through to an ARC controller is therefore not currently possible
 from the command interface.</p>
+</section>
+<section id="raw-samples">
+<h2>Raw samples<a class="headerlink" href="#raw-samples" title="Link to this heading">¶</a></h2>
+<p>The Archon can capture a window of unprocessed ADC samples from a single channel alongside the
+normal CDS frame, which is how a detector engineer inspects the output waveform for settling times,
+sampling windows, reset level stability and clock feed through. <code class="docutils literal notranslate"><span class="pre">raw</span></code> configures and retrieves it.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">raw</span> <span class="p">[</span> <span class="n">config</span> <span class="o">|</span> <span class="nb">set</span> <span class="o">&lt;</span><span class="n">KEY</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">VAL</span><span class="o">&gt;</span> <span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="n">read</span> <span class="p">]</span>
+</pre></div>
+</div>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Form</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">config</span></code></p></td>
+<td><p>Report the six RAW keywords</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">set</span> <span class="pre">&lt;KEY&gt;</span> <span class="pre">&lt;VAL&gt;</span> <span class="pre">...</span></code></p></td>
+<td><p>Write the keyword(s) to configuration memory, then apply</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">read</span></code></p></td>
+<td><p>Fetch the raw region of the newest buffer and dispatch it as a frame</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">pair</span></code></p></td>
+<td><p>Fetch the image and the raw region of the newest buffer under one lock</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The keywords are <code class="docutils literal notranslate"><span class="pre">RAWENABLE</span></code>, <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code>, <code class="docutils literal notranslate"><span class="pre">RAWSTARTLINE</span></code>, <code class="docutils literal notranslate"><span class="pre">RAWENDLINE</span></code>, <code class="docutils literal notranslate"><span class="pre">RAWSTARTPIXEL</span></code> and
+<code class="docutils literal notranslate"><span class="pre">RAWSAMPLES</span></code>. <code class="docutils literal notranslate"><span class="pre">RAWSAMPLES</span></code> is rounded up to a whole 1024-byte block per line.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code class="docutils literal notranslate"><span class="pre">RAWENABLE</span></code> takes effect at capture time, not at read time. The controller acquires raw samples
+while it fills the frame buffer, so enabling it after an exposure cannot populate that buffer. Set
+it before the exposure the samples should come from.</p>
+<p><code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">set</span></code> can only write keywords that already exist in the loaded ACF, so an ACF that omits them
+cannot be driven from the command interface at all.</p>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">read</span></code> refuses while <code class="docutils literal notranslate"><span class="pre">RAWENABLE</span></code> is 0. A controller with capture disabled reports zero raw
+blocks and lines, which is indistinguishable from one that reports nothing, so the fetch would
+otherwise return whatever happens to sit at the raw offset and label it as raw data.</p>
+<p>The result is dispatched on its own stream, named <code class="docutils literal notranslate"><span class="pre">raw</span></code>, so it never collides with the image. The
+FITS writer gives it a separate file and the shared-memory writer a separate segment. See
+<a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame output keys</span></a>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">pair</span></code> fetches the image and the raw region together. Fetching them with separate <code class="docutils literal notranslate"><span class="pre">read</span></code>
+commands unlocks the buffer in between, which lets a new frame land there, so the two halves need
+not describe the same exposure. <code class="docutils literal notranslate"><span class="pre">pair</span></code> holds one lock across both and dispatches them with the same
+frame number, which is what makes them comparable. It reads whatever buffer is newest rather than
+triggering an exposure, so it also works on a frame the controller already holds. It supports a
+single detector and refuses otherwise, rather than dispatching part of a frame.</p>
+<section id="interpreting-the-samples">
+<h3>Interpreting the samples<a class="headerlink" href="#interpreting-the-samples" title="Link to this heading">¶</a></h3>
+<p>An AD channel and an ADM channel both arrive as an identical block of <code class="docutils literal notranslate"><span class="pre">uint16</span></code>, but they are not
+sampled the same way:</p>
+<dl class="simple myst">
+<dt>AD</dt><dd><p>16 bits at 100 MHz, so consecutive samples are 10 ns apart.</p>
+</dd>
+<dt>ADM</dt><dd><p>18 bits at 12.5 MHz, truncated to 16 bits, with each value repeated eight times and dithered so
+that averaging the eight recovers the original 18-bit sample. The effective period is 80 ns.</p>
+</dd>
+</dl>
+<p>Nothing in the data itself distinguishes the two, so <code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">read</span></code> records the provenance in the
+header instead.</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Keyword</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code></p></td>
+<td><p>The channel selector in force for the capture</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">RAWMOD5</span></code> to <code class="docutils literal notranslate"><span class="pre">RAWMOD8</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MODn_TYPE</span></code> of each slot <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code> can address</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RAWSAMP</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">RAWSAMPLES</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">RAWSLINE</span></code>, <code class="docutils literal notranslate"><span class="pre">RAWELINE</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">RAWSTARTLINE</span></code>, <code class="docutils literal notranslate"><span class="pre">RAWENDLINE</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RAWSPIX</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">RAWSTARTPIXEL</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Every candidate slot is reported rather than the one slot <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code> selects, because the mapping
+from <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code> to a slot is not reliably known. See below.</p>
+</section>
+<section id="module-types-and-the-rawsel-range">
+<h3>Module types and the RAWSEL range<a class="headerlink" href="#module-types-and-the-rawsel-range" title="Link to this heading">¶</a></h3>
+<p>The Archon manual is incomplete here and partly stale, and the GUI source distributed with the
+controller is the better reference. <code class="docutils literal notranslate"><span class="pre">archongui/src/archon.h</span></code> carries the full module type list,
+where the manual stops at <code class="docutils literal notranslate"><span class="pre">16+:</span> <span class="pre">Unknown</span></code>:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Type</p></th>
+<th class="head"><p>Module</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6</p></td>
+<td><p>Atlas</p></td>
+</tr>
+<tr class="row-odd"><td><p>16</p></td>
+<td><p>DriverX</p></td>
+</tr>
+<tr class="row-even"><td><p>17</p></td>
+<td><p>ADM</p></td>
+</tr>
+<tr class="row-odd"><td><p>18</p></td>
+<td><p>Unknown, the sentinel</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">archongui/src/archongui.cpp</span></code> then builds its Raw Channel Select control with
+<code class="docutils literal notranslate"><span class="pre">for</span> <span class="pre">(i</span> <span class="pre">=</span> <span class="pre">1;</span> <span class="pre">i</span> <span class="pre">&lt;=</span> <span class="pre">72;</span> <span class="pre">i++)</span></code> and stores the zero-based index as <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code>, so the selector spans 0 to
+71. That is 18 channels across each of slots 5 to 8, matching the ADM channel layout. The manual
+instead documents <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code> as 0 to 15, four per slot, described purely in terms of AD modules.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The two strides disagree, and on a chassis with a mix of AD and ADM modules they resolve the same
+<code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code> to different slots. <code class="docutils literal notranslate"><span class="pre">camerad</span></code> therefore derives nothing from <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code> and records it
+verbatim beside the type of every slot it could refer to, leaving the reader to resolve it.</p>
+</div>
+</section>
+</section>
+<section id="bias-voltages">
+<h2>Bias voltages<a class="headerlink" href="#bias-voltages" title="Link to this heading">¶</a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bias</span> <span class="p">[</span> <span class="nb">list</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">mod</span><span class="o">&gt;</span><span class="p">]</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">mod</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">chan</span><span class="o">&gt;</span> <span class="p">[</span> <span class="o">&lt;</span><span class="n">volts</span><span class="o">&gt;</span> <span class="o">|</span> <span class="o">&lt;</span><span class="n">FIELD</span><span class="o">&gt;</span> <span class="o">&lt;</span><span class="n">VAL</span><span class="o">&gt;</span> <span class="o">...</span> <span class="p">]</span> <span class="p">]</span>
+</pre></div>
+</div>
+<p>A bias board’s channels fall into banks that share a key prefix, and the banks differ in what they
+carry, so a channel is addressed by a number that spans the whole board:</p>
+<div class="table-wrapper colwidths-auto docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>board</p></th>
+<th class="head"><p>bank</p></th>
+<th class="head"><p>channels</p></th>
+<th class="head"><p>range</p></th>
+<th class="head"><p>enable</p></th>
+<th class="head"><p>current limit</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>LVBias, LVXBias</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LVLC</span></code>, <code class="docutils literal notranslate"><span class="pre">LVHC</span></code></p></td>
+<td><p>1 to 24, 25 to 30</p></td>
+<td><p>-14 to +14 V</p></td>
+<td><p>high current only</p></td>
+<td><p>high current only</p></td>
+</tr>
+<tr class="row-odd"><td><p>HVBias, HVXBias</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">HVLC</span></code>, <code class="docutils literal notranslate"><span class="pre">HVHC</span></code></p></td>
+<td><p>1 to 24, 25 to 30</p></td>
+<td><p>0 to +31 V</p></td>
+<td><p>high current only</p></td>
+<td><p>high current only</p></td>
+</tr>
+<tr class="row-even"><td><p>XVBias</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">XVP</span></code>, <code class="docutils literal notranslate"><span class="pre">XVN</span></code></p></td>
+<td><p>1 to 4, 5 to 8</p></td>
+<td><p>0 to +95 V, -95 to 0 V</p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Fields are <code class="docutils literal notranslate"><span class="pre">V</span></code>, <code class="docutils literal notranslate"><span class="pre">ORDER</span></code>, <code class="docutils literal notranslate"><span class="pre">ENABLE</span></code>, <code class="docutils literal notranslate"><span class="pre">IL</span></code> and <code class="docutils literal notranslate"><span class="pre">LABEL</span></code>. Setting several in one command applies the
+module once, where separate commands would apply it once each. Asking for a field the bank does not
+carry is refused rather than writing a key the board ignores, and the current limit is capped at 250
+mA.</p>
+<p>Every read and every set reports the channel’s label, so a voltage is never shown without saying
+which bias it belongs to. <code class="docutils literal notranslate"><span class="pre">bias</span> <span class="pre">list</span></code> covers every installed bias board, or one of them, skipping
+channels the loaded ACF never defined:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ bias list 10
+MOD10 chan 1 LVLC V=2.3 ORDER=2 LABEL="Bias Gate"
+MOD10 chan 2 LVLC V=3.3 ORDER=2 LABEL="Bias Power"
+MOD10 chan 3 LVLC V=0.55 ORDER=2 LABEL="Diode Sub"
+...
+MOD10 chan 25 LVHC V=3.3 ORDER=3 ENABLE=1 IL=10 LABEL="PullUp"
+MOD10 chan 26 LVHC V=0.0 ORDER=1 ENABLE=0 IL=50 LABEL="Misc 1"
+</pre></div>
+</div>
+<p>The high-current channels carry the two extra fields, the low-current ones do not.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Values come from configuration memory, so they report what the board was asked for rather than a
+measurement of what it is doing.</p>
+</div>
 </section>
 <section id="heater-and-sensor">
 <h2>Heater and sensor<a class="headerlink" href="#heater-and-sensor" title="Link to this heading">¶</a></h2>
@@ -450,6 +651,12 @@ sufficiently recent backplane.</p>
 <li><a class="reference internal" href="#">Controller commands</a><ul>
 <li><a class="reference internal" href="#archon">Archon</a></li>
 <li><a class="reference internal" href="#arc-astrocam">ARC (AstroCam)</a></li>
+<li><a class="reference internal" href="#raw-samples">Raw samples</a><ul>
+<li><a class="reference internal" href="#interpreting-the-samples">Interpreting the samples</a></li>
+<li><a class="reference internal" href="#module-types-and-the-rawsel-range">Module types and the RAWSEL range</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bias-voltages">Bias voltages</a></li>
 <li><a class="reference internal" href="#heater-and-sensor">Heater and sensor</a><ul>
 <li><a class="reference internal" href="#heater">heater</a></li>
 <li><a class="reference internal" href="#sensor">sensor</a></li>

@@ -9,11 +9,15 @@ in [frame output keys](../configuration/frame-outputs.md).
 The writer builds each name itself:
 
 ```
-<FITS_OUTPUT_DIR>/<FITS_BASENAME>_<frame number>.fits
+<FITS_OUTPUT_DIR>/<FITS_BASENAME>_<frame number>[_<stream>].fits
 ```
 
 The frame number is zero-padded to eight digits. If that path already exists the writer appends
 `_1`, `_2` and so on until it finds a free name, so a file is never silently overwritten.
+
+The stream is omitted for the primary image and present for anything published alongside it, such
+as the `raw` stream from [raw samples](../commands/controller.md#raw-samples). It comes last so a
+frame and its companions sort together.
 
 `FITS_AUTODIR` puts all of this inside a `YYYYMMDD` subdirectory of `FITS_OUTPUT_DIR`.
 

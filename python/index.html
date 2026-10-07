@@ -411,7 +411,7 @@ call open() for that.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="camera_interface.Camera.bias">
 <span class="sig-name descname"><span class="pre">bias</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#camera_interface.Camera" title="camera_interface.Camera"><span class="pre">camera_interface.Camera</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#camera_interface.Camera.bias" title="Link to this definition">¶</a></dt>
-<dd><p>Query a bias voltage, or set it</p>
+<dd><p>Read or set the attributes of a bias channel, or list them all</p>
 </dd></dl>
 
 <dl class="py method">
@@ -542,6 +542,19 @@ call open() for that.</p>
 <p><code class="docutils literal notranslate"><span class="pre">python/examples/shm_read_frames.py</span></code> is a streaming shared-memory consumer that blocks on the
 stream’s semaphore and flags frames it missed. See
 <a class="reference internal" href="../configuration/frame-outputs.html"><span class="std std-doc">frame outputs</span></a> for what it needs.</p>
+<p><code class="docutils literal notranslate"><span class="pre">python/examples/raw_channel_sweep.py</span></code> captures a pre-CDS waveform from each of several channels.
+The Archon covers one channel per exposure, so the script loops <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code>, exposes, and fetches,
+ending with one RAW file per channel alongside each paired image:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>python/examples/raw_channel_sweep.py<span class="w"> </span>--config<span class="w"> </span>lris2.cfg<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--fits-dir<span class="w"> </span>/tmp/images<span class="w"> </span>--channels<span class="w"> </span><span class="m">0</span>-3,18-21
+</pre></div>
+</div>
+<p>It reports the module inventory from <code class="docutils literal notranslate"><span class="pre">SYSTEM</span></code> rather than inferring a slot from <code class="docutils literal notranslate"><span class="pre">RAWSEL</span></code>, for the
+reason given under <a class="reference internal" href="../commands/controller.html#raw-samples"><span class="std std-ref">raw samples</span></a>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">--repeat</span></code> takes several frames per channel. Since <code class="docutils literal notranslate"><span class="pre">expose()</span></code> reports success even when the readout
+timed out, the script treats a repeated frame number as a failure rather than handing back the same
+buffer twice. <code class="docutils literal notranslate"><span class="pre">--keep-config</span></code> reads the ACF host-side only, leaving the controller’s applied
+configuration alone, and then needs <code class="docutils literal notranslate"><span class="pre">--mode</span></code> to name the mode that <code class="docutils literal notranslate"><span class="pre">load</span></code> would have selected.</p>
 </section>
 </section>
 

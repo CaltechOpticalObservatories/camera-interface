@@ -5,10 +5,10 @@ emulator stands in for the hardware.
 
 ## Dependencies
 
-`camerad` needs a C++20 compiler, CMake 3.12 or newer, and:
+`camerad` needs a C++20 compiler, CMake 3.24 or newer, and:
 
 - cfitsio and CCfits, for FITS output
-- OpenCV, Boost (thread and chrono), nlohmann-json
+- Boost (thread and chrono), nlohmann-json
 - ZeroMQ and [zmqpp](https://github.com/zeromq/zmqpp), which is not usually packaged and is built from source
 - gtest, to run the unit tests
 - [ImageStreamIO](https://github.com/milk-org/ImageStreamIO), only for the shared-memory output
@@ -18,7 +18,7 @@ On Debian or Ubuntu the packaged ones are what CI installs:
 ```bash
 sudo apt-get install -y build-essential cmake ninja-build \
   libccfits-dev libcfitsio-dev libcurl4-openssl-dev libgtest-dev \
-  nlohmann-json3-dev libzmq3-dev libopencv-dev \
+  nlohmann-json3-dev libzmq3-dev \
   libboost-thread-dev libboost-chrono-dev
 ```
 

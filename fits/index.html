@@ -282,11 +282,14 @@ in <a class="reference internal" href="../configuration/frame-outputs.html"><spa
 <section id="filenames">
 <h2>Filenames<a class="headerlink" href="#filenames" title="Link to this heading">¶</a></h2>
 <p>The writer builds each name itself:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">FITS_OUTPUT_DIR</span><span class="o">&gt;/&lt;</span><span class="n">FITS_BASENAME</span><span class="o">&gt;</span><span class="n">_</span><span class="o">&lt;</span><span class="n">frame</span> <span class="n">number</span><span class="o">&gt;.</span><span class="n">fits</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">FITS_OUTPUT_DIR</span><span class="o">&gt;/&lt;</span><span class="n">FITS_BASENAME</span><span class="o">&gt;</span><span class="n">_</span><span class="o">&lt;</span><span class="n">frame</span> <span class="n">number</span><span class="o">&gt;</span><span class="p">[</span><span class="n">_</span><span class="o">&lt;</span><span class="n">stream</span><span class="o">&gt;</span><span class="p">]</span><span class="o">.</span><span class="n">fits</span>
 </pre></div>
 </div>
 <p>The frame number is zero-padded to eight digits. If that path already exists the writer appends
 <code class="docutils literal notranslate"><span class="pre">_1</span></code>, <code class="docutils literal notranslate"><span class="pre">_2</span></code> and so on until it finds a free name, so a file is never silently overwritten.</p>
+<p>The stream is omitted for the primary image and present for anything published alongside it, such
+as the <code class="docutils literal notranslate"><span class="pre">raw</span></code> stream from <a class="reference internal" href="../commands/controller.html#raw-samples"><span class="std std-ref">raw samples</span></a>. It comes last so a
+frame and its companions sort together.</p>
 <p><code class="docutils literal notranslate"><span class="pre">FITS_AUTODIR</span></code> puts all of this inside a <code class="docutils literal notranslate"><span class="pre">YYYYMMDD</span></code> subdirectory of <code class="docutils literal notranslate"><span class="pre">FITS_OUTPUT_DIR</span></code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
