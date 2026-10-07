@@ -23,8 +23,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,9 +44,7 @@ jobs:
 
       # autodoc imports the compiled module, so the Python API page cannot drift from the bindings
       - name: Install camera_interface
-        run: |
-          pip install . \
-            --config-settings=cmake.define.INSTRUMENT=hispec_tracking_camera
+        run: pip install .
 
       - name: Install documentation toolchain
         run: pip install -r docs/requirements.txt
