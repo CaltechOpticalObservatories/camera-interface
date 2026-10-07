@@ -1,10 +1,13 @@
-"""Assert the HISPEC ATC keywords in a FITS file the writer just produced.
+"""Assert the keywords in a FITS file the writer just produced.
 
-Every keyword here is a row of the ATC header definition document. The values are
-what the emulator produces from MODE_DEFAULT of hispecatc.acf, so a keyword that
-silently stops being populated, or starts reporting a placeholder, fails the run.
+The writer itself contributes only a handful; the rest are rows of the HISPEC
+ATC header definition document, supplied by that instrument's header dictionary,
+with the values the emulator produces from MODE_DEFAULT of hispecatc.acf. A
+keyword that silently stops being populated, or starts reporting a placeholder,
+fails the run. Pass --no-instrument for a build that has no instrument module,
+which writes the core keywords only.
 
-Used by both emulator CI jobs, and standalone:
+Used by the emulator CI job, and standalone:
     python3 python/tests/fits_header_check.py /tmp/ci_fits_test/*.fits
 """
 
@@ -20,9 +23,14 @@ from typing import Final
 CARD_LENGTH: Final = 80
 BLOCK_LENGTH: Final = 2880
 
+# What the writer itself puts in every file, whatever instrument built it
+CORE_KEYWORDS: Final = frozenset({"FRAMENO", "DATE", "FILENAME"})
+
+# The rest come from an instrument's header dictionary, so a build with no
+# instrument writes none of them.
 # CHANVERT is absent by design: the document marks it N/A for the ATC
-REQUIRED_KEYWORDS: Final = frozenset({
-    "ACQTIME", "CAMD_VER", "DETBITS", "EXPMJDST", "EXPTIME", "EXPTUNIT", "FILENAME",
+INSTRUMENT_KEYWORDS: Final = frozenset({
+    "ACQTIME", "CAMD_VER", "DETBITS", "EXPMJDST", "EXPTIME", "EXPTUNIT",
     "FILETYPE", "FIRMWARE", "FRAMETME", "LVLC_V1", "LVLC_V2", "LVLC_V3",
     "NCHANLS", "NREADS", "OPSMODE", "PIXTIME", "READMODE", "REFCHPOS",
     "REFPXAMP", "SKIPLNES", "SKIPROWS", "SUBFRAME",
@@ -101,6 +109,16 @@ def as_number(header: dict[str, str], keyword: str) -> float:
         raise CheckFailed(f"{keyword}={header[keyword]!r} is not a number") from error
 
 
+def check_core_values(path: pathlib.Path, header: dict[str, str]) -> None:
+    """Assert the keywords the writer produces for any build."""
+    check(header["FILENAME"] == path.name,
+          f"FILENAME={header['FILENAME']!r}, expected {path.name!r}")
+    try:
+        datetime.datetime.fromisoformat(header["DATE"])
+    except ValueError as error:
+        raise CheckFailed(f"DATE={header['DATE']!r} is not ISO 8601") from error
+
+
 def check_values(path: pathlib.Path, header: dict[str, str], exptime: float) -> None:
     """Assert the keywords whose values the emulator determines."""
     # FREERUN is camerad's own keyword, not a document row, so it is only
@@ -117,8 +135,6 @@ def check_values(path: pathlib.Path, header: dict[str, str], exptime: float) -> 
 
     check(math.isclose(as_number(header, "EXPTIME"), exptime, rel_tol=1e-9),
           f"EXPTIME={header['EXPTIME']}, expected {exptime}")
-    check(header["FILENAME"] == path.name,
-          f"FILENAME={header['FILENAME']!r}, expected {path.name!r}")
     check(as_number(header, "EXPMJDST") > MJD_2020,
           f"EXPMJDST={header['EXPMJDST']} predates 2020")
     check(header["FIRMWARE"].endswith(".acf"),
@@ -136,12 +152,20 @@ def check_values(path: pathlib.Path, header: dict[str, str], exptime: float) -> 
         raise CheckFailed(f"ACQTIME={header['ACQTIME']!r} is not ISO 8601") from error
 
 
-def check_file(path: pathlib.Path, exptime: float) -> None:
-    """Assert every required keyword is present in path, with the expected value."""
+def check_file(path: pathlib.Path, exptime: float, instrument: bool = True) -> None:
+    """Assert every required keyword is present in path, with the expected value.
+
+    With instrument false, only the keywords the writer produces itself are
+    required, since the rest come from an instrument's header dictionary.
+    """
     header = read_primary_header(path)
-    missing = sorted(REQUIRED_KEYWORDS - header.keys())
+    required = CORE_KEYWORDS | (INSTRUMENT_KEYWORDS if instrument else frozenset())
+    missing = sorted(required - header.keys())
     check(not missing, f"{path.name}: missing keywords {missing}")
-    check_values(path, header, exptime)
+
+    check_core_values(path, header)
+    if instrument:
+        check_values(path, header, exptime)
     print(f"headers ok: {path.name} ({len(header)} cards)")
 
 
@@ -151,11 +175,13 @@ def main() -> int:
     parser.add_argument("paths", nargs="+", type=pathlib.Path, help="FITS files to check")
     parser.add_argument("--exptime", type=float, default=0.0,
                         help="exposure time the file was taken with, in sec")
+    parser.add_argument("--no-instrument", action="store_true",
+                        help="the file came from a build with no instrument module")
     args = parser.parse_args()
 
     try:
         for path in args.paths:
-            check_file(path, args.exptime)
+            check_file(path, args.exptime, instrument=not args.no_instrument)
     except CheckFailed as failure:
         print(f"FAIL: {failure}", file=sys.stderr)
         return 1

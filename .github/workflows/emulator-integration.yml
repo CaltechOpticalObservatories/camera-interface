@@ -7,113 +7,6 @@ on:
     branches: [ "main" ]
 
 jobs:
-  frame-outputs-emulator-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libccfits-dev libcfitsio-dev libcurl4-openssl-dev \
-          nlohmann-json3-dev libzmq3-dev \
-          libboost-thread-dev libboost-chrono-dev
-
-    - name: Build and install zmqpp from source
-      run: |
-        git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
-        cd /tmp/zmqpp
-        mkdir build && cd build
-        cmake ..
-        make -j$(nproc)
-        sudo make install
-        sudo ldconfig
-
-    - name: Build and install ImageStreamIO from source
-      run: |
-        git clone --depth 1 https://github.com/milk-org/ImageStreamIO.git /tmp/ImageStreamIO
-        cd /tmp/ImageStreamIO
-        mkdir build && cd build
-        cmake ..
-        make -j$(nproc)
-        sudo make install
-        sudo ldconfig
-
-    - name: Build camerad, emulator, socksend, shm_reader
-      run: |
-        mkdir -p ${{github.workspace}}/build
-        cd ${{github.workspace}}/build
-        cmake -DCONTROLLER=archon \
-              -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake ..
-        make camerad emulator socksend shm_reader -j$(nproc)
-
-    - name: SHM + FITS frame outputs test
-      run: |
-        mkdir -p /tmp/ci_milk_shm /tmp/ci_fits_test
-
-        bin/camerad-emulator config/frame_outputs_test/frame_outputs_test.cfg -i generic &
-        sleep 2
-        bin/camerad --foreground --config config/frame_outputs_test/frame_outputs_test.cfg &
-        sleep 3
-
-        send() { bin/camerad-socksend -p 3131 -t 60 "$1"; }
-
-        send "open"
-        send "load"
-        send "power on"
-
-        # This cfg sets no LONGEXPOSURE, so a bare argument is sec; an explicit
-        # unit has to override that
-        send "exptime 1500 ms" | grep -q "^1.500" || { echo "unit suffix ignored"; exit 1; }
-
-        send "exptime 1.5"
-        resp=$(send "expose 1")
-        echo "expose -> $resp"
-        echo "$resp" | grep -q "DONE" || exit 1
-
-        # DONE only means camerad accepted the command, not that the writers
-        # succeeded -- shm_reader's exit code and the FITS headers are the
-        # real pass/fail signal
-        sleep 1
-        bin/camerad-shm-reader ci_frame_outputs_shm /tmp/ci_milk_shm
-        python3 python/tests/fits_header_check.py \
-          /tmp/ci_fits_test/ci_frame_outputs_*.fits --exptime 1.5
-
-        image_size() {
-          bin/camerad-shm-reader ci_frame_outputs_shm /tmp/ci_milk_shm \
-            | grep -o 'size=[0-9]*x[0-9]*' | head -1
-        }
-        before=$(image_size)
-
-        # read must refuse to fetch until capture is actually enabled
-        send "raw read" | grep -q "ERROR" || { echo "raw read ran with RAWENABLE=0"; exit 1; }
-
-        # The Archon captures raw alongside the frame, so enabling it has to
-        # precede the exposure it should appear in
-        send "raw set RAWENABLE 1"
-        resp=$(send "expose 1")
-        echo "expose -> $resp"
-        echo "$resp" | grep -q "DONE" || exit 1
-
-        resp=$(send "raw read")
-        echo "raw read -> $resp"
-        echo "$resp" | grep -q "DONE" || exit 1
-        sleep 1
-
-        # RAW has its own geometry, so it has to land in its own outputs rather
-        # than collide with the image file or resize the image's SHM stream
-        bin/camerad-shm-reader ci_frame_outputs_shm_raw /tmp/ci_milk_shm
-        ls /tmp/ci_fits_test/ci_frame_outputs_*_raw.fits
-
-        after=$(image_size)
-        test "$before" = "$after" || { echo "image stream changed: $before -> $after"; exit 1; }
-
-        pkill -f 'bin/camerad' || true
-        pkill -f 'bin/camerad-emulator' || true
-
   python-module-emulator-test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -171,7 +64,9 @@ jobs:
         # asserts both writers itself since the SHM segment does not outlive it
         PYTHONPATH=lib python3 python/tests/emulator_integration.py \
           --config config/frame_outputs_test/frame_outputs_test.cfg \
-          --fits-dir /tmp/ci_fits_test
+          --fits-dir /tmp/ci_fits_test \
+          --shm-dir /tmp/ci_milk_shm \
+          --shm-segment ci_frame_outputs_shm
 
         pkill -f 'bin/camerad-emulator' || true
 

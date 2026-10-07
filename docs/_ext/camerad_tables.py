@@ -275,7 +275,10 @@ def _balanced_body(text: str, open_index: int) -> str:
 
 @cache
 def load_fits_keywords() -> list[FitsKeyword]:
-    text = _read(str(ATC_DICTIONARY.relative_to(REPO_ROOT)))
+    # Instruments live in their own repositories, so this source is often absent
+    if not ATC_DICTIONARY.is_file():
+        return []
+    text = ATC_DICTIONARY.read_text(encoding="utf-8")
     block = _balanced_body(text, text.index("dictionary = {") + len("dictionary = "))
 
     keywords = []
@@ -369,8 +372,14 @@ class CameradFitsKeywords(_TableDirective):
     option_spec = {"widths": str}
 
     def run(self) -> list[nodes.Node]:
+        keywords = load_fits_keywords()
+        if not keywords:
+            return [nodes.note("", nodes.paragraph(
+                text="This instrument's sources are not in this checkout, so its FITS "
+                     "header dictionary cannot be listed here."))]
+
         rows = []
-        for entry in load_fits_keywords():
+        for entry in keywords:
             default = entry.default_atc or entry.default_spec
             comment = entry.comment
             if entry.enum_values:
