@@ -58,7 +58,6 @@ namespace Camera {
       // found in the base class.
       //
       long disconnect_controller();
-      long load_firmware(const std::string &acffile);
       long allocate_framebuf(uint32_t reqsz);
       long get_parameter(const std::string &args, std::string &retstring);
       long load_timing(std::string cmd, std::string &reply);

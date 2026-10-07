@@ -19,6 +19,32 @@
 
 namespace Camera {
 
+  namespace {
+    struct CommandTimeout {
+      std::string_view command;
+      int timeout_ms;
+    };
+
+    // STA's own values, from the timeouts archongui passes interfaceCommand
+    constexpr std::array<CommandTimeout, 6> COMMAND_TIMEOUTS {{
+      {"ERASESTOREDCONFIG", 60000},
+      {"FLASHACTIVECONFIG", 60000},
+      {"APPLYALL",          30000},
+      {"POWERON",           30000},
+      {"POWEROFF",          30000},
+      {"LOADTIMING",         5000},
+    }};
+
+    int timeout_for(const std::string &cmd) {
+      const size_t end = cmd.find(' ');
+      const std::string_view verb(cmd.data(), end == std::string::npos ? cmd.size() : end);
+      for (const auto &entry : COMMAND_TIMEOUTS) {
+        if (entry.command == verb) return entry.timeout_ms;
+      }
+      return Network::POLLTIMEOUT;
+    }
+  }
+
 
   /***** Camera::ArchonController::ArchonController ***************************/
   /**
@@ -1114,9 +1140,10 @@ namespace Camera {
     constexpr size_t BUFSZ = 64*1024;
     auto buffer = std::make_unique<char[]>(BUFSZ+1);
     reply.clear();
+    const int timeout_ms = timeout_for(cmd);
     do {
-      if ( (retval=this->archon.Poll()) <= 0) {
-        if (retval==0) { logwrite(function, "Poll timeout waiting for response from Archon command (maybe unrecognized command?)"); error=TIMEOUT; }
+      if ( (retval=this->archon.Poll(timeout_ms)) <= 0) {
+        if (retval==0) { logwrite(function, "Poll timeout after "+std::to_string(timeout_ms)+"ms waiting for response to \""+cmd+"\""); error=TIMEOUT; }
         if (retval<0)  { logwrite(function, "Poll error waiting for response from Archon command"); error=ERROR; }
         break;
       }

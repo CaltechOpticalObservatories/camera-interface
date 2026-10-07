@@ -708,28 +708,23 @@ namespace Camera {
       retstring.append( "  Archon power will be off after this operation.\n" );
       return HELP;
     }
-    // call the work function
-    return load_firmware(args);
-  }
-  /***** Camera::ArchonInterface::load_firmware *******************************/
-  /**
-   * @brief      loads the ACF file and applies the complete Archon Configuration
-   * @param[in]  args       fully qualified path of ACF
-   * @return     ERROR|NO_ERROR
-   *
-   */
-  long ArchonInterface::load_firmware(const std::string &acffile) {
+
     const std::string function("Camera::ArchonInterface::load_firmware");
+    const std::string &acffile = args;
     logwrite(function, acffile);
 
     // load the ACF file and write to Archon configuration memory
     //
     long error = this->controller->load_acf(acffile);
+    if (error != NO_ERROR) retstring = "writing the ACF to configuration memory";
 
     // Parse and apply the complete system configuration from configuration memory.
     // Detector power will be off after this.
     //
-    if (error == NO_ERROR) error = this->controller->send_cmd(APPLYALL);
+    if (error == NO_ERROR) {
+      error = this->controller->send_cmd(APPLYALL);
+      if (error != NO_ERROR) retstring = "applying the configuration (APPLYALL)";
+    }
 
     // read/clear Archon's internal error log
     //
@@ -737,7 +732,10 @@ namespace Camera {
 
     // set the mode to DEFAULT
     //
-    if (error == NO_ERROR) error = this->set_camera_mode(std::string("DEFAULT"));
+    if (error == NO_ERROR) {
+      error = this->set_camera_mode(std::string("DEFAULT"));
+      if (error != NO_ERROR) retstring = "selecting the DEFAULT mode";
+    }
 
     // TODO set exptime
     // TODO other instrument-specific defaults?
