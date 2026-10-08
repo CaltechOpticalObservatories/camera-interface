@@ -87,3 +87,84 @@ jobs:
         assert ci.instrument_name() == "none", ci.instrument_name()
         print("imported", ci.__file__)
         PY
+
+  reference-instrument-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libccfits-dev libcfitsio-dev libcurl4-openssl-dev \
+          nlohmann-json3-dev libzmq3-dev \
+          libboost-thread-dev libboost-chrono-dev \
+          python3-dev python3-pip
+        python3 -m pip install --upgrade pybind11
+
+    - name: Build and install zmqpp from source
+      run: |
+        git clone --depth 1 https://github.com/zeromq/zmqpp.git /tmp/zmqpp
+        cd /tmp/zmqpp
+        mkdir build && cd build
+        cmake ..
+        make -j$(nproc)
+        sudo make install
+        sudo ldconfig
+
+    - name: Build the emulator and socksend
+      run: |
+        mkdir -p ${{github.workspace}}/build
+        cd ${{github.workspace}}/build
+        cmake -DCONTROLLER=archon ..
+        make emulator socksend -j$(nproc)
+
+    - name: Build the reference instrument
+      run: |
+        cmake -S reference_instrument -B build-reference
+        cmake --build build-reference -j$(nproc)
+
+    - name: Reference instrument against the emulator
+      run: |
+        cfg=reference_instrument/reference.cfg
+
+        bin/camerad-emulator $cfg -i generic &
+        emulator=$!
+        sleep 2
+        build-reference/camerad --foreground --config $cfg &
+        camerad=$!
+        trap 'kill $camerad $emulator 2>/dev/null || true' EXIT
+        sleep 3
+
+        send() { bin/camerad-socksend -p 3231 -t 60 "$1"; }
+
+        # fail unless the reply to $1 matches the pattern $2
+        expect() {
+          resp=$(send "$1")
+          echo "$1 -> $resp"
+          echo "$resp" | grep -q "$2" || { echo "expected \"$2\""; exit 1; }
+        }
+
+        expect "open"        "DONE"
+        expect "load"        "DONE"
+        expect "power on"    "DONE"
+        expect "exptime 0.1" "DONE"
+        expect "expose 1"    "DONE"
+
+        # instrument command, replying with the value configure_instrument() read
+        expect "refvalue"    "^reference-cfg-value DONE"
+
+        # mode selection: the instrument's mode is listed and runs, and the
+        # parent's modes are still constructed by the parent
+        expect "exposuremode ?"         "REFERENCE"
+        expect "exposuremode REFERENCE" "^REFERENCE DONE"
+        expect "expose 1"               "DONE"
+        expect "exposuremode"           "^REFERENCE DONE"
+        expect "exposuremode SINGLE"    "^SINGLE DONE"
+        expect "expose 1"               "DONE"
+
+    - name: Reference module import test
+      run: ctest --test-dir build-reference --output-on-failure
