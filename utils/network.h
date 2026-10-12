@@ -37,7 +37,9 @@
 
 namespace Network {
 
-  constexpr const int POLLTIMEOUT = 3000;       /// default Poll timeout in msec
+  // 3000 was not enough for an Archon APPLYALL, which measures 4.5s on a
+  // controller whose bias boards make its power-down ramp slow
+  constexpr const int POLLTIMEOUT = 5000;       /// default Poll timeout in msec
   constexpr const int LISTENQ = 64;             /// listen(3n) backlog
   constexpr const int UDPMSGLEN = 256;          /// UDP message length
   constexpr const int CONNECT_TIMEOUT_SEC = 3;  /// Connect() timeout in seconds
