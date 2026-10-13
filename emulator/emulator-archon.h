@@ -131,6 +131,7 @@ namespace Archon {
       long wconfig(std::string buf);         //!< 
       long rconfig(std::string buf, std::string &retstring);         
       long write_parameter(std::string buf);
+      void set_bigbuf( bool bigbuf );        //!< sets frame buffer count and base addresses
       static void dothread_expose( Archon::Interface &iface, int numexpose );
 
 // TODO ***** below here need to check what's needed **********************************************************
