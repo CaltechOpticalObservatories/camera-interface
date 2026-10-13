@@ -48,13 +48,20 @@ CONFIG_KEY_PATTERNS = (
 FRAME_OUTPUT_SOURCE = "utils/frame_output_factory.cpp"
 FRAME_OUTPUT_KEY_PATTERN = re.compile(r'\bkey\s*==\s*"([A-Z][A-Z0-9_]*)"')
 
+# The server hands every name it does not recognize to the controller interface, so the names that
+# dispatcher handles are dispatched commands too. Its body runs from the definition to the closing
+# banner
+CONTROLLER_DISPATCH_SOURCE = "camerad/archon_interface.cpp"
+CONTROLLER_DISPATCH_START = "long ArchonInterface::controller_cmd("
+CONTROLLER_DISPATCH_END = "/***** Camera::ArchonInterface::controller_cmd"
+
 # Matched by the dispatch scan but not commands
 NON_COMMANDS = frozenset({"_EXCEPTION_", "-h", "--help", "help", "?"})
 
 
 @dataclass(frozen=True)
 class Command:
-    """One command the server dispatches, with its advertised syntax."""
+    """One command camerad dispatches, with its advertised syntax."""
 
     name: str
     syntax: str
@@ -135,8 +142,7 @@ def _advertised_syntax(header: str, constants: dict[str, str]) -> dict[str, str]
     return syntax
 
 
-def _dispatched_commands(server: str, constants: dict[str, str]) -> list[str]:
-    body = server[server.index("Process commands here"):]
+def _matched_commands(body: str, constants: dict[str, str]) -> list[str]:
     found = []
     for constant, literal in re.findall(r'cmd\s*==\s*(?:(CAMERAD_\w+)|"([^"]+)")', body):
         name = constants[constant] if constant else literal
@@ -145,12 +151,23 @@ def _dispatched_commands(server: str, constants: dict[str, str]) -> list[str]:
     return found
 
 
+def _dispatched_commands(server: str, controller: str, constants: dict[str, str]) -> list[str]:
+    """Names the server recognizes, then those the controller interface handles itself."""
+    found = _matched_commands(server[server.index("Process commands here"):], constants)
+    start = controller.index(CONTROLLER_DISPATCH_START)
+    body = controller[start:controller.index(CONTROLLER_DISPATCH_END, start)]
+    found += [name for name in _matched_commands(body, constants) if name not in found]
+    return found
+
+
 @cache
 def load_commands() -> list[Command]:
     header = _read("common/camerad_commands.h")
     constants = _command_constants(header)
     syntax = _advertised_syntax(header, constants)
-    dispatched = _dispatched_commands(_read("camerad/camera_server.cpp"), constants)
+    dispatched = _dispatched_commands(
+        _read("camerad/camera_server.cpp"), _read(CONTROLLER_DISPATCH_SOURCE), constants
+    )
 
     described = _load_data("commands.yaml")
     _check_coverage("commands", set(dispatched), set(described))
@@ -329,7 +346,7 @@ class _TableDirective(Directive):
 
 
 class CameradCommands(_TableDirective):
-    """Render the table of commands the server dispatches."""
+    """Render the table of commands camerad dispatches."""
 
     option_spec = {"widths": str}
 

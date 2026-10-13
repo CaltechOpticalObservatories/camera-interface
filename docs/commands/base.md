@@ -1,13 +1,15 @@
 # Base commands
 
-Every command the server dispatches. Instrument modules add their own on top of these; see
+Every command camerad dispatches. Instrument modules add their own on top of these; see
 [instruments](../instruments/index.md).
 
 Any command accepts `?` as its argument to return its own syntax.
 
-The **Controller** column distinguishes commands the interface implements directly from those
-routed through `controller_cmd`, which only the Archon interface implements. On an ARC build the
-latter return `not_supported`.
+The **Controller** column marks the commands only the Archon interface implements. The server
+recognizes the core's commands, `mode` among them, and calls the interface's function for each. It
+hands any other name to `controller_cmd`, where the Archon interface handles its own commands and
+forwards the rest to the instrument. On an ARC build the Archon commands return `not_supported`
+unless the instrument claims them.
 
 ```{eval-rst}
 .. camerad-commands::
@@ -15,8 +17,8 @@ latter return `not_supported`.
 ```
 
 :::{note}
-This table is generated from the dispatch chain in {source}`camerad/camera_server.cpp`, so it lists
-what the server actually answers. The `help` command is a separate hand-maintained list in
+This table is generated from the dispatch chains in {source}`camerad/camera_server.cpp` and
+{source}`camerad/archon_interface.cpp`, so it lists what camerad actually answers. The `help` command is a separate hand-maintained list in
 {source}`common/camerad_commands.h` that has drifted: it advertises around two dozen commands the
 server no longer implements, and omits several it does, including `power`. Trust this table over
 `help`.
@@ -25,5 +27,5 @@ server no longer implements, and omits several it does, including `power`. Trust
 ## Syntax not shown
 
 A few commands are dispatched but absent from the syntax list, so no argument syntax is generated
-for them. They are `power`, `getp`, `setp`, `inreg`, `autofetch_mode` and `bob`. Use `?` against a
+for them. They are `power`, `getp`, `setp`, `inreg` and `autofetch_mode`. Use `?` against a
 running server for the authoritative syntax.

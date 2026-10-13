@@ -8,8 +8,6 @@
 #include "reference_exposure_modes.h"
 #include "utilities.h"
 
-#include <algorithm>
-
 namespace Camera {
 
   /***** Camera::ReferenceInstrument::configure_instrument ********************/
@@ -30,23 +28,6 @@ namespace Camera {
     }
   }
   /***** Camera::ReferenceInstrument::configure_instrument ********************/
-
-
-  /***** Camera::ReferenceInstrument::is_instrument_command *******************/
-  /**
-   * @brief      returns true if cmd is one of instrument_commands()
-   * @details    The server consults this before every core command, so
-   *             refvalue is reached only through it. That gate is not the
-   *             design: a name the core does not recognize is meant to pass
-   *             to the controller and then to the instrument with no gate.
-   *             This override goes when the server does that.
-   *
-   */
-  bool ReferenceInstrument::is_instrument_command(const std::string &cmd) {
-    const auto commands = this->instrument_commands();
-    return std::find(commands.begin(), commands.end(), cmd) != commands.end();
-  }
-  /***** Camera::ReferenceInstrument::is_instrument_command *******************/
 
 
   /***** Camera::ReferenceInstrument::instrument_commands *********************/
@@ -76,8 +57,7 @@ namespace Camera {
       return this->refvalue(args, retstring);
     }
     else {
-      retstring="unrecognized command";
-      return ERROR;
+      return this->Interface::instrument_cmd(cmd, args, retstring);
     }
   }
   /***** Camera::ReferenceInstrument::instrument_cmd **************************/

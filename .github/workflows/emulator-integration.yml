@@ -166,5 +166,11 @@ jobs:
         expect "exposuremode SINGLE"    "^SINGLE DONE"
         expect "expose 1"               "DONE"
 
+        # mode is a core function; getp is the Archon interface's own command,
+        # reached through controller_cmd; a name nobody claims is an error
+        expect "mode DEFAULT"   "^DONE"
+        expect "getp nRowsQuad" "^[0-9]"
+        expect "nosuchcommand"  "^not_supported ERROR"
+
     - name: Reference module import test
       run: ctest --test-dir build-reference --output-on-failure

@@ -69,10 +69,9 @@ namespace Camera {
   /***** Camera::ArchonInterface::controller_cmd ******************************/
   /**
    * @brief      dispatcher for Archon-specific commands
-   * @details    This allows dispatching Archon controller specific commands by
-   *             receiving the commands and args and calling the appropriate
-   *             controller-specific function. This should be calling
-   *             ArchonInterface functions.
+   * @details    The server calls this for every name the core does not
+   *             recognize centrally. It handles the commands unique to the
+   *             Archon and passes any other name to instrument_cmd.
    * @param[in]  cmd        command
    * @param[in]  args       argument list
    * @param[out] retstring  return string
@@ -102,10 +101,6 @@ namespace Camera {
       return this->set_parameter(args, retstring);
     }
     else
-    if ( cmd == CAMERAD_MODE ) {
-      return this->set_camera_mode(args, retstring);
-    }
-    else
     if ( cmd == CAMERAD_RAW ) {
       return this->raw(args, retstring);
     }
@@ -122,8 +117,7 @@ namespace Camera {
       return this->sensor(args, retstring);
     }
     else {
-      retstring="unrecognized command";
-      return ERROR;
+      return this->instrument_cmd(cmd, args, retstring);
     }
   }
   /***** Camera::ArchonInterface::controller_cmd ******************************/
@@ -802,7 +796,7 @@ namespace Camera {
   /***** Camera::ArchonInterface::load_timing *********************************/
 
 
-  /***** Camera::ArchonInterface::set_camera_mode *****************************/
+  /***** Camera::ArchonInterface::camera_mode *********************************/
   /**
    * @brief      set a camera "mode"
    * @details    Allowable camera modes are defined in the ACF file and specify
@@ -816,8 +810,8 @@ namespace Camera {
    * @return     ERROR|NO_ERROR
    *
    */
-  long ArchonInterface::set_camera_mode(std::string args, std::string &retstring) {
-    const std::string function("Camera::ArchonInterface::set_camera_mode");
+  long ArchonInterface::camera_mode( const std::string args, std::string &retstring ) {
+    const std::string function("Camera::ArchonInterface::camera_mode");
     // Help
     if (args=="?" || args=="help") {
       retstring = CAMERAD_MODE;
@@ -833,6 +827,9 @@ namespace Camera {
     // call the work function
     return( this->set_camera_mode(args) );
   }
+  /***** Camera::ArchonInterface::camera_mode *********************************/
+
+
   /***** Camera::ArchonInterface::set_camera_mode *****************************/
   /**
    * @brief      set a camera "mode"

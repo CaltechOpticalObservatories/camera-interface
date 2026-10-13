@@ -1,11 +1,11 @@
 # Descriptions for the commands camerad dispatches.
 #
 # The command list and the argument syntax are generated from the source; this file supplies the
-# prose. A command added to or removed from the dispatch in camerad/camera_server.cpp without a
-# matching change here fails the documentation build.
+# prose. A command added to or removed from the dispatch in camerad/camera_server.cpp or
+# ArchonInterface::controller_cmd without a matching change here fails the documentation build.
 #
 #   summary     one line, imperative
-#   controller  "any", or "archon" for commands routed through controller_cmd
+#   controller  "any", or "archon" for commands only the Archon interface implements
 #   note        optional caveat appended to the summary
 
 abort:
@@ -32,12 +32,7 @@ bias:
 bin:
   summary: Set or get the binning factor
   controller: any
-  note: "Broken: the server routes this to the bias handler, so an argument is applied as a bias rather than a binning factor."
-
-bob:
-  summary: Reach the BOB interface
-  controller: archon
-  note: "Non-functional: no controller implements a handler for it, so it always returns an error."
+  note: "Not implemented: the Archon interface logs `not yet implemented` and returns an error."
 
 close:
   summary: Disconnect from the controller
@@ -88,7 +83,7 @@ loadtiming:
   controller: archon
 
 mode:
-  summary: Select a camera mode defined in the ACF
+  summary: Select a camera mode, a named configuration carried in the ACF
   controller: archon
 
 native:

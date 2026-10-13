@@ -226,14 +226,6 @@ namespace Camera {
         }
         ret = HELP;
       }
-      /**
-       * instrument-specific commands
-       */
-      else
-      if (interface->is_instrument_command(cmd))
-      {
-        ret = interface->instrument_cmd(cmd, args, retstring);
-      }
       else
       if ( cmd == CAMERAD_ABORT ) {
         ret = interface->abort(args, retstring);
@@ -252,7 +244,7 @@ namespace Camera {
       }
       else
       if ( cmd == CAMERAD_BIN ) {
-        ret = interface->bias(args, retstring);
+        ret = interface->bin(args, retstring);
       }
       else
       if ( cmd == CAMERAD_CLOSE ) {
@@ -280,6 +272,10 @@ namespace Camera {
         ret = interface->load_firmware(args, retstring);
       }
       else
+      if ( cmd == CAMERAD_MODE ) {
+        ret = interface->camera_mode(args, retstring);
+      }
+      else
       if ( cmd == CAMERAD_OPEN ) {
         ret = interface->connect_controller(args, retstring);
       }
@@ -304,60 +300,11 @@ namespace Camera {
         ret = interface->datacube(args, retstring);
       }
 
-      /**
-       * controller-specific commands
-       */
-      else
-      if ( cmd == CAMERAD_LOADTIMING ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == CAMERAD_READACF ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == "getp" ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == "inreg" ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == "setp" ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == CAMERAD_MODE ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == CAMERAD_RAW ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == "bob" ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == "autofetch_mode" ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == CAMERAD_HEATER ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-      else
-      if ( cmd == CAMERAD_SENSOR ) {
-        ret = interface->controller_cmd(cmd, args, retstring);
-      }
-
-      // unknown commands generate an error
+      // any other name goes to the controller interface, which forwards
+      // what it does not handle to the instrument
       //
       else {
-        message.str(""); message << "ERROR unknown command: " << cmd;
-        logwrite(function, message.str());
-        ret = ERROR;
+        ret = interface->controller_cmd(cmd, args, retstring);
       }
 
       // If retstring not empty then append "DONE" or "ERROR" depending on value of ret,

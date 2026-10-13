@@ -11,9 +11,6 @@ It derives from `ArchonInterface` and overrides the three specialization points,
 | Instrument configuration | `configure_instrument` | reads `REFERENCE_VALUE` from the cfg, which `refvalue` reports |
 | Mode selection | `get_exposure_modes`, `set_exposure_mode` | `exposuremode ?` lists `REFERENCE`; `exposuremode REFERENCE` selects it |
 
-`is_instrument_command` is also overridden, only because the current server consults it before every command. That
-is not the design, and the dispatch fix removes it.
-
 `REFERENCE` reads out as `SINGLE` and differs only in the type it reports. Any other mode is constructed by
 `ArchonInterface`.
 
