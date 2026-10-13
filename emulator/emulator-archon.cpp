@@ -77,6 +77,11 @@ namespace Archon {
       exit(1);
     }
 
+    // Start with the frame buffers a real Archon reports at power-up,
+    // before any ACF has been loaded.
+    //
+    this->set_bigbuf( false );
+
     struct timespec ts;     // container for the time
     if ( clock_gettime( CLOCK_REALTIME, &ts ) != 0 ) {
       this->init_time = 0;
@@ -345,11 +350,6 @@ namespace Archon {
     std::string timenow;
     std::stringstream framestr;
 
-    if ( this->image->activebufs == -1 ) {
-      std::cerr << get_timestamp() << function << "ERROR: activebufs undefined. Check that an ACF was loaded and that it contains BIGBUF=x\n";
-      return ERROR;
-    }
-
     this->timer_report( this->frame.timer );
 
     framestr << "TIMER=" << this->frame.timer << " "
@@ -497,6 +497,29 @@ namespace Archon {
   /***** Interface:fetch_data *************************************************/
 
 
+  /***** Interface::set_bigbuf ************************************************/
+  /**
+   * @brief      sets the frame buffer layout selected by BIGBUF
+   * @param[in]  bigbuf  true for BIGBUF=1, false for BIGBUF=0
+   *
+   * Sets the number of active frame buffers and their base addresses.
+   *
+   */
+  void Interface::set_bigbuf( bool bigbuf ) {
+    this->bigbuf = bigbuf;
+    this->image->activebufs = ( this->bigbuf ? 2 : 3 );
+    this->frame.bufbase.at(0) = 0xA0000000;
+    if ( this->bigbuf ) {
+      this->frame.bufbase.at(1) = 0xD0000000;
+    }
+    else {
+      this->frame.bufbase.at(1) = 0xC0000000;
+      this->frame.bufbase.at(2) = 0xE0000000;
+    }
+  }
+  /***** Interface::set_bigbuf ************************************************/
+
+
   /***** Interface:wconfig ****************************************************/
   /**
    * @brief      handles the incoming WCONFIG command
@@ -593,16 +616,7 @@ namespace Archon {
         // Some keywords in this category are used to assign certain class variables
         //
         if ( key == "BIGBUF" ) {
-          this->bigbuf = ( std::stoi(value)==1 ? true : false );
-          this->image->activebufs = ( this->bigbuf ? 2 : 3 );
-          this->frame.bufbase.at(0) = 0xA0000000;
-          if ( this->bigbuf ) {
-            this->frame.bufbase.at(1) = 0xD0000000;
-          }
-          else {
-            this->frame.bufbase.at(1) = 0xC0000000;
-            this->frame.bufbase.at(2) = 0xE0000000;
-          }
+          this->set_bigbuf( std::stoi(value)==1 ? true : false );
         }
 
         else if ( key == "TAPLINES" ) {
