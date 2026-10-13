@@ -107,6 +107,18 @@ namespace {
         this->interface->configure_frame_outputs();
       }
 
+      /// Release both Archon sockets; the controller has few and reclaims
+      /// them only once it notices a peer has gone
+      ~CameraSession() {
+        try {
+          std::string retstring;
+          this->interface->disconnect_controller("", retstring);
+        }
+        // A destructor must not throw, and a failed close is not worth
+        // taking the process down for
+        catch (...) {}
+      }
+
       CameraSession(const CameraSession&) = delete;
       CameraSession& operator=(const CameraSession&) = delete;
 
