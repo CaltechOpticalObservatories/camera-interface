@@ -112,6 +112,7 @@ namespace Camera {
       virtual long basename( std::string args, std::string &retstring ) = 0;
       virtual long bias( std::string args, std::string &retstring ) = 0;
       virtual long bin( std::string args, std::string &retstring ) = 0;
+      virtual long camera_mode( std::string args, std::string &retstring ) = 0;  ///< selects a mode, camerad's named operational configuration
       virtual void configure_controller() { if (this->controller) this->controller->configure_controller(); }
       virtual long connect_controller( std::string args, std::string &retstring ) = 0;
       virtual long disconnect_controller( std::string args, std::string &retstring ) = 0;
@@ -128,30 +129,32 @@ namespace Camera {
 
       virtual long do_expose() = 0;
 
-      /** @brief  returns true if cmd is an instrument-specific command
-       */
-      virtual bool is_instrument_command(const std::string &cmd) { return false; }
-
       // Names this instrument handles, so a caller can enumerate rather than
       // guess. CAMERAD_SYNTAX lists none of them
       virtual std::vector<std::string> instrument_commands() const { return {}; }
 
       /** @brief  returns error if not overridden
+       *  @details The end of the dispatch chain. A name that reaches this
+       *           default is claimed by no handler.
        */
       virtual long instrument_cmd(const std::string &cmd,
                                   const std::string &args,
                                   std::string &retstring) {
+	const std::string function("Camera::Interface::instrument_cmd");
+	logwrite(function, "ERROR unknown command: "+cmd);
 	retstring="not_supported";
 	return ERROR;
       }
 
-      /** @brief  returns error if not overridden
+      /** @brief  handles commands unique to the controller
+       *  @details The server calls this for every name the core does not
+       *           recognize centrally. A controller interface handles its own
+       *           commands and passes any other name to instrument_cmd.
        */
       virtual long controller_cmd(const std::string &cmd,
                                   const std::string &args,
                                   std::string &retstring) {
-	retstring="not_supported";
-	return ERROR;
+	return this->instrument_cmd(cmd, args, retstring);
       }
   };
 

@@ -261,7 +261,7 @@ camera.instrument_cmd("roi", "51 60 51 60")
 print(camera.output_status())         # frames written, dropped, last file
 ```
 
-Every command `camerad` accepts is reachable: the base commands are bound as methods, instrument-specific ones go through `instrument_cmd()` (enumerable with `instrument_commands()`), and controller-specific ones such as `mode`, `raw`, `readacf`, `loadtiming`, `heater` and `sensor` go through `controller_cmd()`. Only `exit` is omitted, since the process belongs to the caller.
+Every command `camerad` accepts is reachable: the base commands, `mode` among them, are bound as methods, instrument-specific ones go through `instrument_cmd()` (enumerable with `instrument_commands()`), and controller-specific ones such as `raw`, `readacf`, `loadtiming`, `heater` and `sensor` go through `controller_cmd()`, which forwards any other name to the instrument as `camerad` does. Only `exit` is omitted, since the process belongs to the caller.
 
 The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
 

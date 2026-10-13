@@ -206,7 +206,7 @@ def run(args: argparse.Namespace) -> int:
         camera.power("on")
         if args.keep_config:
             # After power, because selecting a mode applies CDS settings
-            camera.controller_cmd("mode", args.mode)
+            camera.mode(args.mode)
         if args.exptime is not None:
             camera.exptime(str(args.exptime))
 

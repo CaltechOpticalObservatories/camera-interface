@@ -107,15 +107,17 @@ An instrument is a separate repository, checked out as a submodule under
 
 1. A `<name>.cmake` fragment setting `INSTRUMENT_SOURCES`. That is the whole build integration.
 2. An `Interface` subclass deriving from `ArchonInterface` or `AstroCamInterface`, overriding what
-   the detector needs and adding commands through `instrument_cmd()` and `is_instrument_command()`.
+   the detector needs and adding commands through `instrument_cmd()` and `instrument_commands()`.
 3. Its own `ExposureMode` implementations, where the stock ones do not fit.
 4. Optionally a FITS header dictionary and shipped `.cfg` and `.acf` files.
 
 An interface factory ties it together, so the core builds against the base class and never names a
 concrete instrument.
 
-Instrument commands are checked *before* the base command chain, so an instrument can add commands
-and also override a base one of the same name.
+The server recognizes the base commands first, and an instrument changes one by overriding its
+method. Any other name goes to `controller_cmd()`, which handles the controller's own commands and
+forwards the rest to `instrument_cmd()`. A controller command takes precedence over an instrument
+command of the same name.
 
 See [instruments](../instruments/index.md) for the modules that exist, and
 {source}`camerad/Instruments/hispec_tracking_camera` for the most complete example.

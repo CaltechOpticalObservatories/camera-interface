@@ -32,6 +32,7 @@ namespace Camera {
       long basename( const std::string args, std::string &retstring ) override;
       long bias( const std::string args, std::string &retstring ) override;
       long bin( const std::string args, std::string &retstring ) override;
+      long camera_mode( const std::string args, std::string &retstring ) override;
       long connect_controller( const std::string args, std::string &retstring ) override;
       long disconnect_controller( const std::string args, std::string &retstring ) override;
       long exptime( const std::string args, std::string &retstring ) override;
@@ -48,11 +49,13 @@ namespace Camera {
 
       long do_expose() override;
 
-      // Archon controller command dispatcher
+      // Archon controller command dispatcher. The server calls it for every
+      // name the core does not recognize centrally; it handles the Archon
+      // commands and passes any other name to instrument_cmd
       //
       long controller_cmd(const std::string &cmd,
                           const std::string &args,
-                          std::string &retstring) override;
+                          std::string &retstring) final;
 
       // These functions are specific to the Archon Interface and are not
       // found in the base class.
@@ -64,7 +67,6 @@ namespace Camera {
       long load_timing(std::string cmd, std::string &reply);
       long read_acf(const std::string &filename);
       long set_parameter(const std::string &args, std::string &retstring);
-      long set_camera_mode(std::string args, std::string &retstring);
       long set_camera_mode(std::string modeselect);
       long set_vcpu_inreg(const std::string &args, std::string &retstring);
       long heater(const std::string &args, std::string &retstring);

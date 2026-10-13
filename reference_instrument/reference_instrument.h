@@ -18,7 +18,6 @@ namespace Camera {
     public:
       void configure_instrument() override;
 
-      bool is_instrument_command(const std::string &cmd) override;
       std::vector<std::string> instrument_commands() const override;
       long instrument_cmd(const std::string &cmd,
                           const std::string &args,

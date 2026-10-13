@@ -54,17 +54,17 @@ putting the build's `lib` directory on `PYTHONPATH`.
 Every command `camerad` accepts is reachable, through three routes:
 
 Base commands
-: Bound as methods: `open`, `close`, `load`, `power`, `exptime`, `expose`, `abort`, `key`,
+: Bound as methods: `open`, `close`, `load`, `power`, `mode`, `exptime`, `expose`, `abort`, `key`,
   `datacube` and the rest.
 
 Instrument commands
 : `instrument_cmd(command, args)`, a deliberate passthrough rather than one binding each, so a build
   whose instrument gains a command exposes it with no change to the module. Enumerate with
-  `instrument_commands()`, or test one with `is_instrument_command()`.
+  `instrument_commands()`.
 
 Controller commands
-: `controller_cmd(command, args)` for `mode`, `raw`, `readacf`, `loadtiming`, `heater`, `sensor` and
-  the other Archon-only commands.
+: `controller_cmd(command, args)` for `raw`, `readacf`, `loadtiming`, `heater`, `sensor` and the
+  other Archon-only commands. It forwards any other name to the instrument, as camerad does.
 
 Only `exit` is missing, since the process belongs to the caller.
 
