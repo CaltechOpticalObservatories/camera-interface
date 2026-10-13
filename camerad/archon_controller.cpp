@@ -366,7 +366,9 @@ namespace Camera {
 
     // Ensures these values are set on startup
     //
-    this->get_frame_status();
+    if (this->get_frame_status() != NO_ERROR) {
+      throw std::runtime_error("getting FRAME status");
+    }
 
     if (this->lastframe==0) {
       for (int i=0; i<MAXNBUFS; ++i) {
