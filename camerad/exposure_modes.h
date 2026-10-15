@@ -33,9 +33,12 @@ namespace Camera {
       std::mutex queue_mutex;            ///< mutex protects access to the queue
       std::condition_variable queue_cv;  ///< notify when the queue has new data
 
-      std::atomic<bool> is_producer_finished;
-      std::atomic<bool> is_producer_error;
-      std::atomic<bool> is_consumer_error;
+      // Read before a session sets them, by the reap at the start of the next
+      // one, so an indeterminate value surfaces as a failure that never
+      // happened: an abort that worked reports "abort failed"
+      std::atomic<bool> is_producer_finished{false};
+      std::atomic<bool> is_producer_error{false};
+      std::atomic<bool> is_consumer_error{false};
 
       std::string get_type() { return this->type; }
       std::vector<std::string> get_args() { return this->args; }
