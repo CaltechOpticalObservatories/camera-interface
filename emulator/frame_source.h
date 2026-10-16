@@ -113,7 +113,7 @@ namespace Emulator {
           std::memset(linestart, 0, line_bytes);
           auto* raw = reinterpret_cast<uint16_t*>(linestart);
           for (int sample = 0; sample < samples; sample++) {
-            raw[sample] = static_cast<uint16_t>(std::clamp(5000.0 + noise(rng), 0.0, maxval));
+            raw[sample] = static_cast<uint16_t>(std::clamp(32768.0 + noise(rng), 0.0, maxval));
           }
         }
       }

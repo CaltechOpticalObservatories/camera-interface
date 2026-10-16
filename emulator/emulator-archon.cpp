@@ -927,12 +927,14 @@ namespace Archon {
         size_t frame_bytes = static_cast<size_t>(width) * height * bytes_per_pixel;
 
         // With RAWENABLE=1, raw samples for the captured lines are stored after
-        // the image, starting at the next whole block, each line in whole blocks
+        // the image, starting at the next whole block. Each line holds RAWSAMPLES
+        // rounded up to a multiple of 1024 samples.
         int raw_lines = 0;
         if ( iface.rawinfo.enable == 1 && iface.rawinfo.samples > 0 ) {
           raw_lines = std::max( std::min( iface.rawinfo.endline, height - 1 ) - iface.rawinfo.startline + 1, 0 );
         }
-        int    raw_blocks     = ( raw_lines > 0 ) ? ( iface.rawinfo.samples * 2 + BLOCKLEN - 1 ) / BLOCKLEN : 0;
+        int    raw_samples    = ( ( iface.rawinfo.samples + 1023 ) / 1024 ) * 1024;
+        int    raw_blocks     = ( raw_lines > 0 ) ? raw_samples * 2 / BLOCKLEN : 0;
         size_t raw_offset     = ( raw_lines > 0 ) ? ( ( frame_bytes + BLOCKLEN - 1 ) / BLOCKLEN ) * BLOCKLEN : 0;
         size_t raw_line_bytes = static_cast<size_t>(raw_blocks) * BLOCKLEN;
 
@@ -941,7 +943,7 @@ namespace Archon {
           iface.frame_source->fill_frame(iface.frame.bufdata.at(idx).data(), width, height, bytes_per_pixel);
         }
         if ( raw_lines > 0 ) {
-          iface.raw_source.fill_raw( iface.frame.bufdata.at(idx).data() + raw_offset, iface.rawinfo.samples, raw_lines, raw_line_bytes );
+          iface.raw_source.fill_raw( iface.frame.bufdata.at(idx).data() + raw_offset, raw_samples, raw_lines, raw_line_bytes );
         }
 
         iface.frame.bufwidth.at(idx)  = width;
