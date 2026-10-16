@@ -35,6 +35,7 @@ namespace Archon {
     : instr( instr ),
       poweron( false ),
       bigbuf( false ),
+      samplemode( 0 ),
       frame{ 0,                                     // index
              0,                                     // frame
              "",                                    // timer
@@ -433,23 +434,28 @@ namespace Archon {
       return ERROR;
     }
 
-    // Find which buffer matches the requested base address
+    // Find the frame buffer containing the requested address. The buffers are
+    // equally spaced, and an address may point anywhere inside one, such as at
+    // its raw data. Bytes past what the buffer holds are sent as zeros.
+    const uint64_t bufspan = this->frame.bufbase.at(1) - this->frame.bufbase.at(0);
     int bufidx = -1;
     for ( int i = 0; i < this->image->activebufs; i++ ) {
-      if ( this->frame.bufbase.at(i) == bufaddr ) { bufidx = i; break; }
+      if ( bufaddr >= this->frame.bufbase.at(i) && bufaddr < this->frame.bufbase.at(i) + bufspan ) { bufidx = i; break; }
     }
 
-    if ( bufidx < 0 || this->frame.bufdata.at(bufidx).empty() ) {
-      std::cerr << get_timestamp() << function << "ERROR: no frame data for address 0x"
-                << std::hex << bufaddr << "\n";
+    if ( bufidx < 0 ) {
+      std::cerr << get_timestamp() << function << "ERROR: address 0x"
+                << std::hex << bufaddr << " is not in a frame buffer\n";
       return ERROR;
     }
 
     const auto &data = this->frame.bufdata.at(bufidx);
     size_t data_size = data.size();
+    size_t data_offset = bufaddr - this->frame.bufbase.at(bufidx);
 
     std::cout << get_timestamp() << function << "sending " << std::dec << reqblocks
-              << " blocks (" << data_size << " bytes available) from buffer " << bufidx+1 << "\n";
+              << " blocks from offset " << data_offset << " of buffer " << bufidx+1
+              << " (" << data_size << " bytes held)\n";
 
     // Disable Nagle's algorithm for low-latency block transfer
     int flag = 1;
@@ -459,7 +465,6 @@ namespace Archon {
     size_t header_len = header.size();
     size_t block_with_header = header_len + BLOCKLEN;
     int totalbyteswritten = 0;
-    size_t data_offset = 0;
 
     // Assemble header + one block into a single buffer per write
     std::vector<char> sendbuf(block_with_header);
@@ -488,6 +493,12 @@ namespace Archon {
         if ( retval > 0 ) written += retval;
         else break;
       }
+      // Wait for this block to drain from the socket send queue before writing
+      // the next one. A host that waits for a full block to be available before
+      // reading can stall with a partial block buffered.
+      //
+      int outq;
+      while ( ioctl( sock.getfd(), TIOCOUTQ, &outq ) == 0 && outq > 0 ) usleep( 10 );
       totalbyteswritten += BLOCKLEN;
     }
     std::cout << get_timestamp() << function << "wrote " << std::dec << totalbyteswritten << " bytes\n";
@@ -632,6 +643,26 @@ namespace Archon {
 
         else if ( key == "LINECOUNT" ) {
           this->image->linecount = std::stoi(value);
+        }
+
+        else if ( key == "SAMPLEMODE" ) {
+          this->samplemode = std::stoi(value);
+        }
+
+        else if ( key == "RAWENABLE" ) {
+          this->rawinfo.enable = std::stoi(value);
+        }
+
+        else if ( key == "RAWSAMPLES" ) {
+          this->rawinfo.samples = std::stoi(value);
+        }
+
+        else if ( key == "RAWSTARTLINE" ) {
+          this->rawinfo.startline = std::stoi(value);
+        }
+
+        else if ( key == "RAWENDLINE" ) {
+          this->rawinfo.endline = std::stoi(value);
         }
 
       } // end else
@@ -892,15 +923,35 @@ namespace Archon {
 
         int width  = iface.image->pixelcount * iface.image->taplines;
         int height = iface.image->linecount;
-        size_t frame_bytes = static_cast<size_t>(width) * height * sizeof(uint16_t);
+        int bytes_per_pixel = ( iface.samplemode == 1 ) ? 4 : 2;
+        size_t frame_bytes = static_cast<size_t>(width) * height * bytes_per_pixel;
 
-        iface.frame.bufdata.at(idx).resize(frame_bytes);
+        // With RAWENABLE=1, raw samples for the captured lines are stored after
+        // the image, starting at the next whole block. Each line holds RAWSAMPLES
+        // rounded up to a multiple of 1024 samples.
+        int raw_lines = 0;
+        if ( iface.rawinfo.enable == 1 && iface.rawinfo.samples > 0 ) {
+          raw_lines = std::max( std::min( iface.rawinfo.endline, height - 1 ) - iface.rawinfo.startline + 1, 0 );
+        }
+        int    raw_samples    = ( ( iface.rawinfo.samples + 1023 ) / 1024 ) * 1024;
+        int    raw_blocks     = ( raw_lines > 0 ) ? raw_samples * 2 / BLOCKLEN : 0;
+        size_t raw_offset     = ( raw_lines > 0 ) ? ( ( frame_bytes + BLOCKLEN - 1 ) / BLOCKLEN ) * BLOCKLEN : 0;
+        size_t raw_line_bytes = static_cast<size_t>(raw_blocks) * BLOCKLEN;
+
+        iface.frame.bufdata.at(idx).resize( raw_lines > 0 ? raw_offset + raw_line_bytes * raw_lines : frame_bytes );
         if (iface.frame_source) {
-          iface.frame_source->fill_frame(iface.frame.bufdata.at(idx).data(), width, height);
+          iface.frame_source->fill_frame(iface.frame.bufdata.at(idx).data(), width, height, bytes_per_pixel);
+        }
+        if ( raw_lines > 0 ) {
+          iface.raw_source.fill_raw( iface.frame.bufdata.at(idx).data() + raw_offset, raw_samples, raw_lines, raw_line_bytes );
         }
 
         iface.frame.bufwidth.at(idx)  = width;
         iface.frame.bufheight.at(idx) = height;
+        iface.frame.bufsample.at(idx) = iface.samplemode;
+        iface.frame.bufrawblocks.at(idx) = raw_blocks;
+        iface.frame.bufrawlines.at(idx)  = raw_lines;
+        iface.frame.bufrawoffset.at(idx) = static_cast<int>(raw_offset);
 
         double rowtime = iface.image->calc_rowtime();
 

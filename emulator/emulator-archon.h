@@ -51,6 +51,7 @@ namespace Archon {
 
       std::unique_ptr<ImageInfoBase> image;   ///!< smart pointer to the base class
       std::unique_ptr<Emulator::FrameSource> frame_source;
+      Emulator::SyntheticSource raw_source;   ///!< raw samples are synthetic whatever the frame source
 
       Interface( const std::string &instr );
 
@@ -63,6 +64,7 @@ namespace Archon {
       unsigned long long init_time;
       bool poweron;                //!< is the power on?
       bool bigbuf;                 //!< is BIGBUF==1 in ACF file?
+      int samplemode;              //!< from "SAMPLEMODE=" in ACF file, 0=16 bit, 1=32 bit
       std::string exposeparam;     //!< param name to trigger exposure when set =1
 
       std::string active_mode;    //!< currently active mode detected from ACF parameters
@@ -197,11 +199,10 @@ namespace Archon {
        * rawinfo_t is a struct which contains variables specific to raw data functions
        */
       struct rawinfo_t {
-        int adchan;          // selected A/D channels
-        int rawsamples;      // number of raw samples per line
-        int rawlines;        // number of raw lines
-        int iteration;       // iteration number
-        int iterations;      // number of iterations
+        int enable = 0;      // from "RAWENABLE=" in ACF file
+        int samples = 0;     // from "RAWSAMPLES=", raw samples per line
+        int startline = 0;   // from "RAWSTARTLINE=", first line captured
+        int endline = 0;     // from "RAWENDLINE=", last line captured
       } rawinfo;
 
       /**

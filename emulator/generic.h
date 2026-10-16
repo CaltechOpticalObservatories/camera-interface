@@ -23,7 +23,8 @@ namespace Archon {
        *
        */
       virtual double calc_rowtime() override {
-        double rowtime = std::floor( 10 * this->readtime / this->linecount );  // row time in 10 msec
+        int lines = ( this->readoutlines > 0 ) ? this->readoutlines : this->linecount;  // lines READOUT_TIME applies to
+        double rowtime = std::floor( 10 * this->readtime / lines );                     // row time in 10 msec
         rowtime *= 90.0;                                                       // 90% of row time in usec
         return rowtime;
       }

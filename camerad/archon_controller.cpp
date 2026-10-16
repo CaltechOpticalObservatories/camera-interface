@@ -1324,11 +1324,13 @@ namespace Camera {
     char message[256];
     auto index = this->frameinfo.index.load();
     uint32_t maxblocks  = (uint32_t)(1.5E9 / this->activebufs / 1024 );
-    uint64_t maxoffset  = this->frameinfo.bufbase[index];
-    uint64_t maxaddress = maxoffset + maxblocks;
+    uint64_t minaddress = this->frameinfo.bufbase[index];                       // start of the buffer being read
+    uint64_t maxaddress = minaddress + (uint64_t)maxblocks * BLOCK_LEN;         // end of that buffer
+    uint64_t endaddress = bufferaddress + (uint64_t)bufferblocks * BLOCK_LEN;   // end of the request
 
-    if (bufferaddress > maxaddress) {
-      SNPRINTF(message, "fetch Archon buffer requested address 0x%0lX exceeds 0x%0lX", bufferaddress, maxaddress);
+    if (bufferaddress < minaddress || endaddress > maxaddress) {
+      SNPRINTF(message, "fetch Archon buffer requested 0x%0lX:0x%0lX outside buffer 0x%0lX:0x%0lX",
+               bufferaddress, endaddress, minaddress, maxaddress);
       logwrite(function, std::string(message));
       return ERROR;
     }
