@@ -290,6 +290,7 @@ void doit(Network::TcpSocket sock) {
                     }
     else
     if (cmd.compare("APPLYALL")==0) {
+                    server->image->readoutlines = server->image->linecount;   // READOUT_TIME is for the frame as loaded
                     retstream << "<" << ref;
                     }
     else

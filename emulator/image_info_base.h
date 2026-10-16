@@ -31,6 +31,7 @@ namespace Archon {
       int  pixelcount;                //!< from "PIXELCOUNT=" in ACF file
       int  readtime;                  //!< from "READOUT_TIME=" in configuration file
       int  readouttime;               //!< 
+      int  readoutlines;              //!< LINECOUNT that READOUT_TIME applies to, latched at APPLYALL
       int  imwidth;                   //!< 
       int  imheight;                  //!< 
       int  exptime;                   //!< requested exposure time in msec from WCONFIG
@@ -38,7 +39,7 @@ namespace Archon {
 
       ImageInfoBase() : framen(0), activebufs(-1), taplines(-1),
                         linecount(-1), pixelcount(-1),
-                        readtime(-1), readouttime(0),
+                        readtime(-1), readouttime(0), readoutlines(-1),
                         imwidth(0), imheight(0),
                         exptime(0), exposure_factor(1000) { }
 

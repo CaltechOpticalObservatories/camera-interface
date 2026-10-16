@@ -493,6 +493,12 @@ namespace Archon {
         if ( retval > 0 ) written += retval;
         else break;
       }
+      // Wait for this block to drain from the socket send queue before writing
+      // the next one. A host that waits for a full block to be available before
+      // reading can stall with a partial block buffered.
+      //
+      int outq;
+      while ( ioctl( sock.getfd(), TIOCOUTQ, &outq ) == 0 && outq > 0 ) usleep( 10 );
       totalbyteswritten += BLOCKLEN;
     }
     std::cout << get_timestamp() << function << "wrote " << std::dec << totalbyteswritten << " bytes\n";
