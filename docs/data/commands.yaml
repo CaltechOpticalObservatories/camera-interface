@@ -12,6 +12,10 @@ abort:
   summary: Abort an exposure in progress
   controller: any
 
+acfmode:
+  summary: Apply an ACF mode section directly
+  controller: archon
+
 autodir:
   summary: Write images into a dated subdirectory
   controller: any
@@ -80,10 +84,6 @@ load:
 
 loadtiming:
   summary: Load a timing script and its parameters
-  controller: archon
-
-mode:
-  summary: Select a camera mode, a named configuration carried in the ACF
   controller: archon
 
 native:

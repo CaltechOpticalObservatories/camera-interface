@@ -118,6 +118,8 @@ def run(config_path: str, fits_dir: pathlib.Path, expected_instrument: str,
     camera.open()
     camera.load()
     camera.power("on")
+    # A load selects no exposure mode
+    camera.exposure_mode("SINGLE")
 
     check_exptime_units(camera)
 

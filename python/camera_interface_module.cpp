@@ -259,15 +259,6 @@ PYBIND11_MODULE(camera_interface, module) {
          py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
          "Add, list or remove a user FITS header key")
 
-    .def("mode",
-         [](CameraSession &self, const std::string &args) {
-           std::string retstring;
-           const long status = (*self).camera_mode(args, retstring);
-           return invoke(status, "mode", retstring);
-         },
-         py::arg("args"), py::call_guard<py::gil_scoped_release>(),
-         "Select a camera mode, camerad's named operational configuration")
-
     .def("test",
          [](CameraSession &self, const std::string &args) {
            std::string retstring;

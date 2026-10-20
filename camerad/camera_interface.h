@@ -112,7 +112,6 @@ namespace Camera {
       virtual long basename( std::string args, std::string &retstring ) = 0;
       virtual long bias( std::string args, std::string &retstring ) = 0;
       virtual long bin( std::string args, std::string &retstring ) = 0;
-      virtual long camera_mode( std::string args, std::string &retstring ) = 0;  ///< selects a mode, camerad's named operational configuration
       virtual void configure_controller() { if (this->controller) this->controller->configure_controller(); }
       virtual long connect_controller( std::string args, std::string &retstring ) = 0;
       virtual long disconnect_controller( std::string args, std::string &retstring ) = 0;

@@ -54,7 +54,7 @@ putting the build's `lib` directory on `PYTHONPATH`.
 Every command `camerad` accepts is reachable, through three routes:
 
 Base commands
-: Bound as methods: `open`, `close`, `load`, `power`, `mode`, `exptime`, `expose`, `abort`, `key`,
+: Bound as methods: `open`, `close`, `load`, `power`, `exptime`, `expose`, `abort`, `key`,
   `datacube` and the rest.
 
 Instrument commands

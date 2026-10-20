@@ -6,7 +6,7 @@ Every command camerad dispatches. Instrument modules add their own on top of the
 Any command accepts `?` as its argument to return its own syntax.
 
 The **Controller** column marks the commands only the Archon interface implements. The server
-recognizes the core's commands, `mode` among them, and calls the interface's function for each. It
+recognizes the core's commands and calls the interface's function for each. It
 hands any other name to `controller_cmd`, where the Archon interface handles its own commands and
 forwards the rest to the instrument. On an ARC build the Archon commands return `not_supported`
 unless the instrument claims them.

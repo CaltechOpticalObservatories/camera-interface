@@ -9,6 +9,7 @@
 #pragma once
 
 const std::string CAMERAD_ABORT("abort");
+const std::string CAMERAD_ACFMODE("acfmode");
 const std::string CAMERAD_AUTODIR("autodir");
 const std::string CAMERAD_BASENAME("basename");
 const std::string CAMERAD_BIAS("bias");
@@ -39,7 +40,6 @@ const std::string CAMERAD_LOADTIMING("loadtiming");
 const std::string CAMERAD_LONGERROR("longerror");
 const std::string CAMERAD_MEX("mex");
 const std::string CAMERAD_MEXAMPS("mexamps");
-const std::string CAMERAD_MODE("mode");
 const std::string CAMERAD_MODEXPTIME("modexptime");
 const std::string CAMERAD_NATIVE("native");
 const std::string CAMERAD_OPEN("open");  const int CAMERAD_OPEN_TIMEOUT(10000);
@@ -58,6 +58,7 @@ const std::string CAMERAD_USEFRAMES("useframes");
 const std::string CAMERAD_WRITEKEYS("writekeys");
 const std::vector<std::string> CAMERAD_SYNTAX = {
                                                   CAMERAD_ABORT,
+                                                  CAMERAD_ACFMODE+" [ ? | <name> ]",
                                                   CAMERAD_AUTODIR,
                                                   CAMERAD_BASENAME,
                                                   CAMERAD_BIAS,
@@ -88,7 +89,6 @@ const std::vector<std::string> CAMERAD_SYNTAX = {
                                                   CAMERAD_LONGERROR,
                                                   CAMERAD_MEX,
                                                   CAMERAD_MEXAMPS,
-                                                  CAMERAD_MODE+" [ ? | <mode> ]",
                                                   CAMERAD_MODEXPTIME,
                                                   CAMERAD_NATIVE+" ? | [<DEV>|<CHAN>] <CMD> [ <ARG1> [ < ARG2> [ <ARG3> [ <ARG4> ] ] ] ]",
                                                   CAMERAD_OPEN+" [ ? | <devlist> ]",

@@ -5,7 +5,7 @@ the escape hatch for anything the higher-level commands do not cover.
 
 Two routes exist. `native` passes a command straight through and returns the reply. The commands
 marked Archon in the [base command table](base.md) are implemented only by the Archon interface.
-The server recognizes `mode` itself; it hands any other name it does not recognize to
+The server hands any name it does not recognize centrally to
 `controller_cmd`, which handles the Archon's own commands and forwards the rest to the instrument.
 
 ## Archon
@@ -30,7 +30,7 @@ The server itself parses `FRAME`, `STATUS` and `SYSTEM` replies for its own book
 
 Beyond `native`, the Archon-specific commands are `raw` for pre-CDS sample capture, `getp` and
 `setp` for parameters, `inreg` for a VCPU input register, `loadtiming` and `readacf` for loading,
-`mode` for camera modes, `autofetch_mode`, and `heater` and `sensor` for the thermal modules. The
+`acfmode` for ACF mode sections, `autofetch_mode`, and `heater` and `sensor` for the thermal modules. The
 [raw samples](#raw-samples) and [heater and sensor](#heater-and-sensor) syntax is below.
 
 ## ARC (AstroCam)

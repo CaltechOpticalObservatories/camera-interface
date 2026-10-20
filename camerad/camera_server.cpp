@@ -272,10 +272,6 @@ namespace Camera {
         ret = interface->load_firmware(args, retstring);
       }
       else
-      if ( cmd == CAMERAD_MODE ) {
-        ret = interface->camera_mode(args, retstring);
-      }
-      else
       if ( cmd == CAMERAD_OPEN ) {
         ret = interface->connect_controller(args, retstring);
       }

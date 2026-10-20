@@ -32,7 +32,6 @@ namespace Camera {
       long basename( const std::string args, std::string &retstring ) override;
       long bias( const std::string args, std::string &retstring ) override;
       long bin( const std::string args, std::string &retstring ) override;
-      long camera_mode( const std::string args, std::string &retstring ) override;
       long connect_controller( const std::string args, std::string &retstring ) override;
       long disconnect_controller( const std::string args, std::string &retstring ) override;
       long exptime( const std::string args, std::string &retstring ) override;
@@ -72,9 +71,7 @@ namespace Camera {
       long heater(const std::string &args, std::string &retstring);
       long sensor(const std::string &args, std::string &retstring);
       long autofetch_mode(const std::string &args, std::string &retstring);
-
-      // Fallback for set_camera_mode when the camera-mode name is unknown
-      virtual std::string default_exposure_mode_name() const { return "SINGLE"; }
+      long acfmode(const std::string &args, std::string &retstring);
 
       char* get_framebuf() { return controller->framebuf; }
 
