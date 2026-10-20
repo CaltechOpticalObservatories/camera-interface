@@ -14,9 +14,9 @@ It supports two controller families, selected at build time with `-DCONTROLLER=`
 : Astronomical Research Cameras ("Leach") controllers, reached over a PCIe driver. Requires ARC API
   3.6 and the Arc66PCIe driver.
 
-A detector-specific **instrument** module is layered on top of the controller, also selected at build
-time, with `-DINSTRUMENT=`. The instrument supplies the exposure modes, extra commands and FITS
-keywords that a particular camera needs.
+A detector-specific **instrument** module is layered on top of the controller. It lives in its own
+repository and builds there, pulling in this one. The instrument supplies the exposure modes, extra
+commands and FITS keywords that a particular camera needs.
 
 Clients can drive the server three ways: the text protocol over a socket, the `camerad-socksend`
 command line tool, or the `camera_interface` Python module, which skips the server process entirely

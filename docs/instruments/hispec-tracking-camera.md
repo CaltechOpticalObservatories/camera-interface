@@ -1,20 +1,20 @@
 # HISPEC tracking camera
 
 The HISPEC acquisition and tracking camera (ATC): a 2048x2048 H2RG on an Archon controller. This is
-the most complete instrument module and the one the emulator integration tests exercise.
+the most complete instrument module.
 
-Repository: [hispec-tracking-camera-instrument](https://github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument),
-checked out at `camerad/Instruments/hispec_tracking_camera`.
+Repository: [hispec-tracking-camera-instrument](https://github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument).
 
 ## Build
 
+From that repository's checkout:
+
 ```bash
-cd build
-cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera ..
-make
+cmake -S . -B build
+cmake --build build
 ```
 
-Shipped configuration is in the submodule's `config/`: `hispecatc.cfg` and `hispecatc.acf`.
+Shipped configuration is in the repository's `config/`: `hispecatc.cfg` and `hispecatc.acf`.
 
 ## Three things called "mode"
 
@@ -118,20 +118,10 @@ has no effect.
 ## FITS keywords
 
 The module carries its own keyword dictionary mapping each internal property to a keyword, comment,
-type and default. It covers two cameras, ATC and SPEC, with separate defaults; the table shows the
-ATC default, falling back to the SPEC one where ATC has none.
+type and default. It covers two cameras, ATC and SPEC, with separate defaults. It is
+`fits_header_dictionary.cpp` in the instrument repository.
 
 `python/tests/fits_header_check.py` validates a written file against this dictionary.
-
-```{eval-rst}
-.. camerad-fits-keywords::
-   :widths: 12 20 10 10 48
-```
-
-:::{note}
-Generated from {source}`camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp`, so
-it cannot drift from the dictionary the instrument actually writes.
-:::
 
 ## Error reporting
 

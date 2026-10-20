@@ -2,18 +2,13 @@
 
 An H2RG on an Archon controller, reading in RXR mode.
 
-Repository: [cryoscope-instrument](https://github.com/CaltechOpticalObservatories/cryoscope-instrument),
-checked out at `camerad/Instruments/cryoscope`.
+Repository: [cryoscope-instrument](https://github.com/CaltechOpticalObservatories/cryoscope-instrument).
 
 :::{warning}
-This module does not currently build against the core. Its exposure mode instantiates
-`ExposureModeTemplate` with two template parameters where the base declares one, and assigns to
-`modetype` and `modeargs`, which are named `type` and `args` in
-{source}`camerad/exposure_modes.h`. It was left behind by a refactor of the exposure mode base
-class.
-
-CI does not catch this, because the build workflow compiles the default target and only builds an
-instrument when one is named explicitly.
+This module does not currently build. It has no `CMakeLists.txt` of its own, only a `cryoscope.cmake`
+for the retired in-core build. Its exposure mode also instantiates `ExposureModeTemplate` with two
+template parameters where the base declares one, and assigns to `modetype` and `modeargs`, which
+are named `type` and `args` in {source}`camerad/exposure_modes.h`.
 :::
 
 ## What it defines
@@ -33,11 +28,3 @@ placeholder named `XXX`.
 
 `START_PARAM` is read only by this module, which is why it does not appear in the
 [core key tables](../configuration/core.md).
-
-## Build
-
-```bash
-cd build
-cmake -DCONTROLLER=archon -DINSTRUMENT=cryoscope ..
-make
-```

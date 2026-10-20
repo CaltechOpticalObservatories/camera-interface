@@ -102,10 +102,11 @@ See [frame output keys](../configuration/frame-outputs.md) for configuring them.
 
 ## Instrument modules
 
-An instrument is a separate repository, checked out as a submodule under
-`camerad/Instruments/<name>` and selected with `-DINSTRUMENT=`. It contributes:
+An instrument is a separate repository that builds on its own, pulling in the core with
+`FetchContent`. It contributes:
 
-1. A `<name>.cmake` fragment setting `INSTRUMENT_SOURCES`. That is the whole build integration.
+1. A `CMakeLists.txt` declaring its own `camerad` and Python module, linking the core's `camerad::`
+   libraries. {source}`reference_instrument` is the template.
 2. An `Interface` subclass deriving from `ArchonInterface` or `AstroCamInterface`, overriding what
    the detector needs and adding commands through `instrument_cmd()` and `is_instrument_command()`.
 3. Its own `ExposureMode` implementations, where the stock ones do not fit.
@@ -118,4 +119,5 @@ Instrument commands are checked *before* the base command chain, so an instrumen
 and also override a base one of the same name.
 
 See [instruments](../instruments/index.md) for the modules that exist, and
-{source}`camerad/Instruments/hispec_tracking_camera` for the most complete example.
+[hispec-tracking-camera-instrument](https://github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument)
+for the most complete example.

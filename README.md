@@ -46,11 +46,7 @@ If you encounter any problems or have questions about this project, please open 
    |-----------------------------------|--------------------------------------|
    | `$ cmake -DCONTROLLER=archon ..`  | `$ cmake -DCONTROLLER=astrocam ..`   |
 
-   Add `-DINSTRUMENT=` to build an instrument module, whose sources come from `camerad/Instruments/<name>`:
-
-    ```bash
-    $ cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera ..
-    ```
+   This builds the core with no instrument. An instrument builds from its own repository, which pulls in this one; see [Composing the core](#composing-the-core).
 
    `-DINTERFACE_TYPE=` is separate from `-DCONTROLLER=` and selects only which emulator is built. It defaults to `Archon`; `-DINTERFACE_TYPE=AstroCam` skips the emulator, since none is implemented for ARC.
 
@@ -205,42 +201,20 @@ An instrument repository that installs its module puts it inside a Python packag
 `pip install` builds the same artifacts and places them in the target environment, so `import camera_interface` needs no `PYTHONPATH` and `camerad` is on `PATH` whenever the environment is active:
 
 ```bash
-$ pip install ./camera-interface \
-    --config-settings=cmake.define.INSTRUMENT=hispec_tracking_camera
+$ pip install ./camera-interface
 ```
 
 Any CMake option can be passed the same way, so `--config-settings=cmake.define.ENABLE_SHM_OUTPUT=ON` works as well. `CONTROLLER` defaults to `archon` and `BUILD_PYTHON_MODULE` is forced on.
 
 pybind11 comes from `[build-system] requires`, so pip fetches it into an isolated build environment. It is never installed into the environment being built for.
 
-The controller and instrument are fixed when the wheel is built, so a caller should assert which build it loaded:
+The controller is fixed when the wheel is built, so a caller should assert which build it loaded:
 
 ```python
-assert camera_interface.instrument_name() == "hispec_tracking_camera"
+assert camera_interface.controller_name() == "archon"
 ```
 
 A compiler and the full dependency set have to be present wherever `pip install` runs, since it compiles camerad and the module from source.
-
-### Instrument packages
-
-An instrument package can share an environment with the generic package and with other instruments. Its build sets `CAMERAD_PYTHON_PACKAGE` to the package's name, e.g. in a `pyproject.toml` in the instrument's own repository that builds the core from its checkout:
-
-```toml
-[tool.scikit-build]
-cmake.source-dir = "external/camera-interface"
-wheel.packages = []
-cmake.define.BUILD_PYTHON_MODULE = "ON"
-cmake.define.CONTROLLER = "archon"
-cmake.define.INSTRUMENT = "myinst"
-cmake.define.CAMERAD_PYTHON_PACKAGE = "myinst_camera"
-```
-
-That package installs:
-
-- `myinst_camera/camera_interface…so` and `myinst_camera/__init__.py`, imported as `import myinst_camera` or `import myinst_camera.camera_interface`;
-- `camerad-myinst-camera` and `camerad-emulator-myinst-camera`, named for the package with `_` replaced by `-`.
-
-It does not install `camerad-socksend` or `camerad-shm-reader`, which come with the generic package. The generic package is unchanged: `import camera_interface`, plus `camerad`, `camerad-emulator` and `camerad-socksend`. Uninstalling one package leaves the others' files in place.
 
 ## Python Module
 
@@ -265,7 +239,7 @@ Every command `camerad` accepts is reachable: the base commands are bound as met
 
 The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
 
-Every build's module is named `camera_interface`. The generic build installs it at the top level, and an instrument package installs it inside a package of its own ([Instrument packages](#instrument-packages)), so several instruments can share one environment. Importing several instruments into one process is intended to be supported but is not yet tested; for now, use one instrument per process.
+Every build's module is named `camera_interface`. The generic build installs it at the top level, and an instrument repository installs it inside a package of its own ([Composing the core](#composing-the-core)), so several instruments can share one environment. Importing several instruments into one process is intended to be supported but is not yet tested; for now, use one instrument per process.
 
 `output_status()` is a snapshot, never a barrier: the FITS writer queues and drops frames by design because disk is slower than acquisition can be, so nothing here lets a caller stall acquisition by waiting on an output. Anything needing to be woken per frame should attach to the shared-memory segment, which posts semaphores.
 
