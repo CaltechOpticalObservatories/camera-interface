@@ -219,11 +219,7 @@
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../architecture/index.html">Architecture</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../instruments/index.html">Instruments</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Instruments</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/hispec-tracking-camera.html">HISPEC tracking camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/cryoscope.html">CryoScope</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="../instruments/index.html">Instruments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../emulator/index.html">Emulator</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../python/index.html">Python bindings</a></li>
 </ul>
@@ -326,23 +322,19 @@ a key added to or dropped from the code without a matching description fails the
 <td><p>none, required</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">archon</span></code> or <code class="docutils literal notranslate"><span class="pre">astrocam</span></code>. CMake errors out if unset.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">INSTRUMENT</span></code></p></td>
-<td><p>none</p></td>
-<td><p>Instrument module to build, from <code class="docutils literal notranslate"><span class="pre">camerad/Instruments/&lt;name&gt;</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">INTERFACE_TYPE</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">INTERFACE_TYPE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">Archon</span></code></p></td>
 <td><p>Selects which emulator is built, independently of <code class="docutils literal notranslate"><span class="pre">CONTROLLER</span></code>. <code class="docutils literal notranslate"><span class="pre">AstroCam</span></code> builds none, since none exists for ARC.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ENABLE_SHM_OUTPUT</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ENABLE_SHM_OUTPUT</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">OFF</span></code></p></td>
 <td><p>Build the ImageStreamIO shared-memory output. Also needs <code class="docutils literal notranslate"><span class="pre">-DImageStreamIO_DIR=&lt;prefix&gt;/lib/cmake</span></code>.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">BUILD_PYTHON_MODULE</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">BUILD_PYTHON_MODULE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">OFF</span></code></p></td>
 <td><p>Build the <code class="docutils literal notranslate"><span class="pre">camera_interface</span></code> Python module. Needs pybind11 at compile time only.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/usr/local</span></code></p></td>
 <td><p>Where <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">install</span></code> puts binaries and the module</p></td>
 </tr>

@@ -219,11 +219,7 @@
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../architecture/index.html">Architecture</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../instruments/index.html">Instruments</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Instruments</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/hispec-tracking-camera.html">HISPEC tracking camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/cryoscope.html">CryoScope</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="../instruments/index.html">Instruments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../emulator/index.html">Emulator</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Python bindings</a></li>
 </ul>
@@ -281,7 +277,7 @@ text protocol. Constructing a <code class="docutils literal notranslate"><span c
 then the command set is available as methods.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">camera_interface</span>
 
-<span class="n">camera</span> <span class="o">=</span> <span class="n">camera_interface</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="s2">"hispecatc.cfg"</span><span class="p">)</span>
+<span class="n">camera</span> <span class="o">=</span> <span class="n">camera_interface</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="s2">"reference.cfg"</span><span class="p">)</span>
 <span class="n">camera</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
 <span class="n">camera</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
 <span class="n">camera</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="s2">"on"</span><span class="p">)</span>
@@ -295,8 +291,7 @@ then the command set is available as methods.</p>
 <h2>Installing<a class="headerlink" href="#installing" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> compiles <code class="docutils literal notranslate"><span class="pre">camerad</span></code> and the module together and puts both in the environment, so
 <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">camera_interface</span></code> needs no <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> and <code class="docutils literal notranslate"><span class="pre">camerad</span></code> is on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>./camera-interface<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--config-settings<span class="o">=</span>cmake.define.INSTRUMENT<span class="o">=</span>hispec_tracking_camera
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>./camera-interface
 </pre></div>
 </div>
 <p>Any CMake option can be passed the same way, so
@@ -307,10 +302,10 @@ build environment and is never installed into the target environment.</p>
 builds from source.</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>The controller and instrument are fixed when the wheel is built, and the module is always named
-<code class="docutils literal notranslate"><span class="pre">camera_interface</span></code>, so one environment holds one instrument. Install into a separate environment per
-instrument, and have the caller assert which one it got:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">assert</span> <span class="n">camera_interface</span><span class="o">.</span><span class="n">instrument_name</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"hispec_tracking_camera"</span>
+<p>This builds the core with no instrument. An instrument’s module comes from that instrument’s own
+repository. The controller and instrument are fixed when a wheel is built, so have the caller
+assert which build it got:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">assert</span> <span class="n">camera_interface</span><span class="o">.</span><span class="n">instrument_name</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"reference"</span>
 </pre></div>
 </div>
 </div>
@@ -374,7 +369,7 @@ serialize acquisition behind disk I/O. Anything that must be woken per frame sho
 <section id="logging">
 <h2>Logging<a class="headerlink" href="#logging" title="Link to this heading">¶</a></h2>
 <p>Logging follows <code class="docutils literal notranslate"><span class="pre">LOG_STDERR</span></code> from the <code class="docutils literal notranslate"><span class="pre">.cfg</span></code>, overridable per session with <code class="docutils literal notranslate"><span class="pre">log_to_stderr=</span></code>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">camera</span> <span class="o">=</span> <span class="n">camera_interface</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="s2">"hispecatc.cfg"</span><span class="p">,</span> <span class="n">log_to_stderr</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">camera</span> <span class="o">=</span> <span class="n">camera_interface</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="s2">"reference.cfg"</span><span class="p">,</span> <span class="n">log_to_stderr</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>The C++ log always goes to its daily file under <code class="docutils literal notranslate"><span class="pre">LOGPATH</span></code> regardless.</p>

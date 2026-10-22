@@ -7,7 +7,7 @@ then the command set is available as methods.
 ```python
 import camera_interface
 
-camera = camera_interface.Camera("hispecatc.cfg")
+camera = camera_interface.Camera("reference.cfg")
 camera.open()
 camera.load()
 camera.power("on")
@@ -24,8 +24,7 @@ Use it when the caller *is* the control system, so the text protocol would only 
 `import camera_interface` needs no `PYTHONPATH` and `camerad` is on `PATH`:
 
 ```bash
-pip install ./camera-interface \
-  --config-settings=cmake.define.INSTRUMENT=hispec_tracking_camera
+pip install ./camera-interface
 ```
 
 Any CMake option can be passed the same way, so
@@ -37,12 +36,12 @@ A compiler and the full C++ dependency set must be present wherever `pip install
 builds from source.
 
 :::{important}
-The controller and instrument are fixed when the wheel is built, and the module is always named
-`camera_interface`, so one environment holds one instrument. Install into a separate environment per
-instrument, and have the caller assert which one it got:
+This builds the core with no instrument. An instrument's module comes from that instrument's own
+repository. The controller and instrument are fixed when a wheel is built, so have the caller
+assert which build it got:
 
 ```python
-assert camera_interface.instrument_name() == "hispec_tracking_camera"
+assert camera_interface.instrument_name() == "reference"
 ```
 :::
 
@@ -114,7 +113,7 @@ serialize acquisition behind disk I/O. Anything that must be woken per frame sho
 Logging follows `LOG_STDERR` from the `.cfg`, overridable per session with `log_to_stderr=`:
 
 ```python
-camera = camera_interface.Camera("hispecatc.cfg", log_to_stderr=True)
+camera = camera_interface.Camera("reference.cfg", log_to_stderr=True)
 ```
 
 The C++ log always goes to its daily file under `LOGPATH` regardless.

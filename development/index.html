@@ -219,11 +219,7 @@
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../architecture/index.html">Architecture</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../instruments/index.html">Instruments</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Instruments</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/hispec-tracking-camera.html">HISPEC tracking camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/cryoscope.html">CryoScope</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="../instruments/index.html">Instruments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../emulator/index.html">Emulator</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../python/index.html">Python bindings</a></li>
 </ul>
@@ -307,9 +303,6 @@ cross-checked against the source, so the build fails when they diverge:</p>
 <tr class="row-odd"><td><p>Configuration keys</p></td>
 <td><p>Reads through a config object’s <code class="docutils literal notranslate"><span class="pre">param</span></code> array, plus the frame output parser</p></td>
 </tr>
-<tr class="row-even"><td><p>ATC FITS keywords</p></td>
-<td><p>The <code class="docutils literal notranslate"><span class="pre">HeaderDictEntry</span></code> table in <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp">camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp</a></p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -373,16 +366,14 @@ because <code class="docutils literal notranslate"><span class="pre">_static/</s
 <code class="docutils literal notranslate"><span class="pre">.github/workflows/emulator-integration.yml</span></code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>The build workflow compiles the default target, and an instrument only when one is named explicitly.
-<code class="docutils literal notranslate"><span class="pre">hispec_tracking_camera</span></code> is the only instrument any workflow builds, so the other modules can fall
-behind changes to the core without CI noticing.</p>
+<p>CI builds <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/reference_instrument">reference_instrument</a> but no real instrument, so an instrument can fall behind
+changes to the core without CI here noticing.</p>
 </div>
 </section>
-<section id="instrument-submodules">
-<h2>Instrument submodules<a class="headerlink" href="#instrument-submodules" title="Link to this heading">¶</a></h2>
-<p>Instrument modules are pinned submodules. Updating one is a commit to <code class="docutils literal notranslate"><span class="pre">camera-interface</span></code> that moves
-the pin, which <code class="docutils literal notranslate"><span class="pre">.github/workflows/update-submodules.yml</span></code> automates. Documentation for an instrument
-lives here, in this repository, while each instrument repository keeps its own README.</p>
+<section id="instruments">
+<h2>Instruments<a class="headerlink" href="#instruments" title="Link to this heading">¶</a></h2>
+<p>Each instrument builds from its own repository and pins the core there. Documentation for an
+instrument lives here, in this repository, while each instrument repository keeps its own README.</p>
 </section>
 </section>
 
@@ -442,7 +433,7 @@ lives here, in this repository, while each instrument repository keeps its own R
 <li><a class="reference internal" href="#documentation-layout">Documentation layout</a></li>
 <li><a class="reference internal" href="#publishing">Publishing</a></li>
 <li><a class="reference internal" href="#testing-camerad-itself">Testing camerad itself</a></li>
-<li><a class="reference internal" href="#instrument-submodules">Instrument submodules</a></li>
+<li><a class="reference internal" href="#instruments">Instruments</a></li>
 </ul>
 </li>
 </ul>

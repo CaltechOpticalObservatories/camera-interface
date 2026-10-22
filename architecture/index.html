@@ -219,11 +219,7 @@
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="current">
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Architecture</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../instruments/index.html">Instruments</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Instruments</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/hispec-tracking-camera.html">HISPEC tracking camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/cryoscope.html">CryoScope</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="../instruments/index.html">Instruments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../emulator/index.html">Emulator</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../python/index.html">Python bindings</a></li>
 </ul>
@@ -330,8 +326,8 @@ frame outputs.</p>
 </dl>
 <p>The base class carries the synchronization (<code class="docutils literal notranslate"><span class="pre">queue_mutex</span></code>, <code class="docutils literal notranslate"><span class="pre">queue_cv</span></code>, and the
 <code class="docutils literal notranslate"><span class="pre">is_producer_finished</span></code> / <code class="docutils literal notranslate"><span class="pre">is_producer_error</span></code> / <code class="docutils literal notranslate"><span class="pre">is_consumer_error</span></code> flags), so a concrete mode
-implements only the parts that differ. In the tracking camera module, for instance, a shared base
-owns the queue and the consumer and each subclass implements only the producer.</p>
+implements only the parts that differ, for instance a shared base that owns the queue and the
+consumer with each subclass implementing only the producer.</p>
 <p>Two lifetimes exist. For a counted exposure the consumer is one-shot: <code class="docutils literal notranslate"><span class="pre">do_expose()</span></code> spawns it,
 and it terminates once the producer is finished and the queue is drained. In freerun, one producer
 and one consumer run for the whole session and <code class="docutils literal notranslate"><span class="pre">expose</span></code> returns immediately, leaving them going
@@ -367,10 +363,11 @@ for files.</p>
 </section>
 <section id="instrument-modules">
 <h2>Instrument modules<a class="headerlink" href="#instrument-modules" title="Link to this heading">¶</a></h2>
-<p>An instrument is a separate repository, checked out as a submodule under
-<code class="docutils literal notranslate"><span class="pre">camerad/Instruments/&lt;name&gt;</span></code> and selected with <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code>. It contributes:</p>
+<p>An instrument is a separate repository that builds on its own, pulling in the core with
+<code class="docutils literal notranslate"><span class="pre">FetchContent</span></code>. It contributes:</p>
 <ol class="arabic simple">
-<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.cmake</span></code> fragment setting <code class="docutils literal notranslate"><span class="pre">INSTRUMENT_SOURCES</span></code>. That is the whole build integration.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> declaring its own <code class="docutils literal notranslate"><span class="pre">camerad</span></code> and Python module, linking the core’s <code class="docutils literal notranslate"><span class="pre">camerad::</span></code>
+libraries. <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/reference_instrument">reference_instrument</a> is the template.</p></li>
 <li><p>An <code class="docutils literal notranslate"><span class="pre">Interface</span></code> subclass deriving from <code class="docutils literal notranslate"><span class="pre">ArchonInterface</span></code> or <code class="docutils literal notranslate"><span class="pre">AstroCamInterface</span></code>, overriding what
 the detector needs and adding commands through <code class="docutils literal notranslate"><span class="pre">instrument_cmd()</span></code> and <code class="docutils literal notranslate"><span class="pre">is_instrument_command()</span></code>.</p></li>
 <li><p>Its own <code class="docutils literal notranslate"><span class="pre">ExposureMode</span></code> implementations, where the stock ones do not fit.</p></li>
@@ -380,8 +377,8 @@ the detector needs and adding commands through <code class="docutils literal not
 concrete instrument.</p>
 <p>Instrument commands are checked <em>before</em> the base command chain, so an instrument can add commands
 and also override a base one of the same name.</p>
-<p>See <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">instruments</span></a> for the modules that exist, and
-<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/Instruments/hispec_tracking_camera">camerad/Instruments/hispec_tracking_camera</a> for the most complete example.</p>
+<p>See <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">instruments</span></a> for building one, and <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/reference_instrument">reference_instrument</a>
+for a minimal example.</p>
 </section>
 </section>
 

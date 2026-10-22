@@ -219,11 +219,7 @@
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../architecture/index.html">Architecture</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../instruments/index.html">Instruments</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Instruments</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/hispec-tracking-camera.html">HISPEC tracking camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../instruments/cryoscope.html">CryoScope</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="../instruments/index.html">Instruments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../emulator/index.html">Emulator</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../python/index.html">Python bindings</a></li>
 </ul>
@@ -298,24 +294,17 @@ emulator stands in for the hardware.</p>
 </section>
 <section id="build">
 <h2>Build<a class="headerlink" href="#build" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">-DCONTROLLER=</span></code> is required; CMake stops with an error without it. <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code> selects an
-instrument module from <code class="docutils literal notranslate"><span class="pre">camerad/Instruments/&lt;name&gt;</span></code>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>--recurse-submodules<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>https://github.com/CaltechOpticalObservatories/camera-interface.git
+<p><code class="docutils literal notranslate"><span class="pre">-DCONTROLLER=</span></code> is required; CMake stops with an error without it. This builds the core with no
+instrument; an instrument builds from its own repository, see <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">instruments</span></a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/CaltechOpticalObservatories/camera-interface.git
 <span class="nb">cd</span><span class="w"> </span>camera-interface/build
-cmake<span class="w"> </span>-DCONTROLLER<span class="o">=</span>archon<span class="w"> </span>-DINSTRUMENT<span class="o">=</span>hispec_tracking_camera<span class="w"> </span>..
+cmake<span class="w"> </span>-DCONTROLLER<span class="o">=</span>archon<span class="w"> </span>..
 make
 </pre></div>
 </div>
 <p>Binaries land in <code class="docutils literal notranslate"><span class="pre">bin/</span></code> in the source tree. <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">install</span></code> copies them under
 <code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code> instead, which is the better choice for anything deployed. The full set of
 build options is in the <a class="reference internal" href="../configuration/index.html"><span class="std std-doc">configuration reference</span></a>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Instrument modules are git submodules. A clone without <code class="docutils literal notranslate"><span class="pre">--recurse-submodules</span></code> leaves
-<code class="docutils literal notranslate"><span class="pre">camerad/Instruments/&lt;name&gt;</span></code> empty and <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code> will fail. Fix it with
-<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">submodule</span> <span class="pre">update</span> <span class="pre">--init</span> <span class="pre">--recursive</span></code>.</p>
-</div>
 </section>
 <section id="run-it">
 <h2>Run it<a class="headerlink" href="#run-it" title="Link to this heading">¶</a></h2>

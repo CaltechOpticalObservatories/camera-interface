@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="HISPEC tracking camera" href="hispec-tracking-camera.html" /><link rel="prev" title="Architecture" href="../architecture/index.html" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Emulator" href="../emulator/index.html" /><link rel="prev" title="Architecture" href="../architecture/index.html" />
 
     <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
         <title>Instruments - camera-interface 2.0.0</title>
@@ -219,11 +219,7 @@
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../architecture/index.html">Architecture</a></li>
-<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">Instruments</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Instruments</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="hispec-tracking-camera.html">HISPEC tracking camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="cryoscope.html">CryoScope</a></li>
-</ul>
-</li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Instruments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../emulator/index.html">Emulator</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../python/index.html">Python bindings</a></li>
 </ul>
@@ -277,63 +273,23 @@
           <section id="instruments">
 <h1>Instruments<a class="headerlink" href="#instruments" title="Link to this heading">¶</a></h1>
 <p>An instrument module adapts the core to one detector: its exposure modes, its extra commands, its
-FITS keywords. One is chosen at build time with <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code>, and a given binary serves exactly
-one instrument.</p>
-<p>Each lives in its own repository, pulled in as a submodule under <code class="docutils literal notranslate"><span class="pre">camerad/Instruments/</span></code>. The
-submodule is pinned, so a given <code class="docutils literal notranslate"><span class="pre">camera-interface</span></code> commit builds one specific instrument revision.</p>
-<section id="status">
-<h2>Status<a class="headerlink" href="#status" title="Link to this heading">¶</a></h2>
-<div class="table-wrapper colwidths-auto docutils container">
-<table class="docutils align-default">
-<thead>
-<tr class="row-odd"><th class="head"><p>Instrument</p></th>
-<th class="head"><p>Controller</p></th>
-<th class="head"><p>Detector</p></th>
-<th class="head"><p>State</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><a class="reference internal" href="hispec-tracking-camera.html"><span class="std std-doc">hispec_tracking_camera</span></a></p></td>
-<td><p>Archon</p></td>
-<td><p>H2RG</p></td>
-<td><p>In active use. The reference implementation.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="cryoscope.html"><span class="std std-doc">cryoscope</span></a></p></td>
-<td><p>Archon</p></td>
-<td><p>H2RG</p></td>
-<td><p>Scaffolding, and does not currently build</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hispec</span></code></p></td>
-<td><p>Archon</p></td>
-<td><p></p></td>
-<td><p>Repository exists, no sources yet</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">deimos</span></code></p></td>
-<td><p></p></td>
-<td><p></p></td>
-<td><p>Repository exists, no sources yet</p></td>
-</tr>
-</tbody>
-</table>
-</div>
+FITS keywords. A given binary serves exactly one instrument.</p>
+<p>Each lives in its own repository and builds there, pulling in <code class="docutils literal notranslate"><span class="pre">camera-interface</span></code> with
+<code class="docutils literal notranslate"><span class="pre">FetchContent</span></code>. The instrument pins the core, so a given instrument commit builds against one
+specific core revision. Each instrument documents itself in its own repository.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">hispec</span></code> and <code class="docutils literal notranslate"><span class="pre">deimos</span></code> are README-only submodules today. They are listed so the set is not misleading
-about what exists; there is nothing to document until they carry sources.</p>
-<p>Only <code class="docutils literal notranslate"><span class="pre">hispec_tracking_camera</span></code> is built in CI, so the others can fall behind changes to the core
-without anything noticing.</p>
+<p>The core’s CI builds only <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/reference_instrument">reference_instrument</a>, so an instrument can fall behind changes
+to the core without anything here noticing.</p>
 </div>
-<div class="toctree-wrapper compound">
-</div>
-</section>
 <section id="building-one">
 <h2>Building one<a class="headerlink" href="#building-one" title="Link to this heading">¶</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>camerad/Instruments/&lt;name&gt;
-<span class="nb">cd</span><span class="w"> </span>build
-cmake<span class="w"> </span>-DCONTROLLER<span class="o">=</span>archon<span class="w"> </span>-DINSTRUMENT<span class="o">=</span>&lt;name&gt;<span class="w"> </span>..
-make
+<p>From the instrument’s own checkout:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-S<span class="w"> </span>.<span class="w"> </span>-B<span class="w"> </span>build
+cmake<span class="w"> </span>--build<span class="w"> </span>build
 </pre></div>
 </div>
+<p><a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/reference_instrument">reference_instrument</a> is the template for a new one, including its <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code>.</p>
 <p>The instrument name is also checked against the <code class="docutils literal notranslate"><span class="pre">INSTRUMENT</span></code> key in the <code class="docutils literal notranslate"><span class="pre">.cfg</span></code>, so a config cannot
 be pointed at a binary built for a different camera.</p>
 <p>For how a module plugs into the core, see <a class="reference internal" href="../architecture/index.html"><span class="std std-doc">architecture</span></a>.</p>
@@ -345,12 +301,12 @@ be pointed at a binary built for a different camera.</p>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="hispec-tracking-camera.html">
+          <a class="next-page" href="../emulator/index.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">HISPEC tracking camera</div>
+                <div class="title">Emulator</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -396,7 +352,6 @@ be pointed at a binary built for a different camera.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Instruments</a><ul>
-<li><a class="reference internal" href="#status">Status</a></li>
 <li><a class="reference internal" href="#building-one">Building one</a></li>
 </ul>
 </li>

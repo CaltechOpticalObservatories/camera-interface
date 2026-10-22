@@ -219,11 +219,7 @@
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="architecture/index.html">Architecture</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="instruments/index.html">Instruments</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of Instruments</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="instruments/hispec-tracking-camera.html">HISPEC tracking camera</a></li>
-<li class="toctree-l2"><a class="reference internal" href="instruments/cryoscope.html">CryoScope</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="instruments/index.html">Instruments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="emulator/index.html">Emulator</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python/index.html">Python bindings</a></li>
 </ul>
@@ -288,9 +284,9 @@ one with an emulator.</p>
 3.6 and the Arc66PCIe driver.</p>
 </dd>
 </dl>
-<p>A detector-specific <strong>instrument</strong> module is layered on top of the controller, also selected at build
-time, with <code class="docutils literal notranslate"><span class="pre">-DINSTRUMENT=</span></code>. The instrument supplies the exposure modes, extra commands and FITS
-keywords that a particular camera needs.</p>
+<p>A detector-specific <strong>instrument</strong> module is layered on top of the controller. It lives in its own
+repository and builds there, pulling in this one. The instrument supplies the exposure modes, extra
+commands and FITS keywords that a particular camera needs.</p>
 <p>Clients can drive the server three ways: the text protocol over a socket, the <code class="docutils literal notranslate"><span class="pre">camerad-socksend</span></code>
 command line tool, or the <code class="docutils literal notranslate"><span class="pre">camera_interface</span></code> Python module, which skips the server process entirely
 and owns the camera in-process.</p>
