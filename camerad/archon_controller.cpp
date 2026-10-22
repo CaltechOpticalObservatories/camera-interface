@@ -597,10 +597,12 @@ namespace Camera {
    */
   std::string ArchonController::make_applymod_command(int mod) const {
     std::ostringstream oss;
+    // Archon rejects lowercase hex, so MOD11 must be 0A, not 0a
     oss << "APPLYMOD"
         << std::setfill('0')
         << std::setw(2)
         << std::hex
+        << std::uppercase
         << (mod-1);
     return oss.str();
   }
@@ -3190,6 +3192,7 @@ namespace Camera {
                << std::setfill('0')
                << std::setw(2)
                << std::hex
+               << std::uppercase
                << (module-1);
       error = this->send_cmd(applystr.str());
     }
