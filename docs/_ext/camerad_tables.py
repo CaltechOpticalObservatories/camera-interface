@@ -1,8 +1,8 @@
 """Sphinx directives that build reference tables from the camerad sources.
 
 Each table is generated from the code that defines the thing being documented, and cross-checked
-against hand-written descriptions in ``docs/data``. A command, configuration key or FITS keyword
-that gains or loses a definition without a matching description fails the build, so the reference
+against hand-written descriptions in ``docs/data``. A command or configuration key that
+gains or loses a definition without a matching description fails the build, so the reference
 cannot silently drift from the source.
 """
 
@@ -23,14 +23,8 @@ DOCS_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = DOCS_DIR.parent
 DATA_DIR = DOCS_DIR / "data"
 
-# Where a configuration key may be recognized. Instrument submodules are excluded so that
-# instrument-specific keys do not leak into the core table.
+# Where a configuration key may be recognized
 CONFIG_SEARCH_DIRS = ("camerad", "common", "utils", "emulator")
-
-ATC_DICTIONARY = (
-    REPO_ROOT
-    / "camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp"
-)
 
 # Reading the server config always goes through a config object's `param` array, which is what
 # separates a real key from the Archon protocol tokens matched the same way elsewhere
@@ -72,26 +66,10 @@ class ConfigKey:
     group: str
 
 
-@dataclass(frozen=True)
-class FitsKeyword:
-    """One entry of an instrument's FITS header dictionary."""
-
-    keyword: str
-    property: str
-    comment: str
-    type: str
-    default_atc: str
-    default_spec: str
-    enum_values: tuple[str, ...] = ()
-
-
 def _read(relative_path: str) -> str:
     path = REPO_ROOT / relative_path
     if not path.is_file():
-        raise ExtensionError(
-            f"{relative_path} is missing. Instrument modules are submodules; run "
-            "`git submodule update --init --recursive` before building the documentation."
-        )
+        raise ExtensionError(f"{relative_path} is missing")
     return path.read_text(encoding="utf-8")
 
 
@@ -172,7 +150,7 @@ def load_config_keys() -> list[ConfigKey]:
     found: set[str] = set()
     for directory in CONFIG_SEARCH_DIRS:
         for source in sorted((REPO_ROOT / directory).rglob("*")):
-            if source.suffix not in (".cpp", ".h") or "Instruments" in source.parts:
+            if source.suffix not in (".cpp", ".h"):
                 continue
             text = source.read_text(encoding="utf-8", errors="replace")
             for pattern in CONFIG_KEY_PATTERNS:
@@ -186,120 +164,6 @@ def load_config_keys() -> list[ConfigKey]:
         ConfigKey(name=name, summary=described[name]["summary"], group=described[name]["group"])
         for name in sorted(found)
     ]
-
-
-def _split_top_level(text: str) -> list[str]:
-    """Split on commas that are not nested inside braces or a string literal."""
-    parts, depth, in_string, escaped, current = [], 0, False, False, []
-    for char in text:
-        if in_string:
-            current.append(char)
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-            current.append(char)
-        elif char == "{":
-            depth += 1
-            current.append(char)
-        elif char == "}":
-            depth -= 1
-            current.append(char)
-        elif char == "," and depth == 0:
-            parts.append("".join(current))
-            current = []
-        else:
-            current.append(char)
-    parts.append("".join(current))
-    return [part.strip() for part in parts]
-
-
-def _entry_bodies(block: str) -> list[str]:
-    """Yield the text inside each top-level ``{ ... }`` of an initializer list."""
-    bodies, depth, in_string, escaped, start = [], 0, False, False, 0
-    for index, char in enumerate(block):
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char == "{":
-            if depth == 0:
-                start = index + 1
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                bodies.append(block[start:index])
-    return bodies
-
-
-def _unquote(field_text: str) -> str:
-    """Join adjacent C++ string literals into their value."""
-    return "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', field_text)).replace('\\"', '"')
-
-
-def _balanced_body(text: str, open_index: int) -> str:
-    """Return what is between the brace at ``open_index`` and its match."""
-    depth, in_string, escaped = 0, False, False
-    for index in range(open_index, len(text)):
-        char = text[index]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char == "{":
-            depth += 1
-        elif char == "}":
-            depth -= 1
-            if depth == 0:
-                return text[open_index + 1:index]
-    raise ExtensionError("unbalanced braces in the FITS header dictionary")
-
-
-@cache
-def load_fits_keywords() -> list[FitsKeyword]:
-    # Instruments live in their own repositories, so this source is often absent
-    if not ATC_DICTIONARY.is_file():
-        return []
-    text = ATC_DICTIONARY.read_text(encoding="utf-8")
-    block = _balanced_body(text, text.index("dictionary = {") + len("dictionary = "))
-
-    keywords = []
-    for body in _entry_bodies(block):
-        fields = _split_top_level(body)
-        if len(fields) != 7:
-            continue
-        keywords.append(
-            FitsKeyword(
-                property=_unquote(fields[0]),
-                keyword=_unquote(fields[1]),
-                comment=_unquote(fields[2]),
-                type=fields[3].replace("Type::", ""),
-                default_atc=_unquote(fields[4]),
-                default_spec=_unquote(fields[5]),
-                enum_values=tuple(re.findall(r'"([^"]*)"', fields[6])),
-            )
-        )
-    if not keywords:
-        raise ExtensionError(f"parsed no entries from {ATC_DICTIONARY}")
-    return keywords
 
 
 def _literal(text: str) -> str:
@@ -366,46 +230,14 @@ class CameradConfigKeys(_TableDirective):
         return self._render(["Key", "Meaning"], rows)
 
 
-class CameradFitsKeywords(_TableDirective):
-    """Render an instrument's FITS header dictionary."""
-
-    option_spec = {"widths": str}
-
-    def run(self) -> list[nodes.Node]:
-        keywords = load_fits_keywords()
-        if not keywords:
-            return [nodes.note("", nodes.paragraph(
-                text="This instrument's sources are not in this checkout, so its FITS "
-                     "header dictionary cannot be listed here."))]
-
-        rows = []
-        for entry in keywords:
-            default = entry.default_atc or entry.default_spec
-            comment = entry.comment
-            if entry.enum_values:
-                comment += " (" + ", ".join(f"``{v}``" for v in entry.enum_values) + ")"
-            rows.append(
-                [
-                    _literal(entry.keyword),
-                    _literal(entry.property),
-                    entry.type,
-                    _literal(default),
-                    comment,
-                ]
-            )
-        return self._render(["Keyword", "Property", "Type", "Default", "Comment"], rows)
-
-
 def _validate(app) -> None:
     """Fail the build early when the source and the descriptions disagree."""
     load_commands()
     load_config_keys()
-    load_fits_keywords()
 
 
 def setup(app):
     app.add_directive("camerad-commands", CameradCommands)
     app.add_directive("camerad-config-keys", CameradConfigKeys)
-    app.add_directive("camerad-fits-keywords", CameradFitsKeywords)
     app.connect("builder-inited", _validate)
     return {"parallel_read_safe": True, "parallel_write_safe": True}

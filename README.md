@@ -46,11 +46,7 @@ If you encounter any problems or have questions about this project, please open 
    |-----------------------------------|--------------------------------------|
    | `$ cmake -DCONTROLLER=archon ..`  | `$ cmake -DCONTROLLER=astrocam ..`   |
 
-   Add `-DINSTRUMENT=` to build an instrument module, whose sources come from `camerad/Instruments/<name>`:
-
-    ```bash
-    $ cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera ..
-    ```
+   This builds the core with no instrument. An instrument builds from its own repository, which pulls in this one; see [Composing the core](#composing-the-core).
 
    `-DINTERFACE_TYPE=` is separate from `-DCONTROLLER=` and selects only which emulator is built. It defaults to `Archon`; `-DINTERFACE_TYPE=AstroCam` skips the emulator, since none is implemented for ARC.
 
@@ -205,42 +201,20 @@ An instrument repository that installs its module puts it inside a Python packag
 `pip install` builds the same artifacts and places them in the target environment, so `import camera_interface` needs no `PYTHONPATH` and `camerad` is on `PATH` whenever the environment is active:
 
 ```bash
-$ pip install ./camera-interface \
-    --config-settings=cmake.define.INSTRUMENT=hispec_tracking_camera
+$ pip install ./camera-interface
 ```
 
 Any CMake option can be passed the same way, so `--config-settings=cmake.define.ENABLE_SHM_OUTPUT=ON` works as well. `CONTROLLER` defaults to `archon` and `BUILD_PYTHON_MODULE` is forced on.
 
 pybind11 comes from `[build-system] requires`, so pip fetches it into an isolated build environment. It is never installed into the environment being built for.
 
-The controller and instrument are fixed when the wheel is built, so a caller should assert which build it loaded:
+The controller is fixed when the wheel is built, so a caller should assert which build it loaded:
 
 ```python
-assert camera_interface.instrument_name() == "hispec_tracking_camera"
+assert camera_interface.controller_name() == "archon"
 ```
 
 A compiler and the full dependency set have to be present wherever `pip install` runs, since it compiles camerad and the module from source.
-
-### Instrument packages
-
-An instrument package can share an environment with the generic package and with other instruments. Its build sets `CAMERAD_PYTHON_PACKAGE` to the package's name, e.g. in a `pyproject.toml` in the instrument's own repository that builds the core from its checkout:
-
-```toml
-[tool.scikit-build]
-cmake.source-dir = "external/camera-interface"
-wheel.packages = []
-cmake.define.BUILD_PYTHON_MODULE = "ON"
-cmake.define.CONTROLLER = "archon"
-cmake.define.INSTRUMENT = "myinst"
-cmake.define.CAMERAD_PYTHON_PACKAGE = "myinst_camera"
-```
-
-That package installs:
-
-- `myinst_camera/camera_interface…so` and `myinst_camera/__init__.py`, imported as `import myinst_camera` or `import myinst_camera.camera_interface`;
-- `camerad-myinst-camera` and `camerad-emulator-myinst-camera`, named for the package with `_` replaced by `-`.
-
-It does not install `camerad-socksend` or `camerad-shm-reader`, which come with the generic package. The generic package is unchanged: `import camera_interface`, plus `camerad`, `camerad-emulator` and `camerad-socksend`. Uninstalling one package leaves the others' files in place.
 
 ## Python Module
 
@@ -249,7 +223,7 @@ Built with `-DBUILD_PYTHON_MODULE=ON`, `camera_interface` lets a Python process 
 ```python
 import camera_interface
 
-camera = camera_interface.Camera("hispecatc.cfg")
+camera = camera_interface.Camera("reference.cfg")
 camera.open()
 camera.load()
 camera.power("on")
@@ -265,7 +239,7 @@ Every command `camerad` accepts is reachable: the base commands are bound as met
 
 The controller and instrument are fixed at CMake configure time, so `instrument_name()` and `controller_name()` report which build was loaded. A failed command raises `RuntimeError`.
 
-Every build's module is named `camera_interface`. The generic build installs it at the top level, and an instrument package installs it inside a package of its own ([Instrument packages](#instrument-packages)), so several instruments can share one environment. Importing several instruments into one process is intended to be supported but is not yet tested; for now, use one instrument per process.
+Every build's module is named `camera_interface`. The generic build installs it at the top level, and an instrument repository installs it inside a package of its own ([Composing the core](#composing-the-core)), so several instruments can share one environment. Importing several instruments into one process is intended to be supported but is not yet tested; for now, use one instrument per process.
 
 `output_status()` is a snapshot, never a barrier: the FITS writer queues and drops frames by design because disk is slower than acquisition can be, so nothing here lets a caller stall acquisition by waiting on an output. Anything needing to be woken per frame should attach to the shared-memory segment, which posts semaphores.
 
@@ -281,7 +255,7 @@ $ python python/examples/raw_channel_sweep.py --config lris2.cfg --fits-dir /tmp
 
 ## Frame Outputs
 
-Every instrument publishes each acquired frame to one or more outputs, configured entirely via `.cfg` file keys (`Camera::Interface::configure_frame_outputs()` builds them from `Camera::apply_config_overrides()`, called once at startup for every instrument, not just HISPEC). Both outputs are independent; either, both, or neither can be enabled per instrument.
+Every instrument publishes each acquired frame to one or more outputs, configured entirely via `.cfg` file keys (`Camera::Interface::configure_frame_outputs()` builds them from `Camera::apply_config_overrides()`, called once at startup for every instrument). Both outputs are independent; either, both, or neither can be enabled per instrument.
 
 ### Streams
 
@@ -316,7 +290,7 @@ Frame geometry (width/height/pixel depth) isn't a config key: it's fixed for an 
 Two readers ship with the repo. `camerad-shm-reader` prints geometry, keywords and pixel statistics once, for diagnostics. `python/examples/shm_read_frames.py` is a sample streaming consumer: it blocks on the stream's semaphore and reports every frame as it arrives, flagging any it missed.
 
 ```bash
-$ python python/examples/shm_read_frames.py --segment hispec_tracking_camera --count 10
+$ python python/examples/shm_read_frames.py --segment camera --count 10
 ```
 
 It needs numpy and `ImageStreamIOWrap`, the Python wrapper from the ImageStreamIO source tree, built with `-DPYTHON_WRAPPER=ON`; the wrapper is not on PyPI.

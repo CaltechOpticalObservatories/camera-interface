@@ -24,7 +24,6 @@ cross-checked against the source, so the build fails when they diverge:
 |---|---|
 | Base commands | The dispatch chain in {source}`camerad/camera_server.cpp`, with syntax from `CAMERAD_SYNTAX` |
 | Configuration keys | Reads through a config object's `param` array, plus the frame output parser |
-| ATC FITS keywords | The `HeaderDictEntry` table in {source}`camerad/Instruments/hispec_tracking_camera/fits_header_dictionary.cpp` |
 
 Descriptions are written by hand in `docs/data/`, keyed by command or key name. Adding a command or
 a config key to the source without a description there fails the docs build; so does describing one
@@ -87,13 +86,11 @@ The end-to-end tests run against the [emulator](../emulator/index.md) in CI, in
 `.github/workflows/emulator-integration.yml`.
 
 :::{warning}
-The build workflow compiles the default target, and an instrument only when one is named explicitly.
-`hispec_tracking_camera` is the only instrument any workflow builds, so the other modules can fall
-behind changes to the core without CI noticing.
+CI builds {source}`reference_instrument` but no real instrument, so an instrument can fall behind
+changes to the core without CI here noticing.
 :::
 
-## Instrument submodules
+## Instruments
 
-Instrument modules are pinned submodules. Updating one is a commit to `camera-interface` that moves
-the pin, which `.github/workflows/update-submodules.yml` automates. Documentation for an instrument
-lives here, in this repository, while each instrument repository keeps its own README.
+Each instrument builds from its own repository and pins the core there. Documentation for an
+instrument lives here, in this repository, while each instrument repository keeps its own README.

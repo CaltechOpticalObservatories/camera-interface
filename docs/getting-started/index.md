@@ -24,26 +24,19 @@ sudo apt-get install -y build-essential cmake ninja-build \
 
 ## Build
 
-`-DCONTROLLER=` is required; CMake stops with an error without it. `-DINSTRUMENT=` selects an
-instrument module from `camerad/Instruments/<name>`.
+`-DCONTROLLER=` is required; CMake stops with an error without it. This builds the core with no
+instrument; an instrument builds from its own repository, see [instruments](../instruments/index.md).
 
 ```bash
-git clone --recurse-submodules \
-  https://github.com/CaltechOpticalObservatories/camera-interface.git
+git clone https://github.com/CaltechOpticalObservatories/camera-interface.git
 cd camera-interface/build
-cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera ..
+cmake -DCONTROLLER=archon ..
 make
 ```
 
 Binaries land in `bin/` in the source tree. `make install` copies them under
 `CMAKE_INSTALL_PREFIX` instead, which is the better choice for anything deployed. The full set of
 build options is in the [configuration reference](../configuration/index.md).
-
-:::{note}
-Instrument modules are git submodules. A clone without `--recurse-submodules` leaves
-`camerad/Instruments/<name>` empty and `-DINSTRUMENT=` will fail. Fix it with
-`git submodule update --init --recursive`.
-:::
 
 ## Run it
 

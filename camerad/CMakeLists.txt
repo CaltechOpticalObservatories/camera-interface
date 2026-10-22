@@ -11,7 +11,6 @@ set( CAMERAD_DIR ${PROJECT_BASE_DIR}/camerad )
 set( CMAKE_CXX_STANDARD 17 )
 
 include_directories(${CAMERAD_DIR}
-                    ${CAMERAD_DIR}/Instruments
                     ${PROJECT_BASE_DIR}/utils
                     ${PROJECT_BASE_DIR}/common
 		    )
@@ -103,34 +102,10 @@ else()
 endif()
 
 # ----------------------------------------------------------------------------
-# default instrument is none
+# the controller's own interface factory, compiled into this project's final
+# targets. An instrument builds from its own repository and supplies its own
 # ----------------------------------------------------------------------------
-option(INSTRUMENT "Choose instrument { generic ... }")
-if (INSTRUMENT)
-  message(STATUS "instrument: ${INSTRUMENT}")
-  include(Instruments/${INSTRUMENT}/${INSTRUMENT}.cmake)
-else()
-  message(STATUS "instrument: none")
-  set (INSTRUMENT_SOURCES "")
-  # If no instrument is defined then include the factory for the specified controller
-  if (CONTROLLER STREQUAL "archon")
-    set (INSTRUMENT_SOURCES ${CAMERAD_DIR}/archon_interface_factory.cpp)
-  elseif (CONTROLLER STREQUAL "astrocam")
-    set (INSTRUMENT_SOURCES ${CAMERAD_DIR}/astrocam_interface_factory.cpp)
-  elseif (CONTROLLER STREQUAL "bob")
-    set (INSTRUMENT_SOURCES ${CAMERAD_DIR}/bob_interface_factory.cpp)
-  elseif (CONTROLLER STREQUAL "joe")
-    set (INSTRUMENT_SOURCES ${CAMERAD_DIR}/joe_interface_factory.cpp)
-  endif()
-endif()
-
-# ----------------------------------------------------------------------------
-# Separate the registration TU from the instrument implementation so that
-# the registration is compiled into the final target.
-# ----------------------------------------------------------------------------
-set (INSTRUMENT_REGISTRATION ${INSTRUMENT_SOURCES})
-list (FILTER INSTRUMENT_REGISTRATION INCLUDE REGEX "_interface_factory\\.cpp$")
-list (FILTER INSTRUMENT_SOURCES EXCLUDE REGEX "_interface_factory\\.cpp$")
+set (INTERFACE_FACTORY ${CAMERAD_DIR}/${CONTROLLER}_interface_factory.cpp)
 
 # ----------------------------------------------------------------------------
 # Camera Interface Base
@@ -169,18 +144,6 @@ target_include_directories(${INTERFACE_TARGET} PUBLIC ${INTERFACE_INCLUDES})
 # module, knows which controller it is
 target_compile_definitions(${INTERFACE_TARGET} INTERFACE ${INTERFACE_DEFINITIONS})
 add_library(camerad::${INTERFACE_TARGET} ALIAS ${INTERFACE_TARGET})
-
-# ----------------------------------------------------------------------------
-# instrument implementation, if any.
-# objects shared by the final targets, not depended on as a library
-# ----------------------------------------------------------------------------
-if (INSTRUMENT_SOURCES)
-  add_library(instrument_obj OBJECT ${INSTRUMENT_SOURCES})
-  target_link_libraries(instrument_obj ${INTERFACE_TARGET})
-  set (INSTRUMENT_OBJECTS $<TARGET_OBJECTS:instrument_obj>)
-else()
-  set (INSTRUMENT_OBJECTS "")
-endif()
 
 # ----------------------------------------------------------------------------
 # External libraries, such as FITS, etc.
@@ -237,24 +200,18 @@ endif()
 # composes this one declares its own, linking the libraries above
 # ----------------------------------------------------------------------------
 if (PROJECT_IS_TOP_LEVEL)
-  add_executable(camerad
-    ${INSTRUMENT_REGISTRATION}
-    ${INSTRUMENT_OBJECTS}
-    )
+  add_executable(camerad ${INTERFACE_FACTORY})
   target_link_libraries(camerad
     camerad_daemon
     ${INTERFACE_TARGET}
     )
-  if (CAMERAD_PYTHON_PACKAGE)
-    set_target_properties(camerad PROPERTIES OUTPUT_NAME camerad-${CAMERAD_PACKAGE_SUFFIX})
-  endif()
 
   if (CAMERAD_INSTALL)
     install(TARGETS camerad RUNTIME DESTINATION ${CAMERAD_INSTALL_BINDIR})
   endif()
 
-  # Added here, not at the top level, to inherit the controller and instrument
-  # selection above. The option itself is declared at the top level
+  # Added here, not at the top level, to inherit the controller selection
+  # above. The option itself is declared at the top level
   if (BUILD_PYTHON_MODULE)
     add_subdirectory(${PROJECT_BASE_DIR}/python ${CMAKE_BINARY_DIR}/python)
   endif()

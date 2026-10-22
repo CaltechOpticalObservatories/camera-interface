@@ -1,44 +1,27 @@
 # Instruments
 
 An instrument module adapts the core to one detector: its exposure modes, its extra commands, its
-FITS keywords. One is chosen at build time with `-DINSTRUMENT=`, and a given binary serves exactly
-one instrument.
+FITS keywords. A given binary serves exactly one instrument.
 
-Each lives in its own repository, pulled in as a submodule under `camerad/Instruments/`. The
-submodule is pinned, so a given `camera-interface` commit builds one specific instrument revision.
-
-## Status
-
-| Instrument | Controller | Detector | State |
-|---|---|---|---|
-| [hispec_tracking_camera](hispec-tracking-camera.md) | Archon | H2RG | In active use. The reference implementation. |
-| [cryoscope](cryoscope.md) | Archon | H2RG | Scaffolding, and does not currently build |
-| `hispec` | Archon | | Repository exists, no sources yet |
-| `deimos` | | | Repository exists, no sources yet |
+Each lives in its own repository and builds there, pulling in `camera-interface` with
+`FetchContent`. The instrument pins the core, so a given instrument commit builds against one
+specific core revision. Each instrument documents itself in its own repository.
 
 :::{note}
-`hispec` and `deimos` are README-only submodules today. They are listed so the set is not misleading
-about what exists; there is nothing to document until they carry sources.
-
-Only `hispec_tracking_camera` is built in CI, so the others can fall behind changes to the core
-without anything noticing.
+The core's CI builds only {source}`reference_instrument`, so an instrument can fall behind changes
+to the core without anything here noticing.
 :::
-
-```{toctree}
-:hidden:
-
-hispec-tracking-camera
-cryoscope
-```
 
 ## Building one
 
+From the instrument's own checkout:
+
 ```bash
-git submodule update --init camerad/Instruments/<name>
-cd build
-cmake -DCONTROLLER=archon -DINSTRUMENT=<name> ..
-make
+cmake -S . -B build
+cmake --build build
 ```
+
+{source}`reference_instrument` is the template for a new one, including its `CMakeLists.txt`.
 
 The instrument name is also checked against the `INSTRUMENT` key in the `.cfg`, so a config cannot
 be pointed at a binary built for a different camera.

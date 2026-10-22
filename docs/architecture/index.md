@@ -59,8 +59,8 @@ An exposure mode is a producer/consumer pair over a bounded queue:
 
 The base class carries the synchronization (`queue_mutex`, `queue_cv`, and the
 `is_producer_finished` / `is_producer_error` / `is_consumer_error` flags), so a concrete mode
-implements only the parts that differ. In the tracking camera module, for instance, a shared base
-owns the queue and the consumer and each subclass implements only the producer.
+implements only the parts that differ, for instance a shared base that owns the queue and the
+consumer with each subclass implementing only the producer.
 
 Two lifetimes exist. For a counted exposure the consumer is one-shot: `do_expose()` spawns it,
 and it terminates once the producer is finished and the queue is drained. In freerun, one producer
@@ -102,10 +102,11 @@ See [frame output keys](../configuration/frame-outputs.md) for configuring them.
 
 ## Instrument modules
 
-An instrument is a separate repository, checked out as a submodule under
-`camerad/Instruments/<name>` and selected with `-DINSTRUMENT=`. It contributes:
+An instrument is a separate repository that builds on its own, pulling in the core with
+`FetchContent`. It contributes:
 
-1. A `<name>.cmake` fragment setting `INSTRUMENT_SOURCES`. That is the whole build integration.
+1. A `CMakeLists.txt` declaring its own `camerad` and Python module, linking the core's `camerad::`
+   libraries. {source}`reference_instrument` is the template.
 2. An `Interface` subclass deriving from `ArchonInterface` or `AstroCamInterface`, overriding what
    the detector needs and adding commands through `instrument_cmd()` and `is_instrument_command()`.
 3. Its own `ExposureMode` implementations, where the stock ones do not fit.
@@ -117,5 +118,5 @@ concrete instrument.
 Instrument commands are checked *before* the base command chain, so an instrument can add commands
 and also override a base one of the same name.
 
-See [instruments](../instruments/index.md) for the modules that exist, and
-{source}`camerad/Instruments/hispec_tracking_camera` for the most complete example.
+See [instruments](../instruments/index.md) for building one, and {source}`reference_instrument`
+for a minimal example.

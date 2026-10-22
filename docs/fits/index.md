@@ -55,8 +55,8 @@ User keywords
 : Added at runtime with `key KEYWORD=VALUE//COMMENT`. `key list` shows both the system and user
   sets, and `key KEYWORD=.` deletes one.
 
-Instrument modules supply their own dictionary on top of this; see the
-[tracking camera keyword table](../instruments/hispec-tracking-camera.md) for the worked example.
+Instrument modules supply their own dictionary on top of this, documented in each instrument's
+repository.
 
 ## Checking a header
 
