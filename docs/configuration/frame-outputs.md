@@ -54,7 +54,7 @@ camerad-shm-reader <segment-name> [shm-dir]
 frames it missed:
 
 ```bash
-python python/examples/shm_read_frames.py --segment hispec_tracking_camera --count 10
+python python/examples/shm_read_frames.py --segment camera --count 10
 ```
 
 It needs numpy and `ImageStreamIOWrap`, the Python wrapper from the ImageStreamIO source tree built

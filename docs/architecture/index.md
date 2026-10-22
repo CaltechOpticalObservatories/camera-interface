@@ -59,8 +59,8 @@ An exposure mode is a producer/consumer pair over a bounded queue:
 
 The base class carries the synchronization (`queue_mutex`, `queue_cv`, and the
 `is_producer_finished` / `is_producer_error` / `is_consumer_error` flags), so a concrete mode
-implements only the parts that differ. In the tracking camera module, for instance, a shared base
-owns the queue and the consumer and each subclass implements only the producer.
+implements only the parts that differ, for instance a shared base that owns the queue and the
+consumer with each subclass implementing only the producer.
 
 Two lifetimes exist. For a counted exposure the consumer is one-shot: `do_expose()` spawns it,
 and it terminates once the producer is finished and the queue is drained. In freerun, one producer
@@ -118,6 +118,5 @@ concrete instrument.
 Instrument commands are checked *before* the base command chain, so an instrument can add commands
 and also override a base one of the same name.
 
-See [instruments](../instruments/index.md) for the modules that exist, and
-[hispec-tracking-camera-instrument](https://github.com/CaltechOpticalObservatories/hispec-tracking-camera-instrument)
-for the most complete example.
+See [instruments](../instruments/index.md) for building one, and {source}`reference_instrument`
+for a minimal example.

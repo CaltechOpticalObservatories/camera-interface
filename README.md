@@ -223,7 +223,7 @@ Built with `-DBUILD_PYTHON_MODULE=ON`, `camera_interface` lets a Python process 
 ```python
 import camera_interface
 
-camera = camera_interface.Camera("hispecatc.cfg")
+camera = camera_interface.Camera("reference.cfg")
 camera.open()
 camera.load()
 camera.power("on")
@@ -255,7 +255,7 @@ $ python python/examples/raw_channel_sweep.py --config lris2.cfg --fits-dir /tmp
 
 ## Frame Outputs
 
-Every instrument publishes each acquired frame to one or more outputs, configured entirely via `.cfg` file keys (`Camera::Interface::configure_frame_outputs()` builds them from `Camera::apply_config_overrides()`, called once at startup for every instrument, not just HISPEC). Both outputs are independent; either, both, or neither can be enabled per instrument.
+Every instrument publishes each acquired frame to one or more outputs, configured entirely via `.cfg` file keys (`Camera::Interface::configure_frame_outputs()` builds them from `Camera::apply_config_overrides()`, called once at startup for every instrument). Both outputs are independent; either, both, or neither can be enabled per instrument.
 
 ### Streams
 
@@ -290,7 +290,7 @@ Frame geometry (width/height/pixel depth) isn't a config key: it's fixed for an 
 Two readers ship with the repo. `camerad-shm-reader` prints geometry, keywords and pixel statistics once, for diagnostics. `python/examples/shm_read_frames.py` is a sample streaming consumer: it blocks on the stream's semaphore and reports every frame as it arrives, flagging any it missed.
 
 ```bash
-$ python python/examples/shm_read_frames.py --segment hispec_tracking_camera --count 10
+$ python python/examples/shm_read_frames.py --segment camera --count 10
 ```
 
 It needs numpy and `ImageStreamIOWrap`, the Python wrapper from the ImageStreamIO source tree, built with `-DPYTHON_WRAPPER=ON`; the wrapper is not on PyPI.
