@@ -275,8 +275,9 @@
 <p>Commands that reach the detector controller rather than being interpreted by the server. This is
 the escape hatch for anything the higher-level commands do not cover.</p>
 <p>Two routes exist. <code class="docutils literal notranslate"><span class="pre">native</span></code> passes a command straight through and returns the reply. The commands
-routed through <code class="docutils literal notranslate"><span class="pre">controller_cmd</span></code>, marked Archon in the <a class="reference internal" href="base.html"><span class="std std-doc">base command table</span></a>, are
-server-side implementations of controller-specific features.</p>
+marked Archon in the <a class="reference internal" href="base.html"><span class="std std-doc">base command table</span></a> are implemented only by the Archon interface.
+The server hands any name it does not recognize centrally to
+<code class="docutils literal notranslate"><span class="pre">controller_cmd</span></code>, which handles the Archon’s own commands and forwards the rest to the instrument.</p>
 <section id="archon">
 <h2>Archon<a class="headerlink" href="#archon" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">native</span> <span class="pre">&lt;cmd&gt;</span></code> sends <code class="docutils literal notranslate"><span class="pre">&lt;cmd&gt;</span></code> to the Archon and returns its reply without parsing it, beyond
@@ -295,7 +296,7 @@ confirming that a reply came back. The commands most worth knowing:</p>
 <code class="docutils literal notranslate"><span class="pre">native</span></code> for inspection rather than as a control path.</p>
 <p>Beyond <code class="docutils literal notranslate"><span class="pre">native</span></code>, the Archon-specific commands are <code class="docutils literal notranslate"><span class="pre">raw</span></code> for pre-CDS sample capture, <code class="docutils literal notranslate"><span class="pre">getp</span></code> and
 <code class="docutils literal notranslate"><span class="pre">setp</span></code> for parameters, <code class="docutils literal notranslate"><span class="pre">inreg</span></code> for a VCPU input register, <code class="docutils literal notranslate"><span class="pre">loadtiming</span></code> and <code class="docutils literal notranslate"><span class="pre">readacf</span></code> for loading,
-<code class="docutils literal notranslate"><span class="pre">mode</span></code> for camera modes, <code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code>, and <code class="docutils literal notranslate"><span class="pre">heater</span></code> and <code class="docutils literal notranslate"><span class="pre">sensor</span></code> for the thermal modules. The
+<code class="docutils literal notranslate"><span class="pre">acfmode</span></code> for ACF mode sections, <code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code>, and <code class="docutils literal notranslate"><span class="pre">heater</span></code> and <code class="docutils literal notranslate"><span class="pre">sensor</span></code> for the thermal modules. The
 <a class="reference internal" href="#raw-samples">raw samples</a> and <a class="reference internal" href="#heater-and-sensor">heater and sensor</a> syntax is below.</p>
 </section>
 <section id="arc-astrocam">
@@ -304,8 +305,9 @@ confirming that a reply came back. The commands most worth knowing:</p>
 <p class="admonition-title">Warning</p>
 <p><code class="docutils literal notranslate"><span class="pre">native</span></code> is not implemented on an ARC build. <code class="docutils literal notranslate"><span class="pre">AstroCamInterface::native</span></code> logs “not yet implemented”
 and returns success, so the command replies <code class="docutils literal notranslate"><span class="pre">DONE</span></code> while doing nothing.</p>
-<p><code class="docutils literal notranslate"><span class="pre">controller_cmd</span></code> is not implemented either, so every command in the Archon list above returns
-<code class="docutils literal notranslate"><span class="pre">not_supported</span></code> on an ARC build.</p>
+<p><code class="docutils literal notranslate"><span class="pre">controller_cmd</span></code> handles no commands of its own on an ARC build, so the commands in the Archon list
+above that the server does not recognize pass to the instrument and return <code class="docutils literal notranslate"><span class="pre">not_supported</span></code> unless
+the instrument handles them.</p>
 </div>
 <p>Passing three-letter DSP commands through to an ARC controller is therefore not currently possible
 from the command interface.</p>

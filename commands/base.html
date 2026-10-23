@@ -272,12 +272,14 @@
         <article role="main" id="furo-main-content">
           <section id="base-commands">
 <h1>Base commands<a class="headerlink" href="#base-commands" title="Link to this heading">¶</a></h1>
-<p>Every command the server dispatches. Instrument modules add their own on top of these; see
+<p>Every command camerad dispatches. Instrument modules add their own on top of these; see
 <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">instruments</span></a>.</p>
 <p>Any command accepts <code class="docutils literal notranslate"><span class="pre">?</span></code> as its argument to return its own syntax.</p>
-<p>The <strong>Controller</strong> column distinguishes commands the interface implements directly from those
-routed through <code class="docutils literal notranslate"><span class="pre">controller_cmd</span></code>, which only the Archon interface implements. On an ARC build the
-latter return <code class="docutils literal notranslate"><span class="pre">not_supported</span></code>.</p>
+<p>The <strong>Controller</strong> column marks the commands only the Archon interface implements. The server
+recognizes the core’s commands and calls the interface’s function for each. It
+hands any other name to <code class="docutils literal notranslate"><span class="pre">controller_cmd</span></code>, where the Archon interface handles its own commands and
+forwards the rest to the instrument. On an ARC build the Archon commands return <code class="docutils literal notranslate"><span class="pre">not_supported</span></code>
+unless the instrument claims them.</p>
 <div class="table-wrapper colwidths-given docutils container">
 <table class="docutils align-default">
 <colgroup>
@@ -299,35 +301,35 @@ latter return <code class="docutils literal notranslate"><span class="pre">not_s
 <td><p>any</p></td>
 <td><p>Abort an exposure in progress</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">autodir</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">acfmode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">acfmode</span> <span class="pre">[</span> <span class="pre">?</span> <span class="pre">|</span> <span class="pre">&lt;name&gt;</span> <span class="pre">]</span></code></p></td>
+<td><p>Archon</p></td>
+<td><p>Apply an ACF mode section directly</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">autodir</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">autodir</span></code></p></td>
 <td><p>any</p></td>
 <td><p>Write images into a dated subdirectory Not implemented: the Archon interface logs <cite>not yet implemented</cite> and returns an error. Use <cite>FITS_AUTODIR</cite> instead.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code></p></td>
 <td><p>Archon</p></td>
 <td><p>Control autofetch, where the controller pushes frames continuously rather than on request</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">basename</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">basename</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">basename</span></code></p></td>
 <td><p>any</p></td>
 <td><p>Set or get the image base name</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">bias</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bias</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bias</span></code></p></td>
 <td><p>any</p></td>
 <td><p>Read or set the attributes of a bias channel, or list them all</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bin</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">bin</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">bin</span> <span class="pre">?</span> <span class="pre">|</span> <span class="pre">&lt;axis&gt;</span> <span class="pre">[</span> <span class="pre">&lt;binfactor&gt;</span> <span class="pre">]</span></code></p></td>
 <td><p>any</p></td>
-<td><p>Set or get the binning factor Broken: the server routes this to the bias handler, so an argument is applied as a bias rather than a binning factor.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">bob</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">bob</span></code></p></td>
-<td><p>Archon</p></td>
-<td><p>Reach the BOB interface Non-functional: no controller implements a handler for it, so it always returns an error.</p></td>
+<td><p>Set or get the binning factor Not implemented: the Archon interface logs <cite>not yet implemented</cite> and returns an error.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">close</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">close</span></code></p></td>
@@ -389,47 +391,42 @@ latter return <code class="docutils literal notranslate"><span class="pre">not_s
 <td><p>Archon</p></td>
 <td><p>Load a timing script and its parameters</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mode</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">mode</span> <span class="pre">[</span> <span class="pre">?</span> <span class="pre">|</span> <span class="pre">&lt;mode&gt;</span> <span class="pre">]</span></code></p></td>
-<td><p>Archon</p></td>
-<td><p>Select a camera mode defined in the ACF</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">native</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">native</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">native</span> <span class="pre">?</span> <span class="pre">|</span> <span class="pre">[&lt;DEV&gt;|&lt;CHAN&gt;]</span> <span class="pre">&lt;CMD&gt;</span> <span class="pre">[</span> <span class="pre">&lt;ARG1&gt;</span> <span class="pre">[</span> <span class="pre">&lt;</span> <span class="pre">ARG2&gt;</span> <span class="pre">[</span> <span class="pre">&lt;ARG3&gt;</span> <span class="pre">[</span> <span class="pre">&lt;ARG4&gt;</span> <span class="pre">]</span> <span class="pre">]</span> <span class="pre">]</span> <span class="pre">]</span></code></p></td>
 <td><p>any</p></td>
 <td><p>Send a command straight to the controller and return its reply</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">open</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">open</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">open</span> <span class="pre">[</span> <span class="pre">?</span> <span class="pre">|</span> <span class="pre">&lt;devlist&gt;</span> <span class="pre">]</span></code></p></td>
 <td><p>any</p></td>
 <td><p>Connect to the controller</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">power</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">power</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">power</span></code></p></td>
 <td><p>any</p></td>
 <td><p>Turn detector power on or off, or report the current state</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">raw</span> <span class="pre">[</span> <span class="pre">?</span> <span class="pre">|</span> <span class="pre">config</span> <span class="pre">|</span> <span class="pre">set</span> <span class="pre">&lt;KEY&gt;</span> <span class="pre">&lt;VAL&gt;</span> <span class="pre">[...]</span> <span class="pre">|</span> <span class="pre">read</span> <span class="pre">]</span></code></p></td>
 <td><p>Archon</p></td>
 <td><p>Read or write the Archon configuration memory directly</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">readacf</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">readacf</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">readacf</span> <span class="pre">[</span> <span class="pre">?</span> <span class="pre">|</span> <span class="pre">&lt;acffile&gt;</span> <span class="pre">]</span></code></p></td>
 <td><p>Archon</p></td>
 <td><p>Read an ACF file into the controller configuration</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sensor</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sensor</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">sensor</span> <span class="pre">&lt;module&gt;</span> <span class="pre">&lt;A|B|C&gt;</span> <span class="pre">[</span> <span class="pre">&lt;current&gt;</span> <span class="pre">|</span> <span class="pre">AVG</span> <span class="pre">[</span> <span class="pre">&lt;N&gt;</span> <span class="pre">]</span> <span class="pre">]</span></code></p></td>
 <td><p>Archon</p></td>
 <td><p>Set or get a temperature sensor’s excitation current and digital averaging</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">setp</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">setp</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">setp</span></code></p></td>
 <td><p>Archon</p></td>
 <td><p>Write an Archon parameter value</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">test</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">test</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">test</span> <span class="pre">?</span> <span class="pre">|</span> <span class="pre">&lt;testname&gt;</span> <span class="pre">...</span></code></p></td>
 <td><p>any</p></td>
 <td><p>Run a development-level test</p></td>
@@ -439,8 +436,8 @@ latter return <code class="docutils literal notranslate"><span class="pre">not_s
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This table is generated from the dispatch chain in <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camera_server.cpp">camerad/camera_server.cpp</a>, so it lists
-what the server actually answers. The <code class="docutils literal notranslate"><span class="pre">help</span></code> command is a separate hand-maintained list in
+<p>This table is generated from the dispatch chains in <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/camera_server.cpp">camerad/camera_server.cpp</a> and
+<a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/camerad/archon_interface.cpp">camerad/archon_interface.cpp</a>, so it lists what camerad actually answers. The <code class="docutils literal notranslate"><span class="pre">help</span></code> command is a separate hand-maintained list in
 <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/common/camerad_commands.h">common/camerad_commands.h</a> that has drifted: it advertises around two dozen commands the
 server no longer implements, and omits several it does, including <code class="docutils literal notranslate"><span class="pre">power</span></code>. Trust this table over
 <code class="docutils literal notranslate"><span class="pre">help</span></code>.</p>
@@ -448,7 +445,7 @@ server no longer implements, and omits several it does, including <code class="d
 <section id="syntax-not-shown">
 <h2>Syntax not shown<a class="headerlink" href="#syntax-not-shown" title="Link to this heading">¶</a></h2>
 <p>A few commands are dispatched but absent from the syntax list, so no argument syntax is generated
-for them. They are <code class="docutils literal notranslate"><span class="pre">power</span></code>, <code class="docutils literal notranslate"><span class="pre">getp</span></code>, <code class="docutils literal notranslate"><span class="pre">setp</span></code>, <code class="docutils literal notranslate"><span class="pre">inreg</span></code>, <code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code> and <code class="docutils literal notranslate"><span class="pre">bob</span></code>. Use <code class="docutils literal notranslate"><span class="pre">?</span></code> against a
+for them. They are <code class="docutils literal notranslate"><span class="pre">power</span></code>, <code class="docutils literal notranslate"><span class="pre">getp</span></code>, <code class="docutils literal notranslate"><span class="pre">setp</span></code>, <code class="docutils literal notranslate"><span class="pre">inreg</span></code> and <code class="docutils literal notranslate"><span class="pre">autofetch_mode</span></code>. Use <code class="docutils literal notranslate"><span class="pre">?</span></code> against a
 running server for the authoritative syntax.</p>
 </section>
 </section>

@@ -59,11 +59,11 @@ Base commands
 Instrument commands
 : `instrument_cmd(command, args)`, a deliberate passthrough rather than one binding each, so a build
   whose instrument gains a command exposes it with no change to the module. Enumerate with
-  `instrument_commands()`, or test one with `is_instrument_command()`.
+  `instrument_commands()`.
 
 Controller commands
-: `controller_cmd(command, args)` for `mode`, `raw`, `readacf`, `loadtiming`, `heater`, `sensor` and
-  the other Archon-only commands.
+: `controller_cmd(command, args)` for `raw`, `readacf`, `loadtiming`, `heater`, `sensor` and the
+  other Archon-only commands. It forwards any other name to the instrument, as camerad does.
 
 Only `exit` is missing, since the process belongs to the caller.
 

@@ -321,10 +321,10 @@ putting the build’s <code class="docutils literal notranslate"><span class="pr
 </dd>
 <dt>Instrument commands</dt><dd><p><code class="docutils literal notranslate"><span class="pre">instrument_cmd(command,</span> <span class="pre">args)</span></code>, a deliberate passthrough rather than one binding each, so a build
 whose instrument gains a command exposes it with no change to the module. Enumerate with
-<code class="docutils literal notranslate"><span class="pre">instrument_commands()</span></code>, or test one with <code class="docutils literal notranslate"><span class="pre">is_instrument_command()</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">instrument_commands()</span></code>.</p>
 </dd>
-<dt>Controller commands</dt><dd><p><code class="docutils literal notranslate"><span class="pre">controller_cmd(command,</span> <span class="pre">args)</span></code> for <code class="docutils literal notranslate"><span class="pre">mode</span></code>, <code class="docutils literal notranslate"><span class="pre">raw</span></code>, <code class="docutils literal notranslate"><span class="pre">readacf</span></code>, <code class="docutils literal notranslate"><span class="pre">loadtiming</span></code>, <code class="docutils literal notranslate"><span class="pre">heater</span></code>, <code class="docutils literal notranslate"><span class="pre">sensor</span></code> and
-the other Archon-only commands.</p>
+<dt>Controller commands</dt><dd><p><code class="docutils literal notranslate"><span class="pre">controller_cmd(command,</span> <span class="pre">args)</span></code> for <code class="docutils literal notranslate"><span class="pre">raw</span></code>, <code class="docutils literal notranslate"><span class="pre">readacf</span></code>, <code class="docutils literal notranslate"><span class="pre">loadtiming</span></code>, <code class="docutils literal notranslate"><span class="pre">heater</span></code>, <code class="docutils literal notranslate"><span class="pre">sensor</span></code> and the
+other Archon-only commands. It forwards any other name to the instrument, as camerad does.</p>
 </dd>
 </dl>
 <p>Only <code class="docutils literal notranslate"><span class="pre">exit</span></code> is missing, since the process belongs to the caller.</p>
@@ -467,12 +467,6 @@ call open() for that.</p>
 <dt class="sig sig-object py" id="camera_interface.Camera.instrument_commands">
 <span class="sig-name descname"><span class="pre">instrument_commands</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#camera_interface.Camera" title="camera_interface.Camera"><span class="pre">camera_interface.Camera</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#camera_interface.Camera.instrument_commands" title="Link to this definition">¶</a></dt>
 <dd><p>Return the instrument-specific command names this build supports</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="camera_interface.Camera.is_instrument_command">
-<span class="sig-name descname"><span class="pre">is_instrument_command</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#camera_interface.Camera" title="camera_interface.Camera"><span class="pre">camera_interface.Camera</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">command</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#camera_interface.Camera.is_instrument_command" title="Link to this definition">¶</a></dt>
-<dd><p>Return True if this build’s instrument handles the named command</p>
 </dd></dl>
 
 <dl class="py method">
@@ -631,7 +625,6 @@ configuration alone, and then needs <code class="docutils literal notranslate"><
 <li><a class="reference internal" href="#camera_interface.Camera.exptime"><code class="docutils literal notranslate"><span class="pre">Camera.exptime()</span></code></a></li>
 <li><a class="reference internal" href="#camera_interface.Camera.instrument_cmd"><code class="docutils literal notranslate"><span class="pre">Camera.instrument_cmd()</span></code></a></li>
 <li><a class="reference internal" href="#camera_interface.Camera.instrument_commands"><code class="docutils literal notranslate"><span class="pre">Camera.instrument_commands()</span></code></a></li>
-<li><a class="reference internal" href="#camera_interface.Camera.is_instrument_command"><code class="docutils literal notranslate"><span class="pre">Camera.is_instrument_command()</span></code></a></li>
 <li><a class="reference internal" href="#camera_interface.Camera.key"><code class="docutils literal notranslate"><span class="pre">Camera.key()</span></code></a></li>
 <li><a class="reference internal" href="#camera_interface.Camera.load"><code class="docutils literal notranslate"><span class="pre">Camera.load()</span></code></a></li>
 <li><a class="reference internal" href="#camera_interface.Camera.native"><code class="docutils literal notranslate"><span class="pre">Camera.native()</span></code></a></li>

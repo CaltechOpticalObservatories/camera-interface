@@ -108,15 +108,17 @@ An instrument is a separate repository that builds on its own, pulling in the co
 1. A `CMakeLists.txt` declaring its own `camerad` and Python module, linking the core's `camerad::`
    libraries. {source}`reference_instrument` is the template.
 2. An `Interface` subclass deriving from `ArchonInterface` or `AstroCamInterface`, overriding what
-   the detector needs and adding commands through `instrument_cmd()` and `is_instrument_command()`.
+   the detector needs and adding commands through `instrument_cmd()` and `instrument_commands()`.
 3. Its own `ExposureMode` implementations, where the stock ones do not fit.
 4. Optionally a FITS header dictionary and shipped `.cfg` and `.acf` files.
 
 An interface factory ties it together, so the core builds against the base class and never names a
 concrete instrument.
 
-Instrument commands are checked *before* the base command chain, so an instrument can add commands
-and also override a base one of the same name.
+The server recognizes the base commands first, and an instrument changes one by overriding its
+method. Any other name goes to `controller_cmd()`, which handles the controller's own commands and
+forwards the rest to `instrument_cmd()`. A controller command takes precedence over an instrument
+command of the same name.
 
 See [instruments](../instruments/index.md) for building one, and {source}`reference_instrument`
 for a minimal example.

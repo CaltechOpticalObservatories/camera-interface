@@ -369,14 +369,16 @@ for files.</p>
 <li><p>A <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> declaring its own <code class="docutils literal notranslate"><span class="pre">camerad</span></code> and Python module, linking the core’s <code class="docutils literal notranslate"><span class="pre">camerad::</span></code>
 libraries. <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/reference_instrument">reference_instrument</a> is the template.</p></li>
 <li><p>An <code class="docutils literal notranslate"><span class="pre">Interface</span></code> subclass deriving from <code class="docutils literal notranslate"><span class="pre">ArchonInterface</span></code> or <code class="docutils literal notranslate"><span class="pre">AstroCamInterface</span></code>, overriding what
-the detector needs and adding commands through <code class="docutils literal notranslate"><span class="pre">instrument_cmd()</span></code> and <code class="docutils literal notranslate"><span class="pre">is_instrument_command()</span></code>.</p></li>
+the detector needs and adding commands through <code class="docutils literal notranslate"><span class="pre">instrument_cmd()</span></code> and <code class="docutils literal notranslate"><span class="pre">instrument_commands()</span></code>.</p></li>
 <li><p>Its own <code class="docutils literal notranslate"><span class="pre">ExposureMode</span></code> implementations, where the stock ones do not fit.</p></li>
 <li><p>Optionally a FITS header dictionary and shipped <code class="docutils literal notranslate"><span class="pre">.cfg</span></code> and <code class="docutils literal notranslate"><span class="pre">.acf</span></code> files.</p></li>
 </ol>
 <p>An interface factory ties it together, so the core builds against the base class and never names a
 concrete instrument.</p>
-<p>Instrument commands are checked <em>before</em> the base command chain, so an instrument can add commands
-and also override a base one of the same name.</p>
+<p>The server recognizes the base commands first, and an instrument changes one by overriding its
+method. Any other name goes to <code class="docutils literal notranslate"><span class="pre">controller_cmd()</span></code>, which handles the controller’s own commands and
+forwards the rest to <code class="docutils literal notranslate"><span class="pre">instrument_cmd()</span></code>. A controller command takes precedence over an instrument
+command of the same name.</p>
 <p>See <a class="reference internal" href="../instruments/index.html"><span class="std std-doc">instruments</span></a> for building one, and <a class="extlink-source reference external" href="https://github.com/CaltechOpticalObservatories/camera-interface/blob/main/reference_instrument">reference_instrument</a>
 for a minimal example.</p>
 </section>
