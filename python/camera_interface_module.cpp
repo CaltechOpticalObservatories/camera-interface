@@ -279,8 +279,8 @@ PYBIND11_MODULE(camera_interface, module) {
          py::arg("args") = "", py::call_guard<py::gil_scoped_release>(),
          "Run a named interface test")
 
-    // Covers mode, raw, readacf, loadtiming, heater, sensor and autofetch_mode,
-    // which camerad also routes through controller_cmd
+    // Runs a command unique to the controller. A name the controller does not
+    // own is forwarded to the instrument, as camerad does
     .def("controller_cmd",
          [](CameraSession &self, const std::string &command, const std::string &args) {
            std::string retstring;
@@ -298,13 +298,6 @@ PYBIND11_MODULE(camera_interface, module) {
          },
          py::arg("args"), py::call_guard<py::gil_scoped_release>(),
          "Send a raw command straight to the controller")
-
-    .def("is_instrument_command",
-         [](CameraSession &self, const std::string &command) {
-           return (*self).is_instrument_command(command);
-         },
-         py::arg("command"),
-         "Return True if this build's instrument handles the named command")
 
     .def("instrument_commands",
          [](CameraSession &self) { return (*self).instrument_commands(); },

@@ -148,11 +148,12 @@ jobs:
           echo "$resp" | grep -q "$2" || { echo "expected \"$2\""; exit 1; }
         }
 
-        expect "open"        "DONE"
-        expect "load"        "DONE"
-        expect "power on"    "DONE"
-        expect "exptime 0.1" "DONE"
-        expect "expose 1"    "DONE"
+        expect "open"                "DONE"
+        expect "load"                "DONE"
+        expect "power on"            "DONE"
+        expect "exposuremode SINGLE" "^SINGLE DONE"
+        expect "exptime 0.1"         "DONE"
+        expect "expose 1"            "DONE"
 
         # instrument command, replying with the value configure_instrument() read
         expect "refvalue"    "^reference-cfg-value DONE"
@@ -163,8 +164,25 @@ jobs:
         expect "exposuremode REFERENCE" "^REFERENCE DONE"
         expect "expose 1"               "DONE"
         expect "exposuremode"           "^REFERENCE DONE"
+
+        # applying an ACF mode section leaves the exposure mode alone
+        expect "acfmode DEFAULT"        "^DONE"
+        expect "exposuremode"           "^REFERENCE"
+
         expect "exposuremode SINGLE"    "^SINGLE DONE"
         expect "expose 1"               "DONE"
+
+        # acfmode and getp are the Archon interface's own commands, reached
+        # through controller_cmd; a name nobody claims is an error
+        expect "acfmode DEFAULT" "^DONE"
+        expect "getp nRowsQuad" "^[0-9]"
+        expect "nosuchcommand"  "^not_supported ERROR"
+
+        # a load leaves no exposure mode selected, so an exposure is refused
+        expect "load"         "DONE"
+        expect "power on"     "DONE"
+        expect "exposuremode" "^undefined ERROR"
+        expect "expose 1"     "^exposure mode not set"
 
     - name: Reference module import test
       run: ctest --test-dir build-reference --output-on-failure

@@ -48,11 +48,13 @@ namespace Camera {
 
       long do_expose() override;
 
-      // Archon controller command dispatcher
+      // Archon controller command dispatcher. The server calls it for every
+      // name the core does not recognize centrally; it handles the Archon
+      // commands and passes any other name to instrument_cmd
       //
       long controller_cmd(const std::string &cmd,
                           const std::string &args,
-                          std::string &retstring) override;
+                          std::string &retstring) final;
 
       // These functions are specific to the Archon Interface and are not
       // found in the base class.
@@ -64,15 +66,12 @@ namespace Camera {
       long load_timing(std::string cmd, std::string &reply);
       long read_acf(const std::string &filename);
       long set_parameter(const std::string &args, std::string &retstring);
-      long set_camera_mode(std::string args, std::string &retstring);
       long set_camera_mode(std::string modeselect);
       long set_vcpu_inreg(const std::string &args, std::string &retstring);
       long heater(const std::string &args, std::string &retstring);
       long sensor(const std::string &args, std::string &retstring);
       long autofetch_mode(const std::string &args, std::string &retstring);
-
-      // Fallback for set_camera_mode when the camera-mode name is unknown
-      virtual std::string default_exposure_mode_name() const { return "SINGLE"; }
+      long acfmode(const std::string &args, std::string &retstring);
 
       char* get_framebuf() { return controller->framebuf; }
 

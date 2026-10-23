@@ -204,9 +204,11 @@ def run(args: argparse.Namespace) -> int:
         else:
             camera.load()
         camera.power("on")
+        # Neither load nor readacf selects an exposure mode
+        camera.exposure_mode("SINGLE")
         if args.keep_config:
-            # After power, because selecting a mode applies CDS settings
-            camera.controller_cmd("mode", args.mode)
+            # After power, because an ACF mode section applies CDS settings
+            camera.controller_cmd("acfmode", args.mode)
         if args.exptime is not None:
             camera.exptime(str(args.exptime))
 
@@ -244,7 +246,7 @@ def main() -> int:
                         help="leave the controller's loaded configuration alone, "
                              "reading the ACF host-side only")
     parser.add_argument("--mode", default="DEFAULT",
-                        help="camera mode to select with --keep-config "
+                        help="ACF mode section to apply with --keep-config "
                              "(default: DEFAULT)")
     parser.add_argument("--exptime", type=float,
                         help="exposure time, in the unit the config selects")

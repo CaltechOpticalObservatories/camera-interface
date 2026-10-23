@@ -69,10 +69,9 @@ namespace Camera {
   /***** Camera::ArchonInterface::controller_cmd ******************************/
   /**
    * @brief      dispatcher for Archon-specific commands
-   * @details    This allows dispatching Archon controller specific commands by
-   *             receiving the commands and args and calling the appropriate
-   *             controller-specific function. This should be calling
-   *             ArchonInterface functions.
+   * @details    The server calls this for every name the core does not
+   *             recognize centrally. It handles the commands unique to the
+   *             Archon and passes any other name to instrument_cmd.
    * @param[in]  cmd        command
    * @param[in]  args       argument list
    * @param[out] retstring  return string
@@ -102,8 +101,8 @@ namespace Camera {
       return this->set_parameter(args, retstring);
     }
     else
-    if ( cmd == CAMERAD_MODE ) {
-      return this->set_camera_mode(args, retstring);
+    if ( cmd == CAMERAD_ACFMODE ) {
+      return this->acfmode(args, retstring);
     }
     else
     if ( cmd == CAMERAD_RAW ) {
@@ -122,8 +121,7 @@ namespace Camera {
       return this->sensor(args, retstring);
     }
     else {
-      retstring="unrecognized command";
-      return ERROR;
+      return this->instrument_cmd(cmd, args, retstring);
     }
   }
   /***** Camera::ArchonInterface::controller_cmd ******************************/
@@ -722,6 +720,10 @@ namespace Camera {
     const std::string function("Camera::ArchonInterface::load_firmware");
     logwrite(function, acffile);
 
+    // clear the exposure mode, so that none is selected after a load
+    //
+    this->exposuremode.reset();
+
     // load the ACF file and write to Archon configuration memory
     //
     long error = this->controller->load_acf(acffile);
@@ -735,7 +737,7 @@ namespace Camera {
     //
     if (error != NO_ERROR) this->controller->fetchlog();
 
-    // set the mode to DEFAULT
+    // set the acfmode to DEFAULT
     //
     if (error == NO_ERROR) error = this->set_camera_mode(std::string("DEFAULT"));
 
@@ -802,27 +804,24 @@ namespace Camera {
   /***** Camera::ArchonInterface::load_timing *********************************/
 
 
-  /***** Camera::ArchonInterface::set_camera_mode *****************************/
+  /***** Camera::ArchonInterface::acfmode *************************************/
   /**
-   * @brief      set a camera "mode"
-   * @details    Allowable camera modes are defined in the ACF file and specify
-   *             a set of camera settings which can be used to change camera
-   *             settings.
-   *             This version fits the general description of all virtual functions
-   *             inherited by the Camera::Interface base class and is overridden
-   *             by an Archon-specific implementation.
+   * @brief      applies an ACF mode section directly
+   * @details    Applies the settings in the ACF file's [MODE_<name>] section.
+   *             It does not select an exposure mode.
    * @param[in]  args       requested mode name (case-insensitive)
    * @param[out  retstring  current mode name
    * @return     ERROR|NO_ERROR
    *
    */
-  long ArchonInterface::set_camera_mode(std::string args, std::string &retstring) {
-    const std::string function("Camera::ArchonInterface::set_camera_mode");
+  long ArchonInterface::acfmode(const std::string &args, std::string &retstring) {
+    const std::string function("Camera::ArchonInterface::acfmode");
     // Help
     if (args=="?" || args=="help") {
-      retstring = CAMERAD_MODE;
+      retstring = CAMERAD_ACFMODE;
       retstring.append( " <name>\n" );
-      retstring.append( "  Applies camera settings associated with MODE_<name> specified in the ACF file.\n");
+      retstring.append( "  Applies the settings of [MODE_<name>] in the ACF file.\n" );
+      retstring.append( "  Does not select an exposure mode.\n" );
       retstring.append( "  Valid modes are: {" );
       for (const auto &mode : this->controller->modemap) {
         retstring.append(" "); retstring.append(mode.first);
@@ -833,6 +832,9 @@ namespace Camera {
     // call the work function
     return( this->set_camera_mode(args) );
   }
+  /***** Camera::ArchonInterface::acfmode *************************************/
+
+
   /***** Camera::ArchonInterface::set_camera_mode *****************************/
   /**
    * @brief      set a camera "mode"
@@ -875,12 +877,6 @@ namespace Camera {
 
     // if we made it all the way to the end then this is the selected mode
     this->controller->selectedmode = modeselect;
-
-    std::string target = this->default_exposure_mode_name();
-    for (const auto &m : this->get_exposure_modes()) {
-      if (m == modeselect) { target = modeselect; break; }
-    }
-    this->set_exposure_mode(target, {});
 
     return NO_ERROR;
   }

@@ -4,8 +4,9 @@ Commands that reach the detector controller rather than being interpreted by the
 the escape hatch for anything the higher-level commands do not cover.
 
 Two routes exist. `native` passes a command straight through and returns the reply. The commands
-routed through `controller_cmd`, marked Archon in the [base command table](base.md), are
-server-side implementations of controller-specific features.
+marked Archon in the [base command table](base.md) are implemented only by the Archon interface.
+The server hands any name it does not recognize centrally to
+`controller_cmd`, which handles the Archon's own commands and forwards the rest to the instrument.
 
 ## Archon
 
@@ -29,7 +30,7 @@ The server itself parses `FRAME`, `STATUS` and `SYSTEM` replies for its own book
 
 Beyond `native`, the Archon-specific commands are `raw` for pre-CDS sample capture, `getp` and
 `setp` for parameters, `inreg` for a VCPU input register, `loadtiming` and `readacf` for loading,
-`mode` for camera modes, `autofetch_mode`, and `heater` and `sensor` for the thermal modules. The
+`acfmode` for ACF mode sections, `autofetch_mode`, and `heater` and `sensor` for the thermal modules. The
 [raw samples](#raw-samples) and [heater and sensor](#heater-and-sensor) syntax is below.
 
 ## ARC (AstroCam)
@@ -38,8 +39,9 @@ Beyond `native`, the Archon-specific commands are `raw` for pre-CDS sample captu
 `native` is not implemented on an ARC build. `AstroCamInterface::native` logs "not yet implemented"
 and returns success, so the command replies `DONE` while doing nothing.
 
-`controller_cmd` is not implemented either, so every command in the Archon list above returns
-`not_supported` on an ARC build.
+`controller_cmd` handles no commands of its own on an ARC build, so the commands in the Archon list
+above that the server does not recognize pass to the instrument and return `not_supported` unless
+the instrument handles them.
 :::
 
 Passing three-letter DSP commands through to an ARC controller is therefore not currently possible
