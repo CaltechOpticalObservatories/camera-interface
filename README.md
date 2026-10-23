@@ -50,10 +50,10 @@ If you encounter any problems or have questions about this project, please open 
 
    `-DINTERFACE_TYPE=` is separate from `-DCONTROLLER=` and selects only which emulator is built. It defaults to `Archon`; `-DINTERFACE_TYPE=AstroCam` skips the emulator, since none is implemented for ARC.
 
-   To enable the shared-memory output (`SHM_ENABLED` in a `.cfg` file, see [Frame Outputs](#frame-outputs) below), add `-DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=<prefix>/lib/cmake`:
+   To enable the shared-memory output (`SHM_ENABLED` in a `.cfg` file, see [Frame Outputs](#frame-outputs) below), add `-DENABLE_SHM_OUTPUT=ON`:
 
     ```bash
-    $ cmake -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake ..
+    $ cmake -DENABLE_SHM_OUTPUT=ON ..
     ```
 
    This requires [ImageStreamIO](https://github.com/milk-org/ImageStreamIO) to already be built and installed, since it isn't packaged for common distros:
@@ -66,7 +66,7 @@ If you encounter any problems or have questions about this project, please open 
     $ sudo make install
     ```
 
-   ImageStreamIO's own `Config.cmake` files install directly under `<prefix>/lib/cmake/` rather than the CMake-conventional `<prefix>/lib/cmake/ImageStreamIO/`, so `-DImageStreamIO_DIR=...` must always be given explicitly, even for a standard system-wide install.
+   ImageStreamIO's own `Config.cmake` files install directly under `<prefix>/lib/cmake/` rather than the CMake-conventional `<prefix>/lib/cmake/ImageStreamIO/`. The build looks in `/usr/local/lib/cmake` for them; for any other prefix pass `-DImageStreamIO_DIR=<prefix>/lib/cmake`.
 
    To build the Python module (see [Python Module](#python-module) below), add `-DBUILD_PYTHON_MODULE=ON`. It is off by default, so builds that don't want it never need pybind11. To install it into an environment rather than build it here, see [Installing with pip](#installing-with-pip) instead, which fetches pybind11 itself:
 

@@ -48,7 +48,7 @@ These are CMake options, fixed when the software is compiled, not `.cfg` keys.
 |---|---|---|
 | `CONTROLLER` | none, required | `archon` or `astrocam`. CMake errors out if unset. |
 | `INTERFACE_TYPE` | `Archon` | Selects which emulator is built, independently of `CONTROLLER`. `AstroCam` builds none, since none exists for ARC. |
-| `ENABLE_SHM_OUTPUT` | `OFF` | Build the ImageStreamIO shared-memory output. Also needs `-DImageStreamIO_DIR=<prefix>/lib/cmake`. |
+| `ENABLE_SHM_OUTPUT` | `OFF` | Build the ImageStreamIO shared-memory output. Found in `/usr/local/lib/cmake`; pass `-DImageStreamIO_DIR=<prefix>/lib/cmake` for another prefix. |
 | `BUILD_PYTHON_MODULE` | `OFF` | Build the `camera_interface` Python module. Needs pybind11 at compile time only. |
 | `CMAKE_INSTALL_PREFIX` | `/usr/local` | Where `make install` puts binaries and the module |
 
