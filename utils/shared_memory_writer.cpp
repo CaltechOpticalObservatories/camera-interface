@@ -16,7 +16,7 @@
 namespace {
 
   constexpr int NUM_KEYWORDS = 3;         // FRAMENO, TIMESTMP, SEQNUM
-  constexpr mode_t SEGMENT_MODE = 0664;   // group-writable so a co-user can clean up a leftover
+  constexpr mode_t SEGMENT_MODE = 0666;   // readers open read-write to wait on the in-segment semaphores
 
   void set_long_keyword(IMAGE_KEYWORD &keyword, const char *name, int64_t value,
                         const char *comment) {
