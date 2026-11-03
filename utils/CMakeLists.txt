@@ -24,7 +24,8 @@ add_library(network STATIC
 target_link_libraries(network nlohmann_json::nlohmann_json)
 
 if(ENABLE_SHM_OUTPUT)
-  find_package(ImageStreamIO CONFIG REQUIRED)
+  # Upstream installs its config directly in <prefix>/lib/cmake, which find_package does not search
+  find_package(ImageStreamIO CONFIG REQUIRED PATHS /usr/local/lib/cmake)
 
   add_library(shared_memory_writer STATIC
           ${PROJECT_UTILS_DIR}/shared_memory_writer.cpp

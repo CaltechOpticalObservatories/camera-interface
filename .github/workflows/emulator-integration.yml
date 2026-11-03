@@ -49,7 +49,7 @@ jobs:
         mkdir -p ${{github.workspace}}/build
         cd ${{github.workspace}}/build
         cmake -DCONTROLLER=archon \
-              -DENABLE_SHM_OUTPUT=ON -DImageStreamIO_DIR=/usr/local/lib/cmake \
+              -DENABLE_SHM_OUTPUT=ON \
               -DBUILD_PYTHON_MODULE=ON ..
         make -j$(nproc)
 
