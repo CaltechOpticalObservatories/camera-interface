@@ -40,7 +40,8 @@ Frame geometry is deliberately not a key. An ImageStreamIO stream's geometry is 
 lifetime, so the writer recreates the stream whenever the geometry changes from what is allocated.
 
 Unlike the FITS writer, this output posts a semaphore per frame, so it is the right attachment point
-for anything that has to wake up on every frame.
+for anything that has to wake up on every frame. The semaphores live inside the segment, so a reader
+opens it read-write; segments are created `0666` so any local user can attach.
 
 ### Readers
 

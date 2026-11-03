@@ -357,7 +357,8 @@ AO frameworks such as <a class="reference external" href="https://github.com/cac
 <p>Frame geometry is deliberately not a key. An ImageStreamIO stream’s geometry is fixed for its
 lifetime, so the writer recreates the stream whenever the geometry changes from what is allocated.</p>
 <p>Unlike the FITS writer, this output posts a semaphore per frame, so it is the right attachment point
-for anything that has to wake up on every frame.</p>
+for anything that has to wake up on every frame. The semaphores live inside the segment, so a reader
+opens it read-write; segments are created <code class="docutils literal notranslate"><span class="pre">0666</span></code> so any local user can attach.</p>
 <section id="readers">
 <h3>Readers<a class="headerlink" href="#readers" title="Link to this heading">¶</a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">camerad-shm-reader</span></code> prints geometry, keywords and pixel statistics once, for diagnostics:</p>
