@@ -939,8 +939,11 @@ namespace Archon {
         size_t raw_line_bytes = static_cast<size_t>(raw_blocks) * BLOCKLEN;
 
         iface.frame.bufdata.at(idx).resize( raw_lines > 0 ? raw_offset + raw_line_bytes * raw_lines : frame_bytes );
-        if (iface.frame_source) {
-          iface.frame_source->fill_frame(iface.frame.bufdata.at(idx).data(), width, height, bytes_per_pixel);
+        if ( iface.frame_source &&
+             !iface.frame_source->fill_frame(iface.frame.bufdata.at(idx).data(), width, height, bytes_per_pixel) ) {
+          std::cerr << get_timestamp() << function << "ERROR: could not fill frame buffer\n";
+          _exception.store(true);
+          break;
         }
         if ( raw_lines > 0 ) {
           iface.raw_source.fill_raw( iface.frame.bufdata.at(idx).data() + raw_offset, raw_samples, raw_lines, raw_line_bytes );
