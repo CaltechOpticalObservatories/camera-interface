@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <limits>
 #include <fitsio.h>
 
@@ -23,6 +25,11 @@ namespace Emulator {
 
     public:
       virtual ~FrameSource() = default;
+
+      // Number of frames the source can supply before it must repeat, or 0 if
+      // it is unlimited. Sources that cycle or generate data are unlimited.
+      //
+      virtual size_t available_frames() const { return 0; }
 
       /** @brief  Fill buffer with one frame of pixel data
        *  @param  buffer           destination buffer, must be at least width*height*bytes_per_pixel bytes
@@ -133,6 +140,7 @@ namespace Emulator {
     private:
       std::vector<std::string> files;
       size_t current_index = 0;
+      bool limited = false;
 
     public:
       explicit FitsFileSource(const std::string &datadir) {
@@ -148,6 +156,18 @@ namespace Emulator {
         std::cout << get_timestamp() << function << files.size()
                   << " FITS files found in " << datadir << "\n";
       }
+
+      // Serve a fixed set of files, taken as the complete set of frames
+      // available. The directory constructor above instead cycles indefinitely.
+      //
+      explicit FitsFileSource( std::vector<std::string> paths )
+          : files( std::move( paths ) ), limited( true ) {
+        std::string function = "(Emulator::FitsFileSource) ";
+        std::cout << get_timestamp() << function << files.size()
+                  << " FITS files\n";
+      }
+
+      size_t available_frames() const override { return limited ? files.size() : 0; }
 
       bool fill_frame(char* buffer, int width, int height, int bytes_per_pixel) override {
         std::string function = "(Emulator::FitsFileSource::fill_frame) ";
@@ -204,6 +224,106 @@ namespace Emulator {
       }
   };
 
+  // Read headerless frame buffers from disk, serve them sequentially.
+  // A raw file holds width*height pixels at the frame buffer's sample width and
+  // nothing else, so the frame geometry and pixel width come from the caller
+  // rather than from the file.
+  //
+  class RawFileSource : public FrameSource {
+    private:
+    std::vector<std::string> files;
+    size_t current_index = 0;
+
+    public:
+    explicit RawFileSource( std::vector<std::string> paths )
+        : files( std::move( paths ) ) {
+      std::string function = "(Emulator::RawFileSource) ";
+      std::cout << get_timestamp() << function << files.size()
+                << " raw files\n";
+    }
+
+    size_t available_frames() const override { return files.size(); }
+
+    bool fill_frame( char *buffer, int width, int height, int bytes_per_pixel ) override {
+      std::string function = "(Emulator::RawFileSource::fill_frame) ";
+      if ( files.empty() ) {
+        std::cerr << get_timestamp() << function << "ERROR: no raw files\n";
+        return false;
+      }
+
+      const auto &path = files[current_index % files.size()];
+      current_index++;
+
+      const std::streamsize expected =
+          static_cast<std::streamsize>( width ) * height * bytes_per_pixel;
+
+      std::ifstream file( path, std::ios::binary | std::ios::ate );
+      if ( !file ) {
+        std::cerr << get_timestamp() << function << "ERROR opening " << path << "\n";
+        return false;
+      }
+
+      const std::streamsize filesize = file.tellg();
+      if ( filesize != expected ) {
+        std::cerr << get_timestamp() << function << "ERROR: " << path << " is "
+                  << filesize << " bytes, expected " << expected
+                  << " for " << width << "x" << height
+                  << " at " << 8 * bytes_per_pixel << " bits per pixel\n";
+        return false;
+      }
+
+      file.seekg( 0 );
+      if ( !file.read( buffer, expected ) ) {
+        std::cerr << get_timestamp() << function << "ERROR reading pixels from "
+                  << path << "\n";
+        return false;
+      }
+
+      std::cout << get_timestamp() << function << "loaded " << path << "\n";
+      return true;
+    }
+  };
+
+  // Expand a frame source specification into a list of files.
+  // Accepts a directory, a single file, or a comma separated list of files.
+  // Returns an empty list if nothing matches.
+  //
+  inline std::vector<std::string> expand_source_spec( const std::string &spec,
+                                                      bool ( *accept )( const std::string & ) ) {
+    std::string function = "(Emulator::expand_source_spec) ";
+    std::vector<std::string> paths;
+
+    if ( std::filesystem::is_directory( spec ) ) {
+      for ( const auto &entry : std::filesystem::directory_iterator( spec ) ) {
+        auto path = entry.path().string();
+        if ( accept( path ) ) paths.push_back( path );
+      }
+      std::sort( paths.begin(), paths.end() );
+      return paths;
+    }
+
+    std::stringstream ss( spec );
+    std::string item;
+    while ( std::getline( ss, item, ',' ) ) {
+      if ( item.empty() || !accept( item ) ) continue;
+      if ( !std::filesystem::is_regular_file( item ) ) {
+        std::cerr << get_timestamp() << function << "ERROR: " << item << " not found\n";
+        return {};
+      }
+      paths.push_back( item );
+    }
+    return paths;
+  }
+
+  inline bool is_fits_name( const std::string &path ) {
+    return path.ends_with( ".fits" ) || path.ends_with( ".fits.gz" ) ||
+           path.ends_with( ".fit" )  || path.ends_with( ".fit.gz" );
+  }
+
+  inline bool is_raw_name( const std::string &path ) {
+    return path.ends_with( ".raw" );
+  }
+
 
   // Create the appropriate FrameSource based on config
   //
@@ -217,4 +337,29 @@ namespace Emulator {
     return std::make_unique<SyntheticSource>(active_mode, taplines);
   }
 
+  // Create a FrameSource from a runtime specification. A spec naming raw files
+  // yields a raw source, one naming FITS files yields a FITS source, and an
+  // empty spec or "none" yields generated data. Returns nullptr if the spec
+  // names files but none of them match a recognised extension.
+  //
+  inline std::unique_ptr<FrameSource> make_frame_source_from_spec(
+      const std::string &spec,
+      std::string *active_mode = nullptr,
+      int taplines = 0 ) {
+    if ( spec.empty() || caseCompareString( spec, "none" ) ) {
+      return std::make_unique<SyntheticSource>( active_mode, taplines );
+    }
+
+    auto raws = expand_source_spec( spec, is_raw_name );
+    if ( !raws.empty() ) {
+      return std::make_unique<RawFileSource>( std::move( raws ) );
+    }
+
+    auto fits = expand_source_spec( spec, is_fits_name );
+    if ( !fits.empty() ) {
+      return std::make_unique<FitsFileSource>( std::move( fits ) );
+    }
+
+    return nullptr;
+  }
 }

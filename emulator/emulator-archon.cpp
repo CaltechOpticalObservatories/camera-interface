@@ -141,6 +141,45 @@ namespace Archon {
   /***** Interface::configure_controller **************************************/
 
 
+  /***** Interface::frame_source_select ***************************************/
+  /**
+   * @brief      choose the source of emulated pixel data
+   * @param[in]  spec  directory, file, or comma separated list of files
+   * @return     ERROR or NO_ERROR
+   *
+   * Takes effect on the next exposure. An empty spec or "none" restores
+   * generated data. Refused while an exposure is in progress, so that one
+   * source serves every frame of a sequence.
+   *
+   */
+  long Interface::frame_source_select( const std::string &spec ) {
+    std::string function = " (Archon::Interface::frame_source_select) ";
+    std::stringstream message;
+
+    if ( this->exposing.load() ) {
+      logwrite( function, "ERROR exposure in progress" );
+      return ERROR;
+    }
+
+    auto source = Emulator::make_frame_source_from_spec( spec, &this->active_mode );
+
+    if ( source == nullptr ) {
+      logwrite( function, "ERROR no usable frames in \"" + spec + "\"" );
+      return ERROR;
+    }
+
+    this->frame_source = std::move( source );
+
+    const size_t nframes = this->frame_source->available_frames();
+    message << "frame source: " << ( spec.empty() ? "synthetic" : spec ) << " (";
+    if ( nframes > 0 ) message << nframes << " frames)"; else message << "unlimited)";
+    logwrite( function, message.str() );
+
+    return NO_ERROR;
+  }
+  /***** Interface::frame_source_select ***************************************/
+
+
   /***** Interface::system_report *********************************************/
   /**
    * @brief      handles the incoming SYSTEM command
@@ -773,6 +812,21 @@ namespace Archon {
       // start an exposure thread.
       //
       if ( ( key == this->exposeparam ) && ( ival > 0 ) ) {
+        // A source serving a fixed set of frames cycles through them, so a
+        // request for more frames than it holds would silently repeat frames.
+        // Refuse it instead. A source reporting zero frames is unlimited.
+        //
+        size_t available = ( this->frame_source ? this->frame_source->available_frames() : 0 );
+        size_t requested = static_cast<size_t>(ival) * this->image->get_frames_per_exposure();
+        if ( available > 0 && available < requested ) {
+          std::stringstream errmsg;
+          errmsg << "ERROR frame source holds " << available
+                 << " frame" << ( available == 1 ? "" : "s" )
+                 << " but " << requested << " requested";
+          logwrite( function, errmsg.str() );
+          return ERROR;
+        }
+
         // spawn a thread to mimic readout and create the data
         if ( !this->exposing.load() ) std::thread( dothread_expose, std::ref(*this), ival ).detach();
         else {
@@ -939,8 +993,11 @@ namespace Archon {
         size_t raw_line_bytes = static_cast<size_t>(raw_blocks) * BLOCKLEN;
 
         iface.frame.bufdata.at(idx).resize( raw_lines > 0 ? raw_offset + raw_line_bytes * raw_lines : frame_bytes );
-        if (iface.frame_source) {
-          iface.frame_source->fill_frame(iface.frame.bufdata.at(idx).data(), width, height, bytes_per_pixel);
+        if ( iface.frame_source &&
+             !iface.frame_source->fill_frame(iface.frame.bufdata.at(idx).data(), width, height, bytes_per_pixel) ) {
+          std::cerr << get_timestamp() << function << "ERROR: could not fill frame buffer\n";
+          _exception.store(true);
+          break;
         }
         if ( raw_lines > 0 ) {
           iface.raw_source.fill_raw( iface.frame.bufdata.at(idx).data() + raw_offset, raw_samples, raw_lines, raw_line_bytes );

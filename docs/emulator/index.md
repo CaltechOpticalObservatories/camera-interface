@@ -51,6 +51,16 @@ Frames carry synthetic pixel data by default, which validates plumbing, geometry
 rather than image quality. Setting `EMULATOR_DATADIR` to a directory of real frames makes it serve
 those instead, which is what makes it useful for exercising downstream processing.
 
+The source can also be changed while running with `FRAMESRC`, a command of the emulator's own that a
+real Archon does not have. Send it through the server's `native` command. Its argument is a
+directory, a single file, a comma-separated list of files with no spaces, or `none` to return to
+synthetic data. A `.raw` file is one frame buffer exactly as an Archon stores it: width × height
+pixels at 16 bits, or 32 bits when the ACF sets `SAMPLEMODE=1`, and nothing else. A `.fits` file
+holds one frame. If a directory holds both kinds, only the `.raw` files are served. The files
+`FRAMESRC` names are taken as the complete set of frames, so an exposure asking for more frames
+than they hold is refused, whereas a directory set by `EMULATOR_DATADIR` cycles indefinitely.
+`FRAMESRC` is refused while an exposure is in progress.
+
 Per-detector frame sources live alongside the emulator ({source}`emulator/generic.h`,
 {source}`emulator/nirc2.h`) and are selected by `-i`. They also parse their own keys from the
 config, including `READOUT_TIME` and the pixel and row timings that set how fast a readout appears
